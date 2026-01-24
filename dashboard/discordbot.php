@@ -5,8 +5,8 @@ include_once __DIR__ . '/lang/i18n.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -38,7 +38,7 @@ $consoleLogs = array();
 // Initialize Discord Bot Database Connection
 $discord_conn = new mysqli($db_servername, $db_username, $db_password, "specterdiscordbot");
 if ($discord_conn->connect_error) {
-    die('Discord Database Connection failed: ' . $discord_conn->connect_error);
+  die('Discord Database Connection failed: ' . $discord_conn->connect_error);
 }
 
 // Check if the user is already linked with Discord and validate tokens
@@ -89,8 +89,10 @@ if (isset($username) && $username === 'botofthespecter') {
       $needs_relink = true;
     } else {
       // Check if we have ALL required token data: access_token, refresh_token
-      if (!empty($discordData['access_token']) && 
-          !empty($discordData['refresh_token'])) {
+      if (
+        !empty($discordData['access_token']) &&
+        !empty($discordData['refresh_token'])
+      ) {
         // Validate token and get current authorization info using /oauth2/@me
         $auth_url = 'https://discord.com/api/v10/oauth2/@me';
         $token = $discordData['access_token'];
@@ -123,9 +125,12 @@ if (isset($username) && $username === 'botofthespecter') {
                   $hours = $diff->h;
                   $minutes = $diff->i;
                   $parts = [];
-                  if ($days > 0) $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
-                  if ($hours > 0) $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
-                  if ($minutes > 0 && count($parts) < 2) $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+                  if ($days > 0)
+                    $parts[] = $days . ' day' . ($days > 1 ? 's' : '');
+                  if ($hours > 0)
+                    $parts[] = $hours . ' hour' . ($hours > 1 ? 's' : '');
+                  if ($minutes > 0 && count($parts) < 2)
+                    $parts[] = $minutes . ' minute' . ($minutes > 1 ? 's' : '');
                   $expires_str = implode(', ', $parts);
                 }
               } catch (Exception $e) {
@@ -167,8 +172,8 @@ $linkingMessageType = "";
 
 // Handle user denial (error=access_denied in query string)
 if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
-    $linkingMessage = "Authorization was denied. Please allow access to link your Discord account.";
-    $linkingMessageType = "is-danger";
+  $linkingMessage = "Authorization was denied. Please allow access to link your Discord account.";
+  $linkingMessageType = "is-danger";
 }
 
 // Handle Discord OAuth callback
@@ -247,8 +252,12 @@ if (isset($_GET['code']) && !$is_linked) {
     } else {
       $linkingMessage = "Error: Failed to retrieve access token from Discord API.";
       $linkingMessageType = "is-danger";
-      if (isset($params['error'])) { $linkingMessage .= " Error: " . htmlspecialchars($params['error']); }
-      if (isset($params['error_description'])) { $linkingMessage .= " Description: " . htmlspecialchars($params['error_description']); }
+      if (isset($params['error'])) {
+        $linkingMessage .= " Error: " . htmlspecialchars($params['error']);
+      }
+      if (isset($params['error_description'])) {
+        $linkingMessage .= " Description: " . htmlspecialchars($params['error_description']);
+      }
     }
   }
 }
@@ -314,56 +323,49 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
       $errorMsg .= "Guild not linked or no guild selected.<br>";
     }
   }
-    // Handle FreeStuff (Free Games) settings save
-    if (isset($_POST['save_freestuff_settings'])) {
-      if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect_error) {
-        $fs_twitch = trim($_POST['freestuff_twitch_username'] ?? '');
-        $fs_channel = trim($_POST['freestuff_channel_id'] ?? '');
-        $fs_enabled = isset($_POST['freestuff_enabled']) ? 1 : 0;
-        // Validate required fields
-        if (empty($fs_twitch)) {
-          $errorMsg .= "Twitch username is required for Free Games module.<br>";
-        } else {
-          // Check if record exists
-          $checkStmt = $discord_conn->prepare("SELECT id FROM freestuff_settings WHERE guild_id = ?");
-          $checkStmt->bind_param("s", $existingGuildId);
-          $checkStmt->execute();
-          $checkRes = $checkStmt->get_result();
-          if ($checkRes && $checkRes->num_rows > 0) {
-            // Update
-            $updateStmt = $discord_conn->prepare("UPDATE freestuff_settings SET twitch_username = ?, channel_id = ?, enabled = ? WHERE guild_id = ?");
-            $updateStmt->bind_param("ssis", $fs_twitch, $fs_channel, $fs_enabled, $existingGuildId);
-            // Note: bind types: s=string, i=int; using ssis may be safer but enforce cast
-            $ok = $updateStmt->execute();
-            if ($ok) {
-              $buildStatus .= "Free Games settings updated successfully.<br>";
-              $existingFreestuffEnabled = $fs_enabled;
-              $existingFreestuffChannelID = $fs_channel;
-              $existingFreestuffTwitchUser = $fs_twitch;
-            } else {
-              $errorMsg .= "Failed to update Free Games settings: " . $discord_conn->error . "<br>";
-            }
-            $updateStmt->close();
-          } else {
-            // Insert
-            $insertStmt = $discord_conn->prepare("INSERT INTO freestuff_settings (guild_id, twitch_username, channel_id, enabled) VALUES (?, ?, ?, ?)");
-            $insertStmt->bind_param("sssi", $existingGuildId, $fs_twitch, $fs_channel, $fs_enabled);
-            if ($insertStmt->execute()) {
-              $buildStatus .= "Free Games settings saved successfully.<br>";
-              $existingFreestuffEnabled = $fs_enabled;
-              $existingFreestuffChannelID = $fs_channel;
-              $existingFreestuffTwitchUser = $fs_twitch;
-            } else {
-              $errorMsg .= "Failed to save Free Games settings: " . $discord_conn->error . "<br>";
-            }
-            $insertStmt->close();
-          }
-          $checkStmt->close();
-        }
+  // Handle FreeStuff (Free Games) settings save
+  if (isset($_POST['save_freestuff_settings'])) {
+    if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect_error) {
+      $fs_channel = trim($_POST['freestuff_channel_id'] ?? '');
+      // Validate required fields
+      if (empty($fs_channel)) {
+        $errorMsg .= "Discord channel is required for Free Games module.<br>";
       } else {
-        $errorMsg .= "Guild not linked or no guild selected for Free Games settings.<br>";
+        // Check if record exists
+        $checkStmt = $discord_conn->prepare("SELECT id FROM freestuff_settings WHERE guild_id = ?");
+        $checkStmt->bind_param("s", $existingGuildId);
+        $checkStmt->execute();
+        $checkRes = $checkStmt->get_result();
+        if ($checkRes && $checkRes->num_rows > 0) {
+          // Update
+          $updateStmt = $discord_conn->prepare("UPDATE freestuff_settings SET channel_id = ? WHERE guild_id = ?");
+          $updateStmt->bind_param("ss", $fs_channel, $existingGuildId);
+          $ok = $updateStmt->execute();
+          if ($ok) {
+            $buildStatus .= "Free Games settings updated successfully.<br>";
+            $existingFreestuffChannelID = $fs_channel;
+          } else {
+            $errorMsg .= "Failed to update Free Games settings: " . $discord_conn->error . "<br>";
+          }
+          $updateStmt->close();
+        } else {
+          // Insert
+          $insertStmt = $discord_conn->prepare("INSERT INTO freestuff_settings (guild_id, channel_id) VALUES (?, ?)");
+          $insertStmt->bind_param("ss", $existingGuildId, $fs_channel);
+          if ($insertStmt->execute()) {
+            $buildStatus .= "Free Games settings saved successfully.<br>";
+            $existingFreestuffChannelID = $fs_channel;
+          } else {
+            $errorMsg .= "Failed to save Free Games settings: " . $discord_conn->error . "<br>";
+          }
+          $insertStmt->close();
+        }
+        $checkStmt->close();
       }
+    } else {
+      $errorMsg .= "Guild not linked or no guild selected for Free Games settings.<br>";
     }
+  }
   try {
     // Handle JSON POST requests for server management settings
     $content = file_get_contents('php://input');
@@ -391,8 +393,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         $stmt->close();
       } elseif ($action === 'save_role_history') {
-        $enabled = isset($data['enabled']) ? (int)$data['enabled'] : 0;
-        $retention_days = isset($data['retention_days']) ? (int)$data['retention_days'] : 30;
+        $enabled = isset($data['enabled']) ? (int) $data['enabled'] : 0;
+        $retention_days = isset($data['retention_days']) ? (int) $data['retention_days'] : 30;
         // Validate retention days
         if ($retention_days < 1 || $retention_days > 365) {
           $retention_days = 30;
@@ -413,8 +415,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
       }
     } else {
-    // Handle form POST requests
-    if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id']) && !isset($_POST['save_stream_online']) && !isset($_POST['save_alert_channels']) && !isset($_POST['save_stream_monitoring'])) {
+      // Handle form POST requests
+      if (isset($_POST['guild_id']) && !isset($_POST['live_channel_id']) && !isset($_POST['save_stream_online']) && !isset($_POST['save_alert_channels']) && !isset($_POST['save_stream_monitoring'])) {
         // Server Configuration: Save only guild_id to discord_users table
         $guild_id = $_POST['guild_id'];
         $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
@@ -437,13 +439,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $streamAlertCustomRole = !empty($_POST['stream_alert_custom_role']) ? $_POST['stream_alert_custom_role'] : null;
         $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
         $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
-        if ($stmt->execute()) { $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>"; }
-        else { $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>"; }
+        if ($stmt->execute()) {
+          $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>";
+        } else {
+          $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>";
+        }
         // Validate lengths for online/offline text
         if (!is_null($onlineText) && strlen($onlineText) > 20) {
-          $errorMsg .= "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText) ."<br>";
+          $errorMsg .= "Online text cannot exceed 20 characters. Current length: " . strlen($onlineText) . "<br>";
         } elseif (!is_null($offlineText) && strlen($offlineText) > 20) {
-          $errorMsg .= "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText) ."<br>";
+          $errorMsg .= "Offline text cannot exceed 20 characters. Current length: " . strlen($offlineText) . "<br>";
         } else {
           $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
           $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
@@ -583,7 +588,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Check if we have both guild ID and database connection
         if (!empty($role_history_guild_id) && $discord_conn && !$discord_conn->connect_error) {
           $restore_roles = isset($_POST['restore_roles']) ? 1 : 0;
-          $history_retention_days = isset($_POST['history_retention_days']) ? (int)$_POST['history_retention_days'] : 30;
+          $history_retention_days = isset($_POST['history_retention_days']) ? (int) $_POST['history_retention_days'] : 30;
           // Validate retention days
           if ($history_retention_days < 1 || $history_retention_days > 365) {
             $history_retention_days = 30;
@@ -630,7 +635,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $role_tracking_log_channel = !empty($_POST['role_tracking_log_channel_id']) ? $_POST['role_tracking_log_channel_id'] : null;
           $track_additions = isset($_POST['track_role_additions']) ? 1 : 0;
           $track_removals = isset($_POST['track_role_removals']) ? 1 : 0;
-          
+
           if (!$role_tracking_log_channel) {
             $errorMsg .= "Log channel is required for Role Tracking.<br>";
           } else if (!$track_additions && !$track_removals) {
@@ -677,14 +682,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           }
           $guildStmt->close();
         }
-        
+
         if (!empty($server_role_management_guild_id) && $discord_conn && !$discord_conn->connect_error) {
           $server_role_mgmt_enabled = 1;
           $server_role_mgmt_log_channel = !empty($_POST['server_mgmt_log_channel_id']) ? $_POST['server_mgmt_log_channel_id'] : null;
           $track_role_creation = isset($_POST['track_role_creation']) ? 1 : 0;
           $track_role_deletion = isset($_POST['track_role_deletion']) ? 1 : 0;
           $track_role_edits = isset($_POST['track_role_edits']) ? 1 : 0;
-          
+
           // Validate that at least one tracking option is selected
           if (empty($server_role_mgmt_log_channel)) {
             $errorMsg .= "Please select a log channel for Server Role Management.<br>";
@@ -699,7 +704,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
               'track_deletion' => $track_role_deletion,
               'track_edits' => $track_role_edits
             ]);
-            
+
             $stmt = $discord_conn->prepare("UPDATE server_management SET server_role_management_configuration = ? WHERE server_id = ?");
             if ($stmt) {
               $stmt->bind_param("ss", $config, $server_role_management_guild_id);
@@ -917,7 +922,8 @@ $serverManagementSettings = [
   'reactionRoles' => false,
   'rulesConfiguration' => false,
   'streamSchedule' => false,
-  'embedBuilder' => false
+  'embedBuilder' => false,
+  'freeGames' => false
 ];
 
 if ($is_linked && $hasGuildId) {
@@ -928,25 +934,26 @@ if ($is_linked && $hasGuildId) {
     $serverMgmtResult = $serverMgmtStmt->get_result();
     if ($serverMgmtData = $serverMgmtResult->fetch_assoc()) {
       $serverManagementSettings = [
-        'welcomeMessage' => (bool)$serverMgmtData['welcomeMessage'],
-        'autoRole' => (bool)$serverMgmtData['autoRole'],
-        'roleHistory' => (bool)$serverMgmtData['roleHistory'],
-        'messageTracking' => (bool)$serverMgmtData['messageTracking'],
-        'roleTracking' => (bool)$serverMgmtData['roleTracking'],
-        'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
-        'userTracking' => (bool)$serverMgmtData['userTracking'],
-        'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
-        'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration'],
-        'streamSchedule' => (bool)$serverMgmtData['streamSchedule'],
-        'embedBuilder' => (bool)$serverMgmtData['embedBuilder']
+        'welcomeMessage' => (bool) $serverMgmtData['welcomeMessage'],
+        'autoRole' => (bool) $serverMgmtData['autoRole'],
+        'roleHistory' => (bool) $serverMgmtData['roleHistory'],
+        'messageTracking' => (bool) $serverMgmtData['messageTracking'],
+        'roleTracking' => (bool) $serverMgmtData['roleTracking'],
+        'serverRoleManagement' => (bool) $serverMgmtData['serverRoleManagement'],
+        'userTracking' => (bool) $serverMgmtData['userTracking'],
+        'reactionRoles' => (bool) $serverMgmtData['reactionRoles'],
+        'rulesConfiguration' => (bool) $serverMgmtData['rulesConfiguration'],
+        'streamSchedule' => (bool) $serverMgmtData['streamSchedule'],
+        'embedBuilder' => (bool) $serverMgmtData['embedBuilder'],
+        'freeGames' => (bool) $serverMgmtData['freeGames']
       ];
       // Override channel IDs with values from server_management table if they exist
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
         $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
       }
       $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
-      $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
-      $existingWelcomeEmbed = (int)($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
+      $existingWelcomeUseDefault = (int) ($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
+      $existingWelcomeEmbed = (int) ($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
       $existingWelcomeColour = $serverMgmtData['welcome_message_configuration_colour'] ?? "#00d1b2";
       if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
         $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
@@ -955,53 +962,53 @@ if ($is_linked && $hasGuildId) {
       if (!empty($serverMgmtData['role_history_configuration'])) {
         $roleHistoryConfig = json_decode($serverMgmtData['role_history_configuration'], true);
         if ($roleHistoryConfig && is_array($roleHistoryConfig)) {
-          $existingRoleHistoryEnabled = isset($roleHistoryConfig['enabled']) ? (int)$roleHistoryConfig['enabled'] : 0;
-          $existingRoleHistoryRetention = isset($roleHistoryConfig['retention_days']) ? (int)$roleHistoryConfig['retention_days'] : 30;
+          $existingRoleHistoryEnabled = isset($roleHistoryConfig['enabled']) ? (int) $roleHistoryConfig['enabled'] : 0;
+          $existingRoleHistoryRetention = isset($roleHistoryConfig['retention_days']) ? (int) $roleHistoryConfig['retention_days'] : 30;
         }
       }
       // Parse role_tracking_configuration JSON
       if (!empty($serverMgmtData['role_tracking_configuration'])) {
         $roleTrackingConfig = json_decode($serverMgmtData['role_tracking_configuration'], true);
         if ($roleTrackingConfig && is_array($roleTrackingConfig)) {
-          $existingRoleTrackingEnabled = isset($roleTrackingConfig['enabled']) ? (int)$roleTrackingConfig['enabled'] : 0;
+          $existingRoleTrackingEnabled = isset($roleTrackingConfig['enabled']) ? (int) $roleTrackingConfig['enabled'] : 0;
           $existingRoleTrackingLogChannel = isset($roleTrackingConfig['log_channel_id']) ? $roleTrackingConfig['log_channel_id'] : "";
-          $existingRoleTrackingAdditions = isset($roleTrackingConfig['track_additions']) ? (int)$roleTrackingConfig['track_additions'] : 1;
-          $existingRoleTrackingRemovals = isset($roleTrackingConfig['track_removals']) ? (int)$roleTrackingConfig['track_removals'] : 1;
+          $existingRoleTrackingAdditions = isset($roleTrackingConfig['track_additions']) ? (int) $roleTrackingConfig['track_additions'] : 1;
+          $existingRoleTrackingRemovals = isset($roleTrackingConfig['track_removals']) ? (int) $roleTrackingConfig['track_removals'] : 1;
         }
       }
       // Parse server_role_management_configuration JSON
       if (!empty($serverMgmtData['server_role_management_configuration'])) {
         $serverRoleManagementConfig = json_decode($serverMgmtData['server_role_management_configuration'], true);
         if ($serverRoleManagementConfig && is_array($serverRoleManagementConfig)) {
-          $existingServerRoleManagementEnabled = isset($serverRoleManagementConfig['enabled']) ? (int)$serverRoleManagementConfig['enabled'] : 0;
+          $existingServerRoleManagementEnabled = isset($serverRoleManagementConfig['enabled']) ? (int) $serverRoleManagementConfig['enabled'] : 0;
           $existingServerRoleManagementLogChannel = isset($serverRoleManagementConfig['log_channel_id']) ? $serverRoleManagementConfig['log_channel_id'] : "";
-          $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int)$serverRoleManagementConfig['track_creation'] : 1;
-          $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
-          $existingRoleEditTracking = isset($serverRoleManagementConfig['track_edits']) ? (int)$serverRoleManagementConfig['track_edits'] : 1;
+          $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int) $serverRoleManagementConfig['track_creation'] : 1;
+          $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int) $serverRoleManagementConfig['track_deletion'] : 1;
+          $existingRoleEditTracking = isset($serverRoleManagementConfig['track_edits']) ? (int) $serverRoleManagementConfig['track_edits'] : 1;
         }
       }
       // Parse message_tracking_configuration JSON
       if (!empty($serverMgmtData['message_tracking_configuration'])) {
         $messageTrackingConfig = json_decode($serverMgmtData['message_tracking_configuration'], true);
         if ($messageTrackingConfig && is_array($messageTrackingConfig)) {
-          $existingMessageTrackingEnabled = isset($messageTrackingConfig['enabled']) ? (int)$messageTrackingConfig['enabled'] : 0;
+          $existingMessageTrackingEnabled = isset($messageTrackingConfig['enabled']) ? (int) $messageTrackingConfig['enabled'] : 0;
           $existingMessageTrackingLogChannel = isset($messageTrackingConfig['log_channel_id']) ? $messageTrackingConfig['log_channel_id'] : "";
-          $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int)$messageTrackingConfig['track_edits'] : 1;
-          $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int)$messageTrackingConfig['track_deletes'] : 1;
+          $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int) $messageTrackingConfig['track_edits'] : 1;
+          $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int) $messageTrackingConfig['track_deletes'] : 1;
         }
       }
       // Parse user_tracking_configuration JSON
       if (!empty($serverMgmtData['user_tracking_configuration'])) {
         $userTrackingConfig = json_decode($serverMgmtData['user_tracking_configuration'], true);
         if ($userTrackingConfig && is_array($userTrackingConfig)) {
-          $existingUserTrackingEnabled = isset($userTrackingConfig['enabled']) ? (int)$userTrackingConfig['enabled'] : 0;
+          $existingUserTrackingEnabled = isset($userTrackingConfig['enabled']) ? (int) $userTrackingConfig['enabled'] : 0;
           $existingUserTrackingLogChannel = isset($userTrackingConfig['log_channel_id']) ? $userTrackingConfig['log_channel_id'] : "";
-          $existingUserJoinTracking = isset($userTrackingConfig['track_joins']) ? (int)$userTrackingConfig['track_joins'] : 1;
-          $existingUserLeaveTracking = isset($userTrackingConfig['track_leaves']) ? (int)$userTrackingConfig['track_leaves'] : 1;
-          $existingUserNicknameTracking = isset($userTrackingConfig['track_nickname']) ? (int)$userTrackingConfig['track_nickname'] : 1;
-          $existingUserUsernameTracking = isset($userTrackingConfig['track_username']) ? (int)$userTrackingConfig['track_username'] : 1;
-          $existingUserAvatarTracking = isset($userTrackingConfig['track_avatar']) ? (int)$userTrackingConfig['track_avatar'] : 1;
-          $existingUserStatusTracking = isset($userTrackingConfig['track_status']) ? (int)$userTrackingConfig['track_status'] : 1;
+          $existingUserJoinTracking = isset($userTrackingConfig['track_joins']) ? (int) $userTrackingConfig['track_joins'] : 1;
+          $existingUserLeaveTracking = isset($userTrackingConfig['track_leaves']) ? (int) $userTrackingConfig['track_leaves'] : 1;
+          $existingUserNicknameTracking = isset($userTrackingConfig['track_nickname']) ? (int) $userTrackingConfig['track_nickname'] : 1;
+          $existingUserUsernameTracking = isset($userTrackingConfig['track_username']) ? (int) $userTrackingConfig['track_username'] : 1;
+          $existingUserAvatarTracking = isset($userTrackingConfig['track_avatar']) ? (int) $userTrackingConfig['track_avatar'] : 1;
+          $existingUserStatusTracking = isset($userTrackingConfig['track_status']) ? (int) $userTrackingConfig['track_status'] : 1;
         }
       }
       if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
@@ -1017,8 +1024,8 @@ if ($is_linked && $hasGuildId) {
           $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? "";
           $existingReactionRolesMessage = $reactionRolesConfig['message'] ?? "";
           $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? "";
-          $existingAllowMultipleReactions = isset($reactionRolesConfig['allow_multiple']) ? (bool)$reactionRolesConfig['allow_multiple'] : false;
-          
+          $existingAllowMultipleReactions = isset($reactionRolesConfig['allow_multiple']) ? (bool) $reactionRolesConfig['allow_multiple'] : false;
+
           // Debug log for reaction roles configuration
           $reactionRolesDebugData = json_encode([
             'raw_json' => $serverMgmtData['reaction_roles_configuration'],
@@ -1066,7 +1073,7 @@ if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect
   $fsStmt->execute();
   $fsRes = $fsStmt->get_result();
   if ($fsRow = $fsRes->fetch_assoc()) {
-    $existingFreestuffEnabled = (int)($fsRow['enabled'] ?? 0);
+    $existingFreestuffEnabled = (int) ($fsRow['enabled'] ?? 0);
     $existingFreestuffChannelID = $fsRow['channel_id'] ?? "";
     $existingFreestuffTwitchUser = $fsRow['twitch_username'] ?? "";
   }
@@ -1074,7 +1081,7 @@ if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect
 }
 
 // Check if any management features are enabled
-$hasEnabledFeatures = array_reduce($serverManagementSettings, function($carry, $item) {
+$hasEnabledFeatures = array_reduce($serverManagementSettings, function ($carry, $item) {
   return $carry || $item;
 }, false);
 
@@ -1088,7 +1095,7 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token'])) {
     'needs_relink' => $needs_relink,
     'has_access_token' => !empty($discordData['access_token']),
     'guild_count' => count($userAdminGuilds),
-    'guilds' => array_map(function($guild) {
+    'guilds' => array_map(function ($guild) {
       return [
         'id' => $guild['id'] ?? 'no_id',
         'name' => $guild['name'] ?? 'no_name',
@@ -1135,7 +1142,8 @@ if ($is_linked && !$needs_relink && !empty($discordData['access_token']) && !$us
   ]);
 }
 
-function updateExistingDiscordValues() {
+function updateExistingDiscordValues()
+{
   global $conn, $user_id, $discord_conn, $serverManagementSettings, $discordData, $consoleLogs;
   global $existingLiveChannelId, $existingGuildId, $existingOnlineText, $existingOfflineText;
   global $existingStreamAlertChannelID, $existingModerationChannelID, $existingAlertChannelID, $existingTwitchStreamMonitoringID, $existingStreamAlertEveryone, $existingStreamAlertCustomRole, $hasGuildId;
@@ -1208,24 +1216,24 @@ function updateExistingDiscordValues() {
       $serverMgmtResult = $serverMgmtStmt->get_result();
       if ($serverMgmtData = $serverMgmtResult->fetch_assoc()) {
         $serverManagementSettings = [
-          'welcomeMessage' => (bool)$serverMgmtData['welcomeMessage'],
-          'autoRole' => (bool)$serverMgmtData['autoRole'],
-          'roleHistory' => (bool)$serverMgmtData['roleHistory'],
-          'messageTracking' => (bool)$serverMgmtData['messageTracking'],
-          'roleTracking' => (bool)$serverMgmtData['roleTracking'],
-          'serverRoleManagement' => (bool)$serverMgmtData['serverRoleManagement'],
-          'userTracking' => (bool)$serverMgmtData['userTracking'],
-          'reactionRoles' => (bool)$serverMgmtData['reactionRoles'],
-          'rulesConfiguration' => (bool)$serverMgmtData['rulesConfiguration'],
-          'streamSchedule' => (bool)$serverMgmtData['streamSchedule']
+          'welcomeMessage' => (bool) $serverMgmtData['welcomeMessage'],
+          'autoRole' => (bool) $serverMgmtData['autoRole'],
+          'roleHistory' => (bool) $serverMgmtData['roleHistory'],
+          'messageTracking' => (bool) $serverMgmtData['messageTracking'],
+          'roleTracking' => (bool) $serverMgmtData['roleTracking'],
+          'serverRoleManagement' => (bool) $serverMgmtData['serverRoleManagement'],
+          'userTracking' => (bool) $serverMgmtData['userTracking'],
+          'reactionRoles' => (bool) $serverMgmtData['reactionRoles'],
+          'rulesConfiguration' => (bool) $serverMgmtData['rulesConfiguration'],
+          'streamSchedule' => (bool) $serverMgmtData['streamSchedule']
         ];
         // Override channel IDs with values from server_management table if they exist
         if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
           $existingWelcomeChannelID = $serverMgmtData['welcome_message_configuration_channel'];
         }
         $existingWelcomeMessage = $serverMgmtData['welcome_message_configuration_message'] ?? "";
-        $existingWelcomeUseDefault = (int)($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
-        $existingWelcomeEmbed = (int)($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
+        $existingWelcomeUseDefault = (int) ($serverMgmtData['welcome_message_configuration_default'] ?? 1) === 1;
+        $existingWelcomeEmbed = (int) ($serverMgmtData['welcome_message_configuration_embed'] ?? 0) === 1;
         $existingWelcomeColour = $serverMgmtData['welcome_message_configuration_colour'] ?? "#00d1b2";
         if (!empty($serverMgmtData['auto_role_assignment_configuration_role_id'])) {
           $existingAutoRoleID = $serverMgmtData['auto_role_assignment_configuration_role_id'];
@@ -1234,36 +1242,36 @@ function updateExistingDiscordValues() {
         if (!empty($serverMgmtData['role_history_configuration'])) {
           $roleHistoryConfig = json_decode($serverMgmtData['role_history_configuration'], true);
           if ($roleHistoryConfig && is_array($roleHistoryConfig)) {
-            $existingRoleHistoryEnabled = isset($roleHistoryConfig['enabled']) ? (int)$roleHistoryConfig['enabled'] : 0;
-            $existingRoleHistoryRetention = isset($roleHistoryConfig['retention_days']) ? (int)$roleHistoryConfig['retention_days'] : 30;
+            $existingRoleHistoryEnabled = isset($roleHistoryConfig['enabled']) ? (int) $roleHistoryConfig['enabled'] : 0;
+            $existingRoleHistoryRetention = isset($roleHistoryConfig['retention_days']) ? (int) $roleHistoryConfig['retention_days'] : 30;
           }
         }
         // Parse role_tracking_configuration JSON
         if (!empty($serverMgmtData['role_tracking_configuration'])) {
           $roleTrackingConfig = json_decode($serverMgmtData['role_tracking_configuration'], true);
           if ($roleTrackingConfig && is_array($roleTrackingConfig)) {
-            $existingRoleTrackingEnabled = isset($roleTrackingConfig['enabled']) ? (int)$roleTrackingConfig['enabled'] : 0;
+            $existingRoleTrackingEnabled = isset($roleTrackingConfig['enabled']) ? (int) $roleTrackingConfig['enabled'] : 0;
             $existingRoleTrackingLogChannel = isset($roleTrackingConfig['log_channel_id']) ? $roleTrackingConfig['log_channel_id'] : "";
-            $existingRoleTrackingAdditions = isset($roleTrackingConfig['track_additions']) ? (int)$roleTrackingConfig['track_additions'] : 1;
-            $existingRoleTrackingRemovals = isset($roleTrackingConfig['track_removals']) ? (int)$roleTrackingConfig['track_removals'] : 1;
+            $existingRoleTrackingAdditions = isset($roleTrackingConfig['track_additions']) ? (int) $roleTrackingConfig['track_additions'] : 1;
+            $existingRoleTrackingRemovals = isset($roleTrackingConfig['track_removals']) ? (int) $roleTrackingConfig['track_removals'] : 1;
           }
         }
         // Parse server_role_management_configuration JSON
         if (!empty($serverMgmtData['server_role_management_configuration'])) {
           $serverRoleManagementConfig = json_decode($serverMgmtData['server_role_management_configuration'], true);
           if ($serverRoleManagementConfig && is_array($serverRoleManagementConfig)) {
-            $existingServerRoleManagementEnabled = isset($serverRoleManagementConfig['enabled']) ? (int)$serverRoleManagementConfig['enabled'] : 0;
+            $existingServerRoleManagementEnabled = isset($serverRoleManagementConfig['enabled']) ? (int) $serverRoleManagementConfig['enabled'] : 0;
             $existingServerRoleManagementLogChannel = isset($serverRoleManagementConfig['log_channel_id']) ? $serverRoleManagementConfig['log_channel_id'] : "";
-            $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int)$serverRoleManagementConfig['track_creation'] : 1;
-            $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int)$serverRoleManagementConfig['track_deletion'] : 1;
+            $existingRoleCreationTracking = isset($serverRoleManagementConfig['track_creation']) ? (int) $serverRoleManagementConfig['track_creation'] : 1;
+            $existingRoleDeletionTracking = isset($serverRoleManagementConfig['track_deletion']) ? (int) $serverRoleManagementConfig['track_deletion'] : 1;
           }
         }
         if (!empty($serverMgmtData['message_tracking_configuration'])) {
           $messageTrackingConfig = json_decode($serverMgmtData['message_tracking_configuration'], true);
-          $existingMessageTrackingEnabled = isset($messageTrackingConfig['enabled']) ? (int)$messageTrackingConfig['enabled'] : 0;
+          $existingMessageTrackingEnabled = isset($messageTrackingConfig['enabled']) ? (int) $messageTrackingConfig['enabled'] : 0;
           $existingMessageTrackingLogChannel = $messageTrackingConfig['log_channel_id'] ?? "";
-          $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int)$messageTrackingConfig['track_edits'] : 1;
-          $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int)$messageTrackingConfig['track_deletes'] : 1;
+          $existingMessageTrackingEdits = isset($messageTrackingConfig['track_edits']) ? (int) $messageTrackingConfig['track_edits'] : 1;
+          $existingMessageTrackingDeletes = isset($messageTrackingConfig['track_deletes']) ? (int) $messageTrackingConfig['track_deletes'] : 1;
         }
         if (!empty($serverMgmtData['role_tracking_configuration_channel'])) {
           $existingRoleLogChannelID = $serverMgmtData['role_tracking_configuration_channel'];
@@ -1281,8 +1289,8 @@ function updateExistingDiscordValues() {
             $existingReactionRolesChannelID = $reactionRolesConfig['channel_id'] ?? "";
             $existingReactionRolesMessage = $reactionRolesConfig['message'] ?? "";
             $existingReactionRolesMappings = $reactionRolesConfig['mappings'] ?? "";
-            $existingAllowMultipleReactions = isset($reactionRolesConfig['allow_multiple']) ? (bool)$reactionRolesConfig['allow_multiple'] : false;
-            
+            $existingAllowMultipleReactions = isset($reactionRolesConfig['allow_multiple']) ? (bool) $reactionRolesConfig['allow_multiple'] : false;
+
             // Debug log for reaction roles configuration
             $reactionRolesDebugData = json_encode([
               'raw_json' => $serverMgmtData['reaction_roles_configuration'],
@@ -1361,7 +1369,8 @@ if (!$is_linked || $needs_relink) {
 }
 
 // Helper function to revoke Discord access or refresh token
-function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint = 'access_token') {
+function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint = 'access_token')
+{
   $revoke_url = 'https://discord.com/api/oauth2/token/revoke';
   $data = array(
     'token' => $token,
@@ -1371,7 +1380,7 @@ function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint
   $options = array(
     'http' => array(
       'header' => "Content-type: application/x-www-form-urlencoded\r\n" .
-                  "Authorization: Basic $auth\r\n",
+        "Authorization: Basic $auth\r\n",
       'method' => 'POST',
       'content' => http_build_query($data)
     )
@@ -1381,7 +1390,8 @@ function revokeDiscordToken($token, $client_id, $client_secret, $token_type_hint
   return $response !== false;
 }
 // Helper function to fetch user's Discord guilds
-function fetchUserGuilds($access_token) {
+function fetchUserGuilds($access_token)
+{
   global $consoleLogs;
   $guilds_url = 'https://discord.com/api/v10/users/@me/guilds';
   $options = array(
@@ -1405,7 +1415,8 @@ function fetchUserGuilds($access_token) {
   return false;
 }
 // Helper function to check if user is admin/owner of a specific guild
-function checkGuildPermissions($access_token, $guild_id) {
+function checkGuildPermissions($access_token, $guild_id)
+{
   global $consoleLogs;
   $member_url = "https://discord.com/api/v10/users/@me/guilds/$guild_id/member";
   $options = array(
@@ -1429,7 +1440,8 @@ function checkGuildPermissions($access_token, $guild_id) {
   return false;
 }
 // Helper function to get user's owned guilds
-function getUserAdminGuilds($access_token) {
+function getUserAdminGuilds($access_token)
+{
   global $consoleLogs;
   $guilds = fetchUserGuilds($access_token);
   $admin_guilds = array();
@@ -1448,7 +1460,8 @@ function getUserAdminGuilds($access_token) {
 }
 
 // Helper function to fetch channels from a Discord guild
-function fetchGuildChannels($access_token, $guild_id) {
+function fetchGuildChannels($access_token, $guild_id)
+{
   // Load Discord bot token for guild API calls
   require_once '../config/discord.php';
   global $bot_token, $consoleLogs;
@@ -1471,12 +1484,12 @@ function fetchGuildChannels($access_token, $guild_id) {
     $channels = json_decode($response, true);
     if (is_array($channels)) {
       // Filter for text channels (type 0) and announcement channels (type 5) and sort by position
-      $text_channels = array_filter($channels, function($channel) {
+      $text_channels = array_filter($channels, function ($channel) {
         $type = $channel['type'] ?? -1;
         return $type === 0 || $type === 5; // 0 = GUILD_TEXT, 5 = GUILD_NEWS (Announcement channels)
       });
       // Sort channels by position
-      usort($text_channels, function($a, $b) {
+      usort($text_channels, function ($a, $b) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
       return $text_channels;
@@ -1492,7 +1505,8 @@ function fetchGuildChannels($access_token, $guild_id) {
 }
 
 // Helper function to fetch voice channels from a Discord guild
-function fetchGuildVoiceChannels($access_token, $guild_id) {
+function fetchGuildVoiceChannels($access_token, $guild_id)
+{
   // Load Discord bot token for guild API calls
   require_once '../config/discord.php';
   global $bot_token, $consoleLogs;
@@ -1515,11 +1529,11 @@ function fetchGuildVoiceChannels($access_token, $guild_id) {
     $channels = json_decode($response, true);
     if (is_array($channels)) {
       // Filter for voice channels (type 2) and sort by position
-      $voice_channels = array_filter($channels, function($channel) {
+      $voice_channels = array_filter($channels, function ($channel) {
         return ($channel['type'] ?? -1) === 2; // 2 = GUILD_VOICE
       });
       // Sort channels by position
-      usort($voice_channels, function($a, $b) {
+      usort($voice_channels, function ($a, $b) {
         return ($a['position'] ?? 0) - ($b['position'] ?? 0);
       });
       return $voice_channels;
@@ -1535,7 +1549,8 @@ function fetchGuildVoiceChannels($access_token, $guild_id) {
 }
 
 // Helper function to fetch roles from a Discord guild
-function fetchGuildRoles($guild_id, $access_token) {
+function fetchGuildRoles($guild_id, $access_token)
+{
   // Load Discord bot token for guild API calls
   require_once '../config/discord.php';
   global $bot_token, $consoleLogs;
@@ -1558,13 +1573,13 @@ function fetchGuildRoles($guild_id, $access_token) {
     $roles = json_decode($response, true);
     if (is_array($roles)) {
       // Filter out @everyone role and managed/bot roles, sort by position (highest first)
-      $assignable_roles = array_filter($roles, function($role) {
-        return ($role['name'] !== '@everyone') && 
-               !($role['managed'] ?? false) && // Exclude bot/integration managed roles
-               !($role['tags'] ?? false);      // Exclude roles with special tags
+      $assignable_roles = array_filter($roles, function ($role) {
+        return ($role['name'] !== '@everyone') &&
+          !($role['managed'] ?? false) && // Exclude bot/integration managed roles
+          !($role['tags'] ?? false);      // Exclude roles with special tags
       });
       // Sort roles by position (highest position first, which is how Discord shows them)
-      usort($assignable_roles, function($a, $b) {
+      usort($assignable_roles, function ($a, $b) {
         return ($b['position'] ?? 0) - ($a['position'] ?? 0);
       });
       return $assignable_roles;
@@ -1580,7 +1595,8 @@ function fetchGuildRoles($guild_id, $access_token) {
 }
 
 // Helper function to generate channel input field or dropdown
-function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildChannels, $icon = 'fas fa-hashtag', $required = false) {
+function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildChannels, $icon = 'fas fa-hashtag', $required = false)
+{
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildChannels)) {
     // Show manual input field with enhanced placeholder for manual mode
@@ -1613,7 +1629,8 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
 }
 
 // Helper function to generate role input field or dropdown
-function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildRoles, $icon = 'fas fa-user-tag', $required = false) {
+function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildRoles, $icon = 'fas fa-user-tag', $required = false)
+{
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildRoles)) {
     // Show manual input field with enhanced placeholder for manual mode
@@ -1646,7 +1663,8 @@ function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $u
 }
 
 // Helper function to generate voice channel input field or dropdown
-function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildVoiceChannels, $icon = 'fas fa-volume-up', $required = false) {
+function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeholder, $useManualIds, $guildVoiceChannels, $icon = 'fas fa-volume-up', $required = false)
+{
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildVoiceChannels)) {
     // Show manual input field with enhanced placeholder for manual mode
@@ -1673,7 +1691,8 @@ function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeho
 }
 
 // Helper function to get channel name from ID
-function getChannelNameFromId($channel_id, $channels_array) {
+function getChannelNameFromId($channel_id, $channels_array)
+{
   if (empty($channel_id) || !is_array($channels_array)) {
     return $channel_id; // Return ID if not found
   }
@@ -1691,7 +1710,8 @@ ob_start();
 <div class="columns is-centered">
   <div class="column is-fullwidth">
     <!-- Modern Discord Integration Hero Section -->
-    <div class="hero is-primary" style="background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">
+    <div class="hero is-primary"
+      style="background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">
       <div class="hero-body" style="padding: 2rem;">
         <div class="container">
           <!-- Desktop layout: single row with status on right -->
@@ -1700,15 +1720,18 @@ ob_start();
               <div class="column">
                 <div class="media">
                   <div class="media-left">
-                    <figure class="image is-64x64" style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <figure class="image is-64x64"
+                      style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                       <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
                     </figure>
                   </div>
                   <div class="media-content">
-                    <p class="title is-3-desktop is-4-tablet has-text-white" style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
+                    <p class="title is-3-desktop is-4-tablet has-text-white"
+                      style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
                       Discord Integration
                     </p>
-                    <p class="subtitle is-5-desktop is-6-tablet has-text-white" style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
+                    <p class="subtitle is-5-desktop is-6-tablet has-text-white"
+                      style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
                       Connect your Discord server with BotOfTheSpecter
                     </p>
                   </div>
@@ -1747,15 +1770,18 @@ ob_start();
               <div class="column">
                 <div class="media">
                   <div class="media-left">
-                    <figure class="image is-48x48-mobile" style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                    <figure class="image is-48x48-mobile"
+                      style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                       <i class="fab fa-discord" style="font-size: 1.5rem; color: white;"></i>
                     </figure>
                   </div>
                   <div class="media-content">
-                    <p class="title is-5-mobile has-text-white" style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
+                    <p class="title is-5-mobile has-text-white"
+                      style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
                       Discord Integration
                     </p>
-                    <p class="subtitle is-7-mobile has-text-white" style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
+                    <p class="subtitle is-7-mobile has-text-white"
+                      style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
                       Connect your Discord server with BotOfTheSpecter
                     </p>
                   </div>
@@ -1774,7 +1800,8 @@ ob_start();
                       </span>
                     </div>
                     <?php if ($expires_str): ?>
-                      <p class="is-size-7-mobile has-text-white" style="opacity: 0.8; word-wrap: break-word; line-height: 1.3;">
+                      <p class="is-size-7-mobile has-text-white"
+                        style="opacity: 0.8; word-wrap: break-word; line-height: 1.3;">
                         Active for <?php echo htmlspecialchars($expires_str); ?>
                       </p>
                     <?php endif; ?>
@@ -1795,7 +1822,9 @@ ob_start();
     </div>
     <!-- Status Cards Section -->
     <?php if ($linkingMessage): ?>
-      <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?>" style="border-radius: 12px; margin-bottom: 2rem; border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+      <div
+        class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?>"
+        style="border-radius: 12px; margin-bottom: 2rem; border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
         <div class="level is-mobile">
           <div class="level-left">
             <div class="level-item">
@@ -1822,7 +1851,8 @@ ob_start();
         <?php if ($needs_relink): ?>
           <!-- Reconnection Required Card -->
           <div class="column is-12">
-            <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #ff9800; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%) !important;">
+            <div class="card has-background-dark"
+              style="border-radius: 16px; border: 2px solid #ff9800; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%) !important;">
               <div class="card-content has-text-centered" style="padding: 3rem 2rem;">
                 <div class="mb-4">
                   <span class="icon is-large has-text-warning" style="font-size: 4rem;">
@@ -1832,14 +1862,18 @@ ob_start();
                 <h3 class="title is-3 has-text-white mb-3">
                   <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'New Permissions Required' : 'Reconnection Required'; ?>
                 </h3>
-                <p class="subtitle is-5 has-text-grey-light mb-5" style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                <p class="subtitle is-5 has-text-grey-light mb-5"
+                  style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
                   <?php if (isset($discordData['reauth']) && $discordData['reauth'] == 1): ?>
-                    We've added new features that require additional Discord permissions. Please re-authorize your account to access guild management features and server selection.
+                    We've added new features that require additional Discord permissions. Please re-authorize your account to
+                    access guild management features and server selection.
                   <?php else: ?>
-                    Your Discord account was linked using our previous system. To access all the latest features and improved security, please reconnect your account with our updated integration.
+                    Your Discord account was linked using our previous system. To access all the latest features and improved
+                    security, please reconnect your account with our updated integration.
                   <?php endif; ?>
                 </p>
-                <button class="button is-warning is-large" onclick="linkDiscord()" style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
+                <button class="button is-warning is-large" onclick="linkDiscord()"
+                  style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
                   <span class="icon"><i class="fas fa-sync-alt"></i></span>
                   <span>
                     <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
@@ -1851,7 +1885,8 @@ ob_start();
         <?php else: ?>
           <!-- Connect Discord Card -->
           <div class="column is-12">
-            <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #5865f2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
+            <div class="card has-background-dark"
+              style="border-radius: 16px; border: 2px solid #5865f2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
               <div class="card-content has-text-centered" style="padding: 3rem 2rem;">
                 <div class="mb-4">
                   <span class="icon is-large has-text-primary" style="font-size: 4rem;">
@@ -1859,10 +1894,12 @@ ob_start();
                   </span>
                 </div>
                 <h3 class="title is-3 has-text-white mb-3"><?php echo t('discordbot_link_title'); ?></h3>
-                <p class="subtitle is-5 has-text-grey-light mb-5" style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
+                <p class="subtitle is-5 has-text-grey-light mb-5"
+                  style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
                   <?php echo t('discordbot_link_desc'); ?>
                 </p>
-                <button class="button is-primary is-large" onclick="linkDiscord()" style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
+                <button class="button is-primary is-large" onclick="linkDiscord()"
+                  style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
                   <span class="icon"><i class="fab fa-discord"></i></span>
                   <span><?php echo t('discordbot_link_btn'); ?></span>
                 </button>
@@ -1873,22 +1910,31 @@ ob_start();
       <?php else: ?>
         <!-- Connected Status Card -->
         <div class="column is-12">
-          <div class="card has-background-dark" style="border-radius: 16px; border: 2px solid #00d1b2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
+          <div class="card has-background-dark"
+            style="border-radius: 16px; border: 2px solid #00d1b2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
             <div class="card-content discord-card-content" style="padding: 2rem;">
               <!-- Desktop layout: single row with buttons on right -->
               <div class="is-hidden-mobile">
                 <div class="level" style="flex-wrap: wrap !important; overflow: visible !important;">
-                  <div class="level-left" style="flex: 1 !important; min-width: 0 !important; max-width: calc(100% - 200px) !important; overflow: visible !important;">
-                    <div class="level-item" style="flex: 1 !important; min-width: 0 !important; overflow: visible !important;">
-                      <div class="media" style="overflow: visible !important; min-width: 0 !important; flex: 1 !important;">
+                  <div class="level-left"
+                    style="flex: 1 !important; min-width: 0 !important; max-width: calc(100% - 200px) !important; overflow: visible !important;">
+                    <div class="level-item"
+                      style="flex: 1 !important; min-width: 0 !important; overflow: visible !important;">
+                      <div class="media"
+                        style="overflow: visible !important; min-width: 0 !important; flex: 1 !important;">
                         <div class="media-left">
                           <span class="icon is-large has-text-success" style="font-size: 3rem;">
                             <i class="fas fa-check-circle"></i>
                           </span>
                         </div>
-                        <div class="media-content" style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
-                          <h4 class="title is-4 has-text-white mb-2" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;"><?php echo t('discordbot_linked_title'); ?></h4>
-                          <p class="subtitle is-6 has-text-grey-light mb-0" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
+                        <div class="media-content"
+                          style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
+                          <h4 class="title is-4 has-text-white mb-2"
+                            style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
+                            <?php echo t('discordbot_linked_title'); ?>
+                          </h4>
+                          <p class="subtitle is-6 has-text-grey-light mb-0"
+                            style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
                             <?php echo t('discordbot_linked_desc'); ?>
                           </p>
                         </div>
@@ -1898,11 +1944,13 @@ ob_start();
                   <div class="level-right">
                     <div class="level-item">
                       <div class="buttons">
-                        <button class="button is-primary" onclick="inviteBot()" style="border-radius: 25px; font-weight: 600;">
+                        <button class="button is-primary" onclick="inviteBot()"
+                          style="border-radius: 25px; font-weight: 600;">
                           <span class="icon"><i class="fas fa-plus-circle"></i></span>
                           <span>Invite Bot</span>
                         </button>
-                        <button class="button is-danger" onclick="disconnectDiscord()" style="border-radius: 25px; font-weight: 600;">
+                        <button class="button is-danger" onclick="disconnectDiscord()"
+                          style="border-radius: 25px; font-weight: 600;">
                           <span class="icon"><i class="fas fa-unlink"></i></span>
                           <span>Disconnect</span>
                         </button>
@@ -1921,9 +1969,14 @@ ob_start();
                         <i class="fas fa-check-circle"></i>
                       </span>
                     </div>
-                    <div class="media-content" style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
-                      <h4 class="title is-5-mobile has-text-white mb-2" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;"><?php echo t('discordbot_linked_title'); ?></h4>
-                      <p class="subtitle is-6-mobile has-text-grey-light mb-0" style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
+                    <div class="media-content"
+                      style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
+                      <h4 class="title is-5-mobile has-text-white mb-2"
+                        style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
+                        <?php echo t('discordbot_linked_title'); ?>
+                      </h4>
+                      <p class="subtitle is-6-mobile has-text-grey-light mb-0"
+                        style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
                         <?php echo t('discordbot_linked_desc'); ?>
                       </p>
                     </div>
@@ -1932,11 +1985,13 @@ ob_start();
                 <!-- Buttons section - stacked on mobile -->
                 <div class="block">
                   <div class="buttons is-centered">
-                    <button class="button is-primary is-fullwidth-mobile" onclick="inviteBot()" style="border-radius: 25px; font-weight: 600;">
+                    <button class="button is-primary is-fullwidth-mobile" onclick="inviteBot()"
+                      style="border-radius: 25px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-plus-circle"></i></span>
                       <span>Invite Bot</span>
                     </button>
-                    <button class="button is-danger is-fullwidth-mobile" onclick="disconnectDiscord()" style="border-radius: 25px; font-weight: 600;">
+                    <button class="button is-danger is-fullwidth-mobile" onclick="disconnectDiscord()"
+                      style="border-radius: 25px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-unlink"></i></span>
                       <span>Disconnect</span>
                     </button>
@@ -1944,20 +1999,23 @@ ob_start();
                 </div>
               </div>
               <?php if ($expires_str): ?>
-                <div class="notification has-background-grey-darker" style="border-radius: 12px; margin-top: 1rem; border: 1px solid #3273dc;">
+                <div class="notification has-background-grey-darker"
+                  style="border-radius: 12px; margin-top: 1rem; border: 1px solid #3273dc;">
                   <div class="columns is-mobile is-vcentered">
                     <div class="column is-narrow">
                       <span class="icon has-text-info"><i class="fas fa-clock"></i></span>
                       <strong class="has-text-white" style="margin-left: 0.5rem;">Token Status:</strong>
                     </div>
                     <div class="column">
-                      <span class="has-text-grey-light" style="word-wrap: break-word;">Valid for <?php echo htmlspecialchars($expires_str); ?></span>
+                      <span class="has-text-grey-light" style="word-wrap: break-word;">Valid for
+                        <?php echo htmlspecialchars($expires_str); ?></span>
                     </div>
                   </div>
                 </div>
               <?php endif; ?>
               <!-- Guild ID Configuration - Independent Form -->
-              <div class="card has-background-grey-darker mb-4" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem;">
+              <div class="card has-background-grey-darker mb-4"
+                style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem;">
                 <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                   <p class="card-header-title has-text-white" style="font-weight: 600;">
                     <span class="icon mr-2 has-text-primary"><i class="fas fa-server"></i></span>
@@ -1973,27 +2031,36 @@ ob_start();
                 <div class="card-content">
                   <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
-                    <strong>Required for All Discord Bot Features:</strong> Please select your Discord Server to enable all Discord Bot features including Server Management and Event Channels.
+                    <strong>Required for All Discord Bot Features:</strong> Please select your Discord Server to enable
+                    all Discord Bot features including Server Management and Event Channels.
                   </div>
                   <form action="" method="post">
                     <div class="field">
-                      <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord Server</label>
+                      <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord
+                        Server</label>
                       <div class="control has-icons-left">
                         <?php if ($useManualIds): ?>
                           <!-- Manual ID Input Mode -->
-                          <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>"<?php if (empty($existingGuildId)) { echo ' placeholder="e.g. 123456789123456789"'; } ?> style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                          <input class="input" type="text" id="guild_id_config" name="guild_id"
+                            value="<?php echo htmlspecialchars($existingGuildId); ?>" <?php if (empty($existingGuildId)) {
+                                 echo ' placeholder="e.g. 123456789123456789"';
+                               } ?>
+                            style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                           <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
-                          <p class="help has-text-grey-light">Manual ID mode enabled. Right-click your Discord server name → Copy Server ID (Developer Mode required)</p>
+                          <p class="help has-text-grey-light">Manual ID mode enabled. Right-click your Discord server name →
+                            Copy Server ID (Developer Mode required)</p>
                         <?php elseif (!empty($userAdminGuilds) && is_array($userAdminGuilds)): ?>
                           <!-- Dropdown Mode -->
                           <div class="select is-fullwidth" style="width: 100%;">
-                            <select id="guild_id_config" name="guild_id" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;">
-                              <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>>Select a Discord Server...</option>
+                            <select id="guild_id_config" name="guild_id"
+                              style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;">
+                              <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>>Select a Discord
+                                Server...</option>
                               <?php foreach ($userAdminGuilds as $guild): ?>
-                                <?php 
-                                  $isSelected = ($existingGuildId === $guild['id']) ? 'selected' : '';
-                                  $guildName = htmlspecialchars($guild['name']);
-                                  $ownerBadge = (isset($guild['owner']) && $guild['owner']) ? '' : '';
+                                <?php
+                                $isSelected = ($existingGuildId === $guild['id']) ? 'selected' : '';
+                                $guildName = htmlspecialchars($guild['name']);
+                                $ownerBadge = (isset($guild['owner']) && $guild['owner']) ? '' : '';
                                 ?>
                                 <option value="<?php echo htmlspecialchars($guild['id']); ?>" <?php echo $isSelected; ?>>
                                   <?php echo $guildName . $ownerBadge; ?>
@@ -2004,7 +2071,10 @@ ob_start();
                           <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
                         <?php else: ?>
                           <!-- Fallback/Loading Mode -->
-                          <input class="input" type="text" id="guild_id_config" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..." disabled style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                          <input class="input" type="text" id="guild_id_config" name="guild_id"
+                            value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..."
+                            disabled
+                            style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                           <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
                           <p class="help has-text-warning">
                             <?php if (!$is_linked || $needs_relink): ?>
@@ -2018,15 +2088,17 @@ ob_start();
                     </div>
                     <div class="field">
                       <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || (!$useManualIds && empty($userAdminGuilds))) ? ' disabled' : ''; ?>>
+                        <button class="button is-primary is-fullwidth" type="submit"
+                          style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || (!$useManualIds && empty($userAdminGuilds))) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-save"></i></span>
                           <span>Save Server Configuration</span>
                         </button>
                       </div>
                       <?php if (!$is_linked || $needs_relink): ?>
-                      <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                        <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
                       <?php elseif (!$useManualIds && empty($userAdminGuilds)): ?>
-                      <p class="help has-text-warning has-text-centered mt-2">No servers available with admin permissions</p>
+                        <p class="help has-text-warning has-text-centered mt-2">No servers available with admin permissions
+                        </p>
                       <?php endif; ?>
                     </div>
                   </form>
@@ -2034,22 +2106,26 @@ ob_start();
               </div>
               <!-- Channel Input Mode Notification (moved here from Twitch Online Alert) -->
               <?php if ($useManualIds): ?>
-                <div class="notification is-info is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                <div class="notification is-info is-light"
+                  style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-keyboard"></i></span>
                   <strong>Manual Mode:</strong> Paste channel IDs here (one ID per field).
                 </div>
               <?php elseif (!empty($guildChannels)): ?>
-                <div class="notification is-success is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                <div class="notification is-success is-light"
+                  style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-list"></i></span>
                   <strong>Pick From Server:</strong> Choose channels from the dropdowns below.
                 </div>
               <?php elseif (!empty($existingGuildId)): ?>
-                <div class="notification is-warning is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                <div class="notification is-warning is-light"
+                  style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
                   <strong>Can't load channels:</strong> Reconnect Discord or check the bot's server permissions.
                 </div>
               <?php else: ?>
-                <div class="notification is-warning is-light" style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
+                <div class="notification is-warning is-light"
+                  style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-server"></i></span>
                   <strong>No server selected:</strong> Pick a Discord server above to enable channel dropdowns.
                 </div>
@@ -2061,7 +2137,8 @@ ob_start();
         <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
           <?php if ($buildStatus): ?>
             <div class="column is-12">
-              <div class="notification has-background-dark" style="border-radius: 12px; border: 2px solid #48c774; box-shadow: 0 4px 16px rgba(72,199,116,0.2);">
+              <div class="notification has-background-dark"
+                style="border-radius: 12px; border: 2px solid #48c774; box-shadow: 0 4px 16px rgba(72,199,116,0.2);">
                 <div class="level is-mobile">
                   <div class="level-left">
                     <div class="level-item">
@@ -2075,7 +2152,8 @@ ob_start();
           <?php endif; ?>
           <?php if ($errorMsg): ?>
             <div class="column is-12">
-              <div class="notification has-background-dark" style="border-radius: 12px; border: 2px solid #ff4e65; box-shadow: 0 4px 16px rgba(255,78,101,0.2);">
+              <div class="notification has-background-dark"
+                style="border-radius: 12px; border: 2px solid #ff4e65; box-shadow: 0 4px 16px rgba(255,78,101,0.2);">
                 <div class="level is-mobile">
                   <div class="level-left">
                     <div class="level-item">
@@ -2091,7 +2169,8 @@ ob_start();
       <?php endif; ?>
     </div>
     <!-- Discord Server Management Card -->
-    <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+    <div class="card has-background-grey-darker mb-5"
+      style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
       <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
         <p class="card-header-title has-text-white" style="font-weight: 600;">
           <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
@@ -2108,20 +2187,22 @@ ob_start();
       </header>
       <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
         <?php if (!$is_linked || $needs_relink): ?>
-        <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-          <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
-        </div>
+          <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+            <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+            <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
+          </div>
         <?php elseif (!$hasGuildId): ?>
-        <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-          <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management features.
-        </div>
+          <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+            <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+            <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management
+            features.
+          </div>
         <?php else: ?>
-        <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-          <span class="icon"><i class="fas fa-info-circle"></i></span>
-          <strong>Control your Discord server with welcome messages, automatic roles, message tracking, and more.</strong>
-        </div>
+          <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+            <span class="icon"><i class="fas fa-info-circle"></i></span>
+            <strong>Control your Discord server with welcome messages, automatic roles, message tracking, and
+              more.</strong>
+          </div>
         <?php endif; ?>
         <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
           <div class="field">
@@ -2131,7 +2212,7 @@ ob_start();
                 <label for="welcomeMessage" class="toggle-title has-text-white">Welcome Message</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="welcomeMessage" type="checkbox" name="welcomeMessage"<?php echo (!empty($serverManagementSettings['welcomeMessage']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="welcomeMessage" type="checkbox" name="welcomeMessage" <?php echo (!empty($serverManagementSettings['welcomeMessage']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="welcomeMessage">Disabled</div>
@@ -2141,7 +2222,7 @@ ob_start();
                 <label for="autoRole" class="toggle-title has-text-white">Auto Role on Join</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="autoRole" type="checkbox" name="autoRole"<?php echo (!empty($serverManagementSettings['autoRole']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="autoRole" type="checkbox" name="autoRole" <?php echo (!empty($serverManagementSettings['autoRole']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="autoRole">Disabled</div>
@@ -2151,7 +2232,7 @@ ob_start();
                 <label for="roleHistory" class="toggle-title has-text-white">Role History</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="roleHistory" type="checkbox" name="roleHistory"<?php echo (!empty($serverManagementSettings['roleHistory']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="roleHistory" type="checkbox" name="roleHistory" <?php echo (!empty($serverManagementSettings['roleHistory']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="roleHistory">Disabled</div>
@@ -2161,7 +2242,7 @@ ob_start();
                 <label for="messageTracking" class="toggle-title has-text-white">Message Tracking</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="messageTracking" type="checkbox" name="messageTracking"<?php echo (!empty($serverManagementSettings['messageTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="messageTracking" type="checkbox" name="messageTracking" <?php echo (!empty($serverManagementSettings['messageTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="messageTracking">Disabled</div>
@@ -2171,7 +2252,7 @@ ob_start();
                 <label for="roleTracking" class="toggle-title has-text-white">Role Tracking</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="roleTracking" type="checkbox" name="roleTracking"<?php echo (!empty($serverManagementSettings['roleTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="roleTracking" type="checkbox" name="roleTracking" <?php echo (!empty($serverManagementSettings['roleTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="roleTracking">Disabled</div>
@@ -2181,7 +2262,8 @@ ob_start();
                 <label for="serverRoleManagement" class="toggle-title has-text-white">Server Role Management</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="serverRoleManagement" type="checkbox" name="serverRoleManagement"<?php echo (!empty($serverManagementSettings['serverRoleManagement']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="serverRoleManagement" type="checkbox"
+                      name="serverRoleManagement" <?php echo (!empty($serverManagementSettings['serverRoleManagement']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="serverRoleManagement">Disabled</div>
@@ -2191,7 +2273,7 @@ ob_start();
                 <label for="userTracking" class="toggle-title has-text-white">User Tracking</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="userTracking" type="checkbox" name="userTracking"<?php echo (!empty($serverManagementSettings['userTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="userTracking" type="checkbox" name="userTracking" <?php echo (!empty($serverManagementSettings['userTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="userTracking">Disabled</div>
@@ -2201,7 +2283,7 @@ ob_start();
                 <label for="reactionRoles" class="toggle-title has-text-white">Reaction Roles</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="reactionRoles" type="checkbox" name="reactionRoles"<?php echo (!empty($serverManagementSettings['reactionRoles']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="reactionRoles" type="checkbox" name="reactionRoles" <?php echo (!empty($serverManagementSettings['reactionRoles']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="reactionRoles">Disabled</div>
@@ -2211,7 +2293,8 @@ ob_start();
                 <label for="rulesConfiguration" class="toggle-title has-text-white">Rules Configuration</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="rulesConfiguration" type="checkbox" name="rulesConfiguration"<?php echo (!empty($serverManagementSettings['rulesConfiguration']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="rulesConfiguration" type="checkbox" name="rulesConfiguration"
+                      <?php echo (!empty($serverManagementSettings['rulesConfiguration']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="rulesConfiguration">Disabled</div>
@@ -2221,7 +2304,7 @@ ob_start();
                 <label for="streamSchedule" class="toggle-title has-text-white">Stream Schedule</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="streamSchedule" type="checkbox" name="streamSchedule"<?php echo (!empty($serverManagementSettings['streamSchedule']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="streamSchedule" type="checkbox" name="streamSchedule" <?php echo (!empty($serverManagementSettings['streamSchedule']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="streamSchedule">Disabled</div>
@@ -2231,10 +2314,20 @@ ob_start();
                 <label for="embedBuilder" class="toggle-title has-text-white">Embed Builder</label>
                 <div class="control" style="margin-top:0.5rem;">
                   <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="embedBuilder" type="checkbox" name="embedBuilder"<?php echo (!empty($serverManagementSettings['embedBuilder']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <input class="switch is-rounded" id="embedBuilder" type="checkbox" name="embedBuilder" <?php echo (!empty($serverManagementSettings['embedBuilder']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
                   <div class="toggle-status has-text-grey-light" data-for="embedBuilder">Disabled</div>
+                </div>
+              </div>
+              <div class="toggle-item box">
+                <label for="freeGames" class="toggle-title has-text-white">Free Games</label>
+                <div class="control" style="margin-top:0.5rem;">
+                  <label class="switch is-rounded">
+                    <input class="switch is-rounded" id="freeGames" type="checkbox" name="freeGames" <?php echo (!empty($serverManagementSettings['freeGames']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                    <span class="check"></span>
+                  </label>
+                  <div class="toggle-status has-text-grey-light" data-for="freeGames">Disabled</div>
                 </div>
               </div>
             </div>
@@ -2246,7 +2339,8 @@ ob_start();
     <div class="columns is-variable is-6">
       <div class="column is-6">
         <!-- Twitch Online Alert Card -->
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+        <div class="card has-background-grey-darker"
+          style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
@@ -2261,10 +2355,12 @@ ob_start();
           </header>
           <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
             <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Stream Online Alerts:</strong> Configure Discord channels for stream online alerts and voice status updates when you go live on Twitch.</p>
+              <p class="has-text-dark"><strong>Stream Online Alerts:</strong> Configure Discord channels for stream
+                online alerts and voice status updates when you go live on Twitch.</p>
             </div>
             <!-- Stream Online / Live Status Form -->
-            <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 1rem;">
+            <form action="" method="post"
+              style="flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 1rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="field">
                 <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
@@ -2283,7 +2379,8 @@ ob_start();
                 </label>
                 <p class="help has-text-grey-light mb-2">Mention @everyone when posting stream online alerts</p>
                 <div class="control">
-                  <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone" class="switch is-rounded" value="1"<?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
+                  <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone"
+                    class="switch is-rounded" value="1" <?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
                   <label for="stream_alert_everyone" class="has-text-white">Enable @everyone mention</label>
                 </div>
               </div>
@@ -2295,13 +2392,13 @@ ob_start();
                 <p class="help has-text-grey-light mb-2">Select a custom role to mention instead of @everyone</p>
                 <div class="control has-icons-left">
                   <?php echo generateRoleInput(
-                    'stream_alert_custom_role', 
-                    'stream_alert_custom_role', 
-                    $existingStreamAlertCustomRole, 
-                    'e.g. 123456789123456789', 
-                    $useManualIds, 
-                    $guildRoles, 
-                    'fas fa-user-tag', 
+                    'stream_alert_custom_role',
+                    'stream_alert_custom_role',
+                    $existingStreamAlertCustomRole,
+                    'e.g. 123456789123456789',
+                    $useManualIds,
+                    $guildRoles,
+                    'fas fa-user-tag',
                     false
                   ); ?>
                 </div>
@@ -2321,9 +2418,14 @@ ob_start();
                   <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
                   Online Text
                 </label>
-                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is online</p>
+                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is
+                  online</p>
                 <div class="control has-icons-left">
-                  <input class="input" type="text" id="online_text" name="online_text" value="<?php echo htmlspecialchars($existingOnlineText); ?>"<?php if (empty($existingOnlineText)) { echo ' placeholder="e.g. Stream Online"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <input class="input" type="text" id="online_text" name="online_text"
+                    value="<?php echo htmlspecialchars($existingOnlineText); ?>" <?php if (empty($existingOnlineText)) {
+                         echo ' placeholder="e.g. Stream Online"';
+                       } ?> maxlength="20"
+                    style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                   <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
                 </div>
                 <p class="help has-text-grey-light">
@@ -2335,9 +2437,14 @@ ob_start();
                   <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
                   Offline Text
                 </label>
-                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is offline</p>
+                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is
+                  offline</p>
                 <div class="control has-icons-left">
-                  <input class="input" type="text" id="offline_text" name="offline_text" value="<?php echo htmlspecialchars($existingOfflineText); ?>"<?php if (empty($existingOfflineText)) { echo ' placeholder="e.g. Stream Offline"'; } ?> maxlength="20" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <input class="input" type="text" id="offline_text" name="offline_text"
+                    value="<?php echo htmlspecialchars($existingOfflineText); ?>" <?php if (empty($existingOfflineText)) {
+                         echo ' placeholder="e.g. Stream Offline"';
+                       } ?> maxlength="20"
+                    style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                   <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
                 </div>
                 <p class="help has-text-grey-light">
@@ -2346,33 +2453,34 @@ ob_start();
               </div>
               <div style="flex-grow: 1;"></div>
               <?php if ($useManualIds): ?>
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <div class="content">
-                  <p><strong>How to get Channel IDs:</strong></p>
-                  <ol class="mb-2">
-                    <li>Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)</li>
-                    <li>Right-click on the desired channel</li>
-                    <li>Select "Copy Channel ID"</li>
-                    <li>Paste the ID into the appropriate field above</li>
-                  </ol>
+                <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                  <div class="content">
+                    <p><strong>How to get Channel IDs:</strong></p>
+                    <ol class="mb-2">
+                      <li>Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)</li>
+                      <li>Right-click on the desired channel</li>
+                      <li>Select "Copy Channel ID"</li>
+                      <li>Paste the ID into the appropriate field above</li>
+                    </ol>
+                  </div>
                 </div>
-              </div>
               <?php endif; ?>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_online" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_online"
+                    style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-cog"></i></span>
                     <span>Save Stream & Live Status</span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
-                <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                  <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
                 <?php elseif (!$hasGuildId): ?>
-                <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
+                  <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
                 <?php else: ?>
-                <p class="help has-text-grey-light has-text-centered mt-2">
-                  These settings control stream online alerts and the voice channel status text.
-                </p>
+                  <p class="help has-text-grey-light has-text-centered mt-2">
+                    These settings control stream online alerts and the voice channel status text.
+                  </p>
                 <?php endif; ?>
               </div>
             </form>
@@ -2382,7 +2490,8 @@ ob_start();
       <!-- Right Column -->
       <div class="column is-6">
         <!-- Twitch Stream Monitoring Card -->
-        <div class="card has-background-grey-darker mb-5" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+        <div class="card has-background-grey-darker mb-5"
+          style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
@@ -2397,30 +2506,35 @@ ob_start();
           </header>
           <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
             <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Stream Monitoring:</strong> Add Twitch streamers to monitor and receive notifications in your Discord server when they go live.</p>
+              <p class="has-text-dark"><strong>Stream Monitoring:</strong> Add Twitch streamers to monitor and receive
+                notifications in your Discord server when they go live.</p>
             </div>
             <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
               <div class="field">
                 <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
                 <div class="control has-icons-left">
-                  <input class="input" type="text" id="monitor_username" name="monitor_username" placeholder="e.g. botofthespecter" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                  <input class="input" type="text" id="monitor_username" name="monitor_username"
+                    placeholder="e.g. botofthespecter"
+                    style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
                   <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-person"></i></span>
                 </div>
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
+                  <button class="button is-primary is-fullwidth" type="submit"
+                    style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Add Streamer</span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
-                <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                  <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
                 <?php endif; ?>
               </div>
             </form>
             <div class="mt-3">
-              <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;" data-target="savedStreamersModal">
+              <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;"
+                data-target="savedStreamersModal">
                 <span class="icon"><i class="fa-solid fa-people-group"></i></span>
                 <span>View Tracked Streamers</span>
               </button>
@@ -2429,7 +2543,8 @@ ob_start();
             <form action="" method="post" style="margin-top: 0.75rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="field">
-                <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">Twitch Stream Monitoring Channel</label>
+                <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">Twitch
+                  Stream Monitoring Channel</label>
                 <p class="help has-text-grey-light mb-2">Channel to post when tracked Twitch users go live</p>
                 <div class="control has-icons-left">
                   <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
@@ -2437,7 +2552,8 @@ ob_start();
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_monitoring" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_monitoring"
+                    style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-wifi"></i></span>
                     <span>Save Monitoring Channel</span>
                   </button>
@@ -2447,7 +2563,8 @@ ob_start();
           </div>
         </div>
         <!-- Twitch Event/Action Audit Log Card (separate box below) -->
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
+        <div class="card has-background-grey-darker"
+          style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
           <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="card-header-title has-text-white" style="font-weight: 600;">
               <span class="icon mr-2 has-text-primary"><i class="fas fa-clipboard-list"></i></span>
@@ -2462,7 +2579,8 @@ ob_start();
           </header>
           <div class="card-content" style="display: flex; flex-direction: column;">
             <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Audit Logging:</strong> Track all Twitch moderation actions and events with automatic Discord channel logging for full transparency and record-keeping.</p>
+              <p class="has-text-dark"><strong>Audit Logging:</strong> Track all Twitch moderation actions and events
+                with automatic Discord channel logging for full transparency and record-keeping.</p>
             </div>
             <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
@@ -2471,7 +2589,8 @@ ob_start();
                   <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
                   Twitch Moderation Actions Channel <span class="has-text-danger">*</span>
                 </label>
-                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g. bans, timeouts, message deletions</p>
+                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g.
+                  bans, timeouts, message deletions</p>
                 <div class="control has-icons-left">
                   <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
@@ -2481,14 +2600,16 @@ ob_start();
                   <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
                   Twitch Event Alerts Channel <span class="has-text-danger">*</span>
                 </label>
-                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g. Followers, Subscriptions, Bits</p>
+                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g.
+                  Followers, Subscriptions, Bits</p>
                 <div class="control has-icons-left">
                   <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
               </div>
               <div class="field">
                 <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_alert_channels" style="border-radius: 6px; font-weight: 600;"<?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+                  <button class="button is-primary is-fullwidth" type="submit" name="save_alert_channels"
+                    style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-bell"></i></span>
                     <span>Save Audit Log Channels</span>
                   </button>
@@ -2501,733 +2622,868 @@ ob_start();
     </div>
     <!-- Individual Management Feature Cards -->
     <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
-    <div class="columns is-multiline">
-      <div class="column is-6 is-flex" id="feature-box-welcomeMessage" style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
-              Welcome Message Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('welcomeMessage')" style="margin-right: 10px;" title="Clear all welcome message data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Welcome Messages:</strong> Greet new members with personalized welcome messages when they join your Discord server.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Welcome Channel <span class="has-text-danger">*</span></label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message" style="margin-right: 8px;"<?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
-                    Use default welcome message
-                  </label>
-                </div>
-                <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a custom one</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" id="enable_embed_message" name="enable_embed_message" style="margin-right: 8px;"<?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
-                    Enable Embed Message
-                  </label>
-                </div>
-                <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors</p>
-              </div>
-              <div class="field" id="welcome_colour_field" style="<?php echo $existingWelcomeEmbed ? '' : 'display: none;'; ?>">
-                <label class="label has-text-white" style="font-weight: 500;">
-                  <span class="icon is-small mr-1"><i class="fas fa-palette"></i></span>
-                  Embed Colour
-                </label>
-                <div class="control">
-                  <input class="input" type="color" id="welcome_colour" name="welcome_colour" value="<?php echo htmlspecialchars($existingWelcomeColour ?: '#00d1b2'); ?>" style="height: 40px; cursor: pointer;">
-                </div>
-                <p class="help has-text-grey-light">Choose the colour for the embed border and accent</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
-                <div class="control">
-                  <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3" placeholder="Welcome (user) to our server, we're so glad you joined us!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"<?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
-                </div>
-                <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()" name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Welcome Message Configuration</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-autoRole" style="display: <?php echo $serverManagementSettings['autoRole'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
-              Auto Role Assignment Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('autoRole')" style="margin-right: 10px;" title="Clear all auto role data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members when they join your Discord server.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
-                <div class="control has-icons-left">
-                  <?php echo generateRoleInput(
-                    'auto_role_id', 
-                    'auto_role_id', 
-                    $existingAutoRoleID, // Current value from database 
-                    'e.g. 123456789123456789', 
-                    $useManualIds, 
-                    $guildRoles, 
-                    'fas fa-user-tag', 
-                    false
-                  ); ?>
-                </div>
-                <p class="help has-text-grey-light">Role to automatically assign to new members</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()" name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Auto Role Settings</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-roleHistory" style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
-              Role History Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('roleHistory')" style="margin-right: 10px;" title="Clear all role history data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Role History:</strong> Automatically restore roles to members when they rejoin your server, with configurable retention period for role records.</p>
-            </div>
-            <form id="roleHistoryForm" method="POST">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Enable Role Restoration</label>
-                <div class="control">
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" id="restore_roles" name="restore_roles" <?php echo ($existingRoleHistoryEnabled == 1 ? 'checked' : ''); ?> style="margin-right: 8px;">
-                    Restore all previous roles when member rejoins
-                  </label>
-                </div>
-                <p class="help has-text-grey-light">When enabled, users will automatically receive their previous roles when they rejoin</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">History Retention Period (Days)</label>
-                <div class="control has-icons-left">
-                  <input class="input" type="number" id="history_retention_days" name="history_retention_days" value="<?php echo $existingRoleHistoryRetention ?? 30; ?>" min="1" max="365" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                  <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
-                </div>
-                <p class="help has-text-grey-light">How long to keep role history data after a member leaves (1-365 days)</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_role_history" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Role History Settings</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-messageTracking" style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
-              Message Tracking Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('messageTracking')" style="margin-right: 10px;" title="Clear all message tracking data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Message Tracking:</strong> Track and log edited and deleted messages in your Discord server for moderation and transparency purposes.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('message_tracking_log_channel_id', 'message_tracking_log_channel_id', $existingMessageTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                <div class="control">
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_message_edits" style="margin-right: 8px;" <?php echo $existingMessageTrackingEdits ? 'checked' : ''; ?>>
-                    Track message edits
-                  </label>
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_message_deletes" style="margin-right: 8px;" <?php echo $existingMessageTrackingDeletes ? 'checked' : ''; ?>>
-                    Track message deletions
-                  </label>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Message Tracking Settings</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-roleTracking" style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
-              Role Tracking Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('roleTracking')" style="margin-right: 10px;" title="Clear all role tracking data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Role Tracking:</strong> Monitor and log role assignments and removals for audit and transparency purposes in your Discord server.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Role Log Channel</label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('role_tracking_log_channel_id', 'role_tracking_log_channel_id', $existingRoleTrackingLogChannel, 'Select log channel', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                <div class="control">
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" <?php echo $existingRoleTrackingAdditions ? 'checked' : ''; ?>>
-                    Track role additions
-                  </label>
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" <?php echo $existingRoleTrackingRemovals ? 'checked' : ''; ?>>
-                    Track role removals
-                  </label>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_role_tracking" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Role Tracking Settings</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-serverRoleManagement" style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
-              Server Role Management Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('serverRoleManagement')" style="margin-right: 10px;" title="Clear all server role management data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Server Role Management:</strong> Track role creation, deletion, and edits within your Discord server for full server management audit logs.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerRoleManagementLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
-                <div class="control">
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" <?php echo $existingRoleCreationTracking ? 'checked' : ''; ?>>
-                    Track role creation
-                  </label>
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" <?php echo $existingRoleDeletionTracking ? 'checked' : ''; ?>>
-                    Track role deletion
-                  </label>
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_role_edits" style="margin-right: 8px;" <?php echo $existingRoleEditTracking ? 'checked' : ''; ?>>
-                    Track role edits
-                  </label>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Server Role Management Settings</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-userTracking" style="display: <?php echo $serverManagementSettings['userTracking'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
-              User Tracking Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearFeature('userTracking')" style="margin-right: 10px;" title="Clear all user tracking data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>User Tracking:</strong> Track and log user activity including joins, leaves, nickname changes, avatar updates, and status changes in your Discord server.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">User Tracking Log Channel ID</label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('user_tracking_log_channel_id', 'user_tracking_log_channel_id', $existingUserTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where user tracking logs will be sent</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                <div class="control">
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_user_joins" style="margin-right: 8px;" <?php echo $existingUserJoinTracking ? 'checked' : ''; ?>>
-                    Track user joins
-                  </label>
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_user_leaves" style="margin-right: 8px;" <?php echo $existingUserLeaveTracking ? 'checked' : ''; ?>>
-                    Track user leaves
-                  </label>
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_user_nickname" style="margin-right: 8px;" <?php echo $existingUserNicknameTracking ? 'checked' : ''; ?>>
-                    Track nickname changes
-                  </label>
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_user_username" style="margin-right: 8px;" <?php echo $existingUserUsernameTracking ? 'checked' : ''; ?>>
-                    Track username changes
-                  </label>
-                  <label class="checkbox has-text-white mb-2" style="display: block;">
-                    <input type="checkbox" name="track_user_avatar" style="margin-right: 8px;" <?php echo $existingUserAvatarTracking ? 'checked' : ''; ?>>
-                    Track avatar changes
-                  </label>
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" name="track_user_status" style="margin-right: 8px;" <?php echo $existingUserStatusTracking ? 'checked' : ''; ?>>
-                    Track status changes
-                  </label>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save User Tracking Settings</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-reactionRoles" style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
-              Reaction Roles Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearReactionRoles()" style="margin-right: 10px;" title="Clear all reaction roles data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in your Discord server.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
-                <div class="control">
-                  <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3" placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
-                </div>
-                <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no message.</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
-                <div class="control">
-                  <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4" placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
-                </div>
-                <p class="help has-text-grey-light">Format: :emoji: Description @RoleName [color] (one per line)<br>
-                Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions" style="margin-right: 8px;"<?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
-                    Allow users to select multiple roles
-                  </label>
-                </div>
-                <p class="help has-text-grey-light">If unchecked, users can only have one role from this reaction role set</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()" name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Reaction Roles Settings</span>
-                  </button>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()" id="send_reaction_roles_message" name="send_reaction_roles_message" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                    <span>Send Message to Channel</span>
-                  </button>
-                </div>
-                <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the reaction roles message in Discord and applies the emoji mappings</p>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-rulesConfiguration" style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
-              Rules Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearRules()" style="margin-right: 10px;" title="Clear all rules data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Server Rules:</strong> Post an embed with your server rules to keep your community informed and set clear expectations for all members.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Channel <span class="has-text-danger">*</span></label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Title <span class="has-text-danger">*</span></label>
-                <div class="control">
-                  <input class="input" type="text" id="rules_title" name="rules_title" value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required>
-                </div>
-                <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Content <span class="has-text-danger">*</span></label>
-                <div class="control">
-                  <textarea class="textarea" id="rules_content" name="rules_content" rows="8" placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
-                </div>
-                <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points, or any format you prefer. Discord markdown is supported.</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
-                <div class="control">
-                  <input class="input" type="color" id="rules_color" name="rules_color" value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
-                </div>
-                <p class="help has-text-grey-light">Choose a color for the rules embed border (default is Discord blue)</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <label class="checkbox has-text-white">
-                    <input type="checkbox" id="rules_assign_role_on_accept" name="rules_assign_role_on_accept" style="margin-right: 8px;"<?php echo !empty($existingRulesAcceptRoleID) ? ' checked' : ''; ?>>
-                    Assign role on rule acceptance
-                  </label>
-                </div>
-                <p class="help has-text-grey-light">When enabled, users who react with ✅ to the rules will be assigned the selected role</p>
-              </div>
-              <div class="field" id="rules_accept_role_field" style="<?php echo empty($existingRulesAcceptRoleID) ? 'display: none;' : ''; ?>">
-                <label class="label has-text-white" style="font-weight: 500;">Rules Acceptance Role</label>
-                <div class="control has-icons-left">
-                  <?php echo generateRoleInput('rules_accept_role_id', 'rules_accept_role_id', $existingRulesAcceptRoleID ?? '', 'e.g. 123456789123456789', $useManualIds, $guildRoles); ?>
-                </div>
-                <p class="help has-text-grey-light">Role to assign when users react with ✅ to accept the rules</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Rules Configuration</span>
-                  </button>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()" id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                    <span>Send Rules to Channel</span>
-                  </button>
-                </div>
-                <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the selected Discord channel with the latest configuration</p>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="column is-6 is-flex" id="feature-box-streamSchedule" style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'block' : 'none'; ?>;">
-        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fas fa-calendar-alt"></i></span>
-              Stream Schedule Configuration
-            </p>
-            <div class="card-header-icon">
-              <button class="button is-ghost" onclick="clearStreamSchedule()" style="margin-right: 10px;" title="Clear all schedule data and disable this feature">
-                <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
-              </button>
-              <span class="tag is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
-              </span>
-            </div>
-          </header>
-          <div class="card-content">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to keep your community informed about when you stream.</p>
-            </div>
-            <form action="" method="post">
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Schedule Channel <span class="has-text-danger">*</span></label>
-                <div class="control has-icons-left">
-                  <?php echo generateChannelInput('stream_schedule_channel_id', 'stream_schedule_channel_id', $existingStreamScheduleChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
-                </div>
-                <p class="help has-text-grey-light">Channel where the stream schedule message will be posted</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Schedule Title <span class="has-text-danger">*</span></label>
-                <div class="control">
-                  <input class="input" type="text" id="stream_schedule_title" name="stream_schedule_title" value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>" placeholder="e.g. Weekly Stream Schedule" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required>
-                </div>
-                <p class="help has-text-grey-light">Title for the stream schedule embed (appears at the top)</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Stream Schedule Content <span class="has-text-danger">*</span></label>
-                <div class="control">
-                  <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10" placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST" style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
-                </div>
-                <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or any format you prefer. Discord markdown is supported. <a href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">View markdown guide</a></p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Timezone <span class="has-text-danger">*</span></label>
-                <div class="control">
-                  <input class="input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone" value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>" placeholder="e.g. EST, PST, UTC, etc." style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" required>
-                </div>
-                <p class="help has-text-grey-light">Specify your timezone for clarity (will be shown in the footer)</p>
-              </div>
-              <div class="field">
-                <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
-                <div class="control">
-                  <input class="input" type="color" id="stream_schedule_color" name="stream_schedule_color" value="<?php echo htmlspecialchars($existingStreamScheduleColor ?: '#9146ff'); ?>" style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
-                </div>
-                <p class="help has-text-grey-light">Choose a color for the schedule embed border (default is Twitch purple)</p>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule()" name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Save Schedule Configuration</span>
-                  </button>
-                </div>
-              </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-success is-fullwidth" type="button" onclick="sendStreamScheduleMessage()" id="send_stream_schedule_message" name="send_stream_schedule_message" style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                    <span>Send Schedule to Channel</span>
-                  </button>
-                </div>
-                <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the stream schedule embed in the selected Discord channel with the latest configuration</p>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      <!-- Embed Builder Section -->
-      <div class="column is-12" id="feature-box-embedBuilder" style="display: <?php echo $serverManagementSettings['embedBuilder'] ? 'block' : 'none'; ?>;">
-        <div class="box" style="background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; border: 1px solid #3a3a3a; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);">
-          <div class="content">
-            <h2 class="title is-4 has-text-white" style="border-bottom: 2px solid #9146ff; padding-bottom: 10px; margin-bottom: 20px;">
-              <span class="icon-text">
-                <span class="icon has-text-info"><i class="fas fa-comment-dots"></i></span>
-                <span>Custom Embed Builder</span>
-              </span>
-            </h2>
-            <p class="has-text-grey-light mb-4">Create, manage, and send custom Discord embeds to any channel in your server</p>
-            <!-- Existing Embeds List -->
-            <div class="box" style="background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; margin-bottom: 20px;">
-              <h3 class="subtitle is-5 has-text-white mb-3">
-                <span class="icon-text">
-                  <span class="icon"><i class="fas fa-list"></i></span>
-                  <span>Your Custom Embeds</span>
-                </span>
-              </h3>
-              <div id="embedsList" style="max-height: 400px; overflow-y: auto;">
-                <!-- Embeds will be loaded here -->
-              </div>
-            </div>
-            <!-- Create New Embed Button -->
-            <div class="field">
-              <div class="control">
-                <button class="button is-primary is-fullwidth" type="button" onclick="createEmbed()" style="border-radius: 6px; font-weight: 600;">
-                  <span class="icon"><i class="fas fa-plus"></i></span>
-                  <span>Create New Embed</span>
+      <div class="columns is-multiline">
+        <div class="column is-6 is-flex" id="feature-box-welcomeMessage"
+          style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
+                Welcome Message Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('welcomeMessage')" style="margin-right: 10px;"
+                  title="Clear all welcome message data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
                 </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Welcome Messages:</strong> Greet new members with personalized welcome
+                  messages when they join your Discord server.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Welcome Channel <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message"
+                        style="margin-right: 8px;" <?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
+                      Use default welcome message
+                    </label>
+                  </div>
+                  <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a
+                    custom one</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" id="enable_embed_message" name="enable_embed_message"
+                        style="margin-right: 8px;" <?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
+                      Enable Embed Message
+                    </label>
+                  </div>
+                  <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors
+                  </p>
+                </div>
+                <div class="field" id="welcome_colour_field"
+                  style="<?php echo $existingWelcomeEmbed ? '' : 'display: none;'; ?>">
+                  <label class="label has-text-white" style="font-weight: 500;">
+                    <span class="icon is-small mr-1"><i class="fas fa-palette"></i></span>
+                    Embed Colour
+                  </label>
+                  <div class="control">
+                    <input class="input" type="color" id="welcome_colour" name="welcome_colour"
+                      value="<?php echo htmlspecialchars($existingWelcomeColour ?: '#00d1b2'); ?>"
+                      style="height: 40px; cursor: pointer;">
+                  </div>
+                  <p class="help has-text-grey-light">Choose the colour for the embed border and accent</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
+                  <div class="control">
+                    <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3"
+                      placeholder="Welcome (user) to our server, we're so glad you joined us!"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" <?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
+                  </div>
+                  <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()"
+                      name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Welcome Message Configuration</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-autoRole"
+          style="display: <?php echo $serverManagementSettings['autoRole'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
+                Auto Role Assignment Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('autoRole')" style="margin-right: 10px;"
+                  title="Clear all auto role data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members
+                  when they join your Discord server.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateRoleInput(
+                      'auto_role_id',
+                      'auto_role_id',
+                      $existingAutoRoleID, // Current value from database 
+                      'e.g. 123456789123456789',
+                      $useManualIds,
+                      $guildRoles,
+                      'fas fa-user-tag',
+                      false
+                    ); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Role to automatically assign to new members</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()"
+                      name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Auto Role Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-roleHistory"
+          style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
+                Role History Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('roleHistory')" style="margin-right: 10px;"
+                  title="Clear all role history data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Role History:</strong> Automatically restore roles to members when they
+                  rejoin your server, with configurable retention period for role records.</p>
+              </div>
+              <form id="roleHistoryForm" method="POST">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Enable Role Restoration</label>
+                  <div class="control">
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" id="restore_roles" name="restore_roles" <?php echo ($existingRoleHistoryEnabled == 1 ? 'checked' : ''); ?> style="margin-right: 8px;">
+                      Restore all previous roles when member rejoins
+                    </label>
+                  </div>
+                  <p class="help has-text-grey-light">When enabled, users will automatically receive their previous roles
+                    when they rejoin</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">History Retention Period (Days)</label>
+                  <div class="control has-icons-left">
+                    <input class="input" type="number" id="history_retention_days" name="history_retention_days"
+                      value="<?php echo $existingRoleHistoryRetention ?? 30; ?>" min="1" max="365"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
+                    <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
+                  </div>
+                  <p class="help has-text-grey-light">How long to keep role history data after a member leaves (1-365
+                    days)</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_role_history"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Role History Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-messageTracking"
+          style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
+                Message Tracking Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('messageTracking')" style="margin-right: 10px;"
+                  title="Clear all message tracking data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Message Tracking:</strong> Track and log edited and deleted messages in
+                  your Discord server for moderation and transparency purposes.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('message_tracking_log_channel_id', 'message_tracking_log_channel_id', $existingMessageTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
+                  <div class="control">
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_message_edits" style="margin-right: 8px;" <?php echo $existingMessageTrackingEdits ? 'checked' : ''; ?>>
+                      Track message edits
+                    </label>
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" name="track_message_deletes" style="margin-right: 8px;" <?php echo $existingMessageTrackingDeletes ? 'checked' : ''; ?>>
+                      Track message deletions
+                    </label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Message Tracking Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-roleTracking"
+          style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
+                Role Tracking Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('roleTracking')" style="margin-right: 10px;"
+                  title="Clear all role tracking data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Role Tracking:</strong> Monitor and log role assignments and removals for
+                  audit and transparency purposes in your Discord server.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Role Log Channel</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('role_tracking_log_channel_id', 'role_tracking_log_channel_id', $existingRoleTrackingLogChannel, 'Select log channel', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
+                  <div class="control">
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" <?php echo $existingRoleTrackingAdditions ? 'checked' : ''; ?>>
+                      Track role additions
+                    </label>
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" <?php echo $existingRoleTrackingRemovals ? 'checked' : ''; ?>>
+                      Track role removals
+                    </label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_role_tracking"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Role Tracking Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-serverRoleManagement"
+          style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
+                Server Role Management Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('serverRoleManagement')" style="margin-right: 10px;"
+                  title="Clear all server role management data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Server Role Management:</strong> Track role creation, deletion, and edits
+                  within your Discord server for full server management audit logs.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerRoleManagementLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
+                  <div class="control">
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" <?php echo $existingRoleCreationTracking ? 'checked' : ''; ?>>
+                      Track role creation
+                    </label>
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" <?php echo $existingRoleDeletionTracking ? 'checked' : ''; ?>>
+                      Track role deletion
+                    </label>
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" name="track_role_edits" style="margin-right: 8px;" <?php echo $existingRoleEditTracking ? 'checked' : ''; ?>>
+                      Track role edits
+                    </label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Server Role Management Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-userTracking"
+          style="display: <?php echo $serverManagementSettings['userTracking'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
+                User Tracking Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFeature('userTracking')" style="margin-right: 10px;"
+                  title="Clear all user tracking data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>User Tracking:</strong> Track and log user activity including joins,
+                  leaves, nickname changes, avatar updates, and status changes in your Discord server.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">User Tracking Log Channel ID</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('user_tracking_log_channel_id', 'user_tracking_log_channel_id', $existingUserTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where user tracking logs will be sent</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
+                  <div class="control">
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_user_joins" style="margin-right: 8px;" <?php echo $existingUserJoinTracking ? 'checked' : ''; ?>>
+                      Track user joins
+                    </label>
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_user_leaves" style="margin-right: 8px;" <?php echo $existingUserLeaveTracking ? 'checked' : ''; ?>>
+                      Track user leaves
+                    </label>
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_user_nickname" style="margin-right: 8px;" <?php echo $existingUserNicknameTracking ? 'checked' : ''; ?>>
+                      Track nickname changes
+                    </label>
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_user_username" style="margin-right: 8px;" <?php echo $existingUserUsernameTracking ? 'checked' : ''; ?>>
+                      Track username changes
+                    </label>
+                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                      <input type="checkbox" name="track_user_avatar" style="margin-right: 8px;" <?php echo $existingUserAvatarTracking ? 'checked' : ''; ?>>
+                      Track avatar changes
+                    </label>
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" name="track_user_status" style="margin-right: 8px;" <?php echo $existingUserStatusTracking ? 'checked' : ''; ?>>
+                      Track status changes
+                    </label>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save User Tracking Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-reactionRoles"
+          style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
+                Reaction Roles Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearReactionRoles()" style="margin-right: 10px;"
+                  title="Clear all reaction roles data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in
+                  your Discord server.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
+                  <div class="control">
+                    <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3"
+                      placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
+                  </div>
+                  <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no
+                    message.</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
+                  <div class="control">
+                    <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4"
+                      placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
+                  </div>
+                  <p class="help has-text-grey-light">Format: :emoji: Description @RoleName [color] (one per line)<br>
+                    Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions"
+                        style="margin-right: 8px;" <?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
+                      Allow users to select multiple roles
+                    </label>
+                  </div>
+                  <p class="help has-text-grey-light">If unchecked, users can only have one role from this reaction role
+                    set</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()"
+                      name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Reaction Roles Settings</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()"
+                      id="send_reaction_roles_message" name="send_reaction_roles_message"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                      <span>Send Message to Channel</span>
+                    </button>
+                  </div>
+                  <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the reaction roles message
+                    in Discord and applies the emoji mappings</p>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-rulesConfiguration"
+          style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
+                Rules Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearRules()" style="margin-right: 10px;"
+                  title="Clear all rules data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Server Rules:</strong> Post an embed with your server rules to keep your
+                  community informed and set clear expectations for all members.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Rules Channel <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Rules Title <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control">
+                    <input class="input" type="text" id="rules_title" name="rules_title"
+                      value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                      required>
+                  </div>
+                  <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Rules Content <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control">
+                    <textarea class="textarea" id="rules_content" name="rules_content" rows="8"
+                      placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                      required><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
+                  </div>
+                  <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points,
+                    or any format you prefer. Discord markdown is supported.</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
+                  <div class="control">
+                    <input class="input" type="color" id="rules_color" name="rules_color"
+                      value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
+                  </div>
+                  <p class="help has-text-grey-light">Choose a color for the rules embed border (default is Discord blue)
+                  </p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <label class="checkbox has-text-white">
+                      <input type="checkbox" id="rules_assign_role_on_accept" name="rules_assign_role_on_accept"
+                        style="margin-right: 8px;" <?php echo !empty($existingRulesAcceptRoleID) ? ' checked' : ''; ?>>
+                      Assign role on rule acceptance
+                    </label>
+                  </div>
+                  <p class="help has-text-grey-light">When enabled, users who react with ✅ to the rules will be assigned
+                    the selected role</p>
+                </div>
+                <div class="field" id="rules_accept_role_field"
+                  style="<?php echo empty($existingRulesAcceptRoleID) ? 'display: none;' : ''; ?>">
+                  <label class="label has-text-white" style="font-weight: 500;">Rules Acceptance Role</label>
+                  <div class="control has-icons-left">
+                    <?php echo generateRoleInput('rules_accept_role_id', 'rules_accept_role_id', $existingRulesAcceptRoleID ?? '', 'e.g. 123456789123456789', $useManualIds, $guildRoles); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Role to assign when users react with ✅ to accept the rules</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Rules Configuration</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()"
+                      id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                      <span>Send Rules to Channel</span>
+                    </button>
+                  </div>
+                  <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the
+                    selected Discord channel with the latest configuration</p>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="column is-6 is-flex" id="feature-box-streamSchedule"
+          style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-primary"><i class="fas fa-calendar-alt"></i></span>
+                Stream Schedule Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearStreamSchedule()" style="margin-right: 10px;"
+                  title="Clear all schedule data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to
+                  keep your community informed about when you stream.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Schedule Channel <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('stream_schedule_channel_id', 'stream_schedule_channel_id', $existingStreamScheduleChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where the stream schedule message will be posted</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Schedule Title <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control">
+                    <input class="input" type="text" id="stream_schedule_title" name="stream_schedule_title"
+                      value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>"
+                      placeholder="e.g. Weekly Stream Schedule"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                      required>
+                  </div>
+                  <p class="help has-text-grey-light">Title for the stream schedule embed (appears at the top)</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Stream Schedule Content <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control">
+                    <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10"
+                      placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                      required><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
+                  </div>
+                  <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or
+                    any format you prefer. Discord markdown is supported. <a
+                      href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">View
+                      markdown guide</a></p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Timezone <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control">
+                    <input class="input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone"
+                      value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>"
+                      placeholder="e.g. EST, PST, UTC, etc."
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                      required>
+                  </div>
+                  <p class="help has-text-grey-light">Specify your timezone for clarity (will be shown in the footer)</p>
+                </div>
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
+                  <div class="control">
+                    <input class="input" type="color" id="stream_schedule_color" name="stream_schedule_color"
+                      value="<?php echo htmlspecialchars($existingStreamScheduleColor ?: '#9146ff'); ?>"
+                      style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
+                  </div>
+                  <p class="help has-text-grey-light">Choose a color for the schedule embed border (default is Twitch
+                    purple)</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule()"
+                      name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Schedule Configuration</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-success is-fullwidth" type="button" onclick="sendStreamScheduleMessage()"
+                      id="send_stream_schedule_message" name="send_stream_schedule_message"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                      <span>Send Schedule to Channel</span>
+                    </button>
+                  </div>
+                  <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the stream schedule embed in
+                    the selected Discord channel with the latest configuration</p>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Free Games Configuration Section -->
+        <div class="column is-6 is-flex" id="feature-box-freeGames"
+          style="display: <?php echo $serverManagementSettings['freeGames'] ? 'block' : 'none'; ?>;">
+          <div class="card has-background-grey-darker"
+            style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="card-header-title has-text-white" style="font-weight: 600;">
+                <span class="icon mr-2 has-text-success"><i class="fas fa-gift"></i></span>
+                Free Games Configuration
+              </p>
+              <div class="card-header-icon">
+                <button class="button is-ghost" onclick="clearFreeGames()" style="margin-right: 10px;"
+                  title="Clear all free games data and disable this feature">
+                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                </button>
+                <span class="tag is-success is-light">
+                  <span class="icon"><i class="fas fa-check-circle"></i></span>
+                  <span>COMPLETED</span>
+                </span>
+              </div>
+            </header>
+            <div class="card-content">
+              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p class="has-text-dark"><strong>Free Games:</strong> Get notified in your Discord server when free games
+                  are available from various platforms.</p>
+              </div>
+              <form action="" method="post">
+                <div class="field">
+                  <label class="label has-text-white" style="font-weight: 500;">Discord Channel <span
+                      class="has-text-danger">*</span></label>
+                  <div class="control has-icons-left">
+                    <?php echo generateChannelInput('freestuff_channel_id', 'freestuff_channel_id', $existingFreestuffChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
+                  </div>
+                  <p class="help has-text-grey-light">Channel where free game announcements will be posted</p>
+                </div>
+                <div class="field">
+                  <div class="control">
+                    <button class="button is-primary is-fullwidth" type="submit" name="save_freestuff_settings"
+                      style="border-radius: 6px; font-weight: 600;">
+                      <span class="icon"><i class="fas fa-save"></i></span>
+                      <span>Save Free Games Settings</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Embed Builder Section -->
+        <div class="column is-12" id="feature-box-embedBuilder"
+          style="display: <?php echo $serverManagementSettings['embedBuilder'] ? 'block' : 'none'; ?>;">
+          <div class="box"
+            style="background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; border: 1px solid #3a3a3a; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);">
+            <div class="content">
+              <h2 class="title is-4 has-text-white"
+                style="border-bottom: 2px solid #9146ff; padding-bottom: 10px; margin-bottom: 20px;">
+                <span class="icon-text">
+                  <span class="icon has-text-info"><i class="fas fa-comment-dots"></i></span>
+                  <span>Custom Embed Builder</span>
+                </span>
+              </h2>
+              <p class="has-text-grey-light mb-4">Create, manage, and send custom Discord embeds to any channel in your
+                server</p>
+              <!-- Existing Embeds List -->
+              <div class="box"
+                style="background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; margin-bottom: 20px;">
+                <h3 class="subtitle is-5 has-text-white mb-3">
+                  <span class="icon-text">
+                    <span class="icon"><i class="fas fa-list"></i></span>
+                    <span>Your Custom Embeds</span>
+                  </span>
+                </h3>
+                <div id="embedsList" style="max-height: 400px; overflow-y: auto;">
+                  <!-- Embeds will be loaded here -->
+                </div>
+              </div>
+              <!-- Create New Embed Button -->
+              <div class="field">
+                <div class="control">
+                  <button class="button is-primary is-fullwidth" type="button" onclick="createEmbed()"
+                    style="border-radius: 6px; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-plus"></i></span>
+                    <span>Create New Embed</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
     <?php endif; ?>
   </div>
-</div>
-<!-- Free Games (FreeStuff) Module -->
-<div class="box">
-  <h2 class="title is-4">Free Games (FreeStuff) Module</h2>
-  <?php if ($is_linked && $hasGuildId) { ?>
-    <form method="POST">
-      <div class="field">
-        <label class="label">Enable Free Games</label>
-        <div class="control">
-          <label class="checkbox">
-            <input type="checkbox" name="freestuff_enabled" <?php echo $existingFreestuffEnabled ? 'checked' : ''; ?>> Enabled
-          </label>
-        </div>
-      </div>
-      <div class="field">
-        <label class="label">Twitch Username</label>
-        <div class="control">
-          <input class="input" type="text" name="freestuff_twitch_username" value="<?php echo htmlspecialchars($existingFreestuffTwitchUser); ?>" placeholder="Enter Twitch username to monitor">
-        </div>
-      </div>
-      <div class="field">
-        <label class="label">Discord Channel ID</label>
-        <div class="control">
-          <input class="input" type="text" name="freestuff_channel_id" value="<?php echo htmlspecialchars($existingFreestuffChannelID); ?>" placeholder="Channel ID to post announcements">
-        </div>
-      </div>
-      <div class="field">
-        <div class="control">
-          <button class="button is-primary" type="submit" name="save_freestuff_settings">Save Free Games Settings</button>
-        </div>
-      </div>
-    </form>
-  <?php } else { ?>
-    <div class="notification is-warning">Link your Discord guild and select a guild to configure the Free Games module.</div>
-  <?php } ?>
 </div>
 
 <!-- Embed Builder Modal -->
@@ -3242,20 +3498,24 @@ ob_start();
           <div class="field">
             <label class="label has-text-white">Embed Name</label>
             <div class="control">
-              <input class="input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
             <p class="help has-text-grey-light">Internal name to identify this embed (not shown in Discord)</p>
           </div>
           <div class="field">
             <label class="label has-text-white">Embed Title</label>
             <div class="control">
-              <input class="input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Description</label>
             <div class="control">
-              <textarea class="textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..." style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()"></textarea>
+              <textarea class="textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..."
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;"
+                oninput="updateEmbedPreview()"></textarea>
             </div>
           </div>
           <div class="columns">
@@ -3263,7 +3523,9 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white">Embed Color</label>
                 <div class="control">
-                  <input class="input" type="color" id="embed_color" value="#5865f2" style="background-color: #3a3a3a; border-color: #5a5a5a; height: 50px;" oninput="updateEmbedPreview()">
+                  <input class="input" type="color" id="embed_color" value="#5865f2"
+                    style="background-color: #3a3a3a; border-color: #5a5a5a; height: 50px;"
+                    oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
@@ -3271,7 +3533,9 @@ ob_start();
               <div class="field">
                 <label class="label has-text-white">URL (optional)</label>
                 <div class="control">
-                  <input class="input" type="url" id="embed_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+                  <input class="input" type="url" id="embed_url" placeholder="https://example.com"
+                    style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;"
+                    oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
@@ -3279,43 +3543,50 @@ ob_start();
           <div class="field">
             <label class="label has-text-white">Thumbnail URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Image URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_image" placeholder="https://example.com/image.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="url" id="embed_image" placeholder="https://example.com/image.png"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Footer Text (optional)</label>
             <div class="control">
-              <input class="input" type="text" id="embed_footer_text" placeholder="Footer text" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="text" id="embed_footer_text" placeholder="Footer text"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Footer Icon URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Author Name (optional)</label>
             <div class="control">
-              <input class="input" type="text" id="embed_author_name" placeholder="Author name" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="text" id="embed_author_name" placeholder="Author name"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Author URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_author_url" placeholder="https://example.com" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="url" id="embed_author_url" placeholder="https://example.com"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
             <label class="label has-text-white">Author Icon URL (optional)</label>
             <div class="control">
-              <input class="input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+              <input class="input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png"
+                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="field">
@@ -3417,18 +3688,18 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-const tableBody = document.querySelector('#savedStreamersModal tbody');
-const initialSavedStreamers = <?php echo json_encode($savedStreamers); ?>;
-let streamersToDisplay = initialSavedStreamers;
-function populateStreamersTable() {
-  tableBody.innerHTML = '';
-  if (streamersToDisplay.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="3" class="has-text-centered">No streamers saved yet.</td></tr>';
-    return;
-  }
-  streamersToDisplay.forEach(streamer => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
+  const tableBody = document.querySelector('#savedStreamersModal tbody');
+  const initialSavedStreamers = <?php echo json_encode($savedStreamers); ?>;
+  let streamersToDisplay = initialSavedStreamers;
+  function populateStreamersTable() {
+    tableBody.innerHTML = '';
+    if (streamersToDisplay.length === 0) {
+      tableBody.innerHTML = '<tr><td colspan="3" class="has-text-centered">No streamers saved yet.</td></tr>';
+      return;
+    }
+    streamersToDisplay.forEach(streamer => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
       <td>${streamer.username}</td>
       <td><a href="${streamer.stream_url}" target="_blank">${streamer.stream_url}</a></td>
       <td>
@@ -3438,50 +3709,50 @@ function populateStreamersTable() {
         </button>
       </td>
     `;
-    tableBody.appendChild(row);
-  });
-}
-populateStreamersTable(streamersToDisplay);
+      tableBody.appendChild(row);
+    });
+  }
+  populateStreamersTable(streamersToDisplay);
 
-function removeStreamer(username) {
-  Swal.fire({
-    title: 'Remove Tracked Streamer?',
-    html: `Are you sure you want to remove <b>${username}</b> from your tracked streamer list?<br><br>This will stop the Discord bot from posting when this streamer goes live in your monitoring channel on your Discord server.`,
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Yes, Remove',
-    cancelButtonText: 'Cancel',
-    confirmButtonColor: '#e74c3c',
-    cancelButtonColor: '#6c757d'
-  }).then((result) => {
-    if (result.isConfirmed) {
-      // Create a form and submit it
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = '';
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'remove_streamer';
-      input.value = username;
-      form.appendChild(input);
-      document.body.appendChild(form);
-      form.submit();
-    }
-  });
-}
+  function removeStreamer(username) {
+    Swal.fire({
+      title: 'Remove Tracked Streamer?',
+      html: `Are you sure you want to remove <b>${username}</b> from your tracked streamer list?<br><br>This will stop the Discord bot from posting when this streamer goes live in your monitoring channel on your Discord server.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Remove',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#e74c3c',
+      cancelButtonColor: '#6c757d'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Create a form and submit it
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'remove_streamer';
+        input.value = username;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+      }
+    });
+  }
 
-// Embed Builder Functions
-let currentEmbedId = 0;
-let embedFieldsCounter = 0;
-let currentSendEmbedId = 0;
+  // Embed Builder Functions
+  let currentEmbedId = 0;
+  let embedFieldsCounter = 0;
+  let currentSendEmbedId = 0;
 
-function loadEmbedsList() {
-  fetch(`get_custom_embeds.php?server_id=${getCurrentServerId()}`)
-    .then(response => response.json())
-    .then(data => {
-      const container = document.getElementById('embedsList');
-      if (data.success && data.embeds && data.embeds.length > 0) {
-        container.innerHTML = data.embeds.map(embed => `
+  function loadEmbedsList() {
+    fetch(`get_custom_embeds.php?server_id=${getCurrentServerId()}`)
+      .then(response => response.json())
+      .then(data => {
+        const container = document.getElementById('embedsList');
+        if (data.success && data.embeds && data.embeds.length > 0) {
+          container.innerHTML = data.embeds.map(embed => `
           <div class="box" style="background-color: #3a3a3a; border: 1px solid #5a5a5a; margin-bottom: 10px;">
             <div class="level">
               <div class="level-left">
@@ -3510,239 +3781,239 @@ function loadEmbedsList() {
             </div>
           </div>
         `).join('');
-      } else {
-        container.innerHTML = '<p class="has-text-grey-light has-text-centered">No custom embeds yet. Create one to get started!</p>';
+        } else {
+          container.innerHTML = '<p class="has-text-grey-light has-text-centered">No custom embeds yet. Create one to get started!</p>';
+        }
+      })
+      .catch(error => {
+        console.error('Error loading embeds:', error);
+      });
+  }
+
+  function createEmbed() {
+    currentEmbedId = 0;
+    document.getElementById('embedModalTitle').textContent = 'Create Custom Embed';
+    clearEmbedForm();
+    document.getElementById('embedBuilderModal').classList.add('is-active');
+    updateEmbedPreview();
+  }
+
+  function editEmbed(embedId) {
+    currentEmbedId = embedId;
+    document.getElementById('embedModalTitle').textContent = 'Edit Custom Embed';
+    fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const embed = data.embed;
+          document.getElementById('embed_name').value = embed.embed_name || '';
+          document.getElementById('embed_title').value = embed.title || '';
+          document.getElementById('embed_description').value = embed.description || '';
+          document.getElementById('embed_color').value = embed.color || '#5865f2';
+          document.getElementById('embed_url').value = embed.url || '';
+          document.getElementById('embed_thumbnail').value = embed.thumbnail_url || '';
+          document.getElementById('embed_image').value = embed.image_url || '';
+          document.getElementById('embed_footer_text').value = embed.footer_text || '';
+          document.getElementById('embed_footer_icon').value = embed.footer_icon_url || '';
+          document.getElementById('embed_author_name').value = embed.author_name || '';
+          document.getElementById('embed_author_url').value = embed.author_url || '';
+          document.getElementById('embed_author_icon').value = embed.author_icon_url || '';
+          document.getElementById('embed_timestamp').checked = embed.timestamp_enabled == 1;
+          // Load fields
+          const fieldsContainer = document.getElementById('embedFieldsList');
+          fieldsContainer.innerHTML = '';
+          embedFieldsCounter = 0;
+          if (embed.fields) {
+            const fields = JSON.parse(embed.fields);
+            fields.forEach(field => {
+              addEmbedField(field.name, field.value, field.inline);
+            });
+          }
+          document.getElementById('embedBuilderModal').classList.add('is-active');
+          updateEmbedPreview();
+        }
+      });
+  }
+
+  function saveEmbed() {
+    const embedName = document.getElementById('embed_name').value.trim();
+    if (!embedName) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Embed name is required',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+    const fields = [];
+    document.querySelectorAll('.embed-field-item').forEach(item => {
+      const name = item.querySelector('.field-name').value.trim();
+      const value = item.querySelector('.field-value').value.trim();
+      const inline = item.querySelector('.field-inline').checked;
+      if (name && value) {
+        fields.push({ name, value, inline });
       }
-    })
-    .catch(error => {
-      console.error('Error loading embeds:', error);
     });
-}
-
-function createEmbed() {
-  currentEmbedId = 0;
-  document.getElementById('embedModalTitle').textContent = 'Create Custom Embed';
-  clearEmbedForm();
-  document.getElementById('embedBuilderModal').classList.add('is-active');
-  updateEmbedPreview();
-}
-
-function editEmbed(embedId) {
-  currentEmbedId = embedId;
-  document.getElementById('embedModalTitle').textContent = 'Edit Custom Embed';
-  fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        const embed = data.embed;
-        document.getElementById('embed_name').value = embed.embed_name || '';
-        document.getElementById('embed_title').value = embed.title || '';
-        document.getElementById('embed_description').value = embed.description || '';
-        document.getElementById('embed_color').value = embed.color || '#5865f2';
-        document.getElementById('embed_url').value = embed.url || '';
-        document.getElementById('embed_thumbnail').value = embed.thumbnail_url || '';
-        document.getElementById('embed_image').value = embed.image_url || '';
-        document.getElementById('embed_footer_text').value = embed.footer_text || '';
-        document.getElementById('embed_footer_icon').value = embed.footer_icon_url || '';
-        document.getElementById('embed_author_name').value = embed.author_name || '';
-        document.getElementById('embed_author_url').value = embed.author_url || '';
-        document.getElementById('embed_author_icon').value = embed.author_icon_url || '';
-        document.getElementById('embed_timestamp').checked = embed.timestamp_enabled == 1;
-        // Load fields
-        const fieldsContainer = document.getElementById('embedFieldsList');
-        fieldsContainer.innerHTML = '';
-        embedFieldsCounter = 0;
-        if (embed.fields) {
-          const fields = JSON.parse(embed.fields);
-          fields.forEach(field => {
-            addEmbedField(field.name, field.value, field.inline);
+    const embedData = {
+      action: 'save_custom_embed',
+      server_id: getCurrentServerId(),
+      embed_id: currentEmbedId,
+      embed_name: embedName,
+      title: document.getElementById('embed_title').value.trim() || null,
+      description: document.getElementById('embed_description').value.trim() || null,
+      color: document.getElementById('embed_color').value,
+      url: document.getElementById('embed_url').value.trim() || null,
+      thumbnail_url: document.getElementById('embed_thumbnail').value.trim() || null,
+      image_url: document.getElementById('embed_image').value.trim() || null,
+      footer_text: document.getElementById('embed_footer_text').value.trim() || null,
+      footer_icon_url: document.getElementById('embed_footer_icon').value.trim() || null,
+      author_name: document.getElementById('embed_author_name').value.trim() || null,
+      author_url: document.getElementById('embed_author_url').value.trim() || null,
+      author_icon_url: document.getElementById('embed_author_icon').value.trim() || null,
+      timestamp_enabled: document.getElementById('embed_timestamp').checked,
+      fields: JSON.stringify(fields)
+    };
+    fetch('save_discord_channel_config.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(embedData)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: currentEmbedId ? 'Embed Updated' : 'Embed Created',
+            showConfirmButton: false,
+            timer: 3000
+          });
+          closeEmbedModal();
+          loadEmbedsList();
+        } else {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'error',
+            title: data.message || 'Failed to save embed',
+            showConfirmButton: false,
+            timer: 3000
           });
         }
-        document.getElementById('embedBuilderModal').classList.add('is-active');
-        updateEmbedPreview();
-      }
-    });
-}
-
-function saveEmbed() {
-  const embedName = document.getElementById('embed_name').value.trim();
-  if (!embedName) {
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'warning',
-      title: 'Embed name is required',
-      showConfirmButton: false,
-      timer: 3000
-    });
-    return;
+      });
   }
-  const fields = [];
-  document.querySelectorAll('.embed-field-item').forEach(item => {
-    const name = item.querySelector('.field-name').value.trim();
-    const value = item.querySelector('.field-value').value.trim();
-    const inline = item.querySelector('.field-inline').checked;
-    if (name && value) {
-      fields.push({ name, value, inline });
-    }
-  });
-  const embedData = {
-    action: 'save_custom_embed',
-    server_id: getCurrentServerId(),
-    embed_id: currentEmbedId,
-    embed_name: embedName,
-    title: document.getElementById('embed_title').value.trim() || null,
-    description: document.getElementById('embed_description').value.trim() || null,
-    color: document.getElementById('embed_color').value,
-    url: document.getElementById('embed_url').value.trim() || null,
-    thumbnail_url: document.getElementById('embed_thumbnail').value.trim() || null,
-    image_url: document.getElementById('embed_image').value.trim() || null,
-    footer_text: document.getElementById('embed_footer_text').value.trim() || null,
-    footer_icon_url: document.getElementById('embed_footer_icon').value.trim() || null,
-    author_name: document.getElementById('embed_author_name').value.trim() || null,
-    author_url: document.getElementById('embed_author_url').value.trim() || null,
-    author_icon_url: document.getElementById('embed_author_icon').value.trim() || null,
-    timestamp_enabled: document.getElementById('embed_timestamp').checked,
-    fields: JSON.stringify(fields)
-  };
-  fetch('save_discord_channel_config.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(embedData)
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: currentEmbedId ? 'Embed Updated' : 'Embed Created',
-          showConfirmButton: false,
-          timer: 3000
-        });
-        closeEmbedModal();
-        loadEmbedsList();
-      } else {
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'error',
-          title: data.message || 'Failed to save embed',
-          showConfirmButton: false,
-          timer: 3000
-        });
-      }
-    });
-}
 
-function sendEmbed(embedId) {
-  currentSendEmbedId = embedId;
-  // Fetch the embed to get the channel_id
-  fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
-    .then(response => response.json())
-    .then(data => {
-      if (data.success && data.embed.channel_id) {
-        // Pre-populate the channel selector with the last used channel
-        const channelSelect = document.getElementById('send_embed_channel');
-        if (channelSelect) {
-          channelSelect.value = data.embed.channel_id;
-        }
-      }
-    })
-    .catch(error => console.error('Error fetching embed for channel pre-population:', error));
-  document.getElementById('sendEmbedModal').classList.add('is-active');
-}
-
-function confirmSendEmbed() {
-  const channelId = document.getElementById('send_embed_channel').value.trim();
-  if (!channelId) {
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'warning',
-      title: 'Please select a channel',
-      showConfirmButton: false,
-      timer: 3000
-    });
-    return;
-  }
-  fetch('save_discord_channel_config.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'send_custom_embed',
-      server_id: getCurrentServerId(),
-      embed_id: currentSendEmbedId,
-      channel_id: channelId
-    })
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'Embed sent successfully!',
-          showConfirmButton: false,
-          timer: 3000
-        });
-        closeSendEmbedModal();
-      } else {
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'error',
-          title: data.message || 'Failed to send embed',
-          showConfirmButton: false,
-          timer: 3000
-        });
-      }
-    });
-}
-
-function deleteEmbed(embedId) {
-  Swal.fire({
-    title: 'Delete Embed?',
-    text: 'This action cannot be undone',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Yes, delete it'
-  }).then((result) => {
-    if (result.isConfirmed) {
-      fetch('save_discord_channel_config.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete_custom_embed',
-          server_id: getCurrentServerId(),
-          embed_id: embedId
-        })
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            Swal.fire({
-              toast: true,
-              position: 'top-end',
-              icon: 'success',
-              title: 'Embed deleted',
-              showConfirmButton: false,
-              timer: 3000
-            });
-            loadEmbedsList();
+  function sendEmbed(embedId) {
+    currentSendEmbedId = embedId;
+    // Fetch the embed to get the channel_id
+    fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.embed.channel_id) {
+          // Pre-populate the channel selector with the last used channel
+          const channelSelect = document.getElementById('send_embed_channel');
+          if (channelSelect) {
+            channelSelect.value = data.embed.channel_id;
           }
-        });
-    }
-  });
-}
+        }
+      })
+      .catch(error => console.error('Error fetching embed for channel pre-population:', error));
+    document.getElementById('sendEmbedModal').classList.add('is-active');
+  }
 
-function addEmbedField(name = '', value = '', inline = false) {
-  embedFieldsCounter++;
-  const fieldHtml = `
+  function confirmSendEmbed() {
+    const channelId = document.getElementById('send_embed_channel').value.trim();
+    if (!channelId) {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Please select a channel',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+    fetch('save_discord_channel_config.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send_custom_embed',
+        server_id: getCurrentServerId(),
+        embed_id: currentSendEmbedId,
+        channel_id: channelId
+      })
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Embed sent successfully!',
+            showConfirmButton: false,
+            timer: 3000
+          });
+          closeSendEmbedModal();
+        } else {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'error',
+            title: data.message || 'Failed to send embed',
+            showConfirmButton: false,
+            timer: 3000
+          });
+        }
+      });
+  }
+
+  function deleteEmbed(embedId) {
+    Swal.fire({
+      title: 'Delete Embed?',
+      text: 'This action cannot be undone',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        fetch('save_discord_channel_config.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'delete_custom_embed',
+            server_id: getCurrentServerId(),
+            embed_id: embedId
+          })
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Embed deleted',
+                showConfirmButton: false,
+                timer: 3000
+              });
+              loadEmbedsList();
+            }
+          });
+      }
+    });
+  }
+
+  function addEmbedField(name = '', value = '', inline = false) {
+    embedFieldsCounter++;
+    const fieldHtml = `
     <div class="box embed-field-item" style="background-color: #2a2a2a; border: 1px solid #5a5a5a; margin-bottom: 10px;" data-field-id="${embedFieldsCounter}">
       <div class="field">
         <label class="label has-text-white is-small">Field Name</label>
@@ -3774,378 +4045,378 @@ function addEmbedField(name = '', value = '', inline = false) {
       </div>
     </div>
   `;
-  document.getElementById('embedFieldsList').insertAdjacentHTML('beforeend', fieldHtml);
-  updateEmbedPreview();
-}
-
-function removeEmbedField(fieldId) {
-  document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`).remove();
-  updateEmbedPreview();
-}
-
-function moveFieldUp(fieldId) {
-  const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
-  const previousField = field.previousElementSibling;
-  if (previousField && previousField.classList.contains('embed-field-item')) {
-    field.parentNode.insertBefore(field, previousField);
+    document.getElementById('embedFieldsList').insertAdjacentHTML('beforeend', fieldHtml);
     updateEmbedPreview();
   }
-}
 
-function moveFieldDown(fieldId) {
-  const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
-  const nextField = field.nextElementSibling;
-  if (nextField && nextField.classList.contains('embed-field-item')) {
-    field.parentNode.insertBefore(nextField, field);
+  function removeEmbedField(fieldId) {
+    document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`).remove();
     updateEmbedPreview();
   }
-}
 
-function updateEmbedPreview() {
-  const title = document.getElementById('embed_title').value;
-  const description = document.getElementById('embed_description').value;
-  const color = document.getElementById('embed_color').value;
-  const thumbnail = document.getElementById('embed_thumbnail').value;
-  const image = document.getElementById('embed_image').value;
-  const footerText = document.getElementById('embed_footer_text').value;
-  const footerIcon = document.getElementById('embed_footer_icon').value;
-  const authorName = document.getElementById('embed_author_name').value;
-  const authorIcon = document.getElementById('embed_author_icon').value;
-  const timestamp = document.getElementById('embed_timestamp').checked;
-  let preview = `<div style="border-left: 4px solid ${color}; background-color: #2f3136; border-radius: 4px; padding: 16px;">`;
-  if (authorName) {
-    preview += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
-    if (authorIcon) preview += `<img src="${authorIcon}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
-    preview += `<span style="color: #fff; font-weight: 600;">${parseDiscordMarkdown(authorName)}</span></div>`;
+  function moveFieldUp(fieldId) {
+    const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
+    const previousField = field.previousElementSibling;
+    if (previousField && previousField.classList.contains('embed-field-item')) {
+      field.parentNode.insertBefore(field, previousField);
+      updateEmbedPreview();
+    }
   }
-  if (title) preview += `<div style="color: #fff; font-weight: 600; font-size: 16px; margin-bottom: 8px;">${parseDiscordMarkdown(title)}</div>`;
-  if (description) preview += `<div style="color: #dcddde; font-size: 14px; margin-bottom: 8px; line-height: 1.4;">${parseDiscordMarkdown(description)}</div>`;
-  // Fields
-  const fields = [];
-  document.querySelectorAll('.embed-field-item').forEach(item => {
-    const name = item.querySelector('.field-name').value;
-    const value = item.querySelector('.field-value').value;
-    const inline = item.querySelector('.field-inline').checked;
-    if (name && value) fields.push({ name, value, inline });
-  });
-  if (fields.length > 0) {
-    preview += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;">';
-    fields.forEach(field => {
-      const gridColumn = field.inline ? 'span 1' : 'span 3';
-      preview += `<div style="grid-column: ${gridColumn};"><div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 4px;">${parseDiscordMarkdown(field.name)}</div><div style="color: #dcddde; font-size: 14px; line-height: 1.4;">${parseDiscordMarkdown(field.value)}</div></div>`;
+
+  function moveFieldDown(fieldId) {
+    const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
+    const nextField = field.nextElementSibling;
+    if (nextField && nextField.classList.contains('embed-field-item')) {
+      field.parentNode.insertBefore(nextField, field);
+      updateEmbedPreview();
+    }
+  }
+
+  function updateEmbedPreview() {
+    const title = document.getElementById('embed_title').value;
+    const description = document.getElementById('embed_description').value;
+    const color = document.getElementById('embed_color').value;
+    const thumbnail = document.getElementById('embed_thumbnail').value;
+    const image = document.getElementById('embed_image').value;
+    const footerText = document.getElementById('embed_footer_text').value;
+    const footerIcon = document.getElementById('embed_footer_icon').value;
+    const authorName = document.getElementById('embed_author_name').value;
+    const authorIcon = document.getElementById('embed_author_icon').value;
+    const timestamp = document.getElementById('embed_timestamp').checked;
+    let preview = `<div style="border-left: 4px solid ${color}; background-color: #2f3136; border-radius: 4px; padding: 16px;">`;
+    if (authorName) {
+      preview += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
+      if (authorIcon) preview += `<img src="${authorIcon}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
+      preview += `<span style="color: #fff; font-weight: 600;">${parseDiscordMarkdown(authorName)}</span></div>`;
+    }
+    if (title) preview += `<div style="color: #fff; font-weight: 600; font-size: 16px; margin-bottom: 8px;">${parseDiscordMarkdown(title)}</div>`;
+    if (description) preview += `<div style="color: #dcddde; font-size: 14px; margin-bottom: 8px; line-height: 1.4;">${parseDiscordMarkdown(description)}</div>`;
+    // Fields
+    const fields = [];
+    document.querySelectorAll('.embed-field-item').forEach(item => {
+      const name = item.querySelector('.field-name').value;
+      const value = item.querySelector('.field-value').value;
+      const inline = item.querySelector('.field-inline').checked;
+      if (name && value) fields.push({ name, value, inline });
     });
+    if (fields.length > 0) {
+      preview += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;">';
+      fields.forEach(field => {
+        const gridColumn = field.inline ? 'span 1' : 'span 3';
+        preview += `<div style="grid-column: ${gridColumn};"><div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 4px;">${parseDiscordMarkdown(field.name)}</div><div style="color: #dcddde; font-size: 14px; line-height: 1.4;">${parseDiscordMarkdown(field.value)}</div></div>`;
+      });
+      preview += '</div>';
+    }
+    if (image) preview += `<img src="${image}" style="max-width: 100%; border-radius: 4px; margin-top: 16px;" onerror="this.style.display='none'">`;
+    if (thumbnail) preview += `<img src="${thumbnail}" style="max-width: 80px; float: right; border-radius: 4px;" onerror="this.style.display='none'">`;
+    if (footerText || timestamp) {
+      preview += '<div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #4a4a4a;">';
+      if (footerIcon) preview += `<img src="${footerIcon}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
+      preview += `<span style="color: #72767d; font-size: 12px;">${parseDiscordMarkdown(footerText)}`;
+      if (timestamp) preview += ` • ${new Date().toLocaleString()}`;
+      preview += '</span></div>';
+    }
     preview += '</div>';
+    document.getElementById('embedPreview').innerHTML = preview;
   }
-  if (image) preview += `<img src="${image}" style="max-width: 100%; border-radius: 4px; margin-top: 16px;" onerror="this.style.display='none'">`;
-  if (thumbnail) preview += `<img src="${thumbnail}" style="max-width: 80px; float: right; border-radius: 4px;" onerror="this.style.display='none'">`;
-  if (footerText || timestamp) {
-    preview += '<div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #4a4a4a;">';
-    if (footerIcon) preview += `<img src="${footerIcon}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
-    preview += `<span style="color: #72767d; font-size: 12px;">${parseDiscordMarkdown(footerText)}`;
-    if (timestamp) preview += ` • ${new Date().toLocaleString()}`;
-    preview += '</span></div>';
+
+  function clearEmbedForm() {
+    document.getElementById('embed_name').value = '';
+    document.getElementById('embed_title').value = '';
+    document.getElementById('embed_description').value = '';
+    document.getElementById('embed_color').value = '#5865f2';
+    document.getElementById('embed_url').value = '';
+    document.getElementById('embed_thumbnail').value = '';
+    document.getElementById('embed_image').value = '';
+    document.getElementById('embed_footer_text').value = '';
+    document.getElementById('embed_footer_icon').value = '';
+    document.getElementById('embed_author_name').value = '';
+    document.getElementById('embed_author_url').value = '';
+    document.getElementById('embed_author_icon').value = '';
+    document.getElementById('embed_timestamp').checked = false;
+    document.getElementById('embedFieldsList').innerHTML = '';
+    embedFieldsCounter = 0;
   }
-  preview += '</div>';
-  document.getElementById('embedPreview').innerHTML = preview;
-}
 
-function clearEmbedForm() {
-  document.getElementById('embed_name').value = '';
-  document.getElementById('embed_title').value = '';
-  document.getElementById('embed_description').value = '';
-  document.getElementById('embed_color').value = '#5865f2';
-  document.getElementById('embed_url').value = '';
-  document.getElementById('embed_thumbnail').value = '';
-  document.getElementById('embed_image').value = '';
-  document.getElementById('embed_footer_text').value = '';
-  document.getElementById('embed_footer_icon').value = '';
-  document.getElementById('embed_author_name').value = '';
-  document.getElementById('embed_author_url').value = '';
-  document.getElementById('embed_author_icon').value = '';
-  document.getElementById('embed_timestamp').checked = false;
-  document.getElementById('embedFieldsList').innerHTML = '';
-  embedFieldsCounter = 0;
-}
+  function closeEmbedModal() {
+    document.getElementById('embedBuilderModal').classList.remove('is-active');
+  }
 
-function closeEmbedModal() {
-  document.getElementById('embedBuilderModal').classList.remove('is-active');
-}
+  function closeSendEmbedModal() {
+    document.getElementById('sendEmbedModal').classList.remove('is-active');
+  }
 
-function closeSendEmbedModal() {
-  document.getElementById('sendEmbedModal').classList.remove('is-active');
-}
+  function getCurrentServerId() {
+    const guildIdElement = document.getElementById('guild_id_config');
+    return guildIdElement ? guildIdElement.value : '';
+  }
 
-function getCurrentServerId() {
-  const guildIdElement = document.getElementById('guild_id_config');
-  return guildIdElement ? guildIdElement.value : '';
-}
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function parseDiscordMarkdown(text) {
-  if (!text) return '';
-  // Escape HTML first
-  text = escapeHtml(text);
-  // Headers (must come before other formatting)
-  text = text.replace(/^### (.+)$/gm, '<h3 style="color: #fff; font-size: 14px; font-weight: 600; margin: 8px 0 4px 0;">$1</h3>');
-  text = text.replace(/^## (.+)$/gm, '<h2 style="color: #fff; font-size: 16px; font-weight: 600; margin: 8px 0 4px 0;">$1</h2>');
-  text = text.replace(/^# (.+)$/gm, '<h1 style="color: #fff; font-size: 18px; font-weight: 600; margin: 8px 0 4px 0;">$1</h1>');
-  // Code blocks (triple backticks)
-  text = text.replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre style="background-color: #2f3136; border: 1px solid #202225; border-radius: 4px; padding: 8px; margin: 4px 0; overflow-x: auto;"><code style="color: #dcddde; font-family: monospace; font-size: 13px;">$2</code></pre>');
-  // Inline code (single backticks)
-  text = text.replace(/`([^`]+)`/g, '<code style="background-color: #2f3136; color: #dcddde; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
-  // Bold and italic combined (***text***)
-  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  text = text.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
-  // Bold (**text** or __text__)
-  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
-  // Italic (*text* or _text_)
-  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
-  // Strikethrough (~~text~~)
-  text = text.replace(/~~(.+?)~~/g, '<s>$1</s>');
-  // Underline (__text__ is already handled as bold)
-  text = text.replace(/__([^_]+)__/g, '<u>$1</u>');
-  // Links [text](url)
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
-  // Angle-bracketed URLs <url>
-  text = text.replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
-  // Auto-link URLs
-  text = text.replace(/(?<!href="|src=")(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
-  // Line breaks
-  text = text.replace(/\n/g, '<br>');
-  return text;
-}
+  function parseDiscordMarkdown(text) {
+    if (!text) return '';
+    // Escape HTML first
+    text = escapeHtml(text);
+    // Headers (must come before other formatting)
+    text = text.replace(/^### (.+)$/gm, '<h3 style="color: #fff; font-size: 14px; font-weight: 600; margin: 8px 0 4px 0;">$1</h3>');
+    text = text.replace(/^## (.+)$/gm, '<h2 style="color: #fff; font-size: 16px; font-weight: 600; margin: 8px 0 4px 0;">$1</h2>');
+    text = text.replace(/^# (.+)$/gm, '<h1 style="color: #fff; font-size: 18px; font-weight: 600; margin: 8px 0 4px 0;">$1</h1>');
+    // Code blocks (triple backticks)
+    text = text.replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre style="background-color: #2f3136; border: 1px solid #202225; border-radius: 4px; padding: 8px; margin: 4px 0; overflow-x: auto;"><code style="color: #dcddde; font-family: monospace; font-size: 13px;">$2</code></pre>');
+    // Inline code (single backticks)
+    text = text.replace(/`([^`]+)`/g, '<code style="background-color: #2f3136; color: #dcddde; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
+    // Bold and italic combined (***text***)
+    text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    text = text.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+    // Bold (**text** or __text__)
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    // Italic (*text* or _text_)
+    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
+    // Strikethrough (~~text~~)
+    text = text.replace(/~~(.+?)~~/g, '<s>$1</s>');
+    // Underline (__text__ is already handled as bold)
+    text = text.replace(/__([^_]+)__/g, '<u>$1</u>');
+    // Links [text](url)
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
+    // Angle-bracketed URLs <url>
+    text = text.replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
+    // Auto-link URLs
+    text = text.replace(/(?<!href="|src=")(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color: #00b0f4; text-decoration: none;" target="_blank">$1</a>');
+    // Line breaks
+    text = text.replace(/\n/g, '<br>');
+    return text;
+  }
 
 
-// Load embeds list on page load if embed builder is enabled
-if (document.getElementById('embedsList')) {
-  loadEmbedsList();
-}
+  // Load embeds list on page load if embed builder is enabled
+  if (document.getElementById('embedsList')) {
+    loadEmbedsList();
+  }
 
-// Add event listeners for embed form fields to update preview in real-time
-document.addEventListener('DOMContentLoaded', function() {
-  const embedInputs = [
-    'embed_name', 'embed_title', 'embed_description', 'embed_color', 'embed_url',
-    'embed_thumbnail', 'embed_image', 'embed_footer_text', 'embed_footer_icon',
-    'embed_author_name', 'embed_author_url', 'embed_author_icon', 'embed_timestamp'
-  ];
-  embedInputs.forEach(inputId => {
-    const element = document.getElementById(inputId);
-    if (element) {
-      if (element.type === 'checkbox') {
-        element.addEventListener('change', updateEmbedPreview);
-      } else {
-        element.addEventListener('input', updateEmbedPreview);
-      }
-    }
-  });
-});
-
-  $(document).ready(function() {
-    // Character counters for online/offline text
-  function updateCharCounter(inputId, counterId) {
-    var input = $('#' + inputId);
-    var counter = $('#' + counterId);
-    var maxLength = 20;
-    input.on('input', function() {
-      var currentLength = $(this).val().length;
-      counter.text(currentLength);
-      // Change color based on character count
-      if (currentLength >= maxLength) {
-        counter.css('color', '#ff3860'); // Red when at limit
-      } else if (currentLength >= maxLength * 0.8) {
-        counter.css('color', '#ffdd57'); // Yellow when approaching limit
-      } else {
-        counter.css('color', '#b5b5b5'); // Default grey
+  // Add event listeners for embed form fields to update preview in real-time
+  document.addEventListener('DOMContentLoaded', function () {
+    const embedInputs = [
+      'embed_name', 'embed_title', 'embed_description', 'embed_color', 'embed_url',
+      'embed_thumbnail', 'embed_image', 'embed_footer_text', 'embed_footer_icon',
+      'embed_author_name', 'embed_author_url', 'embed_author_icon', 'embed_timestamp'
+    ];
+    embedInputs.forEach(inputId => {
+      const element = document.getElementById(inputId);
+      if (element) {
+        if (element.type === 'checkbox') {
+          element.addEventListener('change', updateEmbedPreview);
+        } else {
+          element.addEventListener('input', updateEmbedPreview);
+        }
       }
     });
-  }
-  updateCharCounter('online_text', 'online_text_counter');
-  updateCharCounter('offline_text', 'offline_text_counter');
-  // Toggle @everyone checkbox visibility based on stream channel selection
-  function toggleStreamEveryoneField() {
-    const streamChannelField = $('#stream_channel_id');
-    const everyoneField = $('#stream_everyone_field');
-    const selectedValue = streamChannelField.val();
-    let hasValue = false;
-    if (streamChannelField.is('select')) {
-      hasValue = selectedValue && selectedValue !== '' && !selectedValue.includes('Select');
-    } else if (streamChannelField.is('input[type="text"]')) {
-      hasValue = selectedValue && selectedValue.trim() !== '';
+  });
+
+  $(document).ready(function () {
+    // Character counters for online/offline text
+    function updateCharCounter(inputId, counterId) {
+      var input = $('#' + inputId);
+      var counter = $('#' + counterId);
+      var maxLength = 20;
+      input.on('input', function () {
+        var currentLength = $(this).val().length;
+        counter.text(currentLength);
+        // Change color based on character count
+        if (currentLength >= maxLength) {
+          counter.css('color', '#ff3860'); // Red when at limit
+        } else if (currentLength >= maxLength * 0.8) {
+          counter.css('color', '#ffdd57'); // Yellow when approaching limit
+        } else {
+          counter.css('color', '#b5b5b5'); // Default grey
+        }
+      });
     }
-    if (hasValue) {
-      everyoneField.show();
-      const hasSavedValue = <?php echo isset($discordData['stream_alert_everyone']) ? 'true' : 'false'; ?>;
-      if (!hasSavedValue) {
-        $('#stream_alert_everyone').prop('checked', true);
+    updateCharCounter('online_text', 'online_text_counter');
+    updateCharCounter('offline_text', 'offline_text_counter');
+    // Toggle @everyone checkbox visibility based on stream channel selection
+    function toggleStreamEveryoneField() {
+      const streamChannelField = $('#stream_channel_id');
+      const everyoneField = $('#stream_everyone_field');
+      const selectedValue = streamChannelField.val();
+      let hasValue = false;
+      if (streamChannelField.is('select')) {
+        hasValue = selectedValue && selectedValue !== '' && !selectedValue.includes('Select');
+      } else if (streamChannelField.is('input[type="text"]')) {
+        hasValue = selectedValue && selectedValue.trim() !== '';
       }
-      // Update custom role field visibility based on current @everyone state
-      toggleCustomRoleField();
-    } else {
-      everyoneField.hide();
-      // Also uncheck the checkbox when hiding
-      $('#stream_alert_everyone').prop('checked', false);
-      // Hide custom role field when channel is deselected
-      $('#stream_custom_role_field').hide();
-    }
-  }
-  // Toggle custom role field based on @everyone checkbox
-  function toggleCustomRoleField() {
-    const everyoneChecked = $('#stream_alert_everyone').is(':checked');
-    const customRoleField = $('#stream_custom_role_field');
-    if (!everyoneChecked) {
-      customRoleField.show();
-    } else {
-      customRoleField.hide();
-    }
-  }
-  // Check on page load
-  toggleStreamEveryoneField();
-  toggleCustomRoleField();
-  // Check when selection/input changes
-  $('#stream_channel_id').on('change input', toggleStreamEveryoneField);
-  // Check when @everyone checkbox changes
-  $('#stream_alert_everyone').on('change', toggleCustomRoleField);
-  // Dropdown validation for form buttons
-  function validateDropdownSelection(fieldId, buttonName) {
-    var fieldElement = $('#' + fieldId);
-    var button = $('button[name="' + buttonName + '"]');
-    function checkSelection() {
-      var selectedValue = fieldElement.val();
-      // Check if it's a select dropdown or text input
-      if (fieldElement.is('select')) {
-        // For dropdowns, ensure a valid option is selected (not empty and not the default "Select..." option)
-        if (selectedValue && selectedValue !== '' && !selectedValue.includes('Select')) {
-          button.prop('disabled', false);
-        } else {
-          button.prop('disabled', true);
+      if (hasValue) {
+        everyoneField.show();
+        const hasSavedValue = <?php echo isset($discordData['stream_alert_everyone']) ? 'true' : 'false'; ?>;
+        if (!hasSavedValue) {
+          $('#stream_alert_everyone').prop('checked', true);
         }
-      } else if (fieldElement.is('input[type="text"]')) {
-        // For text inputs (manual IDs), ensure there's text entered
-        if (selectedValue && selectedValue.trim() !== '') {
-          button.prop('disabled', false);
-        } else {
-          button.prop('disabled', true);
-        }
+        // Update custom role field visibility based on current @everyone state
+        toggleCustomRoleField();
+      } else {
+        everyoneField.hide();
+        // Also uncheck the checkbox when hiding
+        $('#stream_alert_everyone').prop('checked', false);
+        // Hide custom role field when channel is deselected
+        $('#stream_custom_role_field').hide();
+      }
+    }
+    // Toggle custom role field based on @everyone checkbox
+    function toggleCustomRoleField() {
+      const everyoneChecked = $('#stream_alert_everyone').is(':checked');
+      const customRoleField = $('#stream_custom_role_field');
+      if (!everyoneChecked) {
+        customRoleField.show();
+      } else {
+        customRoleField.hide();
       }
     }
     // Check on page load
-    checkSelection();
+    toggleStreamEveryoneField();
+    toggleCustomRoleField();
     // Check when selection/input changes
-    fieldElement.on('change input', checkSelection);
-  }
-  // Apply validation to all relevant dropdowns and inputs
-  validateDropdownSelection('auto_role_id', 'save_auto_role');
-  validateDropdownSelection('welcome_channel_id', 'save_welcome_message');
-  validateDropdownSelection('message_log_channel_id', 'save_message_tracking');
-  validateDropdownSelection('role_log_channel_id', 'save_role_tracking');
-  validateDropdownSelection('server_mgmt_log_channel_id', 'save_server_role_management');
-  validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
-  validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
-  validateDropdownSelection('rules_channel_id', 'save_rules');
-  validateDropdownSelection('stream_schedule_channel_id', 'save_stream_schedule');
-  // Validation for send reaction roles message button
-  function validateSendReactionRolesButton() {
-    const channelId = $('#reaction_roles_channel_id').val();
-    const message = $('#reaction_roles_message').val().trim();
-    const mappings = $('#reaction_roles_mappings').val().trim();
-    let hasChannel = false;
-    if ($('#reaction_roles_channel_id').is('select')) {
-      hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
-    } else {
-      hasChannel = channelId && channelId.trim() !== '';
-    }
-    const hasMessage = message !== '';
-    const hasMappings = mappings !== '';
-    const sendButton = $('#send_reaction_roles_message');
-    if (hasChannel && hasMessage && hasMappings) {
-      sendButton.prop('disabled', false);
-    } else {
-      sendButton.prop('disabled', true);
-    }
-  }
-  // Check validation on page load and when inputs change
-  validateSendReactionRolesButton();
-  $('#reaction_roles_channel_id, #reaction_roles_message, #reaction_roles_mappings').on('change input', validateSendReactionRolesButton);
-  // Validation for send rules message button
-  function validateSendRulesButton() {
-    const channelId = $('#rules_channel_id').val();
-    const title = $('#rules_title').val().trim();
-    const rules = $('#rules_content').val().trim();
-    let hasChannel = false;
-    if ($('#rules_channel_id').is('select')) {
-      hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
-    } else {
-      hasChannel = channelId && channelId.trim() !== '';
-    }
-    const hasTitle = title !== '';
-    const hasRules = rules !== '';
-    const sendButton = $('#send_rules_message');
-    if (hasChannel && hasTitle && hasRules) {
-      sendButton.prop('disabled', false);
-    } else {
-      sendButton.prop('disabled', true);
-    }
-  }
-  // Check validation on page load and when inputs change
-  validateSendRulesButton();
-  $('#rules_channel_id, #rules_title, #rules_content').on('change input', validateSendRulesButton);
-  // Toggle rules accept role field based on checkbox
-  $('#rules_assign_role_on_accept').on('change', function() {
-    if ($(this).is(':checked')) {
-      $('#rules_accept_role_field').slideDown();
-    } else {
-      $('#rules_accept_role_field').slideUp();
-      $('#rules_accept_role_id').val('');
-    }
-  });
-  // Validation for send stream schedule message button
-  function validateSendStreamScheduleButton() {
-    try {
-      const channelElement = $('#stream_schedule_channel_id');
-      const titleElement = $('#stream_schedule_title');
-      const contentElement = $('#stream_schedule_content');
-      const timezoneElement = $('#stream_schedule_timezone');
-      // Check if elements exist before trying to get values
-      if (channelElement.length === 0 || titleElement.length === 0 || contentElement.length === 0 || timezoneElement.length === 0) {
-        return;
+    $('#stream_channel_id').on('change input', toggleStreamEveryoneField);
+    // Check when @everyone checkbox changes
+    $('#stream_alert_everyone').on('change', toggleCustomRoleField);
+    // Dropdown validation for form buttons
+    function validateDropdownSelection(fieldId, buttonName) {
+      var fieldElement = $('#' + fieldId);
+      var button = $('button[name="' + buttonName + '"]');
+      function checkSelection() {
+        var selectedValue = fieldElement.val();
+        // Check if it's a select dropdown or text input
+        if (fieldElement.is('select')) {
+          // For dropdowns, ensure a valid option is selected (not empty and not the default "Select..." option)
+          if (selectedValue && selectedValue !== '' && !selectedValue.includes('Select')) {
+            button.prop('disabled', false);
+          } else {
+            button.prop('disabled', true);
+          }
+        } else if (fieldElement.is('input[type="text"]')) {
+          // For text inputs (manual IDs), ensure there's text entered
+          if (selectedValue && selectedValue.trim() !== '') {
+            button.prop('disabled', false);
+          } else {
+            button.prop('disabled', true);
+          }
+        }
       }
-      const channelId = channelElement.val() || '';
-      const title = (titleElement.val() || '').trim();
-      const content = (contentElement.val() || '').trim();
-      const timezone = (timezoneElement.val() || '').trim();
+      // Check on page load
+      checkSelection();
+      // Check when selection/input changes
+      fieldElement.on('change input', checkSelection);
+    }
+    // Apply validation to all relevant dropdowns and inputs
+    validateDropdownSelection('auto_role_id', 'save_auto_role');
+    validateDropdownSelection('welcome_channel_id', 'save_welcome_message');
+    validateDropdownSelection('message_log_channel_id', 'save_message_tracking');
+    validateDropdownSelection('role_log_channel_id', 'save_role_tracking');
+    validateDropdownSelection('server_mgmt_log_channel_id', 'save_server_role_management');
+    validateDropdownSelection('user_log_channel_id', 'save_user_tracking');
+    validateDropdownSelection('reaction_roles_channel_id', 'save_reaction_roles');
+    validateDropdownSelection('rules_channel_id', 'save_rules');
+    validateDropdownSelection('stream_schedule_channel_id', 'save_stream_schedule');
+    // Validation for send reaction roles message button
+    function validateSendReactionRolesButton() {
+      const channelId = $('#reaction_roles_channel_id').val();
+      const message = $('#reaction_roles_message').val().trim();
+      const mappings = $('#reaction_roles_mappings').val().trim();
       let hasChannel = false;
-      if (channelElement.is('select')) {
+      if ($('#reaction_roles_channel_id').is('select')) {
+        hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
+      } else {
+        hasChannel = channelId && channelId.trim() !== '';
+      }
+      const hasMessage = message !== '';
+      const hasMappings = mappings !== '';
+      const sendButton = $('#send_reaction_roles_message');
+      if (hasChannel && hasMessage && hasMappings) {
+        sendButton.prop('disabled', false);
+      } else {
+        sendButton.prop('disabled', true);
+      }
+    }
+    // Check validation on page load and when inputs change
+    validateSendReactionRolesButton();
+    $('#reaction_roles_channel_id, #reaction_roles_message, #reaction_roles_mappings').on('change input', validateSendReactionRolesButton);
+    // Validation for send rules message button
+    function validateSendRulesButton() {
+      const channelId = $('#rules_channel_id').val();
+      const title = $('#rules_title').val().trim();
+      const rules = $('#rules_content').val().trim();
+      let hasChannel = false;
+      if ($('#rules_channel_id').is('select')) {
         hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
       } else {
         hasChannel = channelId && channelId.trim() !== '';
       }
       const hasTitle = title !== '';
-      const hasContent = content !== '';
-      const hasTimezone = timezone !== '';
-      const sendButton = $('#send_stream_schedule_message');
-      const allValid = hasChannel && hasTitle && hasContent && hasTimezone;
-      if (sendButton.length > 0) {
-        if (allValid) {
-          sendButton.prop('disabled', false);
-        } else {
-          sendButton.prop('disabled', true);
-        }
+      const hasRules = rules !== '';
+      const sendButton = $('#send_rules_message');
+      if (hasChannel && hasTitle && hasRules) {
+        sendButton.prop('disabled', false);
+      } else {
+        sendButton.prop('disabled', true);
       }
-    } catch (error) {
-      console.error('Error in validateSendStreamScheduleButton:', error);
     }
-  }
-  // Check validation on page load and when inputs change - use longer delay
-  setTimeout(validateSendStreamScheduleButton, 500);
-  $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content, #stream_schedule_timezone').on('change input', validateSendStreamScheduleButton);
-});
+    // Check validation on page load and when inputs change
+    validateSendRulesButton();
+    $('#rules_channel_id, #rules_title, #rules_content').on('change input', validateSendRulesButton);
+    // Toggle rules accept role field based on checkbox
+    $('#rules_assign_role_on_accept').on('change', function () {
+      if ($(this).is(':checked')) {
+        $('#rules_accept_role_field').slideDown();
+      } else {
+        $('#rules_accept_role_field').slideUp();
+        $('#rules_accept_role_id').val('');
+      }
+    });
+    // Validation for send stream schedule message button
+    function validateSendStreamScheduleButton() {
+      try {
+        const channelElement = $('#stream_schedule_channel_id');
+        const titleElement = $('#stream_schedule_title');
+        const contentElement = $('#stream_schedule_content');
+        const timezoneElement = $('#stream_schedule_timezone');
+        // Check if elements exist before trying to get values
+        if (channelElement.length === 0 || titleElement.length === 0 || contentElement.length === 0 || timezoneElement.length === 0) {
+          return;
+        }
+        const channelId = channelElement.val() || '';
+        const title = (titleElement.val() || '').trim();
+        const content = (contentElement.val() || '').trim();
+        const timezone = (timezoneElement.val() || '').trim();
+        let hasChannel = false;
+        if (channelElement.is('select')) {
+          hasChannel = channelId && channelId !== '' && !channelId.includes('Select');
+        } else {
+          hasChannel = channelId && channelId.trim() !== '';
+        }
+        const hasTitle = title !== '';
+        const hasContent = content !== '';
+        const hasTimezone = timezone !== '';
+        const sendButton = $('#send_stream_schedule_message');
+        const allValid = hasChannel && hasTitle && hasContent && hasTimezone;
+        if (sendButton.length > 0) {
+          if (allValid) {
+            sendButton.prop('disabled', false);
+          } else {
+            sendButton.prop('disabled', true);
+          }
+        }
+      } catch (error) {
+        console.error('Error in validateSendStreamScheduleButton:', error);
+      }
+    }
+    // Check validation on page load and when inputs change - use longer delay
+    setTimeout(validateSendStreamScheduleButton, 500);
+    $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content, #stream_schedule_timezone').on('change input', validateSendStreamScheduleButton);
+  });
 </script>
 <?php if (!$is_linked) { ?>
 <script>function linkDiscord() { window.location.href = "<?php echo addslashes($authURL); ?>"; }</script>
@@ -4230,45 +4501,73 @@ document.addEventListener('DOMContentLoaded', function() {
         server_id: guildId
       })
     })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      if (data.success) {
-        // Show success notification
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'Setting updated successfully',
-          showConfirmButton: false,
-          timer: 2000,
-          timerProgressBar: true
-        });
-        // Dynamically show/hide feature box based on toggle state
-        const featureBoxId = 'feature-box-' + settingName;
-        const featureBox = document.getElementById(featureBoxId);
-        if (featureBox) {
-          if (value) {
-            // Feature enabled - show the box with fade in animation
-            $(featureBox).fadeIn(300);
-          } else {
-            // Feature disabled - hide the box with fade out animation
-            $(featureBox).fadeOut(300);
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Show success notification
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Setting updated successfully',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true
+          });
+          // Dynamically show/hide feature box based on toggle state
+          const featureBoxId = 'feature-box-' + settingName;
+          const featureBox = document.getElementById(featureBoxId);
+          if (featureBox) {
+            if (value) {
+              // Feature enabled - show the box with fade in animation
+              $(featureBox).fadeIn(300);
+            } else {
+              // Feature disabled - hide the box with fade out animation
+              $(featureBox).fadeOut(300);
+            }
+          }
+        } else {
+          // Show error and revert toggle
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'error',
+            title: 'Failed to update setting: ' + (data.message || 'Unknown error'),
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+          });
+          // Revert the toggle state
+          const toggle = document.getElementById(settingName);
+          if (toggle) {
+            toggle.checked = !value;
           }
         }
-      } else {
-        // Show error and revert toggle
+      })
+      .catch(error => {
+        console.error('Error details:', error);
+        console.error('Error message:', error.message);
+        // Show more specific error notification
+        let errorMessage = 'Network error occurred';
+        if (error.message.includes('HTTP error')) {
+          errorMessage = `Server error: ${error.message}`;
+        } else if (error.name === 'TypeError') {
+          errorMessage = 'Network connection failed. Please check your internet connection.';
+        } else if (error.message.includes('JSON')) {
+          errorMessage = 'Server response format error. Please try again.';
+        }
         Swal.fire({
           toast: true,
           position: 'top-end',
           icon: 'error',
-          title: 'Failed to update setting: ' + (data.message || 'Unknown error'),
+          title: errorMessage,
           showConfirmButton: false,
-          timer: 3000,
+          timer: 4000,
           timerProgressBar: true
         });
         // Revert the toggle state
@@ -4276,35 +4575,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (toggle) {
           toggle.checked = !value;
         }
-      }
-    })
-    .catch(error => {
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      // Show more specific error notification
-      let errorMessage = 'Network error occurred';
-      if (error.message.includes('HTTP error')) {
-        errorMessage = `Server error: ${error.message}`;
-      } else if (error.name === 'TypeError') {
-        errorMessage = 'Network connection failed. Please check your internet connection.';
-      } else if (error.message.includes('JSON')) {
-        errorMessage = 'Server response format error. Please try again.';
-      }
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'error',
-        title: errorMessage,
-        showConfirmButton: false,
-        timer: 4000,
-        timerProgressBar: true
       });
-      // Revert the toggle state
-      const toggle = document.getElementById(settingName);
-      if (toggle) {
-        toggle.checked = !value;
-      }
-    });
   }
 
   // Channel/Role Configuration AJAX Handler
@@ -4334,99 +4605,99 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       body: JSON.stringify(formData)
     })
-    .then(async response => {
-      const contentType = response.headers.get('content-type');
-      let responseData;
-      try {
-        const text = await response.text();
-        responseData = JSON.parse(text);
-      } catch (jsonError) {
-        console.error('Failed to parse JSON. Error:', jsonError);
-        responseData = { success: false, message: 'Server returned non-JSON response' };
-      }
-      if (!response.ok && (!responseData || !responseData.success)) {
-        console.error('HTTP error response data:', responseData);
-        // Only throw if we don't have a valid error message in the response
-        if (!responseData || !responseData.message) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+      .then(async response => {
+        const contentType = response.headers.get('content-type');
+        let responseData;
+        try {
+          const text = await response.text();
+          responseData = JSON.parse(text);
+        } catch (jsonError) {
+          console.error('Failed to parse JSON. Error:', jsonError);
+          responseData = { success: false, message: 'Server returned non-JSON response' };
         }
-      }
-      return responseData;
-    })
-    .then(data => {
-      if (data.success) {
-        // Show success notification
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: data.message || 'Configuration saved successfully',
-          showConfirmButton: false,
-          timer: 2000,
-          timerProgressBar: true
-        });
-        
-        // Handle clearing data - disable the appropriate toggle
-        if (action === 'clear_reaction_roles') {
-          const toggle = document.getElementById('reactionRoles');
-          if (toggle) {
-            toggle.checked = false;
-            toggle.dispatchEvent(new Event('change'));
-          }
-        } else if (action === 'clear_rules') {
-          const toggle = document.getElementById('rulesConfiguration');
-          if (toggle) {
-            toggle.checked = false;
-            toggle.dispatchEvent(new Event('change'));
-          }
-        } else if (action === 'clear_stream_schedule') {
-          const toggle = document.getElementById('streamSchedule');
-          if (toggle) {
-            toggle.checked = false;
-            toggle.dispatchEvent(new Event('change'));
+        if (!response.ok && (!responseData || !responseData.success)) {
+          console.error('HTTP error response data:', responseData);
+          // Only throw if we don't have a valid error message in the response
+          if (!responseData || !responseData.message) {
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
         }
-        
-        // Update the form fields with the saved values (if returned in response)
-        if (data.channel_id) {
-          const channelInput = document.getElementById('reaction_roles_channel_id');
-          if (channelInput && channelInput.value !== data.channel_id) {
-            channelInput.value = data.channel_id;
+        return responseData;
+      })
+      .then(data => {
+        if (data.success) {
+          // Show success notification
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: data.message || 'Configuration saved successfully',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true
+          });
+
+          // Handle clearing data - disable the appropriate toggle
+          if (action === 'clear_reaction_roles') {
+            const toggle = document.getElementById('reactionRoles');
+            if (toggle) {
+              toggle.checked = false;
+              toggle.dispatchEvent(new Event('change'));
+            }
+          } else if (action === 'clear_rules') {
+            const toggle = document.getElementById('rulesConfiguration');
+            if (toggle) {
+              toggle.checked = false;
+              toggle.dispatchEvent(new Event('change'));
+            }
+          } else if (action === 'clear_stream_schedule') {
+            const toggle = document.getElementById('streamSchedule');
+            if (toggle) {
+              toggle.checked = false;
+              toggle.dispatchEvent(new Event('change'));
+            }
           }
+
+          // Update the form fields with the saved values (if returned in response)
+          if (data.channel_id) {
+            const channelInput = document.getElementById('reaction_roles_channel_id');
+            if (channelInput && channelInput.value !== data.channel_id) {
+              channelInput.value = data.channel_id;
+            }
+          }
+          // Re-validate the stream schedule button after successful save
+          if (typeof validateSendStreamScheduleButton === 'function') {
+            setTimeout(validateSendStreamScheduleButton, 100);
+          }
+          // Note: No page reload - data is already saved and displayed in the form
+        } else {
+          // Show error
+          console.error('Server returned error:', data.message);
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'error',
+            title: 'Failed to save: ' + (data.message || 'Unknown error'),
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+          });
         }
-        // Re-validate the stream schedule button after successful save
-        if (typeof validateSendStreamScheduleButton === 'function') {
-          setTimeout(validateSendStreamScheduleButton, 100);
-        }
-        // Note: No page reload - data is already saved and displayed in the form
-      } else {
-        // Show error
-        console.error('Server returned error:', data.message);
+      })
+      .catch(error => {
+        console.error('Error details:', error);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
         Swal.fire({
           toast: true,
           position: 'top-end',
           icon: 'error',
-          title: 'Failed to save: ' + (data.message || 'Unknown error'),
+          title: 'Network error: ' + error.message,
           showConfirmButton: false,
-          timer: 3000,
+          timer: 4000,
           timerProgressBar: true
         });
-      }
-    })
-    .catch(error => {
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'error',
-        title: 'Network error: ' + error.message,
-        showConfirmButton: false,
-        timer: 4000,
-        timerProgressBar: true
       });
-    });
   }
 
   // Handler functions for each save button
@@ -4462,7 +4733,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     saveChannelConfig('save_welcome_message', {
       welcome_channel_id: welcomeChannelId,
       welcome_message: useDefault ? '' : welcomeMessage,
@@ -4603,7 +4874,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     }
-    
+
     saveChannelConfig('save_reaction_roles', {
       reaction_roles_channel_id: reactionRolesChannelId,
       reaction_roles_message: reactionRolesMessage,
@@ -4617,7 +4888,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
     const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
     const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
-    
+
     // Validate required fields
     if (!reactionRolesChannelId || reactionRolesChannelId === '') {
       Swal.fire({
@@ -4631,7 +4902,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     if (!reactionRolesMessage || reactionRolesMessage.trim() === '') {
       Swal.fire({
         toast: true,
@@ -4644,7 +4915,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     if (!reactionRolesMappings || reactionRolesMappings.trim() === '') {
       Swal.fire({
         toast: true,
@@ -4657,7 +4928,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     // Validate mapping format
     const lines = reactionRolesMappings.trim().split('\n');
     for (let line of lines) {
@@ -4674,7 +4945,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
     }
-    
+
     // Confirm before sending
     Swal.fire({
       title: 'Send Reaction Roles Message?',
@@ -4717,7 +4988,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     // Require title
     if (!rulesTitle || rulesTitle.trim() === '') {
       Swal.fire({
@@ -4731,7 +5002,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     // Require rules content
     if (!rulesContent || rulesContent.trim() === '') {
       Swal.fire({
@@ -4745,7 +5016,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     // If assign role is checked, require a role ID
     if (assignRoleOnAccept && (!acceptRoleId || acceptRoleId === '')) {
       Swal.fire({
@@ -4759,7 +5030,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     saveChannelConfig('save_rules', {
       rules_channel_id: rulesChannelId,
       rules_title: rulesTitle,
@@ -4776,7 +5047,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const rulesColor = document.getElementById('rules_color').value;
     const assignRoleOnAccept = document.getElementById('rules_assign_role_on_accept').checked;
     const acceptRoleId = assignRoleOnAccept ? document.getElementById('rules_accept_role_id').value.trim() : '';
-    
+
     // Validate required fields
     if (!rulesChannelId || rulesChannelId === '') {
       Swal.fire({
@@ -4790,7 +5061,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     if (!rulesTitle || rulesTitle.trim() === '') {
       Swal.fire({
         toast: true,
@@ -4803,7 +5074,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     if (!rulesContent || rulesContent.trim() === '') {
       Swal.fire({
         toast: true,
@@ -4816,7 +5087,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     // If assign role is checked, require a role ID
     if (assignRoleOnAccept && (!acceptRoleId || acceptRoleId === '')) {
       Swal.fire({
@@ -4830,7 +5101,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       return;
     }
-    
+
     // Confirm before sending
     Swal.fire({
       title: 'Send Rules Message?',
@@ -4915,7 +5186,7 @@ document.addEventListener('DOMContentLoaded', function() {
       stream_schedule_content: scheduleContent,
       stream_schedule_color: scheduleColor,
       stream_schedule_timezone: scheduleTimezone
-    }, function() {
+    }, function () {
       // Enable send button after successful save
       validateSendStreamScheduleButton();
     });
@@ -4986,7 +5257,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
-  
+
   // Generic Clear Feature Function
   function clearFeature(featureName) {
     // Map feature names to display titles and action keys
@@ -5042,13 +5313,13 @@ document.addEventListener('DOMContentLoaded', function() {
         action: 'clear_user_tracking'
       }
     };
-    
+
     const feature = featureMap[featureName];
     if (!feature) {
       console.error('Unknown feature:', featureName);
       return;
     }
-    
+
     Swal.fire({
       title: feature.title,
       text: feature.text,
@@ -5064,22 +5335,22 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
-  
+
   // Deprecated individual clear functions (kept for backward compatibility)
   function clearReactionRoles() {
     clearFeature('reactionRoles');
   }
-  
+
   function clearRules() {
     clearFeature('rulesConfiguration');
   }
-  
+
   function clearStreamSchedule() {
     clearFeature('streamSchedule');
   }
-  
+
   // Add event listeners to all Discord setting toggles
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     // Initialize server management settings from PHP
     const serverManagementSettings = <?php echo json_encode($serverManagementSettings); ?>;
     const isLinked = <?php echo json_encode($is_linked); ?>;
@@ -5088,7 +5359,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingToggles = [
       'welcomeMessage',
       'autoRole',
-      'roleHistory', 
+      'roleHistory',
       'messageTracking',
       'roleTracking',
       'serverRoleManagement',
@@ -5105,12 +5376,12 @@ document.addEventListener('DOMContentLoaded', function() {
         toggle.checked = serverManagementSettings[settingName] || false;
         // Only add event listeners to enabled toggles
         if (!toggle.disabled) {
-          toggle.addEventListener('change', function() {
+          toggle.addEventListener('change', function () {
             updateDiscordSetting(settingName, this.checked);
           });
         } else {
           // Add click handler for disabled toggles to show helpful message
-          toggle.addEventListener('click', function(e) {
+          toggle.addEventListener('click', function (e) {
             e.preventDefault();
             let message = '';
             if (!isLinked || needsRelink) {
@@ -5133,7 +5404,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     });
-    
+
     // Handle welcome message default checkbox to enable/disable custom message textarea
     const useDefaultCheckbox = document.getElementById('use_default_welcome_message');
     const welcomeMessageTextarea = document.getElementById('welcome_message');
@@ -5161,7 +5432,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const enableEmbedCheckbox = document.getElementById('enable_embed_message');
     const welcomeColourField = document.getElementById('welcome_colour_field');
     if (enableEmbedCheckbox && welcomeColourField) {
-      enableEmbedCheckbox.addEventListener('change', function() {
+      enableEmbedCheckbox.addEventListener('change', function () {
         if (this.checked) {
           welcomeColourField.style.display = '';
         } else {
@@ -5178,45 +5449,45 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php } ?>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  function updateToggleStatus(input) {
-    if (!input || !input.id) return;
-    var status = document.querySelector('.toggle-status[data-for="' + input.id + '"]');
-    if (!status) return;
-    if (input.checked) {
-      status.textContent = 'Enabled';
-      status.classList.add('enabled');
-      status.classList.remove('disabled');
-    } else {
-      status.textContent = 'Disabled';
-      status.classList.add('disabled');
-      status.classList.remove('enabled');
+  document.addEventListener('DOMContentLoaded', function () {
+    function updateToggleStatus(input) {
+      if (!input || !input.id) return;
+      var status = document.querySelector('.toggle-status[data-for="' + input.id + '"]');
+      if (!status) return;
+      if (input.checked) {
+        status.textContent = 'Enabled';
+        status.classList.add('enabled');
+        status.classList.remove('disabled');
+      } else {
+        status.textContent = 'Disabled';
+        status.classList.add('disabled');
+        status.classList.remove('enabled');
+      }
     }
-  }
 
-  var toggles = document.querySelectorAll('.server-management-toggles input[type="checkbox"]');
-  toggles.forEach(function(t) {
-    updateToggleStatus(t);
-    t.addEventListener('change', function() { updateToggleStatus(t); });
+    var toggles = document.querySelectorAll('.server-management-toggles input[type="checkbox"]');
+    toggles.forEach(function (t) {
+      updateToggleStatus(t);
+      t.addEventListener('change', function () { updateToggleStatus(t); });
+    });
   });
-});
 </script>
 <script>
-<?php
-// Output all console logs at once
-if (!empty($consoleLogs)) {
-  foreach ($consoleLogs as $log) {
-    echo $log . "\n";
+  <?php
+  // Output all console logs at once
+  if (!empty($consoleLogs)) {
+    foreach ($consoleLogs as $log) {
+      echo $log . "\n";
+    }
   }
-}
-?>
+  ?>
 </script>
 <?php
 $scripts = ob_get_clean();
 
 // Close Discord database connection
 if (isset($discord_conn) && !$discord_conn->connect_error) {
-    $discord_conn->close();
+  $discord_conn->close();
 }
 
 include "layout.php";
