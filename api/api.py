@@ -16,11 +16,11 @@ import aiomysql
 import uvicorn
 import aioping
 from paramiko import SSHClient, AutoAddPolicy
-import time
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from starlette.responses import Response
 from pydantic import BaseModel, Field
 from typing import Dict, List
 from jokeapi import Jokes
@@ -894,7 +894,7 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
         if event_type == "fsb:event:ping":
             manual = webhook_data.get("data", {}).get("manual", False)
             logging.info(f"FreeStuff ping ({'manual' if manual else 'automatic'})")
-            return JSONResponse(status_code=204, content=None, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
+            return Response(status_code=204, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in FreeStuff webhook: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
@@ -920,7 +920,7 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
         except Exception as e:
             logging.error(f"Error forwarding FreeStuff: {e}")
             raise HTTPException(status_code=500, detail="Error forwarding to websocket")
-    return JSONResponse(status_code=204, content=None, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
+    return Response(status_code=204, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
 
 # FreeStuff Games List Endpoint
 @app.get(
