@@ -774,7 +774,30 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def handle_freestuff_event(self, code, data):
         # Handle FreeStuff game announcement events - admin key validation done in notify_http
+        if isinstance(data, str):
+            try:
+                # Try JSON first
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                # Fallback to ast.literal_eval for Python dict syntax
+                try:
+                    import ast
+                    data = ast.literal_eval(data)
+                except (ValueError, SyntaxError):
+                    self.logger.error(f"Failed to parse FreeStuff data: {data}")
+                    return
+        # Get webhook_data, which might also be a string
         webhook_data = data.get('data', {})
+        if isinstance(webhook_data, str):
+            try:
+                webhook_data = json.loads(webhook_data)
+            except json.JSONDecodeError:
+                try:
+                    import ast
+                    webhook_data = ast.literal_eval(webhook_data)
+                except (ValueError, SyntaxError):
+                    self.logger.error(f"Failed to parse nested webhook_data: {webhook_data}")
+                    return
         event_type = webhook_data.get('type')
         self.logger.info(f"Broadcasting FreeStuff event: {event_type}")
         # Broadcast to all global listeners (Discord bot)
