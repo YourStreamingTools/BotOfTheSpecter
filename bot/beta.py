@@ -306,27 +306,48 @@ class PoolConnectionWrapper:
     def __init__(self, connection, pool):
         self._connection = connection
         self._pool = pool
+        self._released = False
     
     def cursor(self, *args, **kwargs):
+        if self._released:
+            raise RuntimeError("Cannot use cursor on released connection")
         return self._connection.cursor(*args, **kwargs)
     
     async def commit(self):
-        if self._connection:
+        if self._connection and not self._released:
             await self._connection.commit()
     
     async def rollback(self):
-        if self._connection:
+        if self._connection and not self._released:
             await self._connection.rollback()
     
+    async def release(self):
+        """Explicitly release the connection back to the pool"""
+        if self._connection and not self._released:
+            try:
+                await self._pool.release(self._connection)
+                self._released = True
+            except Exception as e:
+                bot_logger.error(f"Error releasing connection: {e}")
+    
+    async def __aenter__(self):
+        """Async context manager entry"""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - automatically release connection"""
+        await self.release()
+        return False
+    
     def __del__(self):
-        if self._connection:
-            # Schedule the release for the next event loop iteration
+        """Fallback cleanup if context manager not used"""
+        if self._connection and not self._released:
             try:
                 loop = get_event_loop()
                 if loop.is_running():
-                    loop.create_task(self._pool.release(self._connection))
+                    loop.create_task(self.release())
             except:
-                pass  # If event loop is closed, pool cleanup will handle it
+                pass
 
 # MySQL Connection Handler Class with Connection Pooling
 class MySQLHandler:
@@ -376,11 +397,12 @@ class MySQLHandler:
                     user=SQL_USER,
                     password=SQL_PASSWORD,
                     db=db_name,
-                    minsize=1,
-                    maxsize=10,
-                    pool_recycle=18000,  # 5 hours in seconds
+                    minsize=1,  # Keep minimum connections low
+                    maxsize=3,  # Reduce max connections per database (was 10)
+                    pool_recycle=3600,  # Recycle connections after 1 hour (was 5 hours)
                     connect_timeout=10,
-                    autocommit=False
+                    autocommit=False,
+                    echo=False  # Disable debug output
                 )
                 # Store pool and creation time
                 self.pools[db_name] = pool
@@ -397,6 +419,7 @@ class MySQLHandler:
                     raise
 
     async def close_all(self):
+        """Close all connection pools"""
         for db_name, pool in list(self.pools.items()):
             try:
                 pool.close()
@@ -406,6 +429,41 @@ class MySQLHandler:
                 bot_logger.error(f"Error closing pool for {db_name}: {e}")
         self.pools.clear()
         self.pool_times.clear()
+    
+    async def cleanup_idle_pools(self, max_idle_time=1800):
+        """Close pools that haven't been used in max_idle_time seconds (default 30 min)"""
+        current_time = time.time()
+        pools_to_close = []
+        
+        for db_name, pool_time in list(self.pool_times.items()):
+            if current_time - pool_time > max_idle_time:
+                pools_to_close.append(db_name)
+        
+        for db_name in pools_to_close:
+            if db_name in self.pools:
+                try:
+                    pool = self.pools[db_name]
+                    pool.close()
+                    await pool.wait_closed()
+                    del self.pools[db_name]
+                    del self.pool_times[db_name]
+                    bot_logger.info(f"Closed idle connection pool for database: {db_name}")
+                except Exception as e:
+                    bot_logger.error(f"Error closing idle pool for {db_name}: {e}")
+    
+    def get_pool_stats(self):
+        """Get statistics for all connection pools"""
+        stats = {}
+        for db_name, pool in self.pools.items():
+            if not pool._closed:
+                stats[db_name] = {
+                    'size': pool.size(),
+                    'free': pool.freesize(),
+                    'minsize': pool.minsize,
+                    'maxsize': pool.maxsize,
+                    'age_seconds': int(time.time() - self.pool_times.get(db_name, time.time()))
+                }
+        return stats
 
     def get_pool_status(self, db_name=None):
         if db_name is None:
@@ -435,24 +493,18 @@ class MySQLHandler:
 # Initialize global MySQL handler
 mysql_handler = MySQLHandler()
 
-# Function to handle MySQL connections
+# Function to handle MySQL connections - DEPRECATED, use mysql_handler.get_connection() instead
+# This maintains backward compatibility but logs a warning
 async def mysql_connection(db_name=None):
-    global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
-    if db_name is None:
-        db_name = CHANNEL_NAME
-    return await sql_connect(
-        host=SQL_HOST,
-        user=SQL_USER,
-        password=SQL_PASSWORD,
-        db=db_name
-    )
+    bot_logger.warning("mysql_connection() is deprecated. Use 'async with mysql_handler.get_connection()' instead.")
+    return await mysql_handler.get_connection(db_name)
 
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
-    connection = await mysql_handler.get_connection(db_name="spam_pattern")
-    async with connection.cursor(DictCursor) as cursor:
-        await cursor.execute("SELECT spam_pattern FROM spam_patterns")
-        results = await cursor.fetchall()
+    async with await mysql_handler.get_connection(db_name="spam_pattern") as connection:
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT spam_pattern FROM spam_patterns")
+            results = await cursor.fetchall()
     compiled_patterns = [re.compile(re.escape(row["spam_pattern"]), re.IGNORECASE) for row in results if row["spam_pattern"]]
     return compiled_patterns
 
@@ -671,34 +723,34 @@ async def connect_to_integrations():
 
 async def connect_to_tipping_services():
     global CHANNEL_ID, streamelements_token, streamlabs_token
-    connection = await mysql_handler.get_connection(db_name="website")
     try:
-        async with connection.cursor(DictCursor) as cursor:
-            # Fetch StreamElements token
-            await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
-            se_result = await cursor.fetchone()
-            if se_result:
-                streamelements_token = se_result.get('access_token')
-                event_logger.info("StreamElements token retrieved from database")
-            else:
-                event_logger.info("No StreamElements token found for this channel")
-            # Fetch StreamLabs tokens (prefer socket token for websocket connection)
-            await cursor.execute("SELECT socket_token, access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
-            sl_result = await cursor.fetchone()
-            if sl_result:
-                socket_tok = sl_result.get('socket_token')
-                access_tok = sl_result.get('access_token')
-                if socket_tok:
-                    streamlabs_token = socket_tok
-                    event_logger.info("StreamLabs socket token retrieved from database and will be used for websocket connection")
-                elif access_tok:
-                    # fallback: use access token if socket token isn't available
-                    streamlabs_token = access_tok
-                    event_logger.info("StreamLabs access token retrieved from database; using it as fallback for websocket connection")
+        async with await mysql_handler.get_connection(db_name="website") as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                # Fetch StreamElements token
+                await cursor.execute("SELECT access_token FROM streamelements_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+                se_result = await cursor.fetchone()
+                if se_result:
+                    streamelements_token = se_result.get('access_token')
+                    event_logger.info("StreamElements token retrieved from database")
                 else:
-                    event_logger.info("StreamLabs entry found but no usable token (socket_token/access_token) present")
-            else:
-                event_logger.info("No StreamLabs token record found for this channel")
+                    event_logger.info("No StreamElements token found for this channel")
+                # Fetch StreamLabs tokens (prefer socket token for websocket connection)
+                await cursor.execute("SELECT socket_token, access_token FROM streamlabs_tokens WHERE twitch_user_id = %s", (CHANNEL_ID,))
+                sl_result = await cursor.fetchone()
+                if sl_result:
+                    socket_tok = sl_result.get('socket_token')
+                    access_tok = sl_result.get('access_token')
+                    if socket_tok:
+                        streamlabs_token = socket_tok
+                        event_logger.info("StreamLabs socket token retrieved from database and will be used for websocket connection")
+                    elif access_tok:
+                        # fallback: use access token if socket token isn't available
+                        streamlabs_token = access_tok
+                        event_logger.info("StreamLabs access token retrieved from database; using it as fallback for websocket connection")
+                    else:
+                        event_logger.info("StreamLabs entry found but no usable token (socket_token/access_token) present")
+                else:
+                    event_logger.info("No StreamLabs token record found for this channel")
             # Start connection tasks with delays for cleaner logs
             if streamelements_token:
                 create_task(streamelements_connection_manager())
@@ -711,8 +763,6 @@ async def connect_to_tipping_services():
                 return
     except MySQLError as err:
         event_logger.error(f"Database error while fetching tipping service tokens: {err}")
-    finally:
-        pass
 
 async def streamelements_connection_manager():
     global streamelements_token
@@ -2174,6 +2224,28 @@ class SSHConnectionManager:
                 self._cleanup_connection(server_name)
             self.logger.info("All SSH connections closed")
 
+# Database connection pool cleanup routine
+async def cleanup_idle_db_pools():
+    while True:
+        try:
+            # Wait 30 minutes between cleanup runs
+            await sleep(1800)
+            # Log current pool stats before cleanup
+            stats = mysql_handler.get_pool_stats()
+            if stats:
+                bot_logger.info(f"DB Pool Stats before cleanup: {stats}")
+            # Clean up pools idle for more than 30 minutes
+            await mysql_handler.cleanup_idle_pools(max_idle_time=1800)
+            # Log stats after cleanup
+            stats_after = mysql_handler.get_pool_stats()
+            if stats_after:
+                bot_logger.info(f"DB Pool Stats after cleanup: {stats_after}")
+            else:
+                bot_logger.info("All idle database pools have been cleaned up")
+        except Exception as e:
+            bot_logger.error(f"Error in cleanup_idle_db_pools: {e}")
+            await sleep(300)  # Wait 5 minutes before retrying on error
+
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -2197,6 +2269,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["shoutout_worker"] = create_task(shoutout_worker())
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = create_task(check_song_requests())
+        looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -2214,20 +2287,20 @@ class TwitchBot(commands.Bot):
         elif isinstance(error, commands.CommandNotFound):
             # Check if the command is a custom command
             try:
-                connection = await mysql_handler.get_connection()
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute('SELECT * FROM custom_commands WHERE command = %s', (command,))
-                    result = await cursor.fetchone()
-                    if result:
-                        bot_logger.debug(f"[CUSTOM COMMAND] Command '{command}' exists in the database. Ignoring error.")
-                        return
-                    await cursor.execute('SELECT * FROM custom_user_commands WHERE command = %s', (command,))
-                    result = await cursor.fetchone()
-                    if result:
-                        bot_logger.debug(f"[CUSTOM USER COMMAND] Command '{command}' exists in the database. Ignoring error.")
-                        return
-            finally:
-                pass
+                async with await mysql_handler.get_connection() as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                        await cursor.execute('SELECT * FROM custom_commands WHERE command = %s', (command,))
+                        result = await cursor.fetchone()
+                        if result:
+                            bot_logger.debug(f"[CUSTOM COMMAND] Command '{command}' exists in the database. Ignoring error.")
+                            return
+                        await cursor.execute('SELECT * FROM custom_user_commands WHERE command = %s', (command,))
+                        result = await cursor.fetchone()
+                        if result:
+                            bot_logger.debug(f"[CUSTOM USER COMMAND] Command '{command}' exists in the database. Ignoring error.")
+                            return
+            except Exception as e:
+                bot_logger.error(f"Error checking custom commands: {e}")
             bot_logger.error(f"Command '{command}' was not found in the bot or custom commands.")
         else:
             bot_logger.error(f"Command: '{command}', Error: {type(error).__name__}, Details: {error}")
@@ -2243,151 +2316,149 @@ class TwitchBot(commands.Bot):
             if source_room_id and source_room_id != str(CHANNEL_ID):
                 return
         chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-        connection = await mysql_handler.get_connection()
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
-            await connection.commit()
-            messageAuthor = ""
-            messageAuthorID = ""
-            bannedUser = None
-            messageContent = ""
-            try:
-                # Ignore messages from the bot itself
-                if message.echo:
-                    return
-                # Handle commands
-                await self.handle_commands(message)
-                messageContent = str(message.content).strip().lower() if message.content else ""
-                messageAuthor = message.author.name if message.author else ""
-                messageAuthorID = message.author.id if message.author else ""
-                AuthorMessage = str(message.content) if message.content else ""
-                # Check if the message matches the spam pattern
-                spam_pattern = await get_spam_patterns()
-                if spam_pattern:  # Check if spam_pattern is not empty
-                    for pattern in spam_pattern:
-                        if pattern.search(messageContent):
-                            bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            create_task(ban_user(messageAuthor, messageAuthorID))
-                            bannedUser = messageAuthor
+        async with await mysql_handler.get_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
+                await connection.commit()
+        messageAuthor = ""
+        messageAuthorID = ""
+        bannedUser = None
+        messageContent = ""
+        try:
+            # Ignore messages from the bot itself
+            if message.echo:
+                return
+            # Handle commands
+            await self.handle_commands(message)
+            messageContent = str(message.content).strip().lower() if message.content else ""
+            messageAuthor = message.author.name if message.author else ""
+            messageAuthorID = message.author.id if message.author else ""
+            AuthorMessage = str(message.content) if message.content else ""
+            # Check if the message matches the spam pattern
+            spam_pattern = await get_spam_patterns()
+            if spam_pattern:  # Check if spam_pattern is not empty
+                for pattern in spam_pattern:
+                    if pattern.search(messageContent):
+                        bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                        create_task(ban_user(messageAuthor, messageAuthorID))
+                        bannedUser = messageAuthor
+                        return
+            if messageContent.startswith('!'):
+                command_parts = messageContent.split()
+                command = command_parts[0][1:]  # Extract the command without '!'
+                arg = command_parts[1] if len(command_parts) > 1 else None
+                if command in builtin_commands or command in mod_commands or command in builtin_aliases:
+                    chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
+                    return  # It's a built-in command or alias, do nothing more
+                # Check if the command exists in the database and respond
+                await cursor.execute("SELECT timezone FROM profile")
+                tz_result = await cursor.fetchone()
+                if tz_result and tz_result.get("timezone"):
+                    timezone = tz_result.get("timezone")
+                    tz = pytz_timezone(timezone)
+                    chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                else:
+                    tz = set_timezone.UTC
+                    chat_logger.info("Timezone not set, defaulting to UTC")
+                await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
+                cc_result = await cursor.fetchone()
+                if cc_result:
+                    response = cc_result.get("response")
+                    cc_status = cc_result.get("status")
+                    cooldown = cc_result.get("cooldown")
+                    cc_permission = cc_result.get("permission")
+                    if cc_status == 'Enabled':
+                        # Check if user has permission to use the command
+                        if not await command_permissions(cc_permission, message.author):
+                            chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
                             return
-                if messageContent.startswith('!'):
-                    command_parts = messageContent.split()
-                    command = command_parts[0][1:]  # Extract the command without '!'
-                    arg = command_parts[1] if len(command_parts) > 1 else None
-                    if command in builtin_commands or command in mod_commands or command in builtin_aliases:
-                        chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
-                        return  # It's a built-in command or alias, do nothing more
-                    # Check if the command exists in the database and respond
-                    await cursor.execute("SELECT timezone FROM profile")
-                    tz_result = await cursor.fetchone()
-                    if tz_result and tz_result.get("timezone"):
-                        timezone = tz_result.get("timezone")
-                        tz = pytz_timezone(timezone)
-                        chat_logger.info(f"TZ: {tz} | Timezone: {timezone}")
+                        # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
+                        if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                            return
+                        # Handle (call.) before processing other variables since it needs self context
+                        if '(call.' in response:
+                            calling_match = re.search(r'\(call\.(\w+)\)', response)
+                            if calling_match:
+                                match_call = calling_match.group(1)
+                                response = response.replace(f"(call.{match_call})", "")
+                                await self.call_command(match_call, message)
+                        # Extract user name from message for (user) variable
+                        user_mention = re.search(r'@(\w+)', messageContent)
+                        user_name = user_mention.group(1) if user_mention else messageAuthor
+                        # Process all custom command variables and send to chat
+                        await process_custom_command_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                        # Record usage
+                        add_usage(command, 'global', 'default')
                     else:
-                        tz = set_timezone.UTC
-                        chat_logger.info("Timezone not set, defaulting to UTC")
-                    await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
-                    cc_result = await cursor.fetchone()
-                    if cc_result:
-                        response = cc_result.get("response")
-                        cc_status = cc_result.get("status")
-                        cooldown = cc_result.get("cooldown")
-                        cc_permission = cc_result.get("permission")
-                        if cc_status == 'Enabled':
-                            # Check if user has permission to use the command
-                            if not await command_permissions(cc_permission, message.author):
-                                chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
-                                return
+                        chat_logger.info(f"{command} not ran because it's disabled.")
+                else:
+                    # Check if the command is a custom user command
+                    await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,))
+                    custom_user_command = await cursor.fetchone()
+                    if custom_user_command:
+                        response = custom_user_command['response']
+                        cuc_status = custom_user_command['status']
+                        cooldown = custom_user_command['cooldown']
+                        user_id = custom_user_command['user_id']
+                        if cuc_status == 'Enabled':
                             # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
                             if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
                                 return
-                            # Handle (call.) before processing other variables since it needs self context
-                            if '(call.' in response:
-                                calling_match = re.search(r'\(call\.(\w+)\)', response)
-                                if calling_match:
-                                    match_call = calling_match.group(1)
-                                    response = response.replace(f"(call.{match_call})", "")
-                                    await self.call_command(match_call, message)
-                            # Extract user name from message for (user) variable
-                            user_mention = re.search(r'@(\w+)', messageContent)
-                            user_name = user_mention.group(1) if user_mention else messageAuthor
-                            # Process all custom command variables and send to chat
-                            await process_custom_command_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
-                            # Record usage
-                            add_usage(command, 'global', 'default')
-                        else:
-                            chat_logger.info(f"{command} not ran because it's disabled.")
+                            if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
+                                await send_chat_message(response)
+                                # Record usage
+                                add_usage(command, 'global', 'default')
                     else:
-                        # Check if the command is a custom user command
-                        await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,))
-                        custom_user_command = await cursor.fetchone()
-                        if custom_user_command:
-                            response = custom_user_command['response']
-                            cuc_status = custom_user_command['status']
-                            cooldown = custom_user_command['cooldown']
-                            user_id = custom_user_command['user_id']
-                            if cuc_status == 'Enabled':
-                                # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                                if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
-                                    return
-                                if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
-                                    await send_chat_message(response)
-                                    # Record usage
-                                    add_usage(command, 'global', 'default')
-                        else:
-                            chat_logger.info(f"Custom command '{command}' not found.")
-                # Handle AI responses
-                if f'@{self.nick.lower()}' in str(message.content).lower():
-                    user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
-                    if not user_message:
-                        await send_chat_message(f'Hello, {message.author.name}!')
-                    else:
-                        await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
-                if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
-                    # Always check blacklist
-                    await cursor.execute('SELECT link FROM link_blacklisting')
-                    blacklist_result = await cursor.fetchall()
-                    blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
-                    contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
-                    if contains_blacklisted_link:
+                        chat_logger.info(f"Custom command '{command}' not found.")
+            # Handle AI responses
+            if f'@{self.nick.lower()}' in str(message.content).lower():
+                user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
+                if not user_message:
+                    await send_chat_message(f'Hello, {message.author.name}!')
+                else:
+                    await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
+            if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
+                # Always check blacklist
+                await cursor.execute('SELECT link FROM link_blacklisting')
+                blacklist_result = await cursor.fetchall()
+                blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
+                contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
+                if contains_blacklisted_link:
+                    await message.delete()
+                    chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                    await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                    return
+                # Now check if URL blocking is enabled
+                await cursor.execute('SELECT url_blocking FROM protection')
+                result = await cursor.fetchone()
+                url_blocking = bool(result.get("url_blocking")) if result else False
+                if url_blocking:
+                    # Check if user has permission to post links
+                    if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
+                        return  # User is permitted, skip URL blocking
+                    if await command_permissions("mod", message.author):
+                        return  # Mods and broadcaster have permission by default
+                    # Fetch whitelist
+                    await cursor.execute('SELECT link FROM link_whitelist')
+                    whitelist_result = await cursor.fetchall()  # Fetch whitelist results
+                    whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
+                    contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
+                    # Check for Twitch clip links
+                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+                    if not contains_whitelisted_link and not contains_twitch_clip_link:
                         await message.delete()
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                        await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                        chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
+                        await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
                         return
-                    # Now check if URL blocking is enabled
-                    await cursor.execute('SELECT url_blocking FROM protection')
-                    result = await cursor.fetchone()
-                    url_blocking = bool(result.get("url_blocking")) if result else False
-                    if url_blocking:
-                        # Check if user has permission to post links
-                        if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                            return  # User is permitted, skip URL blocking
-                        if await command_permissions("mod", message.author):
-                            return  # Mods and broadcaster have permission by default
-                        # Fetch whitelist
-                        await cursor.execute('SELECT link FROM link_whitelist')
-                        whitelist_result = await cursor.fetchall()  # Fetch whitelist results
-                        whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
-                        contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
-                        # Check for Twitch clip links
-                        contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-                        if not contains_whitelisted_link and not contains_twitch_clip_link:
-                            await message.delete()
-                            chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                            await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
-                            return
-                        else:
-                            chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
                     else:
-                        chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
+                        chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
                 else:
-                    pass
-            except Exception as e:
-                if isinstance(e, AttributeError) and "NoneType" in str(e):
-                    pass
-                else:
-                    bot_logger.error(f"An error occurred in event_message: {e}")
+                    chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
+        except Exception as e:
+            if isinstance(e, AttributeError) and "NoneType" in str(e):
+                pass
+            else:
+                bot_logger.error(f"An error occurred in event_message: {e}")
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         if messageAuthor in [bannedUser, None, ""]:
