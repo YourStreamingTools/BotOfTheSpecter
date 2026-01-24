@@ -844,6 +844,16 @@ async def connect_to_streamlabs():
                     await streamlabs_websocket.send("3")
                     integrations_logger.debug("StreamLabs pong sent")
                     continue
+                message_str = str(message)
+                # Check if message is just protocol control (starts with 0, 40, 41, etc. and no JSON follows)
+                if message_str.startswith(('0', '40', '41')):
+                    # Check if it's purely digits (like "40") or starts with two digits followed by '{' or '[' indicating a handshake payload
+                    if message_str.isdigit() or (len(message_str) > 2 and message_str[0].isdigit() and message_str[1].isdigit() and message_str[2] in '{['):
+                        # If it's just digits (like "40") or a handshake message starting with "0{...}"
+                        if message_str == "40" or (message_str.startswith('0') and '{' in message_str):
+                            integrations_logger.debug(f"StreamLabs Socket.IO protocol message: {message_str[:50]}...")
+                            continue
+                sanitized_message = message.replace(streamlabs_token, "[REDACTED]")
                 integrations_logger.info(f"StreamLabs Message: {sanitized_message}")
                 await process_message(message, "StreamLabs")
     except WebSocketConnectionClosed as e:
