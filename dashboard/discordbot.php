@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -949,7 +945,7 @@ if ($is_linked && $hasGuildId) {
         'rulesConfiguration' => (bool) $serverMgmtData['rulesConfiguration'],
         'streamSchedule' => (bool) $serverMgmtData['streamSchedule'],
         'embedBuilder' => (bool) $serverMgmtData['embedBuilder'],
-        'freeGames' => (bool) $serverMgmtData['freeGames']
+        'freeGames' => (bool) ($serverMgmtData['freeGames'] ?? 0)
       ];
       // Override channel IDs with values from server_management table if they exist
       if (!empty($serverMgmtData['welcome_message_configuration_channel'])) {
@@ -1072,14 +1068,13 @@ if ($is_linked && $hasGuildId) {
 
 // Load FreeStuff (Free Games) settings from Discord bot DB if available
 if ($is_linked && $hasGuildId && isset($discord_conn) && !$discord_conn->connect_error) {
-  $fsStmt = $discord_conn->prepare("SELECT enabled, channel_id, twitch_username FROM freestuff_settings WHERE guild_id = ?");
+  $fsStmt = $discord_conn->prepare("SELECT enabled, channel_id FROM freestuff_settings WHERE guild_id = ?");
   $fsStmt->bind_param("s", $existingGuildId);
   $fsStmt->execute();
   $fsRes = $fsStmt->get_result();
   if ($fsRow = $fsRes->fetch_assoc()) {
     $existingFreestuffEnabled = (int) ($fsRow['enabled'] ?? 0);
     $existingFreestuffChannelID = $fsRow['channel_id'] ?? "";
-    $existingFreestuffTwitchUser = $fsRow['twitch_username'] ?? "";
   }
   $fsStmt->close();
 }
