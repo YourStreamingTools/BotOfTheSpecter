@@ -354,8 +354,8 @@ function performBotAction($action, $botType, $params) {
             case 'stop':
                 // Use pgrep to find ALL processes matching the bot script and channel
                 // This catches bots running with -custom, -self, or any other flags
-                // Use full path for better matching
-                $pgrepCommand = "pgrep -f '" . $botScriptPath . " -channel " . $username . "'";
+                // Use full path for better matching and filter to only Python processes (not shell wrappers)
+                $pgrepCommand = "pgrep -f 'python.*" . $botScriptPath . " -channel " . $username . "'";
                 $pgrepOutput = SSHConnectionManager::executeCommand($connection, $pgrepCommand);
                 $pgrepOutput = sanitizeSSHOutput($pgrepOutput);
                 if ($pgrepOutput !== false && $pgrepOutput !== null && !empty(trim($pgrepOutput))) {
