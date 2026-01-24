@@ -24,7 +24,8 @@ $user_id = $_SESSION['user_id'];
 
 // Debug log collection for browser console
 $debug_logs = [];
-function debug_log($message) {
+function debug_log($message)
+{
     global $debug_logs;
     $debug_logs[] = $message;
     error_log($message); // Also log to server
@@ -104,6 +105,7 @@ try {
         case 'clear_role_tracking':
         case 'clear_server_role_management':
         case 'clear_user_tracking':
+        case 'clear_freestuff':
         case 'save_custom_embed':
         case 'send_custom_embed':
         case 'delete_custom_embed':
@@ -166,7 +168,7 @@ try {
                         http_response_code(200);
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'success' => true, 
+                            'success' => true,
                             'message' => 'Welcome message configuration saved successfully',
                             'channel_id' => $welcome_channel_id,
                             'use_default' => $welcome_use_default,
@@ -214,7 +216,7 @@ try {
                     $checkStmt->close();
                     if ($success) {
                         echo json_encode([
-                            'success' => true, 
+                            'success' => true,
                             'message' => 'Auto role configuration saved successfully',
                             'role_id' => $auto_role_id
                         ]);
@@ -233,7 +235,7 @@ try {
                     $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
                     $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
                     $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
-                    $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
+                    $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool) $input['allow_multiple_reactions'] : false;
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
                         echo json_encode(['success' => false, 'message' => 'Reaction roles channel ID cannot be empty', 'debug_logs' => $debug_logs]);
@@ -367,7 +369,7 @@ try {
                     $reaction_roles_channel_id = trim($input['reaction_roles_channel_id']);
                     $reaction_roles_message = isset($input['reaction_roles_message']) ? trim($input['reaction_roles_message']) : '';
                     $reaction_roles_mappings = isset($input['reaction_roles_mappings']) ? trim($input['reaction_roles_mappings']) : '';
-                    $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool)$input['allow_multiple_reactions'] : false;
+                    $allow_multiple_reactions = isset($input['allow_multiple_reactions']) ? (bool) $input['allow_multiple_reactions'] : false;
                     debug_log('Extracted values - channel_id: ' . $reaction_roles_channel_id . ', message: ' . $reaction_roles_message . ', mappings: ' . $reaction_roles_mappings);
                     if (empty($reaction_roles_channel_id)) {
                         http_response_code(400);
@@ -447,7 +449,7 @@ try {
                         http_response_code(200);
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'success' => true, 
+                            'success' => true,
                             'message' => 'Reaction roles message sent to Discord channel successfully',
                             'channel_id' => $reaction_roles_channel_id,
                             'allow_multiple' => $allow_multiple_reactions,
@@ -563,7 +565,7 @@ try {
                         http_response_code(200);
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'success' => true, 
+                            'success' => true,
                             'message' => 'Rules configuration saved successfully',
                             'channel_id' => $rules_channel_id,
                             'title' => $rules_title,
@@ -672,7 +674,7 @@ try {
                         http_response_code(200);
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'success' => true, 
+                            'success' => true,
                             'message' => 'Rules message sent to Discord channel successfully',
                             'channel_id' => $rules_channel_id,
                             'title' => $rules_title,
@@ -893,7 +895,7 @@ try {
                         http_response_code(200);
                         header('Content-Type: application/json');
                         echo json_encode([
-                            'success' => true, 
+                            'success' => true,
                             'message' => 'Stream schedule message sent to Discord channel successfully',
                             'channel_id' => $schedule_channel_id,
                             'title' => $schedule_title,
@@ -904,10 +906,10 @@ try {
                         exit();
                     }
                     break;
-                
+
                 case 'save_custom_embed':
                     debug_log('Processing save_custom_embed with input: ' . json_encode($input));
-                    $embed_id = isset($input['embed_id']) && !empty($input['embed_id']) ? (int)$input['embed_id'] : 0;
+                    $embed_id = isset($input['embed_id']) && !empty($input['embed_id']) ? (int) $input['embed_id'] : 0;
                     $embed_name = isset($input['embed_name']) ? trim($input['embed_name']) : '';
                     $title = isset($input['title']) ? trim($input['title']) : null;
                     $description = isset($input['description']) ? trim($input['description']) : null;
@@ -920,7 +922,7 @@ try {
                     $author_name = isset($input['author_name']) ? trim($input['author_name']) : null;
                     $author_url = isset($input['author_url']) ? trim($input['author_url']) : null;
                     $author_icon_url = isset($input['author_icon_url']) ? trim($input['author_icon_url']) : null;
-                    $timestamp_enabled = isset($input['timestamp_enabled']) ? (bool)$input['timestamp_enabled'] : false;
+                    $timestamp_enabled = isset($input['timestamp_enabled']) ? (bool) $input['timestamp_enabled'] : false;
                     $fields = isset($input['fields']) ? $input['fields'] : '[]';
                     // Ensure fields is JSON encoded if it's an array
                     if (is_array($fields)) {
@@ -928,16 +930,16 @@ try {
                     } elseif (empty($fields)) {
                         $fields = '[]';
                     }
-                    
+
                     if (empty($embed_name)) {
                         http_response_code(400);
                         header('Content-Type: application/json');
                         echo json_encode(['success' => false, 'message' => 'Embed name is required', 'debug_logs' => $debug_logs]);
                         exit();
                     }
-                    
+
                     $timestamp_value = $timestamp_enabled ? 1 : 0;
-                    
+
                     if ($embed_id > 0) {
                         $updateStmt = $discord_conn->prepare("UPDATE custom_embeds SET embed_name = ?, title = ?, description = ?, color = ?, url = ?, thumbnail_url = ?, image_url = ?, footer_text = ?, footer_icon_url = ?, author_name = ?, author_url = ?, author_icon_url = ?, fields = ?, timestamp_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND server_id = ?");
                         if (!$updateStmt) {
@@ -999,7 +1001,7 @@ try {
                         }
                     }
                     break;
-                
+
                 case 'send_custom_embed':
                     debug_log('send_custom_embed case entered with input: ' . json_encode($input));
                     if (!isset($input['embed_id']) || !isset($input['channel_id'])) {
@@ -1009,7 +1011,7 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Embed ID and Channel ID are required', 'debug_logs' => $debug_logs]);
                         exit();
                     }
-                    $embed_id = (int)$input['embed_id'];
+                    $embed_id = (int) $input['embed_id'];
                     $channel_id = trim($input['channel_id']);
                     if (empty($channel_id)) {
                         http_response_code(400);
@@ -1017,7 +1019,7 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Channel ID cannot be empty', 'debug_logs' => $debug_logs]);
                         exit();
                     }
-                    
+
                     $fetchStmt = $discord_conn->prepare("SELECT * FROM custom_embeds WHERE id = ? AND server_id = ?");
                     $fetchStmt->bind_param("is", $embed_id, $server_id);
                     $fetchStmt->execute();
@@ -1031,10 +1033,10 @@ try {
                             echo json_encode(['success' => false, 'message' => 'API key not found. Please refresh the page and try again.', 'debug_logs' => $debug_logs]);
                             exit();
                         }
-                        
+
                         $websocket_url = 'https://websocket.botofthespecter.com/notify';
                         debug_log('Building websocket request with api_key: ' . substr($api_key, 0, 10) . '...');
-                        
+
                         $fields_data = [];
                         if (!empty($embedData['fields'])) {
                             $fields_data = json_decode($embedData['fields'], true);
@@ -1063,11 +1065,11 @@ try {
                             'timestamp_enabled' => $embedData['timestamp_enabled'] ?? 0,
                             'fields' => json_encode($fields_data)
                         ];
-                        
+
                         $query_string = http_build_query($params);
                         $full_url = $websocket_url . '?' . $query_string;
                         debug_log('Sending websocket request to: ' . $full_url);
-                        
+
                         $ch = curl_init($full_url);
                         if ($ch === false) {
                             debug_log('Failed to initialize cURL');
@@ -1140,7 +1142,7 @@ try {
                         exit();
                     }
                     break;
-                
+
                 case 'delete_custom_embed':
                     debug_log('Processing delete_custom_embed with input: ' . json_encode($input));
                     if (!isset($input['embed_id'])) {
@@ -1149,8 +1151,8 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Embed ID is required', 'debug_logs' => $debug_logs]);
                         exit();
                     }
-                    $embed_id = (int)$input['embed_id'];
-                    
+                    $embed_id = (int) $input['embed_id'];
+
                     $deleteStmt = $discord_conn->prepare("DELETE FROM custom_embeds WHERE id = ? AND server_id = ?");
                     if (!$deleteStmt) {
                         debug_log('Failed to prepare delete statement: ' . $discord_conn->error);
@@ -1179,7 +1181,7 @@ try {
                         exit();
                     }
                     break;
-                
+
                 case 'clear_reaction_roles':
                     debug_log('Processing clear_reaction_roles for server_id: ' . $server_id);
                     // Clear reaction roles data from server_management table
@@ -1390,6 +1392,35 @@ try {
                         echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
                     }
                     break;
+                case 'clear_freestuff':
+                    debug_log('Processing clear_freestuff for server_id: ' . $server_id);
+                    // Clear free games data from freestuff_settings table
+                    $deleteStmt = $discord_conn->prepare("DELETE FROM freestuff_settings WHERE guild_id = ?");
+                    if ($deleteStmt) {
+                        $deleteStmt->bind_param("s", $server_id);
+                        if ($deleteStmt->execute()) {
+                            // Also disable the feature in server_management table
+                            $updateStmt = $discord_conn->prepare("UPDATE server_management SET freeGames = 0 WHERE server_id = ?");
+                            if ($updateStmt) {
+                                $updateStmt->bind_param("s", $server_id);
+                                $updateStmt->execute();
+                                $updateStmt->close();
+                            }
+
+                            debug_log('Free Games data cleared successfully');
+                            echo json_encode(['success' => true, 'message' => 'Free Games data cleared successfully', 'debug_logs' => $debug_logs]);
+                        } else {
+                            debug_log('Failed to clear free games data: ' . $deleteStmt->error);
+                            http_response_code(500);
+                            echo json_encode(['success' => false, 'message' => 'Failed to clear free games data', 'debug_logs' => $debug_logs]);
+                        }
+                        $deleteStmt->close();
+                    } else {
+                        debug_log('Failed to prepare clear statement: ' . $discord_conn->error);
+                        http_response_code(500);
+                        echo json_encode(['success' => false, 'message' => 'Database error', 'debug_logs' => $debug_logs]);
+                    }
+                    break;
             }
             $discord_conn->close();
             break;
@@ -1424,7 +1455,7 @@ try {
             $updateStmt->bind_param("ssssssssi", $guild_id, $live_channel_id, $online_text, $offline_text, $stream_alert_channel_id, $moderation_channel_id, $alert_channel_id, $member_streams_id, $user_id);
             if ($updateStmt->execute()) {
                 echo json_encode([
-                    'success' => true, 
+                    'success' => true,
                     'message' => 'Discord configuration saved successfully',
                     'guild_id' => $guild_id,
                     'live_channel_id' => $live_channel_id
@@ -1447,7 +1478,11 @@ try {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage(), 'debug_logs' => $debug_logs]);
 } finally {
     // Close database connections if they exist
-    if (isset($discord_conn)) { $discord_conn->close(); }
-    if (isset($conn)) { $conn->close(); }
+    if (isset($discord_conn)) {
+        $discord_conn->close();
+    }
+    if (isset($conn)) {
+        $conn->close();
+    }
 }
 ?>
