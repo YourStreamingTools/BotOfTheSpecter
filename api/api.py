@@ -71,24 +71,28 @@ logger.addHandler(rotating_handler)
 # Define the tags metadata
 tags_metadata = [
     {
-        "name": "BotOfTheSpecter",
-        "description": "Endpoints related to public bot functionalities and operations.",
+        "name": "Public",
+        "description": "Public endpoints that don't require authentication. Free to use for anyone.",
     },
     {
         "name": "Commands",
-        "description": "Endpoints for managing and retrieving command responses.",
+        "description": "Endpoints for retrieving command responses and data. Requires user API key. Admins can query any user's data with `channel` parameter.",
+    },
+    {
+        "name": "User Account",
+        "description": "Endpoints for managing user account data and bot status. Requires user API key. Admins can query any user's data with `channel` parameter.",
     },
     {
         "name": "Webhooks",
-        "description": "Endpoints for interacting with external webhook requests.",
+        "description": "Endpoints for receiving webhook events from external services. Requires API key for authentication.",
     },
     {
-        "name": "Websocket",
-        "description": "Endpoints for interacting with the internal WebSocket server.",
+        "name": "WebSocket Triggers",
+        "description": "Endpoints that trigger real-time events via WebSocket to the bot and overlays. Requires user API key.",
     },
     {
-        "name": "Bot Management",
-        "description": "Endpoints for checking bot status and managing bot instances.",
+        "name": "Admin Only",
+        "description": "Administrative endpoints that require admin API key. Service-specific admin keys are restricted to their designated service.",
     },
 ]
 
@@ -874,7 +878,7 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
     response_model=FreeStuffGamesResponse,
     summary="Get recent free games",
     description="Retrieve the last 5 free games announced via FreeStuff webhooks.",
-    tags=["BotOfTheSpecter"],
+    tags=["Public"],
     operation_id="get_freestuff_games"
 )
 async def get_freestuff_games():
@@ -914,7 +918,7 @@ async def get_freestuff_games():
     response_model=AccountResponse,
     summary="Get account information",
     description="Retrieve all account information for the authenticated user based on their API key.",
-    tags=["BotOfTheSpecter"],
+    tags=["User Account"],
     operation_id="get_account_info"
 )
 async def get_account_info(api_key: str = Query(...), channel: str = Query(None)):
@@ -1039,7 +1043,7 @@ async def fortune(api_key: str = Query(...), channel: str = Query(None)):
     response_model=VersionControlResponse,
     summary="Get the current bot versions",
     description="Fetch the beta, stable, and discord bot version numbers.",
-    tags=["BotOfTheSpecter"],
+    tags=["Public"],
     operation_id="get_bot_versions"
 )
 async def versions():
@@ -1059,7 +1063,7 @@ async def versions():
     response_model=HeartbeatControlResponse,
     summary="Get the heartbeat status of the websocket server",
     description="Retrieve the current heartbeat status of the WebSocket server.",
-    tags=["Heartbeats"],
+    tags=["Public"],
     operation_id="get_websocket_heartbeat"
 )
 async def websocket_heartbeat():
@@ -1081,7 +1085,7 @@ async def websocket_heartbeat():
     response_model=HeartbeatControlResponse,
     summary="Get the heartbeat status of the API server",
     description="Retrieve the current heartbeat status of the API server.",
-    tags=["Heartbeats"],
+    tags=["Public"],
     operation_id="get_api_heartbeat"
 )
 async def api_heartbeat():
@@ -1094,7 +1098,7 @@ async def api_heartbeat():
     response_model=HeartbeatControlResponse,
     summary="Get the heartbeat status of the database server",
     description="Retrieve the current heartbeat status of the database server.",
-    tags=["Heartbeats"],
+    tags=["Public"],
     operation_id="get_database_heartbeat"
 )
 async def database_heartbeat():
@@ -1102,13 +1106,12 @@ async def database_heartbeat():
     is_alive = await check_icmp_ping(db_host)
     return {"status": "OK" if is_alive else "OFF"}
 
-
 # Chat instructions endpoint
 @app.get(
     "/chat-instructions",
     summary="Get AI chat instructions",
     description="Return the AI system instructions used by the Twitch chat bot (?discord flag switches to the Discord-specific instructions file if present)",
-    tags=["BotOfTheSpecter"],
+    tags=["Public"],
     operation_id="get_chat_instructions"
 )
 async def chat_instructions(request: Request, discord: bool = Query(False, description="Return Discord-specific AI instructions if available")):
@@ -1138,7 +1141,7 @@ async def chat_instructions(request: Request, discord: bool = Query(False, descr
     response_model=PublicAPIResponse,
     summary="Get the remaining song requests",
     description="Get the number of remaining song requests for the current reset period.",
-    tags=["BotOfTheSpecter"],
+    tags=["Public"],
     operation_id="get_song_requests_remaining"
 )
 async def api_song():
@@ -1165,7 +1168,7 @@ async def api_song():
     response_model=PublicAPIResponse,
     summary="Get the remaining exchangerate requests",
     description="Retrieve the number of remaining exchange rate requests for the current reset period.",
-    tags=["BotOfTheSpecter"],
+    tags=["Public"],
     operation_id="get_exchangerate_requests_remaining"
 )
 async def api_exchangerate():
@@ -1192,7 +1195,7 @@ async def api_exchangerate():
     response_model=PublicAPIDailyResponse,
     summary="Get the remaining weather API requests",
     description="Retrieve the number of remaining weather API requests for the current day, as well as the time remaining until midnight.",
-    tags=["BotOfTheSpecter"],
+    tags=["Public"],
     operation_id="get_weather_requests_remaining"
 )
 async def api_weather_requests_remaining():
@@ -1486,7 +1489,7 @@ def get_wind_direction(deg):
     "/websocket/tts",
     summary="Trigger TTS via API",
     description="Send a text-to-speech (TTS) event to the WebSocket server, allowing TTS to be triggered via API.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     response_model=dict,
     operation_id="trigger_websocket_tts"
 )
@@ -1503,7 +1506,7 @@ async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
     "/websocket/walkon",
     summary="Trigger Walkon via API",
     description="Trigger the 'Walkon' event for a specified user via the WebSocket server. Supports .mp3 (audio) and .mp4 (video) walkons.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_walkon"
 )
 async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ext: str = Query(".mp3", description="File extension (.mp3 or .mp4)")):
@@ -1524,7 +1527,7 @@ async def websocket_walkon(api_key: str = Query(...), user: str = Query(...), ex
     "/websocket/deaths",
     summary="Trigger Deaths via API",
     description="Trigger the 'Deaths' event with custom death text for a game via the WebSocket server.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_deaths"
 )
 async def websocket_deaths(request: DeathsRequest, api_key: str = Query(...)):
@@ -1540,7 +1543,7 @@ async def websocket_deaths(request: DeathsRequest, api_key: str = Query(...)):
     "/websocket/sound_alert",
     summary="Trigger Sound Alert via API",
     description="Trigger a sound alert for the specified sound file via the WebSocket server.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_sound_alert"
 )
 async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..., description="Sound file name (defaults to .mp3 extension if no extension provided)")):
@@ -1563,7 +1566,7 @@ async def websocket_sound_alert(api_key: str = Query(...), sound: str = Query(..
     "/websocket/custom_command",
     summary="Trigger Custom Command via API",
     description="Trigger a custom command via the WebSocket server. The bot will listen for this event and execute the command in chat.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_custom_command"
 )
 async def websocket_custom_command(api_key: str = Query(...), command: str = Query(..., description="The custom command to trigger (without the ! prefix)")):
@@ -1607,7 +1610,7 @@ async def websocket_custom_command(api_key: str = Query(...), command: str = Que
     "/websocket/stream_online",
     summary="Trigger Stream Online via API",
     description="Send a 'Stream Online' event to the WebSocket server to notify that the stream is live.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_stream_online"
 )
 async def websocket_stream_online(api_key: str = Query(...)):
@@ -1623,7 +1626,7 @@ async def websocket_stream_online(api_key: str = Query(...)):
     "/websocket/stream_offline",
     summary="Trigger Stream Offline via API",
     description="Send a 'Stream Offline' event to the WebSocket server to notify that the stream is offline.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_stream_offline"
 )
 async def websocket_stream_offline(api_key: str = Query(...)):
@@ -1639,7 +1642,7 @@ async def websocket_stream_offline(api_key: str = Query(...)):
     "/SEND_OBS_EVENT",
     summary="Pass OBS events to the websocket server",
     description="Send a 'OBS EVENT' to the WebSocket server to notify the system of a change in the OBS Connector.",
-    tags=["Websocket"],
+    tags=["WebSocket Triggers"],
     operation_id="trigger_websocket_obs_event"
 )
 async def send_event_to_specter(api_key: str = Query(...), data: str = Form(...)):
@@ -1822,35 +1825,6 @@ async def debit_user_points(api_key: str = Query(..., description="API key for a
     finally:
         conn.close()
 
-# Get allowed users for Discord voice calling
-@app.get(
-    "/discord/allowed_callers",
-    summary="Get list of allowed Discord voice callers",
-    description="Retrieve a list of Discord user IDs that are allowed to use the voice calling feature. Requires admin authentication.",
-    operation_id="get_allowed_discord_callers",
-    include_in_schema=False
-)
-async def get_allowed_callers(admin_key: str = Query(...)):
-    # Verify admin key
-    valid = await verify_admin_key(admin_key)
-    if not valid:
-        raise HTTPException(status_code=401, detail="Invalid admin key")
-    conn = await get_mysql_connection()
-    try:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute(
-                "SELECT discord_id FROM discord_users WHERE discord_allowed_callers = 1"
-            )
-            results = await cursor.fetchall()
-            allowed_users = [row['discord_id'] for row in results]
-            logging.info(f"Fetched {len(allowed_users)} allowed Discord callers")
-            return {"allowed_users": allowed_users}
-    except Exception as e:
-        logging.error(f"Error fetching allowed callers: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch allowed callers")
-    finally:
-        conn.close()
-
 # Hidden Endpoints
 # Function to verify the location of the user for weather
 @app.get(
@@ -1926,8 +1900,8 @@ async def get_game(
 # Get a list of authorized users
 @app.get(
     "/authorizedusers",
-    summary="Get a list of authorized users",
-    include_in_schema=False
+    summary="Get a list of authorized users for full beta access to the entire Specter Ecosystem",
+    tags=["Admin Only"]
 )
 async def authorized_users(api_key: str = Query(...)):
     key_info = await verify_key(api_key)
@@ -1951,6 +1925,7 @@ async def authorized_users(api_key: str = Query(...)):
 @app.get(
     "/checkkey",
     summary="Check if the API key is valid",
+    tags=["User Account"],
     include_in_schema=False
 )
 async def check_key(api_key: str = Query(...)):
@@ -1965,6 +1940,7 @@ async def check_key(api_key: str = Query(...)):
 @app.get(
     "/streamonline",
     summary="Check if the stream is online",
+    tags=["User Account"],
     include_in_schema=False
 )
 async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
@@ -1998,7 +1974,7 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
 @app.get(
     "/discord/linked",
     summary="Check if Discord user is linked",
-    include_in_schema=False
+    tags=["Admin Only"]
 )
 async def discord_linked(api_key: str = Query(...), user_id: str = Query(...)):
     # Validate the admin API key
@@ -2125,7 +2101,7 @@ async def get_bot_status_via_ssh(username: str) -> dict:
     response_model=BotStatusResponse,
     summary="Get chat bot status",
     description="Check if your chat bot is currently running and retrieve its status information.",
-    tags=["Bot Management"],
+    tags=["User Account"],
     operation_id="get_bot_status"
 )
 async def bot_status(api_key: str = Query(..., description="Your API key for authentication"), channel: str = Query(None)):
