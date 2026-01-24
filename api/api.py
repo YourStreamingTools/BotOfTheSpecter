@@ -905,7 +905,7 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
         raise HTTPException(status_code=500, detail="Internal server error")
     async with aiohttp.ClientSession() as session:
         try:
-            params = {"code": api_key, "event": "FREESTUFF", "data": webhook_data}
+            params = {"code": api_key, "event": "FREESTUFF", "data": json.dumps(webhook_data)}
             encoded_params = urlencode(params)
             url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
             async with session.get(url, timeout=10) as response:
