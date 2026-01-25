@@ -1072,36 +1072,97 @@ async def handle_freestuff_announcement(bot, data):
         if not resolved_products:
             logger.info("No products in announcement")
             return
-        embed = discord.Embed(
-            title="🎮 New Free Games Available!",
-            description="Free games are now available:",
-            color=discord.Color.green(),
-            timestamp=datetime.now(timezone.utc)
-        )
-        # Add up to 10 products
+        # Process each product and create individual embeds
         for product in resolved_products[:10]:
             title = product.get('title', 'Unknown Game')
-            store_name = product.get('store', {}).get('name', 'Unknown Store') if isinstance(product.get('store'), dict) else 'Unknown Store'
-            embed.add_field(name=title, value=f"Available on {store_name}", inline=False)
-        embed.set_footer(text="Powered by FreeStuff")
-        # Post to each configured channel
-        posted_count = 0
-        for row in rows:
-            try:
-                guild_id = row['guild_id']
-                channel_id = row['channel_id']
-                if not channel_id:
-                    continue
-                channel = bot.get_channel(int(channel_id))
-                if channel:
-                    await channel.send(embed=embed)
-                    posted_count += 1
-                    logger.info(f"Posted FreeStuff announcement to guild {guild_id}")
-                else:
-                    logger.warning(f"Channel {channel_id} not found for guild {guild_id}")
-            except Exception as e:
-                logger.error(f"Failed to post FreeStuff announcement to guild {row.get('guild_id')}: {e}")
-        logger.info(f"Posted FreeStuff announcement to {posted_count} channels")
+            store_name = product.get('store', 'Unknown Store')
+            kind = product.get('kind', 'game').capitalize()
+            copyright_info = product.get('copyright', '')
+            # Get description (prefer English)
+            description_list = product.get('description', [])
+            description_text = ''
+            for desc in description_list:
+                if desc.get('lang') == 'en-US':
+                    description_text = desc.get('text', '')
+                    break
+            if not description_text and description_list:
+                description_text = description_list[0].get('text', '')
+            # Truncate description if too long
+            if len(description_text) > 300:
+                description_text = description_text[:297] + '...'
+            # Get price information (USD)
+            prices = product.get('prices', [])
+            original_price = ''
+            for price in prices:
+                if price.get('currency') == 'usd':
+                    old_value = price.get('oldValue', 0)
+                    if old_value > 0:
+                        original_price = f"${old_value / 100:.2f}"
+                    break
+            # Get tags
+            tags = product.get('tags', [])
+            tags_text = ', '.join(tags[:5]) if tags else 'N/A'
+            # Get URL
+            urls = product.get('urls', [])
+            game_url = urls[0].get('url', '') if urls else ''
+            # Get platforms
+            platforms = product.get('platforms', [])
+            platforms_text = ', '.join([p.capitalize() for p in platforms]) if platforms else 'N/A'
+            # Get expiration timestamp
+            until_timestamp = product.get('until')
+            expiration_text = ''
+            if until_timestamp:
+                try:
+                    expiration_dt = datetime.fromtimestamp(until_timestamp / 1000, tz=timezone.utc)
+                    expiration_text = f"<t:{int(until_timestamp / 1000)}:R>"
+                except Exception:
+                    expiration_text = 'Unknown'
+            # Create embed
+            embed = discord.Embed(
+                title=f"🎮 {title}",
+                description=description_text if description_text else f"Free {kind} available now!",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc),
+                url=game_url if game_url else None
+            )
+            # Add fields
+            if original_price:
+                embed.add_field(name="💰 Original Price", value=original_price, inline=True)
+            embed.add_field(name="🏪 Store", value=store_name.capitalize(), inline=True)
+            embed.add_field(name="🎯 Type", value=kind, inline=True)
+            if tags_text != 'N/A':
+                embed.add_field(name="🏷️ Tags", value=tags_text, inline=False)
+            embed.add_field(name="💻 Platforms", value=platforms_text, inline=True)
+            if expiration_text:
+                embed.add_field(name="⏰ Expires", value=expiration_text, inline=True)
+            if game_url:
+                embed.add_field(name="🔗 Claim Now", value=f"[Click here to claim]({game_url})", inline=False)
+            if copyright_info:
+                embed.set_footer(text=f"{copyright_info} • Powered by FreeStuff")
+            else:
+                embed.set_footer(text="Powered by FreeStuff")
+            # Add image if available
+            images = product.get('images', [])
+            if images and images[0].get('url'):
+                embed.set_image(url=images[0]['url'])
+            # Post to each configured channel
+            posted_count = 0
+            for row in rows:
+                try:
+                    guild_id = row['guild_id']
+                    channel_id = row['channel_id']
+                    if not channel_id:
+                        continue
+                    channel = bot.get_channel(int(channel_id))
+                    if channel:
+                        await channel.send(embed=embed)
+                        posted_count += 1
+                        logger.info(f"Posted FreeStuff announcement for '{title}' to guild {guild_id}")
+                    else:
+                        logger.warning(f"Channel {channel_id} not found for guild {guild_id}")
+                except Exception as e:
+                    logger.error(f"Failed to post FreeStuff announcement to guild {row.get('guild_id')}: {e}")
+            logger.info(f"Posted FreeStuff announcement for '{title}' to {posted_count} channels")
     except Exception as e:
         if hasattr(bot, 'logger'):
             bot.logger.error(f"Error in handle_freestuff_announcement: {e}")
