@@ -6,7 +6,7 @@ import logging
 import ssl
 import argparse
 import socketio
-from aiohttp import web
+from aiohttp import web, web_log
 import time
 import threading
 import paramiko
@@ -30,6 +30,15 @@ from obs_handler import ObsHandler
 # Load ENV file
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv("/home/botofthespecter/.env"))
+
+class QuietAccessLogger(web_log.AccessLogger):
+    def log(self, request, response, time):
+        if response.status == 400:
+            peername = request.transport.get_extra_info('peername')
+            remote_ip = peername[0] if peername else 'unknown'
+            self.logger.info(f"{remote_ip} - Rejected malformed HTTP request (400)")
+            return
+        super().log(request, response, time)
 
 class SSHConnectionManager:
     def __init__(self, logger, timeout_minutes=2):
@@ -166,7 +175,11 @@ class BotOfTheSpecter_WebsocketServer:
         self.tts_handler.sio = self.sio
         self.tts_handler.get_clients = lambda: self.registered_clients
         # Initialize web application with security middleware
-        self.app = web.Application(middlewares=[self.security_manager.ip_restriction_middleware])
+        self.app = web.Application(
+            middlewares=[self.security_manager.ip_restriction_middleware],
+            logger=self.logger,
+            access_log_class=QuietAccessLogger
+        )
         self.app.on_startup.append(self.on_startup)
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
