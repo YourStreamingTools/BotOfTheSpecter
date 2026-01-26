@@ -2318,37 +2318,41 @@ class TwitchBot(commands.Bot):
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
                 await connection.commit()
-                messageAuthor = ""
-                messageAuthorID = ""
-                bannedUser = None
-                messageContent = ""
-                try:
-                    # Ignore messages from the bot itself
-                    if message.echo:
+        messageAuthor = ""
+        messageAuthorID = ""
+        bannedUser = None
+        messageContent = ""
+        try:
+            # Ignore messages from the bot itself
+            if message.echo:
+                return
+            # Handle commands
+            await self.handle_commands(message)
+            messageContent = str(message.content).strip().lower() if message.content else ""
+            messageAuthor = message.author.name if message.author else ""
+            messageAuthorID = message.author.id if message.author else ""
+            AuthorMessage = str(message.content) if message.content else ""
+            # Check if the message matches the spam pattern (Has its own DB logic internally)
+            spam_pattern = await get_spam_patterns()
+            if spam_pattern:  # Check if spam_pattern is not empty
+                for pattern in spam_pattern:
+                    if pattern.search(messageContent):
+                        bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
+                        create_task(ban_user(messageAuthor, messageAuthorID))
+                        bannedUser = messageAuthor
                         return
-                    # Handle commands
-                    await self.handle_commands(message)
-                    messageContent = str(message.content).strip().lower() if message.content else ""
-                    messageAuthor = message.author.name if message.author else ""
-                    messageAuthorID = message.author.id if message.author else ""
-                    AuthorMessage = str(message.content) if message.content else ""
-                    # Check if the message matches the spam pattern
-                    spam_pattern = await get_spam_patterns()
-                    if spam_pattern:  # Check if spam_pattern is not empty
-                        for pattern in spam_pattern:
-                            if pattern.search(messageContent):
-                                bot_logger.info(f"Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                                create_task(ban_user(messageAuthor, messageAuthorID))
-                                bannedUser = messageAuthor
-                                return
-                    if messageContent.startswith('!'):
-                        command_parts = messageContent.split()
-                        command = command_parts[0][1:]  # Extract the command without '!'
-                        arg = command_parts[1] if len(command_parts) > 1 else None
-                        if command in builtin_commands or command in mod_commands or command in builtin_aliases:
-                            chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
-                            return  # It's a built-in command or alias, do nothing more
-                        # Check if the command exists in the database and respond
+            if messageContent.startswith('!'):
+                command_parts = messageContent.split()
+                command = command_parts[0][1:]  # Extract the command without '!'
+                arg = command_parts[1] if len(command_parts) > 1 else None
+                if command in builtin_commands or command in mod_commands or command in builtin_aliases:
+                    chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
+                    return  # It's a built-in command or alias, do nothing more
+                # Store results in variables to use outside the connection block
+                command_data = None 
+                async with await mysql_handler.get_connection() as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                        # Fetch timezone (used for logging only?)
                         await cursor.execute("SELECT timezone FROM profile")
                         tz_result = await cursor.fetchone()
                         if tz_result and tz_result.get("timezone"):
@@ -2358,105 +2362,140 @@ class TwitchBot(commands.Bot):
                         else:
                             tz = set_timezone.UTC
                             chat_logger.info("Timezone not set, defaulting to UTC")
+                        # Lookup Custom Command
                         await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
                         cc_result = await cursor.fetchone()
                         if cc_result:
-                            response = cc_result.get("response")
-                            cc_status = cc_result.get("status")
-                            cooldown = cc_result.get("cooldown")
-                            cc_permission = cc_result.get("permission")
-                            if cc_status == 'Enabled':
-                                # Check if user has permission to use the command
-                                if not await command_permissions(cc_permission, message.author):
-                                    chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
-                                    return
-                                # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                                if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
-                                    return
-                                # Handle (call.) before processing other variables since it needs self context
-                                if '(call.' in response:
-                                    calling_match = re.search(r'\(call\.(\w+)\)', response)
-                                    if calling_match:
-                                        match_call = calling_match.group(1)
-                                        response = response.replace(f"(call.{match_call})", "")
-                                        await self.call_command(match_call, message)
-                                # Extract user name from message for (user) variable
-                                user_mention = re.search(r'@(\w+)', messageContent)
-                                user_name = user_mention.group(1) if user_mention else messageAuthor
-                                # Process all custom command variables and send to chat
-                                await process_custom_command_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
-                                # Record usage
-                                add_usage(command, 'global', 'default')
-                            else:
-                                chat_logger.info(f"{command} not ran because it's disabled.")
+                            command_data = {
+                                'type': 'custom',
+                                'response': cc_result.get("response"),
+                                'status': cc_result.get("status"),
+                                'cooldown': cc_result.get("cooldown"),
+                                'permission': cc_result.get("permission")
+                            }
                         else:
-                            # Check if the command is a custom user command
+                            # Check Custom User Command
                             await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,))
                             custom_user_command = await cursor.fetchone()
                             if custom_user_command:
-                                response = custom_user_command['response']
-                                cuc_status = custom_user_command['status']
-                                cooldown = custom_user_command['cooldown']
-                                user_id = custom_user_command['user_id']
-                                if cuc_status == 'Enabled':
-                                    # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
-                                    if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
-                                        return
-                                    if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
-                                        await send_chat_message(response)
-                                        # Record usage
-                                        add_usage(command, 'global', 'default')
-                            else:
-                                chat_logger.info(f"Custom command '{command}' not found.")
-                    # Handle AI responses
-                    if f'@{self.nick.lower()}' in str(message.content).lower():
-                        user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
-                        if not user_message:
-                            await send_chat_message(f'Hello, {message.author.name}!')
+                                command_data = {
+                                    'type': 'user',
+                                    'response': custom_user_command['response'],
+                                    'status': custom_user_command['status'],
+                                    'cooldown': custom_user_command['cooldown'],
+                                    'user_id': custom_user_command['user_id']
+                                }
+                # Process Command Logic (Using captured data)
+                if command_data:
+                    if command_data['type'] == 'custom':
+                        response = command_data['response']
+                        cc_status = command_data['status']
+                        cooldown = command_data['cooldown']
+                        cc_permission = command_data['permission']
+                        if cc_status == 'Enabled':
+                            # Check permissions
+                            if not await command_permissions(cc_permission, message.author):
+                                chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
+                                return
+                            # Check cooldown
+                            if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                                return
+                            # Handle (call.)
+                            if '(call.' in response:
+                                calling_match = re.search(r'\(call\.(\w+)\)', response)
+                                if calling_match:
+                                    match_call = calling_match.group(1)
+                                    response = response.replace(f"(call.{match_call})", "")
+                                    await self.call_command(match_call, message)
+                            # Extract user mention
+                            user_mention = re.search(r'@(\w+)', messageContent)
+                            user_name = user_mention.group(1) if user_mention else messageAuthor
+                            # Process variables (SAFE now - connection released)
+                            await process_custom_command_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                            # Record usage
+                            add_usage(command, 'global', 'default')
                         else:
-                            await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
-                    if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
-                        # Always check blacklist
+                            chat_logger.info(f"{command} not ran because it's disabled.")
+                    elif command_data['type'] == 'user':
+                        response = command_data['response']
+                        cuc_status = command_data['status']
+                        cooldown = command_data['cooldown']
+                        user_id = command_data['user_id']
+                        if cuc_status == 'Enabled':
+                            # Check cooldown
+                            if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
+                                return
+                            if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
+                                await send_chat_message(response)
+                                # Record usage
+                                add_usage(command, 'global', 'default')
+                    else:
+                        chat_logger.info(f"Custom command '{command}' not found.")
+                else:
+                    chat_logger.info(f"Custom command '{command}' not found.")
+            # Handle AI responses
+            if f'@{self.nick.lower()}' in str(message.content).lower():
+                user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
+                if not user_message:
+                    await send_chat_message(f'Hello, {message.author.name}!')
+                else:
+                    await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
+            if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
+                # Block 3: Link Protection (Acquire -> Release immediately)
+                should_delete = False
+                alert_mods = False
+                send_warning = False
+                async with await mysql_handler.get_connection() as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                         # Check blacklist
                         await cursor.execute('SELECT link FROM link_blacklisting')
                         blacklist_result = await cursor.fetchall()
                         blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
                         contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
                         if contains_blacklisted_link:
-                            await message.delete()
-                            chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                            await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
-                            return
-                        # Now check if URL blocking is enabled
-                        await cursor.execute('SELECT url_blocking FROM protection')
-                        result = await cursor.fetchone()
-                        url_blocking = bool(result.get("url_blocking")) if result else False
-                        if url_blocking:
-                            # Check if user has permission to post links
-                            if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                                return  # User is permitted, skip URL blocking
-                            if await command_permissions("mod", message.author):
-                                return  # Mods and broadcaster have permission by default
-                            # Fetch whitelist
-                            await cursor.execute('SELECT link FROM link_whitelist')
-                            whitelist_result = await cursor.fetchall()  # Fetch whitelist results
-                            whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
-                            contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
-                            # Check for Twitch clip links
-                            contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
-                            if not contains_whitelisted_link and not contains_twitch_clip_link:
-                                await message.delete()
-                                chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                                await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
-                                return
-                            else:
-                                chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
+                            should_delete = True
+                            alert_mods = True
                         else:
-                            chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
-                except Exception as e:
-                    if isinstance(e, AttributeError) and "NoneType" in str(e):
-                        pass
-                    else:
-                        bot_logger.error(f"An error occurred in event_message: {e}")
+                            # Check URL blocking
+                            await cursor.execute('SELECT url_blocking FROM protection')
+                            result = await cursor.fetchone()
+                            url_blocking = bool(result.get("url_blocking")) if result else False
+                            if url_blocking:
+                                # Permission checks (no DB needed)
+                                is_permitted = False
+                                if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
+                                    is_permitted = True
+                                elif await command_permissions("mod", message.author):
+                                    is_permitted = True
+                                if not is_permitted:
+                                    # Fetch whitelist
+                                    await cursor.execute('SELECT link FROM link_whitelist')
+                                    whitelist_result = await cursor.fetchall()
+                                    whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
+                                    contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
+                                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+                                    if not contains_whitelisted_link and not contains_twitch_clip_link:
+                                        should_delete = True
+                                        send_warning = True
+                                    else:
+                                        chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
+                            else:
+                                chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
+                if should_delete:
+                    await message.delete()
+                    if alert_mods:
+                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                        await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                        return
+                    if send_warning:
+                        chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
+                        await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
+                        return
+        except Exception as e:
+            if isinstance(e, AttributeError) and "NoneType" in str(e):
+                pass
+            else:
+                bot_logger.error(f"An error occurred in event_message: {e}")
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         if messageAuthor in [bannedUser, None, ""]:
