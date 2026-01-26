@@ -551,17 +551,15 @@ async def refresh_twitch_token(current_refresh_token):
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
                         twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
-                        connection = await mysql_handler.get_connection(db_name="website")
-                        try:
-                            async with connection.cursor(DictCursor) as cursor:
-                                # Insert or update the access token for the given twitch_user_id
-                                query = "INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (%s, %s) ON DUPLICATE KEY UPDATE twitch_access_token = %s;"
-                                await cursor.execute(query, (CHANNEL_ID, CHANNEL_AUTH, CHANNEL_AUTH))
-                                await connection.commit()
-                        except Exception as e:
-                            twitch_logger.error(f"Database update failed: {e}")
-                        finally:
-                            pass
+                        async with await mysql_handler.get_connection(db_name="website") as connection:
+                            try:
+                                async with connection.cursor(DictCursor) as cursor:
+                                    # Insert or update the access token for the given twitch_user_id
+                                    query = "INSERT INTO twitch_bot_access (twitch_user_id, twitch_access_token) VALUES (%s, %s) ON DUPLICATE KEY UPDATE twitch_access_token = %s;"
+                                    await cursor.execute(query, (CHANNEL_ID, CHANNEL_AUTH, CHANNEL_AUTH))
+                                    await connection.commit()
+                            except Exception as e:
+                                twitch_logger.error(f"Database update failed: {e}")
                         return next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response.")
@@ -5501,70 +5499,70 @@ class TwitchBot(commands.Bot):
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(self, ctx, mentioned_username: str = None, new_count: int = None):
         global bot_owner
-        connection = await mysql_handler.get_connection()
-        try:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("edittypos",))
-                result = await cursor.fetchone()
-                if result:
-                    status = result.get("status")
-                    permissions = result.get("permission")
-                    cooldown_rate = result.get("cooldown_rate")
-                    cooldown_time = result.get("cooldown_time")
-                    cooldown_bucket = result.get("cooldown_bucket")
-                    if status == 'Disabled' and ctx.author.name != bot_owner:
-                        return
-                    if not await command_permissions(permissions, ctx.author):
-                        await send_chat_message(f"You do not have the required permissions to use this command.")
-                        return
-                    # Check cooldown
-                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
-                    if not await check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
-                        return
-                    chat_logger.info("Edit Typos Command ran.")
-                    try:
-                        # Determine the target user: mentioned user or the command caller
-                        mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
-                        target_user = mentioned_username_lower.lstrip('@')
-                        chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
-                        # Check if mentioned_username is not provided
-                        if mentioned_username is None:
-                            chat_logger.error("There was no mentioned username for the command to run.")
-                            await send_chat_message("Usage: !edittypos @username [amount]")
+        async with await mysql_handler.get_connection() as connection:
+            try:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("edittypos",))
+                    result = await cursor.fetchone()
+                    if result:
+                        status = result.get("status")
+                        permissions = result.get("permission")
+                        cooldown_rate = result.get("cooldown_rate")
+                        cooldown_time = result.get("cooldown_time")
+                        cooldown_bucket = result.get("cooldown_bucket")
+                        if status == 'Disabled' and ctx.author.name != bot_owner:
                             return
-                        # Check if new_count is not provided
-                        if new_count is None:
-                            chat_logger.error("There was no count added to the command to edit.")
-                            await send_chat_message(f"Usage: !edittypos @{target_user} [amount]")
+                        if not await command_permissions(permissions, ctx.author):
+                            await send_chat_message(f"You do not have the required permissions to use this command.")
                             return
-                        # Check if new_count is non-negative
-                        if new_count < 0:
-                            chat_logger.error(f"Typo count for {target_user} tried to be set to {new_count}.")
-                            await send_chat_message(f"Typo count cannot be negative.")
+                        # Check cooldown
+                        bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                        if not await check_cooldown('edittypos', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
-                        # Check if the user exists in the database
-                        await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
-                        result = await cursor.fetchone()
-                        if result is not None:
-                            # Update typo count in the database
-                            await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
-                            await connection.commit()
-                            chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
-                            await send_chat_message(f"Typo count for {target_user} has been updated to {new_count}.")
-                        else:
-                            # If user does not exist, add the user with the given typo count
-                            await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, %s)', (target_user, new_count))
-                            await connection.commit()
-                            chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
-                            await send_chat_message(f"Typo count for {target_user} has been set to {new_count}.")
-                    except Exception as e:
-                        chat_logger.error(f"Error in edit_typo_command: {e}")
-                        await send_chat_message(f"An error occurred while trying to edit typos. {e}")
-            # Record usage
-            add_usage('edittypos', bucket_key, cooldown_bucket)
-        except Exception as e:
-            chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
-            await send_chat_message("An unexpected error occurred. Please try again later.")
+                        chat_logger.info("Edit Typos Command ran.")
+                        try:
+                            # Determine the target user: mentioned user or the command caller
+                            mentioned_username_lower = mentioned_username.lower() if mentioned_username else ctx.author.name.lower()
+                            target_user = mentioned_username_lower.lstrip('@')
+                            chat_logger.info(f"Edit Typos Command ran with params: {target_user}, {new_count}")
+                            # Check if mentioned_username is not provided
+                            if mentioned_username is None:
+                                chat_logger.error("There was no mentioned username for the command to run.")
+                                await send_chat_message("Usage: !edittypos @username [amount]")
+                                return
+                            # Check if new_count is not provided
+                            if new_count is None:
+                                chat_logger.error("There was no count added to the command to edit.")
+                                await send_chat_message(f"Usage: !edittypos @{target_user} [amount]")
+                                return
+                            # Check if new_count is non-negative
+                            if new_count < 0:
+                                chat_logger.error(f"Typo count for {target_user} tried to be set to {new_count}.")
+                                await send_chat_message(f"Typo count cannot be negative.")
+                                return
+                            # Check if the user exists in the database
+                            await cursor.execute('SELECT typo_count FROM user_typos WHERE username = %s', (target_user,))
+                            result = await cursor.fetchone()
+                            if result is not None:
+                                # Update typo count in the database
+                                await cursor.execute('UPDATE user_typos SET typo_count = %s WHERE username = %s', (new_count, target_user))
+                                await connection.commit()
+                                chat_logger.info(f"Typo count for {target_user} has been updated to {new_count}.")
+                                await send_chat_message(f"Typo count for {target_user} has been updated to {new_count}.")
+                            else:
+                                # If user does not exist, add the user with the given typo count
+                                await cursor.execute('INSERT INTO user_typos (username, typo_count) VALUES (%s, %s)', (target_user, new_count))
+                                await connection.commit()
+                                chat_logger.info(f"Typo count for {target_user} has been set to {new_count}.")
+                                await send_chat_message(f"Typo count for {target_user} has been set to {new_count}.")
+                        except Exception as e:
+                            chat_logger.error(f"Error in edit_typo_command: {e}")
+                            await send_chat_message(f"An error occurred while trying to edit typos. {e}")
+                # Record usage
+                add_usage('edittypos', bucket_key, cooldown_bucket)
+            except Exception as e:
+                chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
+                await send_chat_message("An unexpected error occurred. Please try again later.")
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(self, ctx, mentioned_username: str = None, decrease_amount: int = 1):
@@ -10495,13 +10493,13 @@ async def check_premium_feature(user):
         api_logger.info("User is bot owner, returning 4000")
         return 4000
     try:
-        connection = await mysql_handler.get_connection(db_name="website")
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT beta_access FROM users WHERE username = %s", (CHANNEL_NAME.lower(),))
-            result = await cursor.fetchone()
-            if result and result['beta_access'] == 1:
-                api_logger.info("User has beta access, returning 4000")
-                return 4000
+        async with await mysql_handler.get_connection(db_name="website") as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT beta_access FROM users WHERE username = %s", (CHANNEL_NAME.lower(),))
+                result = await cursor.fetchone()
+                if result and result['beta_access'] == 1:
+                    api_logger.info("User has beta access, returning 4000")
+                    return 4000
         api_logger.info("User does not have beta access, checking subscription")
         twitch_subscriptions_url = f"https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id={CHANNEL_ID}"
         headers = {"Client-ID": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}",}
@@ -10521,8 +10519,6 @@ async def check_premium_feature(user):
     except Exception as e:
         api_logger.error(f"Error in check_premium_feature: {e}")
         return 0
-    finally:
-        pass
 
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
@@ -11335,70 +11331,62 @@ async def check_next_ad_after_completion(ads_api_url, headers):
 async def track_chat_message():
     # Construct bot_system identifier using SYSTEM variable (e.g., 'twitch_beta', 'twitch_stable')
     bot_system = f"twitch_{SYSTEM.lower()}"
-    connection = await mysql_handler.get_connection('website')
-    if connection is None:
-        chat_logger.error("Failed to get connection for website database to track message")
-        return
     try:
-        async with connection.cursor(DictCursor) as cursor:
-            # Get current record
-            await cursor.execute(
-                "SELECT messages_sent, counted_since FROM bot_messages WHERE bot_system = %s",
-                (bot_system,)
-            )
-            record = await cursor.fetchone()
-            if record is None:
-                # First entry for this bot system
+        async with await mysql_handler.get_connection('website') as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                # Get current record
                 await cursor.execute(
-                    """INSERT INTO bot_messages (bot_system, counted_since, messages_sent, last_updated)
-                       VALUES (%s, NOW(), 1, NOW())""",
+                    "SELECT messages_sent, counted_since FROM bot_messages WHERE bot_system = %s",
                     (bot_system,)
                 )
-                chat_logger.info(f"Created initial tracking record for {bot_system}")
-            elif record['messages_sent'] == 0 or record['counted_since'] is None:
-                # First message being counted
-                await cursor.execute(
-                    """UPDATE bot_messages 
-                       SET counted_since = NOW(), messages_sent = 1, last_updated = NOW()
-                       WHERE bot_system = %s""",
-                    (bot_system,)
-                )
-                chat_logger.debug(f"Initialized message counting for {bot_system}")
-            else:
-                # Subsequent messages
-                await cursor.execute(
-                    """UPDATE bot_messages 
-                       SET messages_sent = messages_sent + 1, last_updated = NOW()
-                       WHERE bot_system = %s""",
-                    (bot_system,)
-                )
-            await connection.commit()
+                record = await cursor.fetchone()
+                if record is None:
+                    # First entry for this bot system
+                    await cursor.execute(
+                        """INSERT INTO bot_messages (bot_system, counted_since, messages_sent, last_updated)
+                           VALUES (%s, NOW(), 1, NOW())""",
+                        (bot_system,)
+                    )
+                    chat_logger.info(f"Created initial tracking record for {bot_system}")
+                elif record['messages_sent'] == 0 or record['counted_since'] is None:
+                    # First message being counted
+                    await cursor.execute(
+                        """UPDATE bot_messages 
+                           SET counted_since = NOW(), messages_sent = 1, last_updated = NOW()
+                           WHERE bot_system = %s""",
+                        (bot_system,)
+                    )
+                    chat_logger.debug(f"Initialized message counting for {bot_system}")
+                else:
+                    # Subsequent messages
+                    await cursor.execute(
+                        """UPDATE bot_messages 
+                           SET messages_sent = messages_sent + 1, last_updated = NOW()
+                           WHERE bot_system = %s""",
+                        (bot_system,)
+                    )
+                await connection.commit()
     except Exception as e:
         chat_logger.error(f"Error tracking message for {bot_system}: {e}")
-    finally:
-        pass
 
 # Function to get custom bot credentials from database
 async def get_custom_bot_credentials():
-    connection = await mysql_handler.get_connection('website')
-    if connection is None:
-        system_logger.error("Failed to get connection for website database to fetch custom bot credentials")
-        return None
     try:
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute(
-                "SELECT bot_channel_id, access_token FROM custom_bots WHERE bot_username = %s AND is_verified = 1",
-                (BOT_USERNAME,)
-            )
-            result = await cursor.fetchone()
-            if result:
-                return {
-                    'bot_channel_id': result['bot_channel_id'],
-                    'access_token': result['access_token']
-                }
-            else:
-                system_logger.error(f"No verified custom bot found for username: {BOT_USERNAME}")
-                return None
+        async with await mysql_handler.get_connection('website') as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT bot_channel_id, access_token FROM custom_bots WHERE bot_username = %s AND is_verified = 1",
+                    (BOT_USERNAME,)
+                )
+                result = await cursor.fetchone()
+                if result:
+                    return {
+                        'bot_channel_id': result['bot_channel_id'],
+                        'access_token': result['access_token']
+                    }
+                else:
+                    system_logger.error(f"No verified custom bot found for username: {BOT_USERNAME}")
+                    return None
     except Exception as e:
         system_logger.error(f"Error fetching custom bot credentials: {e}")
         return None
@@ -11508,65 +11496,65 @@ async def get_shoutout_message(user_id, user_name, action="command"):
 # Function to manage user points
 async def manage_user_points(user_id: str, user_name: str, action: str, amount: int = 0) -> dict:
     try:
-        connection = await mysql_handler.get_connection()
-        async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-            result = await cursor.fetchone()
-            if result:
-                current_points = result.get("points", 0)
-            else:
-                await cursor.execute(
-                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0)",
-                    (user_id, user_name)
-                )
-                await connection.commit()
-                current_points = 0
-            previous_points = current_points
-            if action == "get":
-                return {
-                    "success": True,
-                    "points": current_points,
-                    "previous_points": current_points,
-                    "amount_changed": 0,
-                    "error": None
-                }
-            elif action == "credit":
-                new_points = current_points + amount
-                await cursor.execute(
-                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
-                    (new_points, user_id)
-                )
-                await connection.commit()
-                return {
-                    "success": True,
-                    "points": new_points,
-                    "previous_points": previous_points,
-                    "amount_changed": amount,
-                    "error": None
-                }
-            elif action == "debit":
-                actual_debit = min(amount, current_points)
-                new_points = max(0, current_points - amount)
-                await cursor.execute(
-                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
-                    (new_points, user_id)
-                )
-                await connection.commit()
-                return {
-                    "success": True,
-                    "points": new_points,
-                    "previous_points": previous_points,
-                    "amount_changed": actual_debit,
-                    "error": None
-                }
-            else:
-                return {
-                    "success": False,
-                    "points": current_points,
-                    "previous_points": current_points,
-                    "amount_changed": 0,
-                    "error": f"Invalid action: {action}. Use 'get', 'credit', or 'debit'."
-                }
+        async with await mysql_handler.get_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                result = await cursor.fetchone()
+                if result:
+                    current_points = result.get("points", 0)
+                else:
+                    await cursor.execute(
+                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0)",
+                        (user_id, user_name)
+                    )
+                    await connection.commit()
+                    current_points = 0
+                previous_points = current_points
+                if action == "get":
+                    return {
+                        "success": True,
+                        "points": current_points,
+                        "previous_points": current_points,
+                        "amount_changed": 0,
+                        "error": None
+                    }
+                elif action == "credit":
+                    new_points = current_points + amount
+                    await cursor.execute(
+                        "UPDATE bot_points SET points = %s WHERE user_id = %s",
+                        (new_points, user_id)
+                    )
+                    await connection.commit()
+                    return {
+                        "success": True,
+                        "points": new_points,
+                        "previous_points": previous_points,
+                        "amount_changed": amount,
+                        "error": None
+                    }
+                elif action == "debit":
+                    actual_debit = min(amount, current_points)
+                    new_points = max(0, current_points - amount)
+                    await cursor.execute(
+                        "UPDATE bot_points SET points = %s WHERE user_id = %s",
+                        (new_points, user_id)
+                    )
+                    await connection.commit()
+                    return {
+                        "success": True,
+                        "points": new_points,
+                        "previous_points": previous_points,
+                        "amount_changed": actual_debit,
+                        "error": None
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "points": current_points,
+                        "previous_points": current_points,
+                        "amount_changed": 0,
+                        "error": f"Invalid action: {action}. Use 'get', 'credit', or 'debit'."
+                    }
     except Exception as e:
         bot_logger.error(f"Error in manage_user_points (action={action}, user={user_name}): {e}")
         return {
