@@ -933,7 +933,7 @@ input[type="range"].modern-volume::-ms-tooltip {
 }
 
 /* Responsive styles */
-@media (max-width: 720px) {
+@media (max-width: 1023px) {
     .se-api-token-row {
         flex-direction: row !important;
         align-items: center !important;
@@ -957,7 +957,92 @@ input[type="range"].modern-volume::-ms-tooltip {
         display: flex;
         align-items: center;
     }
+    
+    /* Fix bot.php layout on mobile - force columns to stack */
+    .columns.is-variable {
+        display: block !important;
+        margin: 0 !important;
+    }
+    
+    .columns.is-variable > .column {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0.75rem !important;
+        display: block !important;
+        flex: none !important;
+    }
+    
+    /* Bot management card header fixes - CRITICAL for mobile */
+    .card .card-header {
+        display: block !important;
+        padding: 1rem !important;
+    }
+    
+    /* Force header to stack vertically */
+    .card-header > div.is-flex[style*="width:100%"],
+    .card-header .is-flex.is-justify-content-space-between.is-align-items-center {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        width: 100% !important;
+        gap: 1rem !important;
+    }
+    
+    /* Fix the title - force horizontal text and center */
+    .card-header-title,
+    .card-header .card-header-title,
+    span.card-header-title {
+        writing-mode: horizontal-tb !important;
+        display: block !important;
+        width: 100% !important;
+        text-align: center !important;
+        padding: 0 0 0.5rem 0 !important;
+        margin: 0 !important;
+        flex: none !important;
+    }
+    
+    /* Controls wrapper - stack vertically */
+    .card-header .is-flex.is-align-items-center[style*="gap"],
+    .card-header > div > div.is-flex.is-align-items-center {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        width: 100% !important;
+        gap: 0.75rem !important;
+    }
+    
+    /* Individual control elements */
+    #custom-bot-toggle-container,
+    #use-self-toggle-container {
+        width: 100% !important;
+        max-width: 280px !important;
+        display: flex !important;
+        justify-content: center !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Bot selector dropdown */
+    .card-header .select.is-medium {
+        width: 100% !important;
+        max-width: 280px !important;
+    }
+    
+    .card-header .select select {
+        width: 100% !important;
+    }
+    
+    /* Fix notification buttons on mobile */
+    .notification > div {
+        flex-wrap: wrap !important;
+    }
+    
+    .notification button {
+        margin-left: 0 !important;
+        margin-top: 0.5rem;
+        width: 100%;
+    }
 }
+
 
 @media screen and (max-width: 1280px) {
     .se-badges {
