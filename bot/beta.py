@@ -2255,9 +2255,22 @@ class TwitchBot(commands.Bot):
                 command_parts = messageContent.split()
                 command = command_parts[0][1:]  # Extract the command without '!'
                 arg = command_parts[1] if len(command_parts) > 1 else None
+                # Check if it's a built-in command/alias, but also check if it's disabled
                 if command in builtin_commands or command in mod_commands or command in builtin_aliases:
-                    chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
-                    return  # It's a built-in command or alias, do nothing more
+                    # Check if the built-in command is disabled
+                    builtin_disabled = False
+                    async with await mysql_handler.get_connection() as connection:
+                        async with connection.cursor(DictCursor) as cursor:
+                            await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", (command,))
+                            builtin_result = await cursor.fetchone()
+                            if builtin_result and builtin_result.get("status") == 'Disabled':
+                                builtin_disabled = True
+                    # If built-in is enabled, process as built-in and return
+                    if not builtin_disabled:
+                        chat_logger.info(f"{messageAuthor} used a built-in command called: {command}")
+                        return  # It's an enabled built-in command or alias, do nothing more
+                    # If built-in is disabled, continue to check for custom command override
+                    chat_logger.info(f"{messageAuthor} attempted to use disabled built-in command '{command}', checking for custom override")
                 # Store results in variables to use outside the connection block
                 command_data = None 
                 async with await mysql_handler.get_connection() as connection:
@@ -6192,6 +6205,16 @@ class TwitchBot(commands.Bot):
             except ValueError:
                 await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
                 return
+            # Check if command name conflicts with an enabled built-in command
+            if command in builtin_commands or command in mod_commands or command in builtin_aliases:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", (command,))
+                    builtin_result = await cursor.fetchone()
+                    if builtin_result and builtin_result.get("status") != 'Disabled':
+                        await send_chat_message(f"Cannot create custom command '!{command}' - this is an enabled built-in command. Disable the built-in command first to create a custom override.")
+                        return
+                    # If built-in is disabled, allow custom command creation
+                    chat_logger.info(f"Creating custom command '{command}' as override for disabled built-in command")
             # Insert the command and response into the database
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
