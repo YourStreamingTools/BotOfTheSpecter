@@ -301,203 +301,113 @@ async def async_signal_cleanup():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
-# MySQL Connection Wrapper Class - Must be defined BEFORE MySQLHandler
+# MySQL Connection Wrapper compatible with existing usage (`async with mysql_handler.get_connection()`)
 class PoolConnectionWrapper:
-    def __init__(self, connection, pool):
+    def __init__(self, connection, pool=None):
         self._connection = connection
         self._pool = pool
         self._released = False
-    
+
     def cursor(self, *args, **kwargs):
         if self._released:
             raise RuntimeError("Cannot use cursor on released connection")
         return self._connection.cursor(*args, **kwargs)
-    
+
     async def commit(self):
         if self._connection and not self._released:
             await self._connection.commit()
-    
+
     async def rollback(self):
         if self._connection and not self._released:
             await self._connection.rollback()
-    
+
     async def release(self):
-        """Explicitly release the connection back to the pool"""
+        """Release or close the underlying connection. If using pools this would return it to the pool; here we close."""
         if self._connection and not self._released:
             try:
-                await self._pool.release(self._connection)
+                # If using a pool, release back to pool; otherwise close the single connection
+                if self._pool is not None:
+                    try:
+                        await self._pool.release(self._connection)
+                    except Exception:
+                        # Some pool implementations may expect synchronous release
+                        try:
+                            self._pool.release(self._connection)
+                        except Exception:
+                            pass
+                else:
+                    try:
+                        self._connection.close()
+                    except Exception:
+                        pass
                 self._released = True
             except Exception as e:
-                bot_logger.error(f"Error releasing connection: {e}")
-    
+                bot_logger.error(f"Error releasing/closing connection: {e}")
+
     async def __aenter__(self):
-        """Async context manager entry"""
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - automatically release connection"""
         await self.release()
         return False
-    
+
     def __del__(self):
-        """Fallback cleanup if context manager not used"""
         if self._connection and not self._released:
             try:
                 loop = get_event_loop()
                 if loop.is_running():
                     loop.create_task(self.release())
-            except:
+            except Exception:
                 pass
 
-# MySQL Connection Handler Class with Connection Pooling
+
+# Simplified MySQL handler - use direct connections like the stable `bot.py` implementation
 class MySQLHandler:
     def __init__(self):
-        self.pools = {}
-        self.pool_times = {}  # Track when each pool was created
+        pass
 
     async def get_connection(self, db_name=None):
         global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
         if db_name is None:
             db_name = CHANNEL_NAME
-        # Get or create pool for this database
-        pool = await self._get_or_create_pool(db_name)
-        # Acquire connection from pool with health check
-        connection = await pool.acquire()
-        try:
-            # Test connection is alive
-            async with connection.cursor() as test_cursor:
-                await test_cursor.execute("SELECT 1")
-        except (MySQLError, MySQLOtherErrors):
-            # Connection is dead, release it and get a new one
-            await pool.release(connection)
-            connection = await pool.acquire()
-        # Return a wrapper with pre-acquired connection
-        return PoolConnectionWrapper(connection, pool)
-
-    async def _get_or_create_pool(self, db_name):
-        global SQL_HOST, SQL_USER, SQL_PASSWORD
-        # Return existing pool if available
-        if db_name in self.pools:
-            pool = self.pools[db_name]
-            # Check if pool is still healthy
-            if not pool._closed:
-                return pool
-            else:
-                # Pool was closed, remove it
-                del self.pools[db_name]
-                if db_name in self.pool_times:
-                    del self.pool_times[db_name]
-        # Create new pool with retry logic
-        max_retries = 3
-        retry_delay = 1  # Start with 1 second
-        for attempt in range(max_retries):
-            try:
-                pool = await create_pool(
-                    host=SQL_HOST,
-                    user=SQL_USER,
-                    password=SQL_PASSWORD,
-                    db=db_name,
-                    minsize=1,  # Keep minimum connections low
-                    maxsize=3,  # Reduce max connections per database (was 10)
-                    pool_recycle=3600,  # Recycle connections after 1 hour (was 5 hours)
-                    connect_timeout=10,
-                    autocommit=False,
-                    echo=False  # Disable debug output
-                )
-                # Store pool and creation time
-                self.pools[db_name] = pool
-                self.pool_times[db_name] = time.time()
-                bot_logger.info(f"Created connection pool for database: {db_name}")
-                return pool
-            except (MySQLError, MySQLOtherErrors) as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
-                    bot_logger.error(f"Failed to create pool for {db_name} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
-                    await sleep(wait_time)
-                else:
-                    bot_logger.error(f"Failed to create connection pool for {db_name} after {max_retries} attempts: {e}")
-                    raise
+        # Create a direct connection (no pooling) to match stable bot behavior
+        conn = await sql_connect(
+            host=SQL_HOST,
+            user=SQL_USER,
+            password=SQL_PASSWORD,
+            db=db_name
+        )
+        return PoolConnectionWrapper(conn, pool=None)
 
     async def close_all(self):
-        """Close all connection pools"""
-        for db_name, pool in list(self.pools.items()):
-            try:
-                pool.close()
-                await pool.wait_closed()
-                bot_logger.info(f"Closed connection pool for database: {db_name}")
-            except Exception as e:
-                bot_logger.error(f"Error closing pool for {db_name}: {e}")
-        self.pools.clear()
-        self.pool_times.clear()
-    
+        # Nothing to close for direct connections
+        return
+
     async def cleanup_idle_pools(self, max_idle_time=1800):
-        """Close pools that haven't been used in max_idle_time seconds (default 30 min)"""
-        current_time = time.time()
-        pools_to_close = []
-        
-        for db_name, pool_time in list(self.pool_times.items()):
-            if current_time - pool_time > max_idle_time:
-                pools_to_close.append(db_name)
-        
-        for db_name in pools_to_close:
-            if db_name in self.pools:
-                try:
-                    pool = self.pools[db_name]
-                    pool.close()
-                    await pool.wait_closed()
-                    del self.pools[db_name]
-                    del self.pool_times[db_name]
-                    bot_logger.info(f"Closed idle connection pool for database: {db_name}")
-                except Exception as e:
-                    bot_logger.error(f"Error closing idle pool for {db_name}: {e}")
-    
+        return
+
     def get_pool_stats(self):
-        """Get statistics for all connection pools"""
-        stats = {}
-        for db_name, pool in self.pools.items():
-            if not pool._closed:
-                stats[db_name] = {
-                    'size': pool.size(),
-                    'free': pool.freesize(),
-                    'minsize': pool.minsize,
-                    'maxsize': pool.maxsize,
-                    'age_seconds': int(time.time() - self.pool_times.get(db_name, time.time()))
-                }
-        return stats
+        return {}
 
     def get_pool_status(self, db_name=None):
-        if db_name is None:
-            db_name = CHANNEL_NAME
-        pool_time = self.pool_times.get(db_name)
-        if db_name in self.pools and not self.pools[db_name]._closed:
-            status = {
-                'connected': True,
-                'db_name': db_name,
-                'last_connected': pool_time,
-                'connection_time': pool_time,  # Backward compatibility
-                'last_attempt': pool_time  # Backward compatibility
-            }
-        else:
-            status = {
-                'connected': False,
-                'db_name': db_name,
-                'last_connected': pool_time,
-                'connection_time': pool_time,  # Backward compatibility
-                'last_attempt': pool_time  # Backward compatibility
-            }
-        return status
+        return {'connected': True, 'db_name': db_name}
 
-    def get_connection_status(self, db_name=None):
-        return self.get_pool_status(db_name)
 
-# Initialize global MySQL handler
+# Initialize global MySQL handler for backward compatibility
 mysql_handler = MySQLHandler()
 
-# Function to handle MySQL connections - DEPRECATED, use mysql_handler.get_connection() instead
-# This maintains backward compatibility but logs a warning
+
+# Function to handle MySQL connections (simple direct connection, like `bot.py`)
 async def mysql_connection(db_name=None):
-    bot_logger.warning("mysql_connection() is deprecated. Use 'async with mysql_handler.get_connection()' instead.")
-    return await mysql_handler.get_connection(db_name)
+    global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
+    if db_name is None:
+        db_name = CHANNEL_NAME
+    return await sql_connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db=db_name
+    )
 
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
