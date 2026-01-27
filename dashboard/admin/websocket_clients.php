@@ -21,6 +21,14 @@ function getUserDisplayName($apiKey, $conn) {
     return "Unknown";
 }
 
+// Clean listener name by removing common prefixes
+function cleanListenerName($name) {
+    // Remove "Global - " prefix
+    if (stripos($name, 'Global - ') === 0) {
+        $name = substr($name, strlen('Global - '));
+    }
+}
+
 // Fetch real websocket client data from the websocket server
 function fetchWebsocketClients($conn) {
     $url = 'https://websocket.botofthespecter.com/clients';
@@ -364,7 +372,8 @@ ob_start();
         <table class="table is-fullwidth is-striped" id="global-listeners-table">
             <thead class="has-text-white">
                 <tr>
-                    <th class="has-text-white">Listener Name</th>
+                    <th class="has-text-white">Listener</th>
+                    <th class="has-text-white">Status</th>
                     <th class="has-text-white">Socket ID</th>
                     <th class="has-text-white">Actions</th>
                 </tr>
@@ -373,10 +382,23 @@ ob_start();
                 <?php foreach ($websocketData['global_listeners'] as $listener): ?>
                     <tr>
                         <td>
-                            <?php echo htmlspecialchars($listener['name']); ?>
+                            <span class="icon-text">
+                                <span class="icon has-text-success">
+                                    <i class="fas fa-broadcast-tower"></i>
+                                </span>
+                                <span class="has-text-weight-semibold"><?php echo htmlspecialchars(cleanListenerName($listener['name'])); ?></span>
+                            </span>
                         </td>
                         <td>
-                            <code><?php echo htmlspecialchars($listener['sid']); ?></code>
+                            <span class="tag is-success is-light">
+                                <span class="icon">
+                                    <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
+                                </span>
+                                <span>Active</span>
+                            </span>
+                        </td>
+                        <td>
+                            <code class="is-size-7"><?php echo htmlspecialchars($listener['sid']); ?></code>
                         </td>
                         <td>
                             <div class="buttons are-small">
@@ -620,9 +642,27 @@ function updateGlobalListenersTable(globalListeners) {
     table.innerHTML = '';
     globalListeners.forEach(listener => {
         const row = document.createElement('tr');
+        const cleanedName = cleanListenerName(listener.name);
         row.innerHTML = `
-            <td>${escapeHtml(listener.name)}</td>
-            <td><code>${escapeHtml(listener.sid)}</code></td>
+            <td>
+                <span class="icon-text">
+                    <span class="icon has-text-success">
+                        <i class="fas fa-broadcast-tower"></i>
+                    </span>
+                    <span class="has-text-weight-semibold">${escapeHtml(cleanedName)}</span>
+                </span>
+            </td>
+            <td>
+                <span class="tag is-success is-light">
+                    <span class="icon">
+                        <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
+                    </span>
+                    <span>Active</span>
+                </span>
+            </td>
+            <td>
+                <code class="is-size-7">${escapeHtml(listener.sid)}</code>
+            </td>
             <td>
                 <div class="buttons are-small">
                     <button class="button is-info is-small" onclick="showListenerDetails('${escapeHtml(listener.sid)}', '${escapeHtml(listener.name)}')">
@@ -644,6 +684,14 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Clean listener name by removing common prefixes
+function cleanListenerName(name) {
+    // Remove "Global - " prefix (case insensitive)
+    if (name.toLowerCase().startsWith('global - ')) {
+        name = name.substring(9);
+    }
 }
 
 // Toggle API key visibility (button should be inside the same container as .masked-api-key and .full-api-key)
