@@ -177,8 +177,7 @@ class BotOfTheSpecter_WebsocketServer:
         # Initialize web application with security middleware
         self.app = web.Application(
             middlewares=[self.security_manager.ip_restriction_middleware],
-            logger=self.logger,
-            access_log_class=QuietAccessLogger
+            logger=self.logger
         )
         self.app.on_startup.append(self.on_startup)
         self.app.on_shutdown.append(self.on_shutdown)
@@ -961,13 +960,13 @@ class BotOfTheSpecter_WebsocketServer:
         if ssl_context is not None:
             # SSL certificates available - run secure server
             self.logger.info(f"🔒 Starting secure WebSocket server on {host}:{port}")
-            web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=ssl_context, handle_signals=True, shutdown_timeout=10)
+            web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=ssl_context, handle_signals=True, shutdown_timeout=10, access_log_class=QuietAccessLogger)
         else:
             # No SSL certificates - fallback to insecure server
             fallback_port = 80 if port == 443 else port
             self.logger.warning(f"⚠ Starting insecure WebSocket server on {host}:{fallback_port}")
             self.logger.warning("  Consider setting up SSL certificates for production use.")
-            web.run_app(self.app, loop=self.loop, host=host, port=fallback_port, ssl_context=None, handle_signals=True, shutdown_timeout=10)
+            web.run_app(self.app, loop=self.loop, host=host, port=fallback_port, ssl_context=None, handle_signals=True, shutdown_timeout=10, access_log_class=QuietAccessLogger)
 
     def stop(self):
         # Stop the SocketIO server.
