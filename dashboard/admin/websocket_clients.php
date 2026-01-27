@@ -358,18 +358,14 @@ ob_start();
 <!-- Listeners Section -->
 <?php if (!empty($websocketData['global_listeners'])): ?>
 <div class="box">
-    <h2 class="title is-5"><span class="icon"><i class="fas fa-globe"></i></span> Listeners</h2>
-    <p class="mb-4">Admin-authenticated clients that receive events from all channels.</p>
-    
+    <h2 class="title is-5"><span class="icon"><i class="fas fa-globe"></i></span> Global Listeners</h2>
+    <p class="mb-4">Global Listeners are admin-authenticated websocket connections that receive real-time events from all channels simultaneously. These connections are typically used for system monitoring, administrative dashboards, and global event tracking. Unlike regular clients which are tied to specific user API keys, Global Listeners have elevated permissions to observe activity across the entire platform.</p>
     <div class="table-container">
         <table class="table is-fullwidth is-striped" id="global-listeners-table">
             <thead class="has-text-white">
                 <tr>
                     <th class="has-text-white">Listener Name</th>
                     <th class="has-text-white">Socket ID</th>
-                    <th class="has-text-white">Admin Auth</th>
-                    <th class="has-text-white">Connected At</th>
-                    <th class="has-text-white">Last Activity</th>
                     <th class="has-text-white">Actions</th>
                 </tr>
             </thead>
@@ -381,15 +377,6 @@ ob_start();
                         </td>
                         <td>
                             <code><?php echo htmlspecialchars($listener['sid']); ?></code>
-                        </td>
-                        <td>
-                            <span class="tag is-success">Authenticated</span>
-                        </td>
-                        <td>
-                            <?php echo htmlspecialchars($listener['connected_at']); ?>
-                        </td>
-                        <td>
-                            <?php echo htmlspecialchars($listener['last_activity']); ?>
                         </td>
                         <td>
                             <div class="buttons are-small">
@@ -636,9 +623,6 @@ function updateGlobalListenersTable(globalListeners) {
         row.innerHTML = `
             <td>${escapeHtml(listener.name)}</td>
             <td><code>${escapeHtml(listener.sid)}</code></td>
-            <td><span class="tag is-success">Authenticated</span></td>
-            <td>${listener.connected_at || 'N/A'}</td>
-            <td>${listener.last_activity || 'N/A'}</td>
             <td>
                 <div class="buttons are-small">
                     <button class="button is-info is-small" onclick="showListenerDetails('${escapeHtml(listener.sid)}', '${escapeHtml(listener.name)}')">
