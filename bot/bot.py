@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.2"
+VERSION = "5.7.3"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -2061,6 +2061,10 @@ class TwitchBot(commands.Bot):
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in str(message.content).lower():
+                    # Ignore messages from the bot itself to prevent self-responses
+                    if message.author.name.lower() == self.nick.lower():
+                        chat_logger.info(f"Ignoring AI mention from bot itself")
+                        return
                     user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
                     if not user_message:
                         await send_chat_message(f'Hello, {message.author.name}!')
