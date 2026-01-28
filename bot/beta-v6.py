@@ -2379,6 +2379,14 @@ class TwitchBot(commands.AutoBot):
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
                 if f'@{self.nick.lower()}' in str(message.content).lower():
+                    # Ignore messages from the bot itself to prevent self-responses
+                    if message.author.name.lower() == self.nick.lower():
+                        chat_logger.info(f"Ignoring AI mention from bot itself")
+                        return
+                    # Ignore messages from the channel owner in SELF mode
+                    if message.author.name.lower() == CHANNEL_NAME.lower():
+                        chat_logger.info(f"Ignoring AI mention from channel owner in SELF mode")
+                        return
                     user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
                     if not user_message:
                         await send_chat_message(f'Hello, {message.author.name}!')
