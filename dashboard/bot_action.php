@@ -11,11 +11,42 @@ ini_set('max_execution_time', 15);
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
 
+// Token validation function
+function validateTwitchToken($token) {
+  $url = "https://id.twitch.tv/oauth2/validate";
+  $headers = ['Authorization: OAuth ' . $token];
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
+  $response = curl_exec($ch);
+  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  if ($httpCode === 200) {
+    $data = json_decode($response, true);
+    return $data; // Return the validation data including expires_in
+  } else {
+    return false;
+  }
+}
+
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Authentication required']);
+  exit();
+}
+
+// Validate the Twitch token before proceeding
+$tokenData = validateTwitchToken($_SESSION['access_token']);
+if (!$tokenData) {
+  // Token is invalid, clear session and return error
+  session_unset();
+  session_destroy();
+  ob_clean();
+  header('Content-Type: application/json');
+  echo json_encode(['success' => false, 'message' => 'Token expired', 'redirect' => 'login.php']);
   exit();
 }
 
