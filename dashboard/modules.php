@@ -260,6 +260,45 @@ ob_start();
         </div>
     </div>
 </div>
+<!-- Tabs Navigation -->
+<div class="buttons is-centered mb-5">
+    <button class="button is-info" onclick="loadTab('joke-blacklist')">
+        <span class="icon"><i class="fas fa-ban"></i></span>
+        <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
+    </button>
+    <button class="button is-info" onclick="loadTab('welcome-messages')">
+        <span class="icon"><i class="fas fa-hand-sparkles"></i></span>
+        <span><?php echo t('modules_tab_welcome_messages'); ?></span>
+    </button>
+    <button class="button is-info" onclick="loadTab('chat-protection')">
+        <span class="icon"><i class="fas fa-shield-alt"></i></span>
+        <span><?php echo t('modules_tab_chat_protection'); ?></span>
+    </button>
+    <button class="button is-info" onclick="loadTab('game-deaths')">
+        <span class="icon"><i class="fas fa-skull-crossbones"></i></span>
+        <span>Game Deaths</span>
+    </button>
+    <button class="button is-info" onclick="loadTab('ad-notices')">
+        <span class="icon"><i class="fas fa-bullhorn"></i></span>
+        <span><?php echo t('modules_tab_ad_notices'); ?></span>
+    </button>
+    <button class="button is-info" onclick="loadTab('twitch-audio-alerts')">
+        <span class="icon"><i class="fas fa-volume-up"></i></span>
+        <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
+    </button>
+    <button class="button is-info" onclick="loadTab('twitch-chat-alerts')">
+        <span class="icon"><i class="fas fa-comment-dots"></i></span>
+        <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
+    </button>
+    <button class="button is-info" onclick="loadTab('automated-shoutouts')">
+        <span class="icon"><i class="fas fa-bullhorn"></i></span>
+        <span>Automated Shoutouts</span>
+    </button>
+    <button class="button is-info" onclick="loadTab('tts-settings')">
+        <span class="icon"><i class="fas fa-microphone"></i></span>
+        <span>TTS Settings</span>
+    </button>
+</div>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
         <div class="card has-background-dark has-text-white mb-5"
@@ -277,45 +316,6 @@ ob_start();
                         unset($_SESSION['update_message']); ?>
                     </div>
                 <?php endif; ?>
-                <!-- Tabs Navigation -->
-                <div class="buttons is-centered mb-4 pb-4">
-                    <button class="button is-info" onclick="loadTab('joke-blacklist')">
-                        <span class="icon"><i class="fas fa-ban"></i></span>
-                        <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('welcome-messages')">
-                        <span class="icon"><i class="fas fa-hand-sparkles"></i></span>
-                        <span><?php echo t('modules_tab_welcome_messages'); ?></span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('chat-protection')">
-                        <span class="icon"><i class="fas fa-shield-alt"></i></span>
-                        <span><?php echo t('modules_tab_chat_protection'); ?></span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('game-deaths')">
-                        <span class="icon"><i class="fas fa-skull-crossbones"></i></span>
-                        <span>Game Deaths</span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('ad-notices')">
-                        <span class="icon"><i class="fas fa-bullhorn"></i></span>
-                        <span><?php echo t('modules_tab_ad_notices'); ?></span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('twitch-audio-alerts')">
-                        <span class="icon"><i class="fas fa-volume-up"></i></span>
-                        <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('twitch-chat-alerts')">
-                        <span class="icon"><i class="fas fa-comment-dots"></i></span>
-                        <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('automated-shoutouts')">
-                        <span class="icon"><i class="fas fa-bullhorn"></i></span>
-                        <span>Automated Shoutouts</span>
-                    </button>
-                    <button class="button is-info" onclick="loadTab('tts-settings')">
-                        <span class="icon"><i class="fas fa-microphone"></i></span>
-                        <span>TTS Settings</span>
-                    </button>
-                </div>
                 <!-- Tab Contents -->
                 <div class="content">
                     <div class="tab-content" id="joke-blacklist">
