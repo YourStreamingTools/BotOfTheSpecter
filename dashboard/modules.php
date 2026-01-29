@@ -261,43 +261,47 @@ ob_start();
     </div>
 </div>
 <!-- Tabs Navigation -->
-<div class="buttons is-centered mb-5">
-    <button class="button is-info" onclick="loadTab('joke-blacklist')">
-        <span class="icon"><i class="fas fa-ban"></i></span>
-        <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
-    </button>
-    <button class="button is-info" onclick="loadTab('welcome-messages')">
-        <span class="icon"><i class="fas fa-hand-sparkles"></i></span>
-        <span><?php echo t('modules_tab_welcome_messages'); ?></span>
-    </button>
-    <button class="button is-info" onclick="loadTab('chat-protection')">
-        <span class="icon"><i class="fas fa-shield-alt"></i></span>
-        <span><?php echo t('modules_tab_chat_protection'); ?></span>
-    </button>
-    <button class="button is-info" onclick="loadTab('game-deaths')">
-        <span class="icon"><i class="fas fa-skull-crossbones"></i></span>
-        <span>Game Deaths</span>
-    </button>
-    <button class="button is-info" onclick="loadTab('ad-notices')">
-        <span class="icon"><i class="fas fa-bullhorn"></i></span>
-        <span><?php echo t('modules_tab_ad_notices'); ?></span>
-    </button>
-    <button class="button is-info" onclick="loadTab('twitch-audio-alerts')">
-        <span class="icon"><i class="fas fa-volume-up"></i></span>
-        <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
-    </button>
-    <button class="button is-info" onclick="loadTab('twitch-chat-alerts')">
-        <span class="icon"><i class="fas fa-comment-dots"></i></span>
-        <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
-    </button>
-    <button class="button is-info" onclick="loadTab('automated-shoutouts')">
-        <span class="icon"><i class="fas fa-bullhorn"></i></span>
-        <span>Automated Shoutouts</span>
-    </button>
-    <button class="button is-info" onclick="loadTab('tts-settings')">
-        <span class="icon"><i class="fas fa-microphone"></i></span>
-        <span>TTS Settings</span>
-    </button>
+<div class="tabs-container">
+    <div class="tabs-scroll-wrapper">
+        <div class="data-tabs">
+            <div class="tab-item active" onclick="loadTab('joke-blacklist')">
+                <i class="fas fa-ban"></i>
+                <span><?php echo t('modules_tab_joke_blacklist'); ?></span>
+            </div>
+            <div class="tab-item" onclick="loadTab('welcome-messages')">
+                <i class="fas fa-hand-sparkles"></i>
+                <span><?php echo t('modules_tab_welcome_messages'); ?></span>
+            </div>
+            <div class="tab-item" onclick="loadTab('chat-protection')">
+                <i class="fas fa-shield-alt"></i>
+                <span><?php echo t('modules_tab_chat_protection'); ?></span>
+            </div>
+            <div class="tab-item" onclick="loadTab('game-deaths')">
+                <i class="fas fa-skull-crossbones"></i>
+                <span>Game Deaths</span>
+            </div>
+            <div class="tab-item" onclick="loadTab('ad-notices')">
+                <i class="fas fa-bullhorn"></i>
+                <span><?php echo t('modules_tab_ad_notices'); ?></span>
+            </div>
+            <div class="tab-item" onclick="loadTab('twitch-audio-alerts')">
+                <i class="fas fa-volume-up"></i>
+                <span><?php echo t('modules_tab_twitch_event_alerts'); ?></span>
+            </div>
+            <div class="tab-item" onclick="loadTab('twitch-chat-alerts')">
+                <i class="fas fa-comment-dots"></i>
+                <span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span>
+            </div>
+            <div class="tab-item" onclick="loadTab('automated-shoutouts')">
+                <i class="fas fa-bullhorn"></i>
+                <span>Automated Shoutouts</span>
+            </div>
+            <div class="tab-item" onclick="loadTab('tts-settings')">
+                <i class="fas fa-microphone"></i>
+                <span>TTS Settings</span>
+            </div>
+        </div>
+    </div>
 </div>
 <div class="columns is-centered">
     <div class="column is-fullwidth">
@@ -2211,14 +2215,12 @@ ob_start();
         if (activeTab) {
             activeTab.style.display = 'block';
         }
-        // Update button states
-        document.querySelectorAll('.buttons .button').forEach(function (button) {
-            if (button.getAttribute('onclick') === "loadTab('" + tabName + "')") {
-                button.classList.remove('is-info');
-                button.classList.add('is-primary');
+        // Update tab states (new tab-item structure)
+        document.querySelectorAll('.tab-item').forEach(function (tab) {
+            if (tab.getAttribute('onclick') === "loadTab('" + tabName + "')") {
+                tab.classList.add('active');
             } else {
-                button.classList.remove('is-primary');
-                button.classList.add('is-info');
+                tab.classList.remove('active');
             }
         });
         // Update URL with tab parameter
