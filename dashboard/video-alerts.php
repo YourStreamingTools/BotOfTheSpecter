@@ -277,7 +277,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <progress class="progress is-info" value="<?php echo $storage_percentage; ?>" max="100" style="height: 0.75rem;"></progress>
+                            <progress class="progress is-success" value="<?php echo $storage_percentage; ?>" max="100" style="height: 0.75rem;"></progress>
                         </div>
                         <?php if (!empty($status)) : ?>
                             <article class="message is-info mb-4">
