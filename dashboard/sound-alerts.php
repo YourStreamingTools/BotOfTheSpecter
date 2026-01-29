@@ -204,6 +204,70 @@ ob_start();
                 </div>
             </div>
         </div>
+        
+        <!-- Upload Card -->
+        <div class="columns is-desktop is-multiline is-centered">
+            <div class="column is-fullwidth" style="max-width: 1200px;">
+                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+                    <header class="card-header" style="border-bottom: 1px solid #23272f;">
+                        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+                            <span class="icon mr-2"><i class="fas fa-upload"></i></span>
+                            <?php echo t('sound_alerts_upload_title'); ?>
+                        </span>
+                    </header>
+                    <div class="card-content">
+                        <!-- Storage Usage Info -->
+                        <div class="notification is-dark mb-4" style="background-color: #2b2f3a; border: 1px solid #4a4a4a;">
+                            <div class="level is-mobile">
+                                <div class="level-left">
+                                    <div class="level-item">
+                                        <span class="icon mr-2"><i class="fas fa-database"></i></span>
+                                        <strong><?php echo t('alerts_storage_usage'); ?>:</strong>
+                                    </div>
+                                </div>
+                                <div class="level-right">
+                                    <div class="level-item">
+                                        <?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)
+                                    </div>
+                                </div>
+                            </div>
+                            <progress class="progress is-success" value="<?php echo $storage_percentage; ?>" max="100" style="height: 0.75rem;"></progress>
+                        </div>
+                        <?php if (!empty($status)) : ?>
+                            <article class="message is-info mb-4">
+                                <div class="message-body">
+                                    <?php echo $status; ?>
+                                </div>
+                            </article>
+                        <?php endif; ?>
+                        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+                            <div class="file has-name is-fullwidth is-boxed mb-3">
+                                <label class="file-label" style="width: 100%;">
+                                    <input class="file-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3">
+                                    <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                                        <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.15em;">
+                                            <?php echo t('sound_alerts_choose_files'); ?>
+                                        </span>
+                                    </span>
+                                    <span class="file-name" id="file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                                        <?php echo t('sound_alerts_no_files_selected'); ?>
+                                    </span>
+                                </label>
+                            </div>
+                            <div id="uploadProgressContainer" style="display: none;" class="mb-3">
+                                <progress class="progress is-primary" id="uploadProgress" value="0" max="100" style="height: 1.25rem; border-radius: 0.75rem;">0%</progress>
+                                <p class="has-text-centered has-text-white mt-2" id="uploadProgressText">0%</p>
+                            </div>
+                            <button class="button is-primary" type="submit" name="submit">
+                                <span class="icon"><i class="fas fa-upload"></i></span>
+                                <span><?php echo t('sound_alerts_upload_btn'); ?></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- File Management Card -->
         <div class="columns is-desktop is-multiline is-centered">
             <div class="column is-fullwidth" style="max-width: 1200px;">
                 <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
@@ -216,10 +280,6 @@ ob_start();
                             <button class="button is-danger" id="deleteSelectedBtn" disabled>
                                 <span class="icon"><i class="fas fa-trash"></i></span>
                                 <span><?php echo t('sound_alerts_delete_selected'); ?></span>
-                            </button>
-                            <button class="button is-primary" id="openUploadModal">
-                                <span class="icon"><i class="fas fa-upload"></i></span>
-                                <span><?php echo t('sound_alerts_upload_title'); ?></span>
                             </button>
                         </div>
                     </header>
@@ -305,57 +365,6 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- Upload Modal -->
-<div class="modal" id="uploadModal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head has-background-dark">
-            <p class="modal-card-title has-text-white">
-                <span class="icon mr-2"><i class="fas fa-upload"></i></span>
-                <?php echo t('sound_alerts_upload_title'); ?>
-            </p>
-            <button class="delete" aria-label="close" id="closeUploadModal"></button>
-        </header>
-        <section class="modal-card-body has-background-dark has-text-white">
-            <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-                <div class="file has-name is-fullwidth is-boxed mb-3">
-                    <label class="file-label" style="width: 100%;">
-                        <input class="file-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3">
-                        <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                            <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.15em;">
-                                <?php echo t('sound_alerts_choose_files'); ?>
-                            </span>
-                        </span>
-                        <span class="file-name" id="file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                            <?php echo t('sound_alerts_no_files_selected'); ?>
-                        </span>
-                    </label>
-                </div>
-                <div class="mt-4" style="position: relative;">
-                    <progress class="progress is-success" value="<?php echo $storage_percentage; ?>" max="100" style="height: 1.25rem; border-radius: 0.75rem;"></progress>
-                    <div class="has-text-centered" style="margin-top: -1.7rem; margin-bottom: 0.7rem; font-size: 0.98rem; font-weight: 500; color: #fff; width: 100%; position: relative; z-index: 2;">
-                        <?php echo round($storage_percentage, 2); ?>% &mdash; <?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB <?php echo t('sound_alerts_of'); ?> <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB <?php echo t('sound_alerts_used'); ?>
-                    </div>
-                </div>
-                <?php if (!empty($status)) : ?>
-                    <article class="message is-info mt-4">
-                        <div class="message-body">
-                            <?php echo $status; ?>
-                        </div>
-                    </article>
-                <?php endif; ?>
-            </form>
-        </section>
-        <footer class="modal-card-foot has-background-dark">
-            <button class="button is-primary" type="submit" form="uploadForm" name="submit">
-                <span class="icon"><i class="fas fa-upload"></i></span>
-                <span><?php echo t('sound_alerts_upload_btn'); ?></span>
-            </button>
-            <button class="button" id="cancelUploadModal"><?php echo t('cancel'); ?></button>
-        </footer>
-    </div>
-</div>
 <?php
 $content = ob_get_clean();
 
@@ -363,14 +372,12 @@ ob_start();
 ?>
 <script>
 $(document).ready(function() {
-    // Modal controls
-    $('#openUploadModal').on('click', function() {
-        $('#uploadModal').addClass('is-active');
+    // Handle select all checkbox
+    $('#selectAll').on('change', function() {
+        $('input[name="delete_files[]"]').prop('checked', this.checked);
+        var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
+        $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
     });
-    $('#closeUploadModal, #cancelUploadModal, .modal-background').on('click', function() {
-        $('#uploadModal').removeClass('is-active');
-    });
-
     // Handle delete selected button
     $('#deleteSelectedBtn').on('click', function() {
         var checkedBoxes = $('input[name="delete_files[]"]:checked');
@@ -390,13 +397,11 @@ $(document).ready(function() {
             });
         }
     });
-
     // Monitor checkbox changes to enable/disable delete button
     $(document).on('change', 'input[name="delete_files[]"]', function() {
         var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
         $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
     });
-
     // Update file name display for Bulma file input
     $('#filesToUpload').on('change', function() {
         let files = this.files;
@@ -406,7 +411,6 @@ $(document).ready(function() {
         }
         $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('sound_alerts_no_files_selected'); ?>');
     });
-
     // Add event listener for mapping select boxes
     $('.mapping-select').on('change', function() {
         // Submit the form via AJAX
@@ -416,11 +420,14 @@ $(document).ready(function() {
             location.reload();
         });
     });
-
     // AJAX upload with progress bar
     $('#uploadForm').on('submit', function(e) {
         e.preventDefault();
         let formData = new FormData(this);
+        $('#uploadProgressContainer').show();
+        $('#uploadProgress').val(0);
+        $('#uploadProgressText').text('0%');
+        $('button[type="submit"]').prop('disabled', true).html('<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span><?php echo t("sound_alerts_uploading"); ?></span>');
         $.ajax({
             url: '',
             type: 'POST',
@@ -445,7 +452,6 @@ $(document).ready(function() {
             }
         });
     });
-
     // Single delete button with SweetAlert2
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
@@ -469,7 +475,6 @@ $(document).ready(function() {
         });
     });
 });
-
 document.addEventListener("DOMContentLoaded", function () {
     // Attach click event listeners to all Test buttons
     document.querySelectorAll(".test-sound").forEach(function (button) {
@@ -479,7 +484,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 });
-
 // Function to send a stream event
 function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();

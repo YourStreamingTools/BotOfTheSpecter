@@ -151,6 +151,7 @@ return [
     'navbar_discord_bot' => 'Discord Bot',
     'navbar_spotify' => 'Spotify',
     'navbar_platform_integrations' => 'Platform Integrations',
+    'alerts_storage_usage' => 'Storage Usage',
     'navbar_premium' => 'Premium',
     'navbar_vod_music' => 'VOD Music',
     'navbar_todo_list' => 'To Do List',
