@@ -717,10 +717,13 @@ ob_start();
                                                     <span class="icon mr-1"><i class="fas fa-exclamation-triangle"></i></span>
                                                     <?php echo t('modules_ad_upcoming_message'); ?>
                                                 </label>
-                                                <input id="enable_upcoming_ad_message" type="checkbox"
-                                                    name="enable_upcoming_ad_message" class="switch is-small is-success"
-                                                    value="1" <?php echo (!empty($enable_upcoming_ad_message) ? 'checked' : ''); ?>>
-                                                <label for="enable_upcoming_ad_message"></label>
+                                                <label for="enable_upcoming_ad_message" style="cursor: pointer;">
+                                                    <input id="enable_upcoming_ad_message" type="checkbox"
+                                                        name="enable_upcoming_ad_message" value="1"
+                                                        <?php echo (!empty($enable_upcoming_ad_message) ? 'checked' : ''); ?>
+                                                        style="display: none;">
+                                                    <i class="fas fa-toggle-<?php echo (!empty($enable_upcoming_ad_message) ? 'on has-text-success' : 'off has-text-grey'); ?> fa-2x"></i>
+                                                </label>
                                             </div>
                                             <div class="control">
                                                 <textarea class="textarea ad-notice-input" name="ad_upcoming_message"
@@ -739,10 +742,13 @@ ob_start();
                                                     <span class="icon mr-1"><i class="fas fa-play"></i></span>
                                                     <?php echo t('modules_ad_start_message'); ?>
                                                 </label>
-                                                <input id="enable_start_ad_message" type="checkbox"
-                                                    name="enable_start_ad_message" class="switch is-small is-success"
-                                                    value="1" <?php echo (!empty($enable_start_ad_message) ? 'checked' : ''); ?>>
-                                                <label for="enable_start_ad_message"></label>
+                                                <label for="enable_start_ad_message" style="cursor: pointer;">
+                                                    <input id="enable_start_ad_message" type="checkbox"
+                                                        name="enable_start_ad_message" value="1"
+                                                        <?php echo (!empty($enable_start_ad_message) ? 'checked' : ''); ?>
+                                                        style="display: none;">
+                                                    <i class="fas fa-toggle-<?php echo (!empty($enable_start_ad_message) ? 'on has-text-success' : 'off has-text-grey'); ?> fa-2x"></i>
+                                                </label>
                                             </div>
                                             <div class="control">
                                                 <textarea class="textarea ad-notice-input" name="ad_start_message"
@@ -761,10 +767,13 @@ ob_start();
                                                     <span class="icon mr-1"><i class="fas fa-stop"></i></span>
                                                     <?php echo t('modules_ad_end_message'); ?>
                                                 </label>
-                                                <input id="enable_end_ad_message" type="checkbox"
-                                                    name="enable_end_ad_message" class="switch is-small is-success"
-                                                    value="1" <?php echo (!empty($enable_end_ad_message) ? 'checked' : ''); ?>>
-                                                <label for="enable_end_ad_message"></label>
+                                                <label for="enable_end_ad_message" style="cursor: pointer;">
+                                                    <input id="enable_end_ad_message" type="checkbox"
+                                                        name="enable_end_ad_message" value="1"
+                                                        <?php echo (!empty($enable_end_ad_message) ? 'checked' : ''); ?>
+                                                        style="display: none;">
+                                                    <i class="fas fa-toggle-<?php echo (!empty($enable_end_ad_message) ? 'on has-text-success' : 'off has-text-grey'); ?> fa-2x"></i>
+                                                </label>
                                             </div>
                                             <div class="control">
                                                 <textarea class="textarea ad-notice-input" name="ad_end_message"
@@ -790,10 +799,13 @@ ob_start();
                                                     <span class="icon mr-1"><i class="fas fa-clock"></i></span>
                                                     <?php echo t('modules_ad_snoozed_message'); ?>
                                                 </label>
-                                                <input id="enable_snoozed_ad_message" type="checkbox"
-                                                    name="enable_snoozed_ad_message" class="switch is-small is-success"
-                                                    value="1" <?php echo (!empty($enable_snoozed_ad_message) ? 'checked' : ''); ?>>
-                                                <label for="enable_snoozed_ad_message"></label>
+                                                <label for="enable_snoozed_ad_message" style="cursor: pointer;">
+                                                    <input id="enable_snoozed_ad_message" type="checkbox"
+                                                        name="enable_snoozed_ad_message" value="1"
+                                                        <?php echo (!empty($enable_snoozed_ad_message) ? 'checked' : ''); ?>
+                                                        style="display: none;">
+                                                    <i class="fas fa-toggle-<?php echo (!empty($enable_snoozed_ad_message) ? 'on has-text-success' : 'off has-text-grey'); ?> fa-2x"></i>
+                                                </label>
                                             </div>
                                             <div class="control">
                                                 <textarea class="textarea ad-notice-input" name="ad_snoozed_message"
@@ -818,9 +830,12 @@ ob_start();
                                                 Toggle this switch to enable or disable advertisement notices in your stream chat.
                                             </p>
                                         </div>
-                                        <input id="enable_ad_notice" type="checkbox" name="enable_ad_notice"
-                                            class="switch is-small is-success" value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
-                                        <label for="enable_ad_notice"></label>
+                                        <label for="enable_ad_notice" style="cursor: pointer;">
+                                            <input id="enable_ad_notice" type="checkbox" name="enable_ad_notice"
+                                                value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>
+                                                style="display: none;">
+                                            <i class="fas fa-toggle-<?php echo (!empty($enable_ad_notice) ? 'on has-text-success' : 'off has-text-grey'); ?> fa-2x"></i>
+                                        </label>
                                     </div>
                                 </div>
                                 <!-- AI Ad Breaks Toggle -->
@@ -837,9 +852,12 @@ ob_start();
                                                 messages based on recent chat activity. Requires Tier 2 subscription or higher.
                                             </p>
                                         </div>
-                                        <input id="enable_ai_ad_breaks" type="checkbox" name="enable_ai_ad_breaks"
-                                            class="switch is-small is-success" value="1" <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>>
-                                        <label for="enable_ai_ad_breaks"></label>
+                                        <label for="enable_ai_ad_breaks" style="cursor: pointer;">
+                                            <input id="enable_ai_ad_breaks" type="checkbox" name="enable_ai_ad_breaks"
+                                                value="1" <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>
+                                                style="display: none;">
+                                            <i class="fas fa-toggle-<?php echo (!empty($enable_ai_ad_breaks) ? 'on has-text-success' : 'off has-text-grey'); ?> fa-2x"></i>
+                                        </label>
                                     </div>
                                 </div>
                                 <!-- Save Button -->
@@ -1985,6 +2003,30 @@ ob_start();
             });
         });
     });
+    
+    // Font Awesome toggle icon functionality
+    document.querySelectorAll('label[for^="enable_"]').forEach(function(label) {
+        label.addEventListener('click', function(e) {
+            e.preventDefault();
+            const checkbox = document.getElementById(this.getAttribute('for'));
+            const icon = this.querySelector('i');
+            
+            if (checkbox && icon) {
+                // Toggle checkbox state
+                checkbox.checked = !checkbox.checked;
+                
+                // Update icon
+                if (checkbox.checked) {
+                    icon.classList.remove('fa-toggle-off', 'has-text-grey');
+                    icon.classList.add('fa-toggle-on', 'has-text-success');
+                } else {
+                    icon.classList.remove('fa-toggle-on', 'has-text-success');
+                    icon.classList.add('fa-toggle-off', 'has-text-grey');
+                }
+            }
+        });
+    });
+    
     // Function to send a stream event
     function sendStreamEvent(eventType, fileName) {
         const xhr = new XMLHttpRequest();
