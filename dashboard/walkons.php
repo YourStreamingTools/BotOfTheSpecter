@@ -143,7 +143,7 @@ ob_start();
                         </div>
                         <?php if (!empty($status)) : ?>
                             <article class="message is-info mb-4">
-                                <div class="message-body">
+                                <div class="message-body has-text-white">
                                     <?php echo $status; ?>
                                 </div>
                             </article>
@@ -162,13 +162,28 @@ ob_start();
                                     </span>
                                 </label>
                             </div>
-                            <div id="uploadProgressContainer" style="display: none;" class="mb-3">
-                                <progress class="progress is-primary" id="uploadProgress" value="0" max="100" style="height: 1.25rem; border-radius: 0.75rem;">0%</progress>
-                                <p class="has-text-centered has-text-white mt-2" id="uploadProgressText">0%</p>
+                            <!-- Upload Status Container -->
+                            <div id="uploadStatusContainer" style="display: none;" class="mb-4">
+                                <div class="notification is-info" style="background-color: #2b2f3a; border: 1px solid #4a8ef5;">
+                                    <div class="level is-mobile mb-2">
+                                        <div class="level-left">
+                                            <div class="level-item">
+                                                <span class="icon mr-2 has-text-white"><i class="fas fa-spinner fa-pulse"></i></span>
+                                                <strong id="uploadStatusText" class="has-text-white">Preparing upload...</strong>
+                                            </div>
+                                        </div>
+                                        <div class="level-right">
+                                            <div class="level-item">
+                                                <span id="uploadProgressPercent" class="has-text-white" style="font-weight: 600;">0%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <progress class="progress is-primary" id="uploadProgress" value="0" max="100" style="height: 1.5rem; border-radius: 0.75rem;">0%</progress>
+                                </div>
                             </div>
-                            <button class="button is-primary" type="submit" name="submit">
+                            <button class="button is-primary is-fullwidth" type="submit" name="submit" id="uploadBtn" style="font-weight: 600; font-size: 1.1rem;">
                                 <span class="icon"><i class="fas fa-upload"></i></span>
-                                <span><?php echo t('walkons_upload_btn'); ?></span>
+                                <span id="uploadBtnText"><?php echo t('walkons_upload_btn'); ?></span>
                             </button>
                         </form>
                     </div>
@@ -249,6 +264,14 @@ ob_start();
 ?>
 <script>
 $(document).ready(function() {
+    // Auto-dismiss status messages after 15 seconds
+    if ($('.message.is-info .message-body').length) {
+        setTimeout(function() {
+            $('.message.is-info').fadeOut(500, function() {
+                $(this).remove();
+            });
+        }, 15000);
+    }
     // Handle select all checkbox
     $('#selectAll').on('change', function() {
         $('input[name="delete_files[]"]').prop('checked', this.checked);
@@ -258,11 +281,25 @@ $(document).ready(function() {
     // AJAX upload with progress bar
     $('#uploadForm').on('submit', function(e) {
         e.preventDefault();
+        var files = $('#filesToUpload')[0].files;
+        if (files.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Files Selected',
+                text: 'Please select at least one file to upload.',
+                confirmButtonColor: '#3273dc'
+            });
+            return;
+        }
         var formData = new FormData(this);
-        $('#uploadProgressContainer').show();
+        // Show upload status and update UI
+        $('#uploadStatusContainer').show();
+        $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading ' + files.length + ' file(s)...');
+        $('#uploadProgressPercent').text('0%');
         $('#uploadProgress').val(0);
-        $('#uploadProgressText').text('0%');
-        $('button[type="submit"]').prop('disabled', true);
+        // Update button state
+        $('#uploadBtn').prop('disabled', true).removeClass('is-primary').addClass('is-loading');
+        $('#uploadBtnText').text('Uploading...');
         $.ajax({
             url: '',
             type: 'POST',
@@ -273,24 +310,35 @@ $(document).ready(function() {
                 var xhr = new window.XMLHttpRequest();
                 xhr.upload.addEventListener('progress', function(e) {
                     if (e.lengthComputable) {
-                        var percentComplete = (e.loaded / e.total) * 100;
+                        var percentComplete = Math.round((e.loaded / e.total) * 100);
                         $('#uploadProgress').val(percentComplete);
-                        $('#uploadProgressText').text(Math.round(percentComplete) + '%');
+                        $('#uploadProgressPercent').text(percentComplete + '%');
+                        if (percentComplete < 100) {
+                            $('#uploadStatusText').html('<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + percentComplete + '%)');
+                        } else {
+                            $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Processing files on server...');
+                        }
                     }
                 }, false);
                 return xhr;
             },
             success: function(response) {
-                $('#uploadProgress').val(100);
-                $('#uploadProgressText').text('100%');
+                $('#uploadStatusText').html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
+                $('#uploadProgressPercent').text('100%');
                 setTimeout(function() {
                     location.reload();
-                }, 1000);
+                }, 1500);
             },
             error: function() {
-                alert('<?php echo t('walkons_upload_error'); ?>');
-                $('#uploadProgressContainer').hide();
-                $('button[type="submit"]').prop('disabled', false);
+                $('#uploadStatusContainer').hide();
+                $('#uploadBtn').prop('disabled', false).removeClass('is-loading').addClass('is-primary');
+                $('#uploadBtnText').text('<?php echo t("walkons_upload_btn"); ?>');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Upload Failed',
+                    text: '<?php echo t("walkons_upload_error"); ?>',
+                    confirmButtonColor: '#3273dc'
+                });
             }
         });
     });
@@ -313,13 +361,11 @@ $(document).ready(function() {
             });
         }
     });
-
     // Monitor checkbox changes to enable/disable delete button
     $(document).on('change', 'input[name="delete_files[]"]', function() {
         var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
         $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
     });
-
     // Update file name display for Bulma file input
     $('#filesToUpload').on('change', function() {
         let files = this.files;
@@ -329,7 +375,6 @@ $(document).ready(function() {
         }
         $('#file-list').text(fileNames.length ? fileNames.join(', ') : '<?php echo t('walkons_no_files_selected'); ?>');
     });
-
     // Single delete button with SweetAlert2
     $('.delete-single').on('click', function() {
         let fileName = $(this).data('file');
@@ -353,7 +398,6 @@ $(document).ready(function() {
         });
     });
 });
-
 document.addEventListener("DOMContentLoaded", function () {
     // Attach click event listeners to all Test buttons for walkons
     document.querySelectorAll(".test-walkon").forEach(function (button) {
@@ -363,7 +407,6 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 });
-
 // Function to send a stream event
 function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();
