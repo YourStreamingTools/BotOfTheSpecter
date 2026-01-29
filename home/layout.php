@@ -21,7 +21,7 @@ function uuidv4() {
     <!-- Bulma CSS 1.0.0 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" type="text/css" href="style.css?v=<?php echo uuidv4(); ?>">
     <script src="navbar.js?v=<?= $dashboardVersion ?>" defer></script>
