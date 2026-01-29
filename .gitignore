@@ -98,6 +98,7 @@ docs/5.8.md
 /bot/export_queue
 /yourchat/user-settings
 /yourchat/chat-logs
+/cdn/css
 # Other GitHub repositories within the main repository folder structure to be ignored
 /newdashboard
 /StreamersConnect
