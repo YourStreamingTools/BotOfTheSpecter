@@ -311,6 +311,15 @@ if ($user['beta_access'] == 1) {
 $BotIsBanned = false;
 $BotBanReason = '';
 if ($username !== 'botofthespecter') {
+  // Validate token before making Twitch API calls
+  $tokenData = validateTwitchToken($_SESSION['access_token']);
+  if (!$tokenData) {
+    // Token is invalid, clear session and redirect to login
+    session_unset();
+    session_destroy();
+    header('Location: login.php');
+    exit();
+  }
   $BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
   // Only check ban status if bot is NOT a moderator
   if (!$BotIsMod) {
@@ -366,6 +375,15 @@ if (isset($username) && $username !== '') {
     $dbStatus = null;
   }
   $stmt->close();
+  // Validate token before making Twitch API calls
+  $tokenData = validateTwitchToken($_SESSION['access_token']);
+  if (!$tokenData) {
+    // Token is invalid, clear session and redirect to login
+    session_unset();
+    session_destroy();
+    header('Location: login.php');
+    exit();
+  }
   // Check 2: SSH file status
   $sshStatus = checkSSHFileStatus($username);
   // Check 3: Twitch API status (authoritative for online, never for offline)
@@ -1277,6 +1295,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
           console.log('Stable bot action response:', data);
+          // Check if token expired and redirect needed
+          if (data.redirect) {
+            showNotification('Session expired. Redirecting to login...', 'warning');
+            setTimeout(() => { window.location.href = data.redirect; }, 1500);
+            return;
+          }
           if (data.success) {
             // Immediately update UI optimistically
             const expectedRunning = (action === 'run');
@@ -1366,6 +1390,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
           console.log('Beta bot action response:', data);
+          // Check if token expired and redirect needed
+          if (data.redirect) {
+            showNotification('Session expired. Redirecting to login...', 'warning');
+            setTimeout(() => { window.location.href = data.redirect; }, 1500);
+            return;
+          }
           if (data.success) {
             // Immediately update UI optimistically
             const expectedRunning = (action === 'run');
@@ -1433,6 +1463,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
           console.log('V6 bot action response:', data);
+          // Check if token expired and redirect needed
+          if (data.redirect) {
+            showNotification('Session expired. Redirecting to login...', 'warning');
+            setTimeout(() => { window.location.href = data.redirect; }, 1500);
+            return;
+          }
           if (data.success) {
             const expectedRunning = (action === 'run');
             updateUIOptimistically(expectedRunning, 'V6');
@@ -2487,6 +2523,11 @@ document.addEventListener('DOMContentLoaded', function() {
           setTimeout(() => {
             window.location.reload();
           }, 2000);
+        } else if (response.status === 401) {
+          // Token expired
+          showNotification('Session expired. Redirecting to login...', 'warning');
+          setTimeout(() => { window.location.href = 'login.php'; }, 1500);
+          return;
         } else {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.message || 'Failed to unban bot';
@@ -2532,6 +2573,11 @@ document.addEventListener('DOMContentLoaded', function() {
           setTimeout(() => {
             window.location.reload();
           }, 2000);
+        } else if (response.status === 401) {
+          // Token expired
+          showNotification('Session expired. Redirecting to login...', 'warning');
+          setTimeout(() => { window.location.href = 'login.php'; }, 1500);
+          return;
         } else {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.message || 'Failed to add bot as moderator';
