@@ -148,6 +148,7 @@ return [
     'obsconnector_feature_source_management_desc' => 'Toggle sources on/off, adjust properties, and manage audio levels with ease.',
     'obsconnector_feature_realtime_title' => 'Real-time Updates',
     'obsconnector_feature_realtime_desc' => 'Get live notifications of scene changes and streaming status updates.',
+    'alerts_storage_usage' => 'Speichernutzung',
     'obsconnector_feature_bot_integration_title' => 'Bot Integration',
     'obsconnector_feature_bot_integration_desc' => 'Create custom commands to control your stream from chat.',
     'obsconnector_feature_automation_title' => 'Automation',
