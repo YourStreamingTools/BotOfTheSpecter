@@ -66,7 +66,7 @@ if ($current_file == 'index.php') {
     <!-- Bulma Switch Extension -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma-switch@2.0.4/dist/css/bulma-switch.min.css">
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="../css/custom.css?v=<?php echo uuidv4(); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
