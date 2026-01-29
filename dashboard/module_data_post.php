@@ -45,56 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Set success message for blacklist update in session
         $_SESSION['update_message'] = "Blacklist settings updated successfully.";
     }
-    // Handle Welcome Message Settings Update
-    elseif (isset($_POST['send_welcome_messages'])) {
+    // Handle welcome messages toggle
+    elseif (isset($_POST['toggle_welcome_messages'])) {
         $activeTab = "welcome-messages";
-        // Gather and save the updated welcome message data
-        $send_welcome_messages = isset($_POST['send_welcome_messages']) ? 1 : 0;
-        // Existing welcome messages
-        $default_welcome_message = isset($_POST['default_welcome_message']) ? $_POST['default_welcome_message'] : '';
-        $default_vip_welcome_message = isset($_POST['default_vip_welcome_message']) ? $_POST['default_vip_welcome_message'] : '';
-        $default_mod_welcome_message = isset($_POST['default_mod_welcome_message']) ? $_POST['default_mod_welcome_message'] : '';
-        // New welcome messages
-        $new_default_welcome_message = isset($_POST['new_default_welcome_message']) ? $_POST['new_default_welcome_message'] : '';
-        $new_default_vip_welcome_message = isset($_POST['new_default_vip_welcome_message']) ? $_POST['new_default_vip_welcome_message'] : '';
-        $new_default_mod_welcome_message = isset($_POST['new_default_mod_welcome_message']) ? $_POST['new_default_mod_welcome_message'] : '';
-        // Update the streamer_preferences in the database
-        $update_sql = "
-            INSERT INTO streamer_preferences 
-            (id, send_welcome_messages, default_welcome_message, default_vip_welcome_message, default_mod_welcome_message, 
-                new_default_welcome_message, new_default_vip_welcome_message, new_default_mod_welcome_message)
-            VALUES 
-            (1, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
-                send_welcome_messages = ?, 
-                default_welcome_message = ?,
-                default_vip_welcome_message = ?,
-                default_mod_welcome_message = ?,
-                new_default_welcome_message = ?,
-                new_default_vip_welcome_message = ?,
-                new_default_mod_welcome_message = ?";
+        $new_status = isset($_POST['welcome_messages_status']) ? intval($_POST['welcome_messages_status']) : 0;
+        $update_sql = "UPDATE streamer_preferences SET send_welcome_messages = ? WHERE id = 1";
         $update_stmt = $db->prepare($update_sql);
-        $update_stmt->bind_param(
-            'issssssissssss',
-            $send_welcome_messages,
-            $default_welcome_message,
-            $default_vip_welcome_message,
-            $default_mod_welcome_message,
-            $new_default_welcome_message,
-            $new_default_vip_welcome_message,
-            $new_default_mod_welcome_message,
-            $send_welcome_messages,
-            $default_welcome_message,
-            $default_vip_welcome_message,
-            $default_mod_welcome_message,
-            $new_default_welcome_message,
-            $new_default_vip_welcome_message,
-            $new_default_mod_welcome_message
-        );
+        $update_stmt->bind_param('i', $new_status);
         $update_stmt->execute();
         $update_stmt->close();
-        // Set success message for welcome messages update in session
-        $_SESSION['update_message'] = "Welcome message settings updated successfully.";
+        $_SESSION['update_message'] = "Welcome messages " . ($new_status ? "enabled" : "disabled") . " successfully.";
     }
     // Handle channel point reward mapping for twitch sound alerts
     elseif (isset($_POST['sound_file']) && isset($_POST['twitch_alert_id'])) {
@@ -218,33 +178,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $delete_stmt->execute();
         $delete_stmt->close();
         $_SESSION['update_message'] = "Game '" . htmlspecialchars($game_name) . "' removed from ignored list.";
-    }
-    // Handle chat alerts settings update
-    elseif (
-        isset($_POST['follower_alert']) || isset($_POST['cheer_alert']) || isset($_POST['raid_alert']) || isset($_POST['subscription_alert'])
-        || isset($_POST['gift_subscription_alert']) || isset($_POST['hype_train_start']) || isset($_POST['hype_train_end'])
-    ) {
-        $activeTab = "twitch-chat-alerts";
-        $alertTypes = [
-            'follower_alert',
-            'cheer_alert',
-            'raid_alert',
-            'subscription_alert',
-            'gift_subscription_alert',
-            'hype_train_start',
-            'hype_train_end'
-        ];
-        foreach ($alertTypes as $alertType) {
-            if (isset($_POST[$alertType])) {
-                $alertMessage = $_POST[$alertType];
-                $update_sql = "INSERT INTO twitch_chat_alerts (alert_type, alert_message) VALUES (?, ?) ON DUPLICATE KEY UPDATE alert_message = ?";
-                $update_stmt = $db->prepare($update_sql);
-                $update_stmt->bind_param('sss', $alertType, $alertMessage, $alertMessage);
-                $update_stmt->execute();
-                $update_stmt->close();
-            }
-        }
-        $_SESSION['update_message'] = "Twitch Chat Alert settings updated successfully.";
     }
     // Handle file upload for Twitch Sound Alerts
     if (isset($_FILES["filesToUpload"]) && is_array($_FILES["filesToUpload"]["tmp_name"])) {
@@ -408,6 +341,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $fieldsToUpdate['hype_train_start'] = $_POST['hype_train_start'];
             if (isset($_POST['hype_train_end']))
                 $fieldsToUpdate['hype_train_end'] = $_POST['hype_train_end'];
+        } elseif ($section === 'beta') {
+            if (isset($_POST['gift_paid_upgrade']))
+                $fieldsToUpdate['gift_paid_upgrade'] = $_POST['gift_paid_upgrade'];
+            if (isset($_POST['prime_paid_upgrade']))
+                $fieldsToUpdate['prime_paid_upgrade'] = $_POST['prime_paid_upgrade'];
+            if (isset($_POST['pay_it_forward']))
+                $fieldsToUpdate['pay_it_forward'] = $_POST['pay_it_forward'];
         } elseif ($section === 'regular-members') {
             // Handle regular members welcome messages
             $db_name_local = isset($_SESSION['username']) ? $_SESSION['username'] : null;

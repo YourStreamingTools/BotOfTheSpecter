@@ -417,244 +417,206 @@ ob_start();
                     </div>
                     <div class="tab-content" id="welcome-messages">
                         <div class="module-container">
-                            <!-- Welcome Messages Configuration Form -->
-                            <div class="columns is-desktop is-multiline is-centered">
-                                <div class="column is-fullwidth" style="max-width: 1200px;">
-                                    <div class="card has-background-dark has-text-white"
-                                        style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                                            <span class="card-header-title is-size-4 has-text-white"
-                                                style="font-weight:700;">
-                                                <span class="icon mr-2"><i class="fas fa-cog"></i></span>
-                                                Welcome Message Configuration
-                                            </span>
-                                        </header>
-                                        <div class="card-content">
-                                            <form method="POST" action="module_data_post.php">
-                                                <div class="columns is-multiline">
-                                                    <!-- Regular Members Column -->
-                                                    <div class="column is-6">
-                                                        <div class="box has-background-grey-darker"
-                                                            style="height: 100%; min-height: 320px; display: flex; flex-direction: column;">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-users"></i></span>
-                                                                        Regular Members
-                                                                    </h5>
-                                                                </div>
-                                                                <div class="level-right">
-                                                                    <button type="button"
-                                                                        class="section-save-btn button is-success is-small"
-                                                                        data-section="regular-members">
-                                                                        <span class="icon"><i
-                                                                                class="fas fa-save"></i></span>
-                                                                        <span>Save</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <div style="flex-grow: 1;">
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-user-plus"></i></span>
-                                                                        <?php echo t('modules_welcome_new_member_label'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input welcome-message-input"
-                                                                            type="text"
-                                                                            name="new_default_welcome_message"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars($new_default_welcome_message !== '' ? $new_default_welcome_message : t('modules_welcome_new_member_default')); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="new_default_welcome_message">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-user-check"></i></span>
-                                                                        <?php echo t('modules_welcome_returning_member_label'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input welcome-message-input"
-                                                                            type="text" name="default_welcome_message"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars($default_welcome_message !== '' ? $default_welcome_message : t('modules_welcome_returning_member_default')); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="default_welcome_message">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <!-- VIP Members Column -->
-                                                    <div class="column is-6">
-                                                        <div class="box has-background-grey-darker"
-                                                            style="height: 100%; min-height: 320px; display: flex; flex-direction: column;">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-gem"></i></span>
-                                                                        VIP Members
-                                                                    </h5>
-                                                                </div>
-                                                                <div class="level-right">
-                                                                    <button type="button"
-                                                                        class="section-save-btn button is-success is-small"
-                                                                        data-section="vip-members">
-                                                                        <span class="icon"><i
-                                                                                class="fas fa-save"></i></span>
-                                                                        <span>Save</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <div style="flex-grow: 1;">
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-user-plus"></i></span>
-                                                                        <?php echo t('modules_welcome_new_vip_label'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input welcome-message-input"
-                                                                            type="text"
-                                                                            name="new_default_vip_welcome_message"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars($new_default_vip_welcome_message !== '' ? $new_default_vip_welcome_message : t('modules_welcome_new_vip_default')); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="new_default_vip_welcome_message">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-user-check"></i></span>
-                                                                        <?php echo t('modules_welcome_returning_vip_label'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input welcome-message-input"
-                                                                            type="text"
-                                                                            name="default_vip_welcome_message"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars($default_vip_welcome_message !== '' ? $default_vip_welcome_message : t('modules_welcome_returning_vip_default')); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="default_vip_welcome_message">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <!-- Moderator Members -->
-                                                    <div class="column is-12">
-                                                        <div class="box has-background-grey-darker">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-shield-alt"></i></span>
-                                                                        Moderators
-                                                                    </h5>
-                                                                </div>
-                                                                <div class="level-right">
-                                                                    <button type="button"
-                                                                        class="section-save-btn button is-success is-small"
-                                                                        data-section="moderators">
-                                                                        <span class="icon"><i
-                                                                                class="fas fa-save"></i></span>
-                                                                        <span>Save</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <div class="columns">
-                                                                <div class="column is-6">
-                                                                    <div class="field">
-                                                                        <label class="label has-text-white">
-                                                                            <span class="icon mr-1"><i
-                                                                                    class="fas fa-user-plus"></i></span>
-                                                                            <?php echo t('modules_welcome_new_mod_label'); ?>
-                                                                        </label>
-                                                                        <div class="control">
-                                                                            <input class="input welcome-message-input"
-                                                                                type="text"
-                                                                                name="new_default_mod_welcome_message"
-                                                                                maxlength="255"
-                                                                                value="<?php echo htmlspecialchars($new_default_mod_welcome_message !== '' ? $new_default_mod_welcome_message : t('modules_welcome_new_mod_default')); ?>">
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="new_default_mod_welcome_message">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="column is-6">
-                                                                    <div class="field">
-                                                                        <label class="label has-text-white">
-                                                                            <span class="icon mr-1"><i
-                                                                                    class="fas fa-user-check"></i></span>
-                                                                            <?php echo t('modules_welcome_returning_mod_label'); ?>
-                                                                        </label>
-                                                                        <div class="control">
-                                                                            <input class="input welcome-message-input"
-                                                                                type="text"
-                                                                                name="default_mod_welcome_message"
-                                                                                maxlength="255"
-                                                                                value="<?php echo htmlspecialchars($default_mod_welcome_message !== '' ? $default_mod_welcome_message : t('modules_welcome_returning_mod_default')); ?>">
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="default_mod_welcome_message">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <!-- Enable/Disable Toggle -->
-                                                            <div class="field mt-4">
-                                                                <label class="checkbox">
-                                                                    <input type="checkbox" name="send_welcome_messages"
-                                                                        value="1" <?php echo ($send_welcome_messages ? 'checked' : ''); ?>>
-                                                                    <?php echo t('modules_enable_welcome_messages'); ?>
-                                                                </label>
-                                                            </div>
-                                                        </div>
+                            <div class="columns is-vcentered mb-4">
+                                <div class="column">
+                                    <h2 class="title is-4 has-text-white mb-2">
+                                        <span class="icon mr-2"><i class="fas fa-cog"></i></span>
+                                        Welcome Message Configuration
+                                    </h2>
+                                </div>
+                                <div class="column is-narrow">
+                                    <!-- Welcome Messages Status Control -->
+                                    <div class="box has-background-grey-darker p-3" style="min-width: 420px;">
+                                        <div class="field">
+                                            <div class="field is-grouped is-grouped-centered">
+                                                <div class="control">
+                                                    <div class="tags">
+                                                        <span class="tag is-dark is-medium">
+                                                            <span class="icon is-small mr-1"><i class="fas fa-comment"></i></span>
+                                                            Welcome Messages
+                                                        </span>
+                                                        <span class="tag is-medium <?php echo ($send_welcome_messages) ? 'is-success' : 'is-danger'; ?>">
+                                                            <?php echo ($send_welcome_messages) ? 'Enabled' : 'Disabled'; ?>
+                                                        </span>
                                                     </div>
                                                 </div>
-                                                <!-- Save Button -->
-                                                <div class="field mt-6">
-                                                    <div class="control has-text-centered">
-                                                        <button class="button is-primary" type="submit"
-                                                            style="padding: 0.75rem 2rem; font-size: 1rem;">
-                                                            <span class="icon mr-2">
-                                                                <i class="fas fa-save"></i>
+                                                <div class="control">
+                                                    <form method="POST" action="module_data_post.php" style="display: inline;">
+                                                        <input type="hidden" name="toggle_welcome_messages" value="1">
+                                                        <input type="hidden" name="welcome_messages_status" value="<?php echo ($send_welcome_messages) ? '0' : '1'; ?>">
+                                                        <button type="submit" class="button is-small <?php echo ($send_welcome_messages) ? 'is-danger' : 'is-success'; ?>">
+                                                            <span class="icon is-small">
+                                                                <i class="fas <?php echo ($send_welcome_messages) ? 'fa-times' : 'fa-check'; ?>"></i>
                                                             </span>
-                                                            <span><?php echo t('modules_save_welcome_settings'); ?></span>
+                                                            <span><?php echo ($send_welcome_messages) ? 'Disable' : 'Enable'; ?></span>
                                                         </button>
-                                                        <p class="help has-text-grey-light mt-2">
-                                                            Save your welcome message configuration and settings.
-                                                        </p>
-                                                    </div>
+                                                    </form>
                                                 </div>
-                                            </form>
+                                            </div>
+                                            <p class="has-text-grey-light is-size-7 has-text-centered mb-0">
+                                                Toggle automatic welcome messages for viewers
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            <form method="POST" action="module_data_post.php">
+                                <div class="columns is-multiline">
+                                    <!-- Regular Members Column -->
+                                    <div class="column is-6">
+                                        <div class="level mb-4">
+                                            <div class="level-left">
+                                                <h5 class="title is-5 has-text-white mb-0">
+                                                    <span class="icon mr-2"><i class="fas fa-users"></i></span>
+                                                    Regular Members
+                                                </h5>
+                                            </div>
+                                            <div class="level-right">
+                                                <button type="button"
+                                                    class="section-save-btn button is-success is-small"
+                                                    data-section="regular-members">
+                                                    <span class="icon"><i class="fas fa-save"></i></span>
+                                                    <span>Save Regular Members</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i class="fas fa-user-plus"></i></span>
+                                                <?php echo t('modules_welcome_new_member_label'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input welcome-message-input" type="text"
+                                                    name="new_default_welcome_message" maxlength="255"
+                                                    value="<?php echo htmlspecialchars($new_default_welcome_message !== '' ? $new_default_welcome_message : t('modules_welcome_new_member_default')); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="new_default_welcome_message">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i class="fas fa-user-check"></i></span>
+                                                <?php echo t('modules_welcome_returning_member_label'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input welcome-message-input" type="text"
+                                                    name="default_welcome_message" maxlength="255"
+                                                    value="<?php echo htmlspecialchars($default_welcome_message !== '' ? $default_welcome_message : t('modules_welcome_returning_member_default')); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="default_welcome_message">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <!-- VIP Members Column -->
+                                    <div class="column is-6">
+                                        <div class="level mb-4">
+                                            <div class="level-left">
+                                                <h5 class="title is-5 has-text-white mb-0">
+                                                    <span class="icon mr-2"><i class="fas fa-gem"></i></span>
+                                                    VIP Members
+                                                </h5>
+                                            </div>
+                                            <div class="level-right">
+                                                <button type="button"
+                                                    class="section-save-btn button is-success is-small"
+                                                    data-section="vip-members">
+                                                    <span class="icon"><i class="fas fa-save"></i></span>
+                                                    <span>Save VIP Members</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i class="fas fa-user-plus"></i></span>
+                                                <?php echo t('modules_welcome_new_vip_label'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input welcome-message-input" type="text"
+                                                    name="new_default_vip_welcome_message" maxlength="255"
+                                                    value="<?php echo htmlspecialchars($new_default_vip_welcome_message !== '' ? $new_default_vip_welcome_message : t('modules_welcome_new_vip_default')); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="new_default_vip_welcome_message">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i class="fas fa-user-check"></i></span>
+                                                <?php echo t('modules_welcome_returning_vip_label'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input welcome-message-input" type="text"
+                                                    name="default_vip_welcome_message" maxlength="255"
+                                                    value="<?php echo htmlspecialchars($default_vip_welcome_message !== '' ? $default_vip_welcome_message : t('modules_welcome_returning_vip_default')); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="default_vip_welcome_message">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <!-- Moderators -->
+                                    <div class="column is-12">
+                                        <div class="level mb-4">
+                                            <div class="level-left">
+                                                <h5 class="title is-5 has-text-white mb-0">
+                                                    <span class="icon mr-2"><i class="fas fa-shield-alt"></i></span>
+                                                    Moderators
+                                                </h5>
+                                            </div>
+                                            <div class="level-right">
+                                                <button type="button"
+                                                    class="section-save-btn button is-success is-small"
+                                                    data-section="moderators">
+                                                    <span class="icon"><i class="fas fa-save"></i></span>
+                                                    <span>Save Moderators</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="columns">
+                                            <div class="column is-6">
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-plus"></i></span>
+                                                        <?php echo t('modules_welcome_new_mod_label'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input welcome-message-input" type="text"
+                                                            name="new_default_mod_welcome_message" maxlength="255"
+                                                            value="<?php echo htmlspecialchars($new_default_mod_welcome_message !== '' ? $new_default_mod_welcome_message : t('modules_welcome_new_mod_default')); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="new_default_mod_welcome_message">0</span>/255
+                                                        characters
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="column is-6">
+                                                <div class="field">
+                                                    <label class="label has-text-white">
+                                                        <span class="icon mr-1"><i class="fas fa-user-check"></i></span>
+                                                        <?php echo t('modules_welcome_returning_mod_label'); ?>
+                                                    </label>
+                                                    <div class="control">
+                                                        <input class="input welcome-message-input" type="text"
+                                                            name="default_mod_welcome_message" maxlength="255"
+                                                            value="<?php echo htmlspecialchars($default_mod_welcome_message !== '' ? $default_mod_welcome_message : t('modules_welcome_returning_mod_default')); ?>">
+                                                    </div>
+                                                    <p class="help has-text-grey-light">
+                                                        <span class="char-count" data-field="default_mod_welcome_message">0</span>/255
+                                                        characters
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
                         </div>
                     </div>
                     <div class="tab-content" id="chat-protection">
@@ -670,326 +632,226 @@ ob_start();
                     </div>
                     <div class="tab-content" id="game-deaths">
                         <div class="module-container">
-                            <!-- Game Deaths Configuration -->
-                            <div class="columns is-desktop is-multiline is-centered">
-                                <div class="column is-fullwidth" style="max-width: 1200px;">
-                                    <div class="card has-background-dark has-text-white"
-                                        style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                                            <span class="card-header-title is-size-4 has-text-white"
-                                                style="font-weight:700;">
-                                                <span class="icon mr-2"><i class="fas fa-skull-crossbones"></i></span>
-                                                Game Deaths Configuration
-                                            </span>
-                                        </header>
-                                        <div class="card-content">
-                                            <!-- Configuration Note -->
-                                            <div class="notification is-info mb-4">
-                                                <p class="has-text-dark">
-                                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
-                                                    <strong>Game Deaths Configuration:</strong><br>
-                                                    Configure games to ignore when counting deaths.<br>
-                                                    Deaths in these games will not be added to the total death counter
-                                                    for the !deathadd command.
-                                                </p>
-                                            </div>
-                                            <!-- Add Game Form -->
-                                            <form method="POST" action="module_data_post.php" class="mb-4">
-                                                <div class="field has-addons">
-                                                    <div class="control is-expanded">
-                                                        <input class="input" type="text" name="ignore_game_name"
-                                                            placeholder="Enter game name to ignore (e.g., Minecraft, Fortnite)"
-                                                            maxlength="100" required>
-                                                    </div>
-                                                    <div class="control">
-                                                        <button class="button is-primary" type="submit"
-                                                            name="add_ignored_game">
-                                                            <span class="icon"><i class="fas fa-plus"></i></span>
-                                                            <span>Add Game</span>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </form>
-                                            <!-- Current Ignored Games -->
-                                            <div class="box has-background-grey-darker">
-                                                <h4 class="title is-5 has-text-white mb-3">
-                                                    <span class="icon mr-2"><i class="fas fa-list"></i></span>
-                                                    Currently Ignored Games
-                                                </h4>
-                                                <div class="content">
-                                                    <?php
-                                                    // Load ignored games from database (placeholder - will need backend implementation)
-                                                    if (!empty($ignored_games)) {
-                                                        echo '<div class="tags">';
-                                                        foreach ($ignored_games as $game) {
-                                                            echo '<span class="tag is-danger is-medium">';
-                                                            echo htmlspecialchars($game);
-                                                            echo '<button class="delete is-small ml-1" onclick="removeIgnoredGame(\'' . htmlspecialchars(addslashes($game)) . '\')"></button>';
-                                                            echo '</span>';
-                                                        }
-                                                        echo '</div>';
-                                                    } else {
-                                                        echo '<p class="has-text-grey-light">No games are currently being ignored.</p>';
-                                                    }
-                                                    ?>
-                                                </div>
-                                            </div>
-                                        </div>
+                            <div class="columns is-vcentered mb-4">
+                                <div class="column">
+                                    <h2 class="title is-4 has-text-white mb-2">
+                                        <span class="icon mr-2"><i class="fas fa-skull-crossbones"></i></span>
+                                        Game Deaths Configuration
+                                    </h2>
+                                </div>
+                            </div>
+                            <!-- Configuration Note -->
+                            <div class="notification is-info mb-4">
+                                <p class="has-text-dark">
+                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                    <strong>Game Deaths Configuration:</strong><br>
+                                    Configure games to ignore when counting deaths.<br>
+                                    Deaths in these games will not be added to the total death counter
+                                    for the !deathadd command.
+                                </p>
+                            </div>
+                            <!-- Add Game Form -->
+                            <form method="POST" action="module_data_post.php" class="mb-4">
+                                <div class="field has-addons">
+                                    <div class="control is-expanded">
+                                        <input class="input" type="text" name="ignore_game_name"
+                                            placeholder="Enter game name to ignore (e.g., Minecraft, Fortnite)"
+                                            maxlength="100" required>
+                                    </div>
+                                    <div class="control">
+                                        <button class="button is-primary" type="submit" name="add_ignored_game">
+                                            <span class="icon"><i class="fas fa-plus"></i></span>
+                                            <span>Add Game</span>
+                                        </button>
                                     </div>
                                 </div>
+                            </form>
+                            <!-- Current Ignored Games -->
+                            <h4 class="title is-5 has-text-white mb-3">
+                                <span class="icon mr-2"><i class="fas fa-list"></i></span>
+                                Currently Ignored Games
+                            </h4>
+                            <div class="content">
+                                <?php
+                                if (!empty($ignored_games)) {
+                                    echo '<div class="tags">';
+                                    foreach ($ignored_games as $game) {
+                                        echo '<span class="tag is-danger is-medium">';
+                                        echo htmlspecialchars($game);
+                                        echo '<button class="delete is-small ml-1" onclick="removeIgnoredGame(\'' . htmlspecialchars(addslashes($game)) . '\')"></button>';
+                                        echo '</span>';
+                                    }
+                                    echo '</div>';
+                                } else {
+                                    echo '<p class="has-text-grey-light">No games are currently being ignored.</p>';
+                                }
+                                ?>
                             </div>
                         </div>
                     </div>
                     <!-- Ad Notices -->
                     <div class="tab-content" id="ad-notices">
                         <div class="module-container">
-                            <!-- Ad Notices Configuration Form -->
-                            <div class="columns is-desktop is-multiline is-centered">
-                                <div class="column is-fullwidth" style="max-width: 1200px;">
-                                    <div class="card has-background-dark has-text-white"
-                                        style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                                            <span class="card-header-title is-size-4 has-text-white"
-                                                style="font-weight:700;">
-                                                <span class="icon mr-2"><i class="fas fa-cog"></i></span>
-                                                Ad Notice Messages
-                                            </span>
-                                        </header>
-                                        <div class="card-content">
-                                            <form method="POST" action="module_data_post.php">
-                                                <div class="columns is-multiline">
-                                                    <!-- Ad Messages Column -->
-                                                    <div class="column is-12">
-                                                        <div class="box has-background-grey-darker">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-bullhorn"></i></span>
-                                                                        Advertisement Messages
-                                                                    </h5>
-                                                                </div>
-                                                            </div>
-                                                            <div class="columns">
-                                                                <div class="column is-4">
-                                                                    <div class="field">
-                                                                        <div
-                                                                            class="is-flex is-justify-content-space-between is-align-items-center mb-2">
-                                                                            <label class="label has-text-white mb-0">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-exclamation-triangle"></i></span>
-                                                                                <?php echo t('modules_ad_upcoming_message'); ?>
-                                                                            </label>
-                                                                            <div class="field">
-                                                                                <input id="enable_upcoming_ad_message"
-                                                                                    type="checkbox"
-                                                                                    name="enable_upcoming_ad_message"
-                                                                                    class="switch is-small is-success"
-                                                                                    value="1" <?php echo (!empty($enable_upcoming_ad_message) ? 'checked' : ''); ?>>
-                                                                                <label
-                                                                                    for="enable_upcoming_ad_message"></label>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="control">
-                                                                            <textarea class="textarea ad-notice-input"
-                                                                                name="ad_upcoming_message"
-                                                                                maxlength="255"
-                                                                                placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>"
-                                                                                rows="3"
-                                                                                style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?></textarea>
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="ad_upcoming_message">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="column is-4">
-                                                                    <div class="field">
-                                                                        <div
-                                                                            class="is-flex is-justify-content-space-between is-align-items-center mb-2">
-                                                                            <label class="label has-text-white mb-0">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-play"></i></span>
-                                                                                <?php echo t('modules_ad_start_message'); ?>
-                                                                            </label>
-                                                                            <div class="field">
-                                                                                <input id="enable_start_ad_message"
-                                                                                    type="checkbox"
-                                                                                    name="enable_start_ad_message"
-                                                                                    class="switch is-small is-success"
-                                                                                    value="1" <?php echo (!empty($enable_start_ad_message) ? 'checked' : ''); ?>>
-                                                                                <label
-                                                                                    for="enable_start_ad_message"></label>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="control">
-                                                                            <textarea class="textarea ad-notice-input"
-                                                                                name="ad_start_message" maxlength="255"
-                                                                                placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>"
-                                                                                rows="3"
-                                                                                style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_start_message ?? ''); ?></textarea>
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="ad_start_message">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="column is-4">
-                                                                    <div class="field">
-                                                                        <div
-                                                                            class="is-flex is-justify-content-space-between is-align-items-center mb-2">
-                                                                            <label class="label has-text-white mb-0">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-stop"></i></span>
-                                                                                <?php echo t('modules_ad_end_message'); ?>
-                                                                            </label>
-                                                                            <div class="field">
-                                                                                <input id="enable_end_ad_message"
-                                                                                    type="checkbox"
-                                                                                    name="enable_end_ad_message"
-                                                                                    class="switch is-small is-success"
-                                                                                    value="1" <?php echo (!empty($enable_end_ad_message) ? 'checked' : ''); ?>>
-                                                                                <label
-                                                                                    for="enable_end_ad_message"></label>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="control">
-                                                                            <textarea class="textarea ad-notice-input"
-                                                                                name="ad_end_message" maxlength="255"
-                                                                                placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>"
-                                                                                rows="3"
-                                                                                style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_end_message ?? ''); ?></textarea>
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="ad_end_message">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div class="notification is-info mb-4">
-                                                                <p><strong>Note:</strong> The Ad Snoozed Message may be
-                                                                    delayed in chat due to polling intervals.
-                                                                    Additionally, there is a known issue where an extra
-                                                                    warning message after the ad is snoozed does not
-                                                                    post. This will be fixed in the next release.</p>
-                                                            </div>
-                                                            <div class="columns is-multiline">
-                                                                <div class="column is-12">
-                                                                    <div class="field">
-                                                                        <div
-                                                                            class="is-flex is-justify-content-space-between is-align-items-center mb-2">
-                                                                            <label class="label has-text-white mb-0">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-clock"></i></span>
-                                                                                <?php echo t('modules_ad_snoozed_message'); ?>
-                                                                            </label>
-                                                                            <div class="field">
-                                                                                <input id="enable_snoozed_ad_message"
-                                                                                    type="checkbox"
-                                                                                    name="enable_snoozed_ad_message"
-                                                                                    class="switch is-small is-success"
-                                                                                    value="1" <?php echo (!empty($enable_snoozed_ad_message) ? 'checked' : ''); ?>>
-                                                                                <label
-                                                                                    for="enable_snoozed_ad_message"></label>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="control">
-                                                                            <textarea class="textarea ad-notice-input"
-                                                                                name="ad_snoozed_message"
-                                                                                maxlength="255"
-                                                                                placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>"
-                                                                                rows="3"
-                                                                                style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?></textarea>
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="ad_snoozed_message">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <!-- Enable/Disable Toggle -->
-                                                            <div class="field mt-4">
-                                                                <div
-                                                                    class="is-flex is-justify-content-space-between is-align-items-center mb-2">
-                                                                    <div>
-                                                                        <label class="label has-text-white mb-0">
-                                                                            <span class="icon mr-2"><i
-                                                                                    class="fas fa-toggle-on"></i></span>
-                                                                            <?php echo t('modules_enable_ad_notice'); ?>
-                                                                        </label>
-                                                                        <p class="help has-text-grey-light mt-2">
-                                                                            Toggle this switch to enable or disable
-                                                                            advertisement notices in your stream chat.
-                                                                        </p>
-                                                                    </div>
-                                                                    <div class="field">
-                                                                        <input id="enable_ad_notice" type="checkbox"
-                                                                            name="enable_ad_notice"
-                                                                            class="switch is-small is-success" value="1"
-                                                                            <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
-                                                                        <label for="enable_ad_notice"></label>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <!-- AI Ad Breaks Toggle -->
-                                                            <div class="field mt-4">
-                                                                <div
-                                                                    class="is-flex is-justify-content-space-between is-align-items-center mb-2">
-                                                                    <div>
-                                                                        <label class="label has-text-white mb-0">
-                                                                            <span class="icon mr-2"><i
-                                                                                    class="fas fa-robot"></i></span>
-                                                                            Enable AI-Powered Ad Break Messages
-                                                                        </label>
-                                                                        <p class="help has-text-grey-light mt-2">
-                                                                            <span class="tag is-warning mr-2">Premium
-                                                                                Feature</span>
-                                                                            When enabled, the bot will use AI to
-                                                                            generate dynamic, context-aware ad break
-                                                                            messages based on recent chat activity.
-                                                                            Requires Tier 2 subscription or higher.
-                                                                        </p>
-                                                                    </div>
-                                                                    <div class="field">
-                                                                        <input id="enable_ai_ad_breaks" type="checkbox"
-                                                                            name="enable_ai_ad_breaks"
-                                                                            class="switch is-small is-success" value="1"
-                                                                            <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>>
-                                                                        <label for="enable_ai_ad_breaks"></label>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <!-- Save Button -->
-                                                <div class="field mt-6">
-                                                    <div class="control has-text-centered">
-                                                        <button class="button is-primary" type="submit"
-                                                            style="padding: 0.75rem 2rem; font-size: 1rem;">
-                                                            <span class="icon mr-2">
-                                                                <i class="fas fa-save"></i>
-                                                            </span>
-                                                            <span><?php echo t('modules_save_ad_notice_settings'); ?></span>
-                                                        </button>
-                                                        <p class="help has-text-grey-light mt-2">
-                                                            Save your ad notice configuration and messages.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </form>
+                            <div class="columns is-vcentered mb-4">
+                                <div class="column">
+                                    <h2 class="title is-4 has-text-white mb-2">
+                                        <span class="icon mr-2"><i class="fas fa-cog"></i></span>
+                                        Ad Notice Messages
+                                    </h2>
+                                </div>
+                            </div>
+                            <form method="POST" action="module_data_post.php">
+                                <div class="level mb-4">
+                                    <div class="level-left">
+                                        <h5 class="title is-5 has-text-white mb-0">
+                                            <span class="icon mr-2"><i class="fas fa-bullhorn"></i></span>
+                                            Advertisement Messages
+                                        </h5>
+                                    </div>
+                                </div>
+                                <div class="columns">
+                                    <div class="column is-4">
+                                        <div class="field">
+                                            <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                <label class="label has-text-white mb-0">
+                                                    <span class="icon mr-1"><i class="fas fa-exclamation-triangle"></i></span>
+                                                    <?php echo t('modules_ad_upcoming_message'); ?>
+                                                </label>
+                                                <input id="enable_upcoming_ad_message" type="checkbox"
+                                                    name="enable_upcoming_ad_message" class="switch is-small is-success"
+                                                    value="1" <?php echo (!empty($enable_upcoming_ad_message) ? 'checked' : ''); ?>>
+                                                <label for="enable_upcoming_ad_message"></label>
+                                            </div>
+                                            <div class="control">
+                                                <textarea class="textarea ad-notice-input" name="ad_upcoming_message"
+                                                    maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>"
+                                                    rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?></textarea>
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="ad_upcoming_message">0</span>/255 characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="column is-4">
+                                        <div class="field">
+                                            <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                <label class="label has-text-white mb-0">
+                                                    <span class="icon mr-1"><i class="fas fa-play"></i></span>
+                                                    <?php echo t('modules_ad_start_message'); ?>
+                                                </label>
+                                                <input id="enable_start_ad_message" type="checkbox"
+                                                    name="enable_start_ad_message" class="switch is-small is-success"
+                                                    value="1" <?php echo (!empty($enable_start_ad_message) ? 'checked' : ''); ?>>
+                                                <label for="enable_start_ad_message"></label>
+                                            </div>
+                                            <div class="control">
+                                                <textarea class="textarea ad-notice-input" name="ad_start_message"
+                                                    maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>"
+                                                    rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_start_message ?? ''); ?></textarea>
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="ad_start_message">0</span>/255 characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="column is-4">
+                                        <div class="field">
+                                            <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                <label class="label has-text-white mb-0">
+                                                    <span class="icon mr-1"><i class="fas fa-stop"></i></span>
+                                                    <?php echo t('modules_ad_end_message'); ?>
+                                                </label>
+                                                <input id="enable_end_ad_message" type="checkbox"
+                                                    name="enable_end_ad_message" class="switch is-small is-success"
+                                                    value="1" <?php echo (!empty($enable_end_ad_message) ? 'checked' : ''); ?>>
+                                                <label for="enable_end_ad_message"></label>
+                                            </div>
+                                            <div class="control">
+                                                <textarea class="textarea ad-notice-input" name="ad_end_message"
+                                                    maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>"
+                                                    rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_end_message ?? ''); ?></textarea>
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="ad_end_message">0</span>/255 characters
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                                <div class="notification is-info mb-4">
+                                    <p><strong>Note:</strong> The Ad Snoozed Message may be delayed in chat due to polling intervals.
+                                        Additionally, there is a known issue where an extra warning message after the ad is snoozed does not
+                                        post. This will be fixed in the next release.</p>
+                                </div>
+                                <div class="columns is-multiline">
+                                    <div class="column is-12">
+                                        <div class="field">
+                                            <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                                <label class="label has-text-white mb-0">
+                                                    <span class="icon mr-1"><i class="fas fa-clock"></i></span>
+                                                    <?php echo t('modules_ad_snoozed_message'); ?>
+                                                </label>
+                                                <input id="enable_snoozed_ad_message" type="checkbox"
+                                                    name="enable_snoozed_ad_message" class="switch is-small is-success"
+                                                    value="1" <?php echo (!empty($enable_snoozed_ad_message) ? 'checked' : ''); ?>>
+                                                <label for="enable_snoozed_ad_message"></label>
+                                            </div>
+                                            <div class="control">
+                                                <textarea class="textarea ad-notice-input" name="ad_snoozed_message"
+                                                    maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>"
+                                                    rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?></textarea>
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count" data-field="ad_snoozed_message">0</span>/255 characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Enable/Disable Toggle -->
+                                <div class="field mt-4">
+                                    <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                        <div>
+                                            <label class="label has-text-white mb-0">
+                                                <span class="icon mr-2"><i class="fas fa-toggle-on"></i></span>
+                                                <?php echo t('modules_enable_ad_notice'); ?>
+                                            </label>
+                                            <p class="help has-text-grey-light mt-2">
+                                                Toggle this switch to enable or disable advertisement notices in your stream chat.
+                                            </p>
+                                        </div>
+                                        <input id="enable_ad_notice" type="checkbox" name="enable_ad_notice"
+                                            class="switch is-small is-success" value="1" <?php echo (!empty($enable_ad_notice) ? 'checked' : ''); ?>>
+                                        <label for="enable_ad_notice"></label>
+                                    </div>
+                                </div>
+                                <!-- AI Ad Breaks Toggle -->
+                                <div class="field mt-4">
+                                    <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                        <div>
+                                            <label class="label has-text-white mb-0">
+                                                <span class="icon mr-2"><i class="fas fa-robot"></i></span>
+                                                Enable AI-Powered Ad Break Messages
+                                            </label>
+                                            <p class="help has-text-grey-light mt-2">
+                                                <span class="tag is-warning mr-2">Premium Feature</span>
+                                                When enabled, the bot will use AI to generate dynamic, context-aware ad break
+                                                messages based on recent chat activity. Requires Tier 2 subscription or higher.
+                                            </p>
+                                        </div>
+                                        <input id="enable_ai_ad_breaks" type="checkbox" name="enable_ai_ad_breaks"
+                                            class="switch is-small is-success" value="1" <?php echo (!empty($enable_ai_ad_breaks) ? 'checked' : ''); ?>>
+                                        <label for="enable_ai_ad_breaks"></label>
+                                    </div>
+                                </div>
+                                <!-- Save Button -->
+                                <div class="field mt-4">
+                                    <div class="control">
+                                        <button class="button is-primary" type="submit">
+                                            <span class="icon mr-2"><i class="fas fa-save"></i></span>
+                                            <span><?php echo t('modules_save_ad_notice_settings'); ?></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
                         </div>
                     </div>
                     <!-- Twitch Event Alerts -->
@@ -1221,334 +1083,304 @@ ob_start();
                     <!-- Twitch Chat Alerts -->
                     <div class="tab-content" id="twitch-chat-alerts">
                         <div class="module-container">
-                            <!-- Chat Alerts Configuration Form -->
-                            <div class="columns is-desktop is-multiline is-centered">
-                                <div class="column is-fullwidth" style="max-width: 1200px;">
-                                    <div class="card has-background-dark has-text-white"
-                                        style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                                        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                                            <span class="card-header-title is-size-4 has-text-white"
-                                                style="font-weight:700;">
-                                                <span class="icon mr-2"><i class="fas fa-cog"></i></span>
-                                                Chat Alert Messages
-                                            </span>
-                                        </header>
-                                        <div class="card-content">
-                                            <form action="module_data_post.php" method="POST" id="chatAlertsForm">
-                                                <div class="columns is-multiline">
-                                                    <!-- General Events Column -->
-                                                    <div class="column is-6">
-                                                        <div class="box has-background-grey-darker"
-                                                            style="height: 100%; min-height: 420px; display: flex; flex-direction: column;">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-users"></i></span>
-                                                                        General Events
-                                                                    </h5>
-                                                                </div>
-                                                                <div class="level-right">
-                                                                    <button type="button"
-                                                                        class="section-save-btn button is-success is-small"
-                                                                        data-section="general">
-                                                                        <span class="icon"><i
-                                                                                class="fas fa-save"></i></span>
-                                                                        <span>Save</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <div style="flex-grow: 1;">
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-heart"></i></span>
-                                                                        <?php echo t('modules_follower_alert'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input chat-alert-input"
-                                                                            type="text" name="follower_alert"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="follower_alert">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-gem"></i></span>
-                                                                        <?php echo t('modules_cheer_alert'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input chat-alert-input"
-                                                                            type="text" name="cheer_alert"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="cheer_alert">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-user-friends"></i></span>
-                                                                        <?php echo t('modules_raid_alert'); ?>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input chat-alert-input"
-                                                                            type="text" name="raid_alert"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="raid_alert">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                            </div>
+                            <div class="columns is-vcentered mb-4">
+                                <div class="column">
+                                    <h2 class="title is-4 has-text-white mb-2">
+                                        <span class="icon mr-2"><i class="fas fa-cog"></i></span>
+                                        Chat Alert Messages
+                                    </h2>
+                                </div>
+                            </div>
+                            <form action="module_data_post.php" method="POST" id="chatAlertsForm">
+                                <div class="columns is-multiline">
+                                    <!-- General Events Column -->
+                                    <div class="column is-6">
+                                        <div class="level mb-4">
+                                            <div class="level-left">
+                                                <h5 class="title is-5 has-text-white mb-0">
+                                                    <span class="icon mr-2"><i class="fas fa-users"></i></span>
+                                                    General Events
+                                                </h5>
+                                            </div>
+                                            <div class="level-right">
+                                                <button type="button"
+                                                    class="section-save-btn button is-success is-small"
+                                                    data-section="general">
+                                                    <span class="icon"><i class="fas fa-save"></i></span>
+                                                    <span>Save General Events</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i
+                                                        class="fas fa-heart"></i></span>
+                                                <?php echo t('modules_follower_alert'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input chat-alert-input"
+                                                    type="text" name="follower_alert"
+                                                    maxlength="255"
+                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count"
+                                                    data-field="follower_alert">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i
+                                                        class="fas fa-gem"></i></span>
+                                                <?php echo t('modules_cheer_alert'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input chat-alert-input"
+                                                    type="text" name="cheer_alert"
+                                                    maxlength="255"
+                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count"
+                                                    data-field="cheer_alert">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i
+                                                        class="fas fa-user-friends"></i></span>
+                                                <?php echo t('modules_raid_alert'); ?>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input chat-alert-input"
+                                                    type="text" name="raid_alert"
+                                                    maxlength="255"
+                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count"
+                                                    data-field="raid_alert">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <!-- Subscription Events Column -->
+                                    <div class="column is-6">
+                                        <div class="level mb-4">
+                                            <div class="level-left">
+                                                <h5 class="title is-5 has-text-white mb-0">
+                                                    <span class="icon mr-2"><i class="fas fa-star"></i></span>
+                                                    Subscription Events
+                                                </h5>
+                                            </div>
+                                            <div class="level-right">
+                                                <button type="button"
+                                                    class="section-save-btn button is-success is-small"
+                                                    data-section="subscription">
+                                                    <span class="icon"><i class="fas fa-save"></i></span>
+                                                    <span>Save Subscription Events</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i
+                                                        class="fas fa-star"></i></span>
+                                                <?php echo t('modules_subscription_alert'); ?>
+                                                <span class="tag is-danger is-small">*</span>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input chat-alert-input"
+                                                    type="text" name="subscription_alert"
+                                                    maxlength="255"
+                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count"
+                                                    data-field="subscription_alert">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label has-text-white">
+                                                <span class="icon mr-1"><i
+                                                        class="fas fa-gift"></i></span>
+                                                <?php echo t('modules_gift_subscription_alert'); ?>
+                                                <span class="tag is-danger is-small">*</span>
+                                                <span class="icon has-text-warning"
+                                                    title="This message uses the user variable to thank the person who sent the gift, not the recipients."><i
+                                                        class="fas fa-info-circle"></i></span>
+                                            </label>
+                                            <div class="control">
+                                                <input class="input chat-alert-input"
+                                                    type="text" name="gift_subscription_alert"
+                                                    maxlength="255"
+                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
+                                            </div>
+                                            <p class="help has-text-grey-light">
+                                                <span class="char-count"
+                                                    data-field="gift_subscription_alert">0</span>/255
+                                                characters
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <!-- Hype Train Events (Full Width) -->
+                                    <div class="column is-12">
+                                        <div class="level mb-4">
+                                            <div class="level-left">
+                                                <h5 class="title is-5 has-text-white mb-0">
+                                                    <span class="icon mr-2"><i class="fas fa-train"></i></span>
+                                                    Hype Train Events
+                                                </h5>
+                                            </div>
+                                            <div class="level-right">
+                                                <button type="button"
+                                                    class="section-save-btn button is-success is-small"
+                                                    data-section="hype-train">
+                                                    <span class="icon"><i class="fas fa-save"></i></span>
+                                                    <span>Save Hype Train Events</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                            <div class="columns">
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i
+                                                                    class="fas fa-play"></i></span>
+                                                            <?php echo t('modules_hype_train_start'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input"
+                                                                type="text" name="hype_train_start"
+                                                                maxlength="255"
+                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
                                                         </div>
-                                                    </div>
-                                                    <!-- Subscription Events Column -->
-                                                    <div class="column is-6">
-                                                        <div class="box has-background-grey-darker"
-                                                            style="height: 100%; min-height: 420px; display: flex; flex-direction: column;">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-star"></i></span>
-                                                                        Subscription Events
-                                                                    </h5>
-                                                                </div>
-                                                                <div class="level-right">
-                                                                    <button type="button"
-                                                                        class="section-save-btn button is-success is-small"
-                                                                        data-section="subscription">
-                                                                        <span class="icon"><i
-                                                                                class="fas fa-save"></i></span>
-                                                                        <span>Save</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <div style="flex-grow: 1;">
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-star"></i></span>
-                                                                        <?php echo t('modules_subscription_alert'); ?>
-                                                                        <span class="tag is-danger is-small">*</span>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input chat-alert-input"
-                                                                            type="text" name="subscription_alert"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="subscription_alert">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                                <div class="field">
-                                                                    <label class="label has-text-white">
-                                                                        <span class="icon mr-1"><i
-                                                                                class="fas fa-gift"></i></span>
-                                                                        <?php echo t('modules_gift_subscription_alert'); ?>
-                                                                        <span class="tag is-danger is-small">*</span>
-                                                                        <span class="icon has-text-warning"
-                                                                            title="This message uses the user variable to thank the person who sent the gift, not the recipients."><i
-                                                                                class="fas fa-info-circle"></i></span>
-                                                                    </label>
-                                                                    <div class="control">
-                                                                        <input class="input chat-alert-input"
-                                                                            type="text" name="gift_subscription_alert"
-                                                                            maxlength="255"
-                                                                            value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
-                                                                    </div>
-                                                                    <p class="help has-text-grey-light">
-                                                                        <span class="char-count"
-                                                                            data-field="gift_subscription_alert">0</span>/255
-                                                                        characters
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <!-- Hype Train Events (Full Width) -->
-                                                    <div class="column is-12">
-                                                        <div class="box has-background-grey-darker">
-                                                            <div class="level mb-4">
-                                                                <div class="level-left">
-                                                                    <h5 class="title is-5 has-text-white mb-0">
-                                                                        <span class="icon mr-2"><i
-                                                                                class="fas fa-train"></i></span>
-                                                                        Hype Train Events
-                                                                    </h5>
-                                                                </div>
-                                                                <div class="level-right">
-                                                                    <button type="button"
-                                                                        class="section-save-btn button is-success is-small"
-                                                                        data-section="hype-train">
-                                                                        <span class="icon"><i
-                                                                                class="fas fa-save"></i></span>
-                                                                        <span>Save</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            <div class="columns">
-                                                                <div class="column is-6">
-                                                                    <div class="field">
-                                                                        <label class="label has-text-white">
-                                                                            <span class="icon mr-1"><i
-                                                                                    class="fas fa-play"></i></span>
-                                                                            <?php echo t('modules_hype_train_start'); ?>
-                                                                        </label>
-                                                                        <div class="control">
-                                                                            <input class="input chat-alert-input"
-                                                                                type="text" name="hype_train_start"
-                                                                                maxlength="255"
-                                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="hype_train_start">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="column is-6">
-                                                                    <div class="field">
-                                                                        <label class="label has-text-white">
-                                                                            <span class="icon mr-1"><i
-                                                                                    class="fas fa-stop"></i></span>
-                                                                            <?php echo t('modules_hype_train_end'); ?>
-                                                                        </label>
-                                                                        <div class="control">
-                                                                            <input class="input chat-alert-input"
-                                                                                type="text" name="hype_train_end"
-                                                                                maxlength="255"
-                                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
-                                                                        </div>
-                                                                        <p class="help has-text-grey-light">
-                                                                            <span class="char-count"
-                                                                                data-field="hype_train_end">0</span>/255
-                                                                            characters
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <!-- BETA Features Section -->
-                                                            <div class="box has-background-dark mt-5">
-                                                                <div class="notification is-warning is-light mb-4">
-                                                                    <span class="icon mr-2"><i
-                                                                            class="fas fa-flask"></i></span>
-                                                                    <strong>BETA Features:</strong> These subscription
-                                                                    upgrade alerts are currently in beta testing. They
-                                                                    use the new Twitch EventSub
-                                                                    channel.chat.notification system.
-                                                                </div>
-                                                                <div class="columns is-multiline">
-                                                                    <div class="column is-6">
-                                                                        <div class="field">
-                                                                            <label class="label has-text-white">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-arrow-up"></i></span>
-                                                                                Gift Paid Upgrade <span
-                                                                                    class="tag is-warning ml-2">BETA</span>
-                                                                            </label>
-                                                                            <div class="control">
-                                                                                <input class="input chat-alert-input"
-                                                                                    type="text" name="gift_paid_upgrade"
-                                                                                    maxlength="255"
-                                                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['gift_paid_upgrade']) ? $chat_alerts['gift_paid_upgrade'] : $default_chat_alerts['gift_paid_upgrade']); ?>">
-                                                                            </div>
-                                                                            <p class="help has-text-grey-light">
-                                                                                <span class="char-count"
-                                                                                    data-field="gift_paid_upgrade">0</span>/255
-                                                                                characters. Placeholders: (user), (tier)
-                                                                            </p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="column is-6">
-                                                                        <div class="field">
-                                                                            <label class="label has-text-white">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-arrow-up"></i></span>
-                                                                                Prime Paid Upgrade <span
-                                                                                    class="tag is-warning ml-2">BETA</span>
-                                                                            </label>
-                                                                            <div class="control">
-                                                                                <input class="input chat-alert-input"
-                                                                                    type="text"
-                                                                                    name="prime_paid_upgrade"
-                                                                                    maxlength="255"
-                                                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['prime_paid_upgrade']) ? $chat_alerts['prime_paid_upgrade'] : $default_chat_alerts['prime_paid_upgrade']); ?>">
-                                                                            </div>
-                                                                            <p class="help has-text-grey-light">
-                                                                                <span class="char-count"
-                                                                                    data-field="prime_paid_upgrade">0</span>/255
-                                                                                characters. Placeholders: (user), (tier)
-                                                                            </p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="column is-12">
-                                                                        <div class="field">
-                                                                            <label class="label has-text-white">
-                                                                                <span class="icon mr-1"><i
-                                                                                        class="fas fa-gift"></i></span>
-                                                                                Pay It Forward <span
-                                                                                    class="tag is-warning ml-2">BETA</span>
-                                                                            </label>
-                                                                            <div class="control">
-                                                                                <input class="input chat-alert-input"
-                                                                                    type="text" name="pay_it_forward"
-                                                                                    maxlength="255"
-                                                                                    value="<?php echo htmlspecialchars(isset($chat_alerts['pay_it_forward']) ? $chat_alerts['pay_it_forward'] : $default_chat_alerts['pay_it_forward']); ?>">
-                                                                            </div>
-                                                                            <p class="help has-text-grey-light">
-                                                                                <span class="char-count"
-                                                                                    data-field="pay_it_forward">0</span>/255
-                                                                                characters. Placeholders: (user),
-                                                                                (tier), (gifter)
-                                                                            </p>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <!-- Save All Button -->
-                                                <div class="field mt-6">
-                                                    <div class="control has-text-centered">
-                                                        <button id="save-all-btn" class="button is-success"
-                                                            type="submit"
-                                                            style="padding: 0.75rem 2rem; font-size: 1rem;">
-                                                            <span class="icon mr-2">
-                                                                <i class="fas fa-save"></i>
-                                                            </span>
-                                                            <span><?php echo t('modules_save_all_settings'); ?></span>
-                                                        </button>
-                                                        <p class="help has-text-grey-light mt-2">
-                                                            <?php echo t('modules_save_all_description'); ?>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count"
+                                                                data-field="hype_train_start">0</span>/255
+                                                            characters
                                                         </p>
                                                     </div>
                                                 </div>
-                                            </form>
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i
+                                                                    class="fas fa-stop"></i></span>
+                                                            <?php echo t('modules_hype_train_end'); ?>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input"
+                                                                type="text" name="hype_train_end"
+                                                                maxlength="255"
+                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count"
+                                                                data-field="hype_train_end">0</span>/255
+                                                            characters
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- BETA Features Section -->
+                                        <div class="column is-12">
+                                            <div class="level mb-4">
+                                                <div class="level-left">
+                                                    <h5 class="title is-5 has-text-white mb-0">
+                                                        <span class="icon mr-2"><i class="fas fa-flask"></i></span>
+                                                        BETA Features
+                                                    </h5>
+                                                </div>
+                                                <div class="level-right">
+                                                    <button type="button"
+                                                        class="section-save-btn button is-success is-small"
+                                                        data-section="beta">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span>Save BETA Features</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="notification is-warning is-light mb-4">
+                                                <span class="icon mr-2"><i class="fas fa-flask"></i></span>
+                                                <strong>BETA Features:</strong> These subscription upgrade alerts are currently in beta testing. They use the new Twitch EventSub "Chat Notification" system.
+                                            </div>
+                                            <div class="columns is-multiline">
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i
+                                                                    class="fas fa-arrow-up"></i></span>
+                                                            Gift Paid Upgrade <span
+                                                                class="tag is-warning ml-2">BETA</span>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input"
+                                                                type="text" name="gift_paid_upgrade"
+                                                                maxlength="255"
+                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['gift_paid_upgrade']) ? $chat_alerts['gift_paid_upgrade'] : $default_chat_alerts['gift_paid_upgrade']); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count"
+                                                                data-field="gift_paid_upgrade">0</span>/255
+                                                            characters. Placeholders: (user), (tier)
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="column is-6">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i
+                                                                    class="fas fa-arrow-up"></i></span>
+                                                            Prime Paid Upgrade <span
+                                                                class="tag is-warning ml-2">BETA</span>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input"
+                                                                type="text"
+                                                                name="prime_paid_upgrade"
+                                                                maxlength="255"
+                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['prime_paid_upgrade']) ? $chat_alerts['prime_paid_upgrade'] : $default_chat_alerts['prime_paid_upgrade']); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count"
+                                                                data-field="prime_paid_upgrade">0</span>/255
+                                                            characters. Placeholders: (user), (tier)
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="column is-12">
+                                                    <div class="field">
+                                                        <label class="label has-text-white">
+                                                            <span class="icon mr-1"><i
+                                                                    class="fas fa-gift"></i></span>
+                                                            Pay It Forward <span
+                                                                class="tag is-warning ml-2">BETA</span>
+                                                        </label>
+                                                        <div class="control">
+                                                            <input class="input chat-alert-input"
+                                                                type="text" name="pay_it_forward"
+                                                                maxlength="255"
+                                                                value="<?php echo htmlspecialchars(isset($chat_alerts['pay_it_forward']) ? $chat_alerts['pay_it_forward'] : $default_chat_alerts['pay_it_forward']); ?>">
+                                                        </div>
+                                                        <p class="help has-text-grey-light">
+                                                            <span class="char-count"
+                                                                data-field="pay_it_forward">0</span>/255
+                                                            characters. Placeholders: (user),
+                                                            (tier), (gifter)
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </form>
                     </div>
                     <!-- Automated Shoutouts -->
                     <div class="tab-content" id="automated-shoutouts">
