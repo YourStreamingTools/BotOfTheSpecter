@@ -218,7 +218,8 @@ try {
             ) ENGINE=InnoDB",
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
-                url_blocking VARCHAR(255)
+                url_blocking VARCHAR(500) DEFAULT 'False',
+                term_blocking VARCHAR(500) DEFAULT 'False'
             ) ENGINE=InnoDB",
         'link_whitelist' => "
             CREATE TABLE IF NOT EXISTS link_whitelist (
@@ -229,6 +230,11 @@ try {
             CREATE TABLE IF NOT EXISTS link_blacklisting (
                 link VARCHAR(255),
                 PRIMARY KEY (link)
+            ) ENGINE=InnoDB",
+        'blocked_terms' => "
+            CREATE TABLE IF NOT EXISTS blocked_terms (
+                term VARCHAR(255),
+                PRIMARY KEY (term)
             ) ENGINE=InnoDB",
         'stream_credits' => "
             CREATE TABLE IF NOT EXISTS stream_credits (
@@ -575,9 +581,10 @@ try {
         'seen_today' => ['user_id' => "VARCHAR(255)", 'username' => "VARCHAR(255)"],
         'timed_messages' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'interval_count' => "INT", 'chat_line_trigger' => "INT DEFAULT 5", 'message' => "TEXT", 'status' => "VARCHAR(10) DEFAULT True"],
         'profile' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'timezone' => "VARCHAR(255) DEFAULT NULL", 'weather_location' => "VARCHAR(255) DEFAULT NULL", 'heartrate_code' => "VARCHAR(8) DEFAULT NULL", 'stream_bounty_api_key' => "VARCHAR(255)", 'tanggle_api_token' => "VARCHAR(255) DEFAULT NULL", 'tanggle_community_uuid' => "VARCHAR(255) DEFAULT NULL"],
-        'protection' => ['url_blocking' => "VARCHAR(255)"],
+        'protection' => ['url_blocking' => "VARCHAR(500) DEFAULT 'False'", 'term_blocking' => "VARCHAR(500) DEFAULT 'False'"],
         'link_whitelist' => ['link' => "VARCHAR(255)"],
         'link_blacklisting' => ['link' => "VARCHAR(255)"],
+        'blocked_terms' => ['term' => "VARCHAR(255)"],
         'stream_credits' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255)", 'event' => "VARCHAR(255)", 'data' => "VARCHAR(255)"],
         'message_counts' => ['username' => "VARCHAR(255)", 'message_count' => "INT NOT NULL", 'user_level' => "VARCHAR(255) NOT NULL"],
         'bot_points' => ['user_id' => "VARCHAR(50)", 'user_name' => "VARCHAR(50)", 'points' => "INT DEFAULT 0"],
@@ -701,7 +708,7 @@ try {
         async_log('Default subathon_settings options ensured.');
     }
     // Ensure default options for chat protection
-    if ($usrDBconn->query("INSERT INTO protection (url_blocking) SELECT 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO protection (url_blocking, term_blocking) SELECT 'False', 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default protection options ensured.');
     }
     // Ensure default options for joke command

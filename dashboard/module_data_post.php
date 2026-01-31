@@ -587,6 +587,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     }
+    elseif (isset($_POST['term_blocking'])) {
+        $activeTab = "chat-protection";
+        $term_blocking = $_POST['term_blocking'] == 'True' ? 'True' : 'False';
+        $stmt = $db->prepare("UPDATE protection SET term_blocking = ?");
+        $stmt->bind_param("s", $term_blocking);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Term Blocking setting updated successfully.";
+        } else {
+            $_SESSION['update_message'] = "Failed to update your Term Blocking settings.";
+            error_log("Error updating term blocking: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['blocked_term'])) {
+        $activeTab = "chat-protection";
+        $blocked_term = trim($_POST['blocked_term']);
+        $stmt = $db->prepare("INSERT INTO blocked_terms (term) VALUES (?)");
+        $stmt->bind_param("s", $blocked_term);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Term added to blocked list.";
+        } else {
+            $_SESSION['update_message'] = "Failed to add term to blocked list.";
+            error_log("Error inserting blocked term: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['remove_blocked_term'])) {
+        $activeTab = "chat-protection";
+        $remove_blocked_term = $_POST['remove_blocked_term'];
+        $stmt = $db->prepare("DELETE FROM blocked_terms WHERE term = ?");
+        $stmt->bind_param("s", $remove_blocked_term);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Term removed from blocked list.";
+        } else {
+            $_SESSION['update_message'] = "Failed to remove term from blocked list.";
+            error_log("Error deleting blocked term: " . $db->error);
+        }
+        $stmt->close();
+    }
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
         header("Location: modules.php?tab=" . $activeTab);

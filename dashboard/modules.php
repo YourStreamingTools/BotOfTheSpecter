@@ -232,10 +232,12 @@ $stmt->close();
 
 // Load protection settings
 $currentSettings = 'False';
-$getProtection = $db->query("SELECT url_blocking FROM protection LIMIT 1");
+$termBlockingSettings = 'False';
+$getProtection = $db->query("SELECT url_blocking, term_blocking FROM protection LIMIT 1");
 if ($getProtection) {
     $settings = $getProtection->fetch_assoc();
     $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
+    $termBlockingSettings = isset($settings['term_blocking']) ? $settings['term_blocking'] : 'False';
     $getProtection->free();
 }
 
@@ -256,6 +258,16 @@ if ($getBlacklist) {
         $blacklistLinks[] = $row;
     }
     $getBlacklist->free();
+}
+
+// Fetch blocked terms
+$blockedTerms = [];
+$getBlockedTerms = $db->query("SELECT term FROM blocked_terms");
+if ($getBlockedTerms) {
+    while ($row = $getBlockedTerms->fetch_assoc()) {
+        $blockedTerms[] = $row;
+    }
+    $getBlockedTerms->free();
 }
 
 // Start output buffering for layout
@@ -678,11 +690,11 @@ ob_start();
                                             </ul>
                                         </li>
                                         <li>
-                                            <strong class="has-text-success"><i class="fas fa-toggle-off mr-1"></i> URL Blocking Disabled:</strong>
+                                            <strong style="color: #00947e;"><i class="fas fa-toggle-off mr-1"></i> URL Blocking Disabled:</strong>
                                             Allows all URLs in chat <strong>except</strong> blacklisted ones.
                                         </li>
                                         <li>
-                                            <strong class="has-text-success"><i class="fas fa-check-circle mr-1"></i> Whitelist Supports Regex:</strong>
+                                            <strong style="color: #00947e;"><i class="fas fa-check-circle mr-1"></i> Whitelist Supports Regex:</strong>
                                             Use regular expressions for flexible pattern matching (e.g., <code>.*\.youtube\.com</code> for all YouTube subdomains).
                                         </li>
                                     </ul>
@@ -789,20 +801,31 @@ ob_start();
                                         </h2>
                                         <table class="table is-fullwidth is-bordered is-striped is-hoverable">
                                             <tbody>
-                                                <?php foreach ($whitelistLinks as $link): ?>
+                                                <?php if (empty($whitelistLinks)): ?>
                                                     <tr>
-                                                        <td class="is-size-6"><?php echo htmlspecialchars($link['link']); ?></td>
-                                                        <td class="has-text-right">
-                                                            <form action="module_data_post.php" method="post" style="display:inline;">
-                                                                <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
-                                                                <button type="submit" class="button is-danger is-small is-rounded">
-                                                                    <span class="icon"><i class="fas fa-trash-alt"></i></span>
-                                                                    <span><?php echo t('protection_remove'); ?></span>
-                                                                </button>
-                                                            </form>
+                                                        <td class="has-text-centered has-text-grey-light" colspan="2">
+                                                            <span class="icon-text">
+                                                                <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                                                <span>No whitelisted links configured</span>
+                                                            </span>
                                                         </td>
                                                     </tr>
-                                                <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <?php foreach ($whitelistLinks as $link): ?>
+                                                        <tr>
+                                                            <td class="is-size-6"><?php echo htmlspecialchars($link['link']); ?></td>
+                                                            <td class="has-text-right">
+                                                                <form action="module_data_post.php" method="post" style="display:inline;">
+                                                                    <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                                                    <button type="submit" class="button is-danger is-small is-rounded">
+                                                                        <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                                                                        <span><?php echo t('protection_remove'); ?></span>
+                                                                    </button>
+                                                                </form>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
                                             </tbody>
                                         </table>
                                     </div>
@@ -815,20 +838,167 @@ ob_start();
                                         </h2>
                                         <table class="table is-fullwidth is-bordered is-striped is-hoverable">
                                             <tbody>
-                                                <?php foreach ($blacklistLinks as $link): ?>
+                                                <?php if (empty($blacklistLinks)): ?>
                                                     <tr>
-                                                        <td class="is-size-6"><?php echo htmlspecialchars($link['link']); ?></td>
-                                                        <td class="has-text-right">
-                                                            <form action="module_data_post.php" method="post" style="display:inline;">
-                                                                <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
-                                                                <button type="submit" class="button is-danger is-small is-rounded">
-                                                                    <span class="icon"><i class="fas fa-trash-alt"></i></span>
-                                                                    <span><?php echo t('protection_remove'); ?></span>
-                                                                </button>
-                                                            </form>
+                                                        <td class="has-text-centered has-text-grey-light" colspan="2">
+                                                            <span class="icon-text">
+                                                                <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                                                <span>No blacklisted links configured</span>
+                                                            </span>
                                                         </td>
                                                     </tr>
-                                                <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <?php foreach ($blacklistLinks as $link): ?>
+                                                        <tr>
+                                                            <td class="is-size-6"><?php echo htmlspecialchars($link['link']); ?></td>
+                                                            <td class="has-text-right">
+                                                                <form action="module_data_post.php" method="post" style="display:inline;">
+                                                                    <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
+                                                                    <button type="submit" class="button is-danger is-small is-rounded">
+                                                                        <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                                                                        <span><?php echo t('protection_remove'); ?></span>
+                                                                    </button>
+                                                                </form>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Term Blocking Section (Beta) -->
+                        <div class="module-container mt-6">
+                            <h1 class="title is-3 mb-4">
+                                <span class="icon has-text-warning"><i class="fas fa-comment-slash"></i></span>
+                                Text Term Blocking
+                                <span class="tag is-warning is-light ml-3">Beta - Version 5.8</span>
+                            </h1>
+                            <!-- Term Blocking Information -->
+                            <div class="notification is-warning is-light mb-5">
+                                <h4 class="title is-5 has-text-dark mb-3">
+                                    <span class="icon mr-2"><i class="fas fa-flask"></i></span>
+                                    <strong>Term Blocking System (Beta Feature)</strong>
+                                </h4>
+                                <div class="content has-text-dark">
+                                    <p><strong>How Term Blocking Works:</strong></p>
+                                    <ul>
+                                        <li>
+                                            <strong class="has-text-danger"><i class="fas fa-ban mr-1"></i> Blocked Terms:</strong>
+                                            Messages containing blocked terms will be automatically deleted from chat.
+                                        </li>
+                                        <li>
+                                            <strong class="has-text-link"><i class="fas fa-toggle-on mr-1"></i> When Enabled:</strong>
+                                            Bot will scan all chat messages for blocked terms and remove matching messages instantly.
+                                        </li>
+                                        <li>
+                                            <strong style="color: #00947e;"><i class="fas fa-shield-alt mr-1"></i> Case-Insensitive:</strong>
+                                            Term matching is case-insensitive (e.g., "badword", "BADWORD", "BadWord" all match).
+                                        </li>
+                                    </ul>
+                                    <p class="mt-3 mb-0">
+                                        <span class="icon-text">
+                                            <span class="icon has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
+                                            <span><strong>Note:</strong> This feature is in beta testing. Report any issues via feedback.</span>
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="columns is-multiline is-variable is-5 is-centered">
+                                <!-- Term Blocking Settings -->
+                                <div class="column is-4">
+                                    <div class="card" style="height: 100%;">
+                                        <div class="card-content">
+                                            <div class="has-text-centered mb-4">
+                                                <h3 class="title is-5">
+                                                    <span class="icon has-text-warning"><i class="fas fa-comment-slash"></i></span>
+                                                    Enable Term Blocking
+                                                </h3>
+                                            </div>
+                                            <form action="module_data_post.php" method="post">
+                                                <div class="field">
+                                                    <div class="control">
+                                                        <div class="select is-fullwidth">
+                                                            <select name="term_blocking" id="term_blocking">
+                                                                <option value="True"<?php echo $termBlockingSettings == 'True' ? ' selected' : ''; ?>><?php echo t('yes'); ?></option>
+                                                                <option value="False"<?php echo $termBlockingSettings == 'False' ? ' selected' : ''; ?>><?php echo t('no'); ?></option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="field mt-4">
+                                                    <button type="submit" name="submit" class="button is-primary is-fullwidth">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span><?php echo t('protection_update_btn'); ?></span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Add Blocked Term Form -->
+                                <div class="column is-4">
+                                    <div class="card" style="height: 100%;">
+                                        <div class="card-content">
+                                            <div class="has-text-centered mb-4">
+                                                <h3 class="title is-5">
+                                                    <span class="icon has-text-danger"><i class="fas fa-ban"></i></span>
+                                                    Add Blocked Term
+                                                </h3>
+                                            </div>
+                                            <form action="module_data_post.php" method="post">
+                                                <div class="field">
+                                                    <div class="control has-icons-left">
+                                                        <input class="input" type="text" name="blocked_term" id="blocked_term" placeholder="Enter term to block..." required>
+                                                        <span class="icon is-small is-left"><i class="fas fa-comment-slash"></i></span>
+                                                    </div>
+                                                </div>
+                                                <div class="field mt-4">
+                                                    <button type="submit" name="submit" class="button is-danger is-fullwidth">
+                                                        <span class="icon"><i class="fas fa-minus-circle"></i></span>
+                                                        <span>Add to Blocked Terms</span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Blocked Terms Table -->
+                                <div class="column is-8">
+                                    <div class="box">
+                                        <h2 class="subtitle is-5 mb-3">
+                                            <span class="icon has-text-danger"><i class="fas fa-list-ul"></i></span>
+                                            Blocked Terms List
+                                        </h2>
+                                        <table class="table is-fullwidth is-bordered is-striped is-hoverable">
+                                            <tbody>
+                                                <?php if (empty($blockedTerms)): ?>
+                                                    <tr>
+                                                        <td class="has-text-centered has-text-grey-light" colspan="2">
+                                                            <span class="icon-text">
+                                                                <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                                                <span>No blocked terms configured</span>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                <?php else: ?>
+                                                    <?php foreach ($blockedTerms as $term): ?>
+                                                        <tr>
+                                                            <td class="is-size-6"><?php echo htmlspecialchars($term['term']); ?></td>
+                                                            <td class="has-text-right">
+                                                                <form action="module_data_post.php" method="post" style="display:inline;">
+                                                                    <input type="hidden" name="remove_blocked_term" value="<?php echo htmlspecialchars($term['term']); ?>">
+                                                                    <button type="submit" class="button is-danger is-small is-rounded">
+                                                                        <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                                                                        <span>Remove</span>
+                                                                    </button>
+                                                                </form>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
                                             </tbody>
                                         </table>
                                     </div>
@@ -2401,7 +2571,15 @@ ob_start();
         whitelistInput.addEventListener('input', function() {
             // Clear any existing timeout
             clearTimeout(whitelistCheckTimeout);
-            // Reset state
+            // Check for spaces FIRST using raw value - immediate validation
+            if (whitelistInput.value.includes(' ')) {
+                whitelistInput.classList.add('is-danger');
+                whitelistErrorMessage.textContent = 'No spaces allowed in URLs.';
+                whitelistErrorMessage.style.display = 'block';
+                whitelistButton.disabled = true;
+                return;
+            }
+            // Reset state only if no spaces
             whitelistInput.classList.remove('is-danger');
             whitelistErrorMessage.style.display = 'none';
             whitelistButton.disabled = false;
@@ -2423,6 +2601,26 @@ ob_start();
                     if (data.matches === true) {
                         // Show error state
                         whitelistInput.classList.add('is-danger');
+                        whitelistErrorMessage.textContent = "Can't whitelist a globally blocked term";
+                        whitelistErrorMessage.style.display = 'block';
+                        whitelistButton.disabled = true;
+                        return;
+                    }
+                    // If spam check passes, check if URL is in blacklist
+                    const conflictData = new FormData();
+                    conflictData.append('link', linkValue);
+                    conflictData.append('check_list', 'blacklist');
+                    return fetch('check_url_conflict.php', {
+                        method: 'POST',
+                        body: conflictData
+                    });
+                })
+                .then(response => response ? response.json() : null)
+                .then(data => {
+                    if (data && data.exists === true) {
+                        // URL already in blacklist
+                        whitelistInput.classList.add('is-danger');
+                        whitelistErrorMessage.textContent = 'This URL is already in your blacklist.';
                         whitelistErrorMessage.style.display = 'block';
                         whitelistButton.disabled = true;
                     }
@@ -2455,7 +2653,15 @@ ob_start();
         blacklistInput.addEventListener('input', function() {
             // Clear any existing timeout
             clearTimeout(blacklistCheckTimeout);
-            // Reset state
+            // Check for spaces FIRST using raw value - immediate validation
+            if (blacklistInput.value.includes(' ')) {
+                blacklistInput.classList.add('is-danger');
+                blacklistErrorMessage.textContent = 'No spaces allowed in URLs.';
+                blacklistErrorMessage.style.display = 'block';
+                blacklistButton.disabled = true;
+                return;
+            }
+            // Reset state only if no spaces
             blacklistInput.classList.remove('is-danger');
             blacklistErrorMessage.style.display = 'none';
             blacklistButton.disabled = false;
@@ -2477,6 +2683,26 @@ ob_start();
                     if (data.matches === true) {
                         // Show error state
                         blacklistInput.classList.add('is-danger');
+                        blacklistErrorMessage.textContent = 'Globally Blocked, unable to add to personal block list';
+                        blacklistErrorMessage.style.display = 'block';
+                        blacklistButton.disabled = true;
+                        return;
+                    }
+                    // If spam check passes, check if URL is in whitelist
+                    const conflictData = new FormData();
+                    conflictData.append('link', linkValue);
+                    conflictData.append('check_list', 'whitelist');
+                    return fetch('check_url_conflict.php', {
+                        method: 'POST',
+                        body: conflictData
+                    });
+                })
+                .then(response => response ? response.json() : null)
+                .then(data => {
+                    if (data && data.exists === true) {
+                        // URL already in whitelist
+                        blacklistInput.classList.add('is-danger');
+                        blacklistErrorMessage.textContent = 'This URL is already in your whitelist.';
                         blacklistErrorMessage.style.display = 'block';
                         blacklistButton.disabled = true;
                     }
@@ -2489,6 +2715,69 @@ ob_start();
         // Also validate on form submit as a safety check
         blacklistForm.addEventListener('submit', function(e) {
             if (blacklistInput.classList.contains('is-danger')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+    // Blocked term validation against spam patterns, whitelist, and blacklist
+    const blockedTermInput = document.getElementById('blocked_term');
+    const blockedTermForm = blockedTermInput ? blockedTermInput.closest('form') : null;
+    const blockedTermButton = blockedTermForm ? blockedTermForm.querySelector('button[type="submit"]') : null;
+    let blockedTermCheckTimeout = null;
+    if (blockedTermInput && blockedTermButton && blockedTermForm) {
+        // Create error message element
+        const blockedTermErrorMessage = document.createElement('p');
+        blockedTermErrorMessage.className = 'help is-danger mt-2';
+        blockedTermErrorMessage.style.display = 'none';
+        blockedTermErrorMessage.textContent = '';
+        blockedTermInput.parentElement.parentElement.appendChild(blockedTermErrorMessage);
+        blockedTermInput.addEventListener('input', function() {
+            // Clear any existing timeout
+            clearTimeout(blockedTermCheckTimeout);
+            // Check for spaces FIRST using raw value (before trim) - immediate validation
+            if (blockedTermInput.value.includes(' ')) {
+                blockedTermInput.classList.add('is-danger');
+                blockedTermErrorMessage.textContent = 'Only one word per entry allowed. No spaces permitted.';
+                blockedTermErrorMessage.style.display = 'block';
+                blockedTermButton.disabled = true;
+                return;
+            }
+            // Reset state only if no spaces
+            blockedTermInput.classList.remove('is-danger');
+            blockedTermErrorMessage.style.display = 'none';
+            blockedTermButton.disabled = false;
+            const termValue = blockedTermInput.value.trim();
+            if (termValue.length === 0) {
+                return;
+            }
+            // Debounce: wait 500ms after user stops typing
+            blockedTermCheckTimeout = setTimeout(function() {
+                // Check against spam patterns, whitelist, and blacklist
+                const formData = new FormData();
+                formData.append('term', termValue);
+                fetch('check_blocked_term.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.valid === false) {
+                        // Show error state with appropriate message
+                        blockedTermInput.classList.add('is-danger');
+                        blockedTermErrorMessage.textContent = data.message;
+                        blockedTermErrorMessage.style.display = 'block';
+                        blockedTermButton.disabled = true;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking blocked term:', error);
+                });
+            }, 500);
+        });
+        // Also validate on form submit as a safety check
+        blockedTermForm.addEventListener('submit', function(e) {
+            if (blockedTermInput.classList.contains('is-danger')) {
                 e.preventDefault();
                 return false;
             }
