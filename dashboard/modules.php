@@ -1465,7 +1465,6 @@ ob_start();
                                                     <th class="has-text-white">User</th>
                                                     <th class="has-text-white">Last Shoutout</th>
                                                     <th class="has-text-white">Cooldown Remaining</th>
-                                                    <th class="has-text-white">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1489,31 +1488,11 @@ ob_start();
                                                                     min</span>
                                                             <?php endif; ?>
                                                         </td>
-                                                        <td>
-                                                            <form method="POST" action="module_data_post.php"
-                                                                style="display: inline;">
-                                                                <input type="hidden" name="remove_shoutout_cooldown"
-                                                                    value="<?php echo htmlspecialchars($tracking['user_id']); ?>">
-                                                                <button type="submit" class="button is-small is-danger"
-                                                                    onclick="return confirm('Remove cooldown for <?php echo htmlspecialchars($tracking['user_name']); ?>?');">
-                                                                    <span class="icon"><i class="fas fa-times"></i></span>
-                                                                    <span>Remove</span>
-                                                                </button>
-                                                            </form>
-                                                        </td>
                                                         </tr>
                                                     <?php endforeach; ?>
                                             </tbody>
                                         </table>
                                     </div>
-                                    <form method="POST" action="module_data_post.php" class="mt-4">
-                                        <input type="hidden" name="clear_all_shoutout_cooldowns" value="1">
-                                        <button type="submit" class="button is-danger"
-                                            onclick="return confirm('Clear all automated shoutout cooldowns? This will allow all users to receive automated shoutouts again immediately.');">
-                                            <span class="icon"><i class="fas fa-trash-alt"></i></span>
-                                            <span>Clear All Cooldowns</span>
-                                        </button>
-                                    </form>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -2140,10 +2119,6 @@ ob_start();
             if (tableContainer) {
                 tableContainer.style.display = 'none';
             }
-            const clearAllForm = document.querySelector('#automated-shoutouts form[action="module_data_post.php"].mt-4');
-            if (clearAllForm) {
-                clearAllForm.style.display = 'none';
-            }
         } else {
             // Hide notification, show table
             if (noDataNotification) {
@@ -2152,10 +2127,6 @@ ob_start();
             const tableContainer = tableBody.closest('.table-container');
             if (tableContainer) {
                 tableContainer.style.display = 'block';
-            }
-            const clearAllForm = document.querySelector('#automated-shoutouts form[action="module_data_post.php"].mt-4');
-            if (clearAllForm) {
-                clearAllForm.style.display = 'block';
             }
             // Update table rows
             let html = '';
@@ -2170,15 +2141,6 @@ ob_start();
                         <td>${escapeHtml(tracking.user_name)}</td>
                         <td>${tracking.shoutout_time}</td>
                         <td>${statusTag}</td>
-                        <td>
-                            <form method="POST" action="module_data_post.php" style="display: inline;">
-                                <input type="hidden" name="remove_shoutout_cooldown" value="${escapeHtml(tracking.user_id)}">
-                                <button type="submit" class="button is-small is-danger" onclick="return confirm('Remove cooldown for ${escapeHtml(tracking.user_name)}?');">
-                                    <span class="icon"><i class="fas fa-times"></i></span>
-                                    <span>Remove</span>
-                                </button>
-                            </form>
-                        </td>
                     </tr>
                 `;
             });
