@@ -2386,6 +2386,114 @@ ob_start();
     document.addEventListener('DOMContentLoaded', function() {
         handleTabChange();
     });
+    // Whitelist link validation against spam patterns
+    const whitelistInput = document.getElementById('whitelist_link');
+    const whitelistForm = whitelistInput ? whitelistInput.closest('form') : null;
+    const whitelistButton = whitelistForm ? whitelistForm.querySelector('button[type="submit"]') : null;
+    let whitelistCheckTimeout = null;
+    if (whitelistInput && whitelistButton && whitelistForm) {
+        // Create error message element
+        const whitelistErrorMessage = document.createElement('p');
+        whitelistErrorMessage.className = 'help is-danger mt-2';
+        whitelistErrorMessage.style.display = 'none';
+        whitelistErrorMessage.textContent = "Can't whitelist a globally blocked term";
+        whitelistInput.parentElement.parentElement.appendChild(whitelistErrorMessage);
+        whitelistInput.addEventListener('input', function() {
+            // Clear any existing timeout
+            clearTimeout(whitelistCheckTimeout);
+            // Reset state
+            whitelistInput.classList.remove('is-danger');
+            whitelistErrorMessage.style.display = 'none';
+            whitelistButton.disabled = false;
+            const linkValue = whitelistInput.value.trim();
+            if (linkValue.length === 0) {
+                return;
+            }
+            // Debounce: wait 500ms after user stops typing
+            whitelistCheckTimeout = setTimeout(function() {
+                // Check against spam patterns
+                const formData = new FormData();
+                formData.append('link', linkValue);
+                fetch('check_spam_pattern.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.matches === true) {
+                        // Show error state
+                        whitelistInput.classList.add('is-danger');
+                        whitelistErrorMessage.style.display = 'block';
+                        whitelistButton.disabled = true;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking spam pattern:', error);
+                });
+            }, 500);
+        });
+        // Also validate on form submit as a safety check
+        whitelistForm.addEventListener('submit', function(e) {
+            if (whitelistInput.classList.contains('is-danger')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+    // Blacklist link validation against spam patterns
+    const blacklistInput = document.getElementById('blacklist_link');
+    const blacklistForm = blacklistInput ? blacklistInput.closest('form') : null;
+    const blacklistButton = blacklistForm ? blacklistForm.querySelector('button[type="submit"]') : null;
+    let blacklistCheckTimeout = null;
+    if (blacklistInput && blacklistButton && blacklistForm) {
+        // Create error message element
+        const blacklistErrorMessage = document.createElement('p');
+        blacklistErrorMessage.className = 'help is-danger mt-2';
+        blacklistErrorMessage.style.display = 'none';
+        blacklistErrorMessage.textContent = 'Globally Blocked, unable to add to personal block list';
+        blacklistInput.parentElement.parentElement.appendChild(blacklistErrorMessage);
+        blacklistInput.addEventListener('input', function() {
+            // Clear any existing timeout
+            clearTimeout(blacklistCheckTimeout);
+            // Reset state
+            blacklistInput.classList.remove('is-danger');
+            blacklistErrorMessage.style.display = 'none';
+            blacklistButton.disabled = false;
+            const linkValue = blacklistInput.value.trim();
+            if (linkValue.length === 0) {
+                return;
+            }
+            // Debounce: wait 500ms after user stops typing
+            blacklistCheckTimeout = setTimeout(function() {
+                // Check against spam patterns
+                const formData = new FormData();
+                formData.append('link', linkValue);
+                fetch('check_spam_pattern.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.matches === true) {
+                        // Show error state
+                        blacklistInput.classList.add('is-danger');
+                        blacklistErrorMessage.style.display = 'block';
+                        blacklistButton.disabled = true;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking spam pattern:', error);
+                });
+            }, 500);
+        });
+        // Also validate on form submit as a safety check
+        blacklistForm.addEventListener('submit', function(e) {
+            if (blacklistInput.classList.contains('is-danger')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
 </script>
 <?php
 $scripts = ob_get_clean();
