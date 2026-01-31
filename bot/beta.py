@@ -202,6 +202,8 @@ song_requests = {}                                      # Tracks song request fr
 looped_tasks = {}                                       # Set for looped tasks
 active_timed_messages = {}                              # Dictionary to track active timed message IDs and their details
 message_tasks = {}                                      # Dictionary to track individual message tasks by ID
+gift_sub_recipients = {}                                # Tracks users who received gift subs to prevent duplicate notifications
+GIFT_SUB_TRACKING_DURATION = 30                         # Seconds to track gift recipients
 
 # Initialize global variables
 specterSocket = AsyncClient()                           # Specter Socket Client instance
@@ -957,12 +959,25 @@ async def process_twitch_eventsub_message(message):
                         sub_data = event_data.get("sub", {})
                         tier = sub_data.get("sub_tier")
                         tier_name = tier_mapping.get(tier, tier)
-                        create_task(process_subscription_event(
-                            event_data["chatter_user_id"],
-                            event_data["chatter_user_name"],
-                            tier_name,
-                            1  # New sub is always month 1
-                        ))
+                        user_id = event_data["chatter_user_id"]
+                        # Check if this user recently received a gift sub
+                        current_time = time.time()
+                        should_skip = False
+                        if user_id in gift_sub_recipients:
+                            # Check if the gift was recent (within tracking duration)
+                            if current_time - gift_sub_recipients[user_id] < GIFT_SUB_TRACKING_DURATION:
+                                event_logger.info(f"Skipping duplicate sub notification for {event_data['chatter_user_name']} - already announced via gift event")
+                                should_skip = True
+                            # Clean up the entry (whether old or recent)
+                            del gift_sub_recipients[user_id]
+                        # Only process if not a duplicate from gift
+                        if not should_skip:
+                            create_task(process_subscription_event(
+                                user_id,
+                                event_data["chatter_user_name"],
+                                tier_name,
+                                1  # New sub is always month 1
+                            ))
                     elif notice_type == "resub":
                         resub_data = event_data.get("resub", {})
                         tier = resub_data.get("sub_tier")
@@ -987,6 +1002,10 @@ async def process_twitch_eventsub_message(message):
                         sub_gift_data = event_data.get("sub_gift", {})
                         tier = sub_gift_data.get("sub_tier")
                         tier_name = tier_mapping.get(tier, tier)
+                        recipient_user_id = sub_gift_data.get("recipient_user_id")
+                        # Track the recipient to prevent duplicate sub notification
+                        if recipient_user_id:
+                            gift_sub_recipients[recipient_user_id] = time.time()
                         create_task(process_giftsub_event(
                             event_data["chatter_user_name"],
                             tier_name,
@@ -1416,25 +1435,17 @@ async def process_twitch_eventsub_message(message):
                         global shoutout_user
                         user_id = event_data['to_broadcaster_user_id']
                         user_to_shoutout = event_data['to_broadcaster_user_name']
-                        if shoutout_user.lower() == user_to_shoutout.lower():
+                        # Check if this shoutout was triggered by a command (stored in shoutout_user dict)
+                        if user_to_shoutout in shoutout_user:
+                            twitch_logger.info(f"Skipping EventSub shoutout message for {user_to_shoutout} - command-triggered shoutout already sent message.")
                             return
-                        game = await get_latest_stream_game(user_id, user_to_shoutout)
-                        if not game:
-                            shoutout_message = (
-                                f"Hey, huge shoutout to @{user_to_shoutout}! "
-                                f"You should go give them a follow over at "
-                                f"https://www.twitch.tv/{user_to_shoutout}"
-                            )
-                        else:
-                            shoutout_message = (
-                                f"Hey, huge shoutout to @{user_to_shoutout}! "
-                                f"You should go give them a follow over at "
-                                f"https://www.twitch.tv/{user_to_shoutout} where they were playing: {game}"
-                            )
+                        # This is a manual/UI-triggered shoutout, send a chat message
+                        twitch_logger.info(f"Processing manual/UI-triggered shoutout for {user_to_shoutout}")
+                        shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "eventsub")
                     elif event_type == "channel.shoutout.receive":
                         shoutout_message = f"@{event_data['from_broadcaster_user_name']} has given @{CHANNEL_NAME} a shoutout."
                     else:
-                        shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct inforamtion from twitch to process the request."
+                        shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct information from twitch to process the request."
                     await send_chat_message(shoutout_message)
                     twitch_logger.info(f"Shoutout message sent: {shoutout_message}")
                 elif event_type == "channel.chat.message":
@@ -2378,50 +2389,74 @@ class TwitchBot(commands.Bot):
                 send_warning = False
                 async with await mysql_handler.get_connection() as connection:
                     async with connection.cursor(DictCursor) as cursor:
-                         # Check blacklist
+                        # ALWAYS check blacklist first - blacklisted URLs are blocked regardless of URL blocking setting
                         await cursor.execute('SELECT link FROM link_blacklisting')
                         blacklist_result = await cursor.fetchall()
                         blacklisted_links = [row['link'] for row in blacklist_result] if blacklist_result else []
-                        contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links)
+                        contains_blacklisted_link = await match_domain_or_link(AuthorMessage, blacklisted_links, use_regex=False)
                         if contains_blacklisted_link:
                             should_delete = True
                             alert_mods = True
+                            chat_logger.info(f"Blacklisted URL detected in message from {messageAuthor}")
                         else:
-                            # Check URL blocking
+                            # Check URL blocking setting (only if not blacklisted)
                             await cursor.execute('SELECT url_blocking FROM protection')
                             result = await cursor.fetchone()
                             url_blocking = bool(result.get("url_blocking")) if result else False
                             if url_blocking:
-                                # Permission checks (no DB needed)
-                                is_permitted = False
+                                # Check if user is mod or streamer (bypass URL blocking for privileged users)
+                                is_privileged = False
                                 if messageAuthor in permitted_users and time.time() < permitted_users[messageAuthor]:
-                                    is_permitted = True
+                                    is_privileged = True
                                 elif await command_permissions("mod", message.author):
-                                    is_permitted = True
-                                if not is_permitted:
-                                    # Fetch whitelist
+                                    is_privileged = True
+                                if is_privileged:
+                                    chat_logger.info(f"URL found in message from {messageAuthor}, allowed due to mod/streamer privilege.")
+                                else:
+                                    # Fetch whitelist (regex patterns)
                                     await cursor.execute('SELECT link FROM link_whitelist')
                                     whitelist_result = await cursor.fetchall()
-                                    whitelisted_links = [row['link'] for row in whitelist_result] if whitelist_result else []
-                                    contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_links)
-                                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage
+                                    whitelisted_patterns = [row['link'] for row in whitelist_result] if whitelist_result else []
+                                    contains_whitelisted_link = await match_domain_or_link(AuthorMessage, whitelisted_patterns, use_regex=True)
+                                    contains_twitch_clip_link = 'https://clips.twitch.tv/' in AuthorMessage or 'https://www.twitch.tv/' in AuthorMessage
                                     if not contains_whitelisted_link and not contains_twitch_clip_link:
                                         should_delete = True
                                         send_warning = True
+                                        chat_logger.info(f"Non-whitelisted URL detected in message from {messageAuthor}")
                                     else:
-                                        chat_logger.info(f"URL found in message from {messageAuthor}, not deleted due to being whitelisted or a Twitch clip link.")
+                                        chat_logger.info(f"URL found in message from {messageAuthor}, allowed due to whitelist match or Twitch link.")
                             else:
-                                chat_logger.info(f"URL found in message from {messageAuthor}, but URL blocking is disabled.")
-                if should_delete:
-                    await message.delete()
-                    if alert_mods:
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
-                        await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
-                        return
-                    if send_warning:
-                        chat_logger.info(f"Deleted message from {messageAuthor} containing a URL: {AuthorMessage}")
-                        await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
-                        return
+                                chat_logger.info(f"URL found in message from {messageAuthor}, allowed because URL blocking is disabled.")
+            # Check for blocked terms (independent of URL blocking)
+            try:
+                await cursor.execute('SELECT term_blocking FROM protection')
+                result = await cursor.fetchone()
+                term_blocking = result.get("term_blocking") == 'True' if result else False
+                if term_blocking:
+                    # Fetch blocked terms
+                    await cursor.execute('SELECT term FROM blocked_terms')
+                    blocked_terms_result = await cursor.fetchall()
+                    blocked_terms = [row['term'].lower() for row in blocked_terms_result] if blocked_terms_result else []
+                    if blocked_terms:
+                        message_lower = messageContent.lower()
+                        for term in blocked_terms:
+                            if term in message_lower:
+                                should_delete = True
+                                chat_logger.info(f"Blocked term '{term}' detected in message from {messageAuthor}")
+                                await send_chat_message(f"{messageAuthor}, your message contained a blocked term and has been removed.")
+                                break
+            except Exception as term_error:
+                chat_logger.error(f"Error checking blocked terms: {term_error}")
+            if should_delete:
+                await message.delete()
+                if alert_mods:
+                    chat_logger.info(f"Deleted message from {messageAuthor} containing a blacklisted URL: {AuthorMessage}")
+                    await send_chat_message(f"Code Red! Link escapee! Mods have been alerted and are on the hunt for the missing URL.")
+                    return
+                if send_warning:
+                    chat_logger.info(f"Deleted message from {messageAuthor} containing a non-whitelisted URL: {AuthorMessage}")
+                    await send_chat_message(f"{messageAuthor}, whoa there! We appreciate you sharing, but links aren't allowed in chat without a mod's okay.")
+                    return
         except Exception as e:
             if isinstance(e, AttributeError) and "NoneType" in str(e):
                 pass
@@ -8004,18 +8039,18 @@ async def shoutout_worker():
     while True:
         user_to_shoutout, user_id, is_automated = await shoutout_queue.get()
         now = time_right_now()
-        # Check global cooldown
-        if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
-            wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
-            twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
-            await sleep(wait_time)
-        # Check user-specific cooldown
+        # Check user-specific cooldown FIRST (before waiting for global cooldown)
         if user_id in shoutout_tracker:
             last_user_shoutout_time = shoutout_tracker[user_id]
             if now - last_user_shoutout_time < TWITCH_SHOUTOUT_USER_COOLDOWN:
                 twitch_logger.info(f"Skipping shoutout for {user_to_shoutout}. User-specific cooldown in effect.")
                 shoutout_queue.task_done()
                 continue
+        # Check global cooldown (only if user passed per-user cooldown check)
+        if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
+            wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
+            twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
+            await sleep(wait_time)
         # Trigger the shoutout
         await trigger_twitch_shoutout(user_to_shoutout, user_id)
         twitch_logger.info(f"Shoutout sent for {user_to_shoutout}.")
@@ -10540,11 +10575,32 @@ async def make_stream_marker(description: str):
         return False
 
 # Function to check if a URL or domain matches whitelisted or blacklisted URLs
-async def match_domain_or_link(message, domain_list):
-    for domain in domain_list:
-        pattern = re.escape(domain)
-        if re.search(rf"(https?://)?(www\.)?{pattern}(\/|$)", message):
-            return True
+async def match_domain_or_link(message, domain_list, use_regex=False):
+    """
+    Check if a message contains URLs matching patterns in the domain list.
+    
+    Args:
+        message: The message text to check
+        domain_list: List of patterns to match against
+        use_regex: If True, treat patterns as regex. If False, treat as literal domains.
+    
+    Returns:
+        True if a match is found, False otherwise
+    """
+    for pattern in domain_list:
+        if use_regex:
+            # Use pattern as-is for regex matching
+            try:
+                if re.search(pattern, message, re.IGNORECASE):
+                    return True
+            except re.error as e:
+                chat_logger.error(f"Invalid regex pattern '{pattern}': {e}")
+                continue
+        else:
+            # Escape pattern for literal domain matching
+            escaped_pattern = re.escape(pattern)
+            if re.search(rf"(https?://)?(www\.)?{escaped_pattern}(\/|$)", message, re.IGNORECASE):
+                return True
     return False
 
 # Function(s) to track watch time for users in active channel
@@ -10831,6 +10887,7 @@ def can_send_ad_message():
         return True
     except Exception:
         return True
+
 async def handle_ad_break_start(duration_seconds):
     settings = await get_ad_settings()
     # Honor global ad-notice toggle — if disabled, do nothing (same behavior as main bot)
@@ -10864,6 +10921,9 @@ async def handle_ad_break_start(duration_seconds):
                         content = f.read()
                         if content:
                             chat_history = json.loads(content)
+                            # Filter out only timed messages for AI context (keep command responses)
+                            timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
+                            chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
                 except Exception as e:
                     event_logger.error(f"Error reading chat history: {e}")
                 # Clear the file IMMEDIATELY after reading
@@ -10903,6 +10963,17 @@ async def handle_ad_break_start(duration_seconds):
                 user_content = "This is the FIRST ad break (automated start-of-stream). Welcome everyone in! Mention we are getting these automated ads out of the way early so we can enjoy the stream. Keep the vibe high and welcoming."
             else:
                 user_content = "An ad break is starting now. Let viewers know we're taking a break and will be back shortly. "
+            # Add stream context (title and game) for better AI awareness
+            try:
+                recent_activity = ""
+                if 'stream_title' in globals() and stream_title:
+                    recent_activity += f"Stream title: {stream_title}. "
+                if 'current_game' in globals() and current_game:
+                    recent_activity += f"Current category: {current_game}. "
+                if recent_activity:
+                    user_content += f"Stream context: {recent_activity}"
+            except Exception:
+                pass
             user_content += "Here's what happened in chat recently that you can reference (but keep it brief and fun). Chat logs:\n"
             for entry in chat_history:
                 user_content += f"{entry.get('user', 'User')}: {entry.get('message', '')}\n"
@@ -11013,6 +11084,9 @@ async def handle_ad_break_start(duration_seconds):
                             content = f.read()
                             if content:
                                 chat_history = json.loads(content)
+                                # Filter out only timed messages for AI context (keep command responses)
+                                timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
+                                chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
                 except Exception as e:
                     event_logger.error(f"Error reading ad break chat history for ad end: {e}")
                 # Build a short recent-activity context from global vars (if available)
@@ -11024,7 +11098,6 @@ async def handle_ad_break_start(duration_seconds):
                         recent_activity += f"Current category: {current_game}. "
                 except Exception:
                     recent_activity = ""
-
                 user_content = "Ads are done. Welcome everyone back to the stream! Get them hyped for more content."
                 if recent_activity:
                     user_content += f" Recent activity: {recent_activity}"
@@ -11554,6 +11627,24 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
     except Exception as e:
         event_logger.error(f"Error processing chat message event for {user_name}: {e}")
 
+async def cleanup_gift_sub_tracking():
+    global gift_sub_recipients
+    while True:
+        try:
+            await sleep(60)  # Run cleanup every minute
+            current_time = time.time()
+            # Remove entries older than tracking duration
+            expired_ids = [
+                user_id for user_id, timestamp in gift_sub_recipients.items()
+                if current_time - timestamp > GIFT_SUB_TRACKING_DURATION
+            ]
+            for user_id in expired_ids:
+                del gift_sub_recipients[user_id]
+            if expired_ids:
+                event_logger.debug(f"Cleaned up {len(expired_ids)} expired gift sub tracking entries")
+        except Exception as e:
+            event_logger.error(f"Error in gift sub tracking cleanup: {e}")
+
 # Determine the correct OAuth token based on mode
 if CUSTOM_MODE:
     # In custom or self mode, use the channel's auth token as the bot token
@@ -11594,6 +11685,9 @@ def start_bot():
     system_logger.info(f"Version: {VERSION}")
     system_logger.info(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     system_logger.info("===== Initialization Complete =====")
+    # Start background cleanup task for gift sub tracking
+    create_task(cleanup_gift_sub_tracking())
+    system_logger.info("Started gift sub tracking cleanup task")
     # Start the bot
     BOTS_TWITCH_BOT.run()
 
