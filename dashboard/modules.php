@@ -2113,6 +2113,110 @@ ob_start();
         loadTab(initialTab);
         // ... existing code ...
     });
+    // Auto-refresh automated shoutout cooldowns every 15 seconds
+    let shoutoutRefreshInterval = null;
+    function refreshShoutoutCooldowns() {
+        fetch('get_shoutout_cooldowns.php')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.tracking) {
+                    updateShoutoutCooldownTable(data);
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing shoutout cooldowns:', error);
+            });
+    }
+    function updateShoutoutCooldownTable(data) {
+        const tableBody = document.querySelector('#automated-shoutouts tbody');
+        const noDataNotification = document.querySelector('#automated-shoutouts .notification.is-info');
+        if (!tableBody) return;
+        if (data.tracking.length === 0) {
+            // Show "no data" notification if exists, hide table
+            if (noDataNotification) {
+                noDataNotification.style.display = 'block';
+            }
+            const tableContainer = tableBody.closest('.table-container');
+            if (tableContainer) {
+                tableContainer.style.display = 'none';
+            }
+            const clearAllForm = document.querySelector('#automated-shoutouts form[action="module_data_post.php"].mt-4');
+            if (clearAllForm) {
+                clearAllForm.style.display = 'none';
+            }
+        } else {
+            // Hide notification, show table
+            if (noDataNotification) {
+                noDataNotification.style.display = 'none';
+            }
+            const tableContainer = tableBody.closest('.table-container');
+            if (tableContainer) {
+                tableContainer.style.display = 'block';
+            }
+            const clearAllForm = document.querySelector('#automated-shoutouts form[action="module_data_post.php"].mt-4');
+            if (clearAllForm) {
+                clearAllForm.style.display = 'block';
+            }
+            // Update table rows
+            let html = '';
+            data.tracking.forEach(tracking => {
+                const isExpired = tracking.is_expired;
+                const rowClass = isExpired ? ' class="has-text-grey"' : '';
+                const statusTag = isExpired 
+                    ? '<span class="tag is-success">Ready</span>'
+                    : `<span class="tag is-warning">${tracking.remaining_minutes} min</span>`;
+                html += `
+                    <tr${rowClass}>
+                        <td>${escapeHtml(tracking.user_name)}</td>
+                        <td>${tracking.shoutout_time}</td>
+                        <td>${statusTag}</td>
+                        <td>
+                            <form method="POST" action="module_data_post.php" style="display: inline;">
+                                <input type="hidden" name="remove_shoutout_cooldown" value="${escapeHtml(tracking.user_id)}">
+                                <button type="submit" class="button is-small is-danger" onclick="return confirm('Remove cooldown for ${escapeHtml(tracking.user_name)}?');">
+                                    <span class="icon"><i class="fas fa-times"></i></span>
+                                    <span>Remove</span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                `;
+            });
+            tableBody.innerHTML = html;
+        }
+    }
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    // Start/stop refresh based on active tab
+    function handleTabChange() {
+        const automatedShoutoutsTab = document.getElementById('automated-shoutouts');
+        if (automatedShoutoutsTab && automatedShoutoutsTab.style.display !== 'none') {
+            // Start refreshing when on automated shoutouts tab
+            if (!shoutoutRefreshInterval) {
+                refreshShoutoutCooldowns(); // Refresh immediately
+                shoutoutRefreshInterval = setInterval(refreshShoutoutCooldowns, 15000); // Then every 15 seconds
+            }
+        } else {
+            // Stop refreshing when not on the tab
+            if (shoutoutRefreshInterval) {
+                clearInterval(shoutoutRefreshInterval);
+                shoutoutRefreshInterval = null;
+            }
+        }
+    }
+    // Override the loadTab function to handle refresh
+    const originalLoadTab = loadTab;
+    loadTab = function(tabName) {
+        originalLoadTab(tabName);
+        handleTabChange();
+    };
+    // Start refresh if we're initially on the automated shoutouts tab
+    document.addEventListener('DOMContentLoaded', function() {
+        handleTabChange();
+    });
 </script>
 <?php
 $scripts = ob_get_clean();
