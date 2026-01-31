@@ -521,6 +521,72 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     }
+    // Handle Chat Protection Settings
+    elseif (isset($_POST['url_blocking'])) {
+        $activeTab = "chat-protection";
+        $url_blocking = $_POST['url_blocking'] == 'True' ? 'True' : 'False';
+        $stmt = $db->prepare("UPDATE protection SET url_blocking = ?");
+        $stmt->bind_param("s", $url_blocking);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "URL Blocking setting updated successfully.";
+        } else {
+            $_SESSION['update_message'] = "Failed to update your URL Blocking settings.";
+            error_log("Error updating URL blocking: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['whitelist_link'])) {
+        $activeTab = "chat-protection";
+        $whitelist_link = $_POST['whitelist_link'];
+        $stmt = $db->prepare("INSERT INTO link_whitelist (link) VALUES (?)");
+        $stmt->bind_param("s", $whitelist_link);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Link added to the whitelist.";
+        } else {
+            $_SESSION['update_message'] = "Failed to add the link to the whitelist.";
+            error_log("Error inserting whitelist link: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['blacklist_link'])) {
+        $activeTab = "chat-protection";
+        $blacklist_link = $_POST['blacklist_link'];
+        $stmt = $db->prepare("INSERT INTO link_blacklisting (link) VALUES (?)");
+        $stmt->bind_param("s", $blacklist_link);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Link added to the blacklist.";
+        } else {
+            $_SESSION['update_message'] = "Failed to add the link to the blacklist.";
+            error_log("Error inserting blacklist link: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['remove_whitelist_link'])) {
+        $activeTab = "chat-protection";
+        $remove_whitelist_link = $_POST['remove_whitelist_link'];
+        $stmt = $db->prepare("DELETE FROM link_whitelist WHERE link = ?");
+        $stmt->bind_param("s", $remove_whitelist_link);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Link removed from the whitelist.";
+        } else {
+            $_SESSION['update_message'] = "Failed to remove the link from the whitelist.";
+            error_log("Error deleting whitelist link: " . $db->error);
+        }
+        $stmt->close();
+    }
+    elseif (isset($_POST['remove_blacklist_link'])) {
+        $activeTab = "chat-protection";
+        $remove_blacklist_link = $_POST['remove_blacklist_link'];
+        $stmt = $db->prepare("DELETE FROM link_blacklisting WHERE link = ?");
+        $stmt->bind_param("s", $remove_blacklist_link);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "Link removed from the blacklist.";
+        } else {
+            $_SESSION['update_message'] = "Failed to remove the link from the blacklist.";
+            error_log("Error deleting blacklist link: " . $db->error);
+        }
+        $stmt->close();
+    }
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
         header("Location: modules.php?tab=" . $activeTab);
