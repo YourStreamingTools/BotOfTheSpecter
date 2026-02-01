@@ -640,11 +640,11 @@ ob_start();
   <div class="column is-8">
     <div class="card has-background-dark has-text-white mb-4">
       <header class="card-header">
-        <div class="is-flex is-justify-content-space-between is-align-items-center" style="width:100%;">
+        <div class="bot-header-wrapper">
           <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
             <?php echo t('bot_management_title'); ?>
           </span>
-          <div class="is-flex is-align-items-center" style="gap: 1rem;">
+          <div class="bot-header-controls">
             <!-- Custom Bot Name Toggle (Verified Custom Bot Required) -->
             <?php if ($hasVerifiedCustomBot): ?>
             <div id="custom-bot-toggle-container" class="field" style="display: none; margin-bottom: 0; align-items: center;">
