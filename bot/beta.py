@@ -2190,6 +2190,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["check_song_requests"] = create_task(check_song_requests())
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
+        looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -8024,6 +8025,35 @@ async def clear_automated_shoutout_tracking():
         twitch_logger.info("Cleared automated shoutout tracking")
     except Exception as e:
         twitch_logger.error(f"Error clearing automated shoutout tracking: {e}")
+
+# Background task to cleanup expired shoutout entries
+async def cleanup_expired_shoutouts():
+    while True:
+        try:
+            await sleep(300)  # Run every 5 minutes
+            cooldown_minutes = await get_automated_shoutout_cooldown()
+            cooldown_duration = timedelta(minutes=cooldown_minutes)
+            cutoff_time = time_right_now() - cooldown_duration
+            # Remove expired entries from in-memory dictionary
+            expired_user_ids = [user_id for user_id, shoutout_time in recent_shoutouts.items() if shoutout_time < cutoff_time]
+            for user_id in expired_user_ids:
+                del recent_shoutouts[user_id]
+            if expired_user_ids:
+                twitch_logger.info(f"Removed {len(expired_user_ids)} expired shoutout entries from memory")
+            # Remove expired entries from database
+            connection = await mysql_handler.get_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    "DELETE FROM automated_shoutout_tracking WHERE shoutout_time < %s",
+                    (cutoff_time,)
+                )
+                deleted_count = cursor.rowcount
+                await connection.commit()
+                if deleted_count > 0:
+                    twitch_logger.info(f"Removed {deleted_count} expired shoutout entries from database")
+        except Exception as e:
+            twitch_logger.error(f"Error in cleanup_expired_shoutouts: {e}")
+            await sleep(60)  # Wait a minute before retrying on error
 
 # Enqueue shoutout requests
 async def add_shoutout(user_to_shoutout, user_id, is_automated=True):
