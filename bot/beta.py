@@ -2189,6 +2189,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["periodic_watch_time_update"] = create_task(periodic_watch_time_update())
         looped_tasks["check_song_requests"] = create_task(check_song_requests())
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
+        looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -11685,9 +11686,6 @@ def start_bot():
     system_logger.info(f"Version: {VERSION}")
     system_logger.info(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     system_logger.info("===== Initialization Complete =====")
-    # Start background cleanup task for gift sub tracking
-    create_task(cleanup_gift_sub_tracking())
-    system_logger.info("Started gift sub tracking cleanup task")
     # Start the bot
     BOTS_TWITCH_BOT.run()
 
