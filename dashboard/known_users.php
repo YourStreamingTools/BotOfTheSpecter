@@ -135,6 +135,23 @@ ob_start();
               <li><span class="has-text-weight-bold">(shoutout)</span>: Automatically sends a shoutout to the user.</li>
             </ul>
           </div>
+          <div class="notification is-warning has-text-dark mb-5">
+            <p class="has-text-weight-bold">
+              <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+              Important: How to Use Variables
+            </p>
+            <p>
+              <strong>If you only enter a variable</strong> (like <code>(shoutout)</code>) in the welcome message text area, <strong>the bot will NOT post anything to chat</strong>.
+            </p>
+            <p class="mt-3">
+              To send a welcome message, you must include <strong>text along with the variable</strong>. For example:
+            </p>
+            <ul class="mt-2">
+              <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
+              <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
+              <li><strong style="color: #c70000;">✗ No Message Sent:</strong> <code>(shoutout)</code> <em>(only the variable, no text)</em></li>
+            </ul>
+          </div>
           <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
           <!-- Search Bar -->
           <input type="text" id="searchInput" class="input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()">
