@@ -2764,6 +2764,17 @@ body {
     align-items: center;
 }
 
+/* Reduce spacing for technical status debug info */
+.bot-status-tag + .columns.is-mobile {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0 !important;
+    justify-content: center !important;
+}
+
+.bot-status-tag + .columns.is-mobile .column.is-narrow {
+    padding: 0.25rem 0.5rem !important;
+}
+
 .technical-metric {
     transition: all 0.3s ease;
 }
