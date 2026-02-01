@@ -1007,11 +1007,23 @@ input[type="range"].modern-volume::-ms-tooltip {
     /* Make toggles and selector full width on mobile */
     #custom-bot-toggle-container,
     #use-self-toggle-container {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+        margin-bottom: 0 !important;
     }
+    
+    /* Force toggle labels to stay next to the switch */
+    #custom-bot-toggle-container label,
+    #use-self-toggle-container label {
+        display: flex !important;
+        flex-direction: column !important;
+        margin-left: 0 !important;
+        margin-bottom: 0 !important;
+    }
+    
     .bot-header-controls .select {
         width: 100%;
     }
@@ -1137,7 +1149,8 @@ input[type="range"].modern-volume::-ms-tooltip {
         width: 100% !important;
         max-width: 280px !important;
         display: flex !important;
-        justify-content: center !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
         margin-bottom: 0 !important;
     }
     
