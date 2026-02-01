@@ -962,6 +962,52 @@ input[type="range"].modern-volume::-ms-tooltip {
     transform: scale(0.95);
 }
 
+/* Bot Management Header Mobile Responsiveness */
+.bot-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 1rem;
+}
+
+.bot-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+/* Stack title and controls on smaller screens */
+@media screen and (max-width: 1023px) {
+    .bot-header-wrapper {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .bot-header-wrapper .card-header-title {
+        width: 100%;
+        padding-bottom: 0.5rem;
+    }
+    .bot-header-controls {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    /* Make toggles and selector full width on mobile */
+    #custom-bot-toggle-container,
+    #use-self-toggle-container {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .bot-header-controls .select {
+        width: 100%;
+    }
+    .bot-header-controls .select select {
+        width: 100%;
+    }
+}
+
 .conversion-tag {
     animation: pulse 2s infinite;
 }
