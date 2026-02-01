@@ -1004,14 +1004,15 @@ input[type="range"].modern-volume::-ms-tooltip {
         flex-wrap: wrap;
         gap: 0.75rem;
     }
-    /* Make toggles and selector full width on mobile */
+    /* Make toggles share same line, selector full width on mobile */
     #custom-bot-toggle-container,
     #use-self-toggle-container {
-        width: 100% !important;
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
-        gap: 0.75rem !important;
+        gap: 0.5rem !important;
         margin-bottom: 0 !important;
     }
     
@@ -1022,6 +1023,8 @@ input[type="range"].modern-volume::-ms-tooltip {
         flex-direction: column !important;
         margin-left: 0 !important;
         margin-bottom: 0 !important;
+        font-size: 0.875rem !important;
+        white-space: nowrap !important;
     }
     
     .bot-header-controls .select {
