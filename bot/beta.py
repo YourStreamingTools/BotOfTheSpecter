@@ -2473,6 +2473,7 @@ class TwitchBot(commands.Bot):
             # Skip message counting and welcome message for the bot itself
             return
         send_shoutout = False
+        shoutout_message = None
         try:
             connection = await mysql_handler.get_connection()
             async with connection.cursor(DictCursor) as cursor:
