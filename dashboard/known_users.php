@@ -72,7 +72,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $updateQuery->execute();
     $updateQuery->close();
   }
-
   if (isset($_POST['userId']) && isset($_POST['newWelcomeMessage'])) {
     $userId = $_POST['userId'];
     $newWelcomeMessage = $_POST['newWelcomeMessage'];
@@ -83,7 +82,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     header("Location: known_users.php");
     exit();
   }
-
   if (isset($_POST['deleteUserId'])) {
     $deleteUserId = $_POST['deleteUserId'];
     $deleteQuery = $db->prepare("DELETE FROM seen_users WHERE id = ?");
@@ -151,6 +149,9 @@ ob_start();
               <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
               <li><strong style="color: #c70000;">✗ No Message Sent:</strong> <code>(shoutout)</code> <em>(only the variable, no text)</em></li>
             </ul>
+            <p class="mt-3">
+              <strong style="color: #d83838;">⚠️ Note:</strong> Entering any welcome message or variable for a user will <strong>override the default welcome message</strong> set in your bot settings.
+            </p>
           </div>
           <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
           <!-- Search Bar -->
@@ -165,6 +166,7 @@ ob_start();
                   <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_status_column'); ?></th>
                   <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_action_column'); ?></th>
                   <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_editing_column'); ?></th>
+                  <th class="has-text-white has-text-centered" style="width: 100px;">Test</th>
                   <th class="has-text-white has-text-centered" style="width: 100px;"><?php echo t('known_users_removing_column'); ?></th>
                 </tr>
               </thead>
@@ -219,6 +221,14 @@ ob_start();
                       </div>
                     </td>
                     <td class="has-text-centered" style="vertical-align: middle;">
+                      <button class="button is-info is-small test-welcome-btn" 
+                              data-username="<?php echo htmlspecialchars($userData['username']); ?>" 
+                              data-message="<?php echo htmlspecialchars($userData['welcome_message']); ?>"
+                              <?php echo $userData['status'] != 'True' ? 'disabled title="User is inactive"' : ''; ?>>
+                        <i class="fas fa-paper-plane"></i>
+                      </button>
+                    </td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
                       <form method="POST" style="display:inline;" class="delete-user-form">
                         <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
                         <button type="button" class="button is-danger is-small delete-user-btn"><i class="fas fa-trash-alt"></i></button>
@@ -246,6 +256,35 @@ let loadedUsers = 0;
 const bannedUsersCache = <?php echo json_encode($bannedUsersCache); ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Load Toastify library dynamically
+  function loadToastify() {
+    return new Promise(function(resolve) {
+      if (window.Toastify) return resolve();
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css';
+      document.head.appendChild(css);
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/toastify-js';
+      script.onload = function() { resolve(); };
+      script.onerror = function() { resolve(); };
+      document.body.appendChild(script);
+    });
+  }
+  function showToast(message, success) {
+    if (window.Toastify) {
+      Toastify({
+        text: message,
+        duration: 3500,
+        close: true,
+        gravity: 'top',
+        position: 'right',
+        style: { background: success ? '#48c774' : '#f14668' }
+      }).showToast();
+    } else {
+      alert(message);
+    }
+  }
   // Editing functionality
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -315,6 +354,51 @@ document.addEventListener('DOMContentLoaded', function() {
           form.submit();
         }
       });
+    });
+  });
+  // Test welcome message button functionality
+  document.querySelectorAll('.test-welcome-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const username = this.getAttribute('data-username');
+      const message = this.getAttribute('data-message');
+      const button = this;
+      // Show loading state
+      const originalIcon = button.innerHTML;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      button.disabled = true;
+      // Make AJAX request
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'send_welcome_message.php', true);
+      xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          button.innerHTML = originalIcon;
+          button.disabled = false;
+          if (xhr.status === 200) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              if (response.success) {
+                loadToastify().then(function() {
+                  showToast('✓ Test Sent: ' + response.message, true);
+                });
+              } else {
+                loadToastify().then(function() {
+                  showToast('✗ Error: ' + (response.message || 'Failed to send test message'), false);
+                });
+              }
+            } catch (e) {
+              loadToastify().then(function() {
+                showToast('✗ Error: Invalid response from server', false);
+              });
+            }
+          } else {
+            loadToastify().then(function() {
+              showToast('✗ Error: Failed to send test message. Status: ' + xhr.status, false);
+            });
+          }
+        }
+      };
+      xhr.send('username=' + encodeURIComponent(username) + '&message=' + encodeURIComponent(message));
     });
   });
   // Character counter functionality
