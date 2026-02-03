@@ -2466,6 +2466,7 @@ class TwitchBot(commands.Bot):
                 bot_logger.error(f"An error occurred in event_message: {e}")
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
+        global stream_online
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
@@ -2534,8 +2535,8 @@ class TwitchBot(commands.Bot):
                     default_mod_welcome_message = preferences["default_mod_welcome_message"]
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
-                # If user has not been seen today, insert them and (conditionally) send welcome message
-                if not already_seen_today:
+                # If user has not been seen today and stream is online, insert them and (conditionally) send welcome message
+                if not already_seen_today and stream_online:
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
