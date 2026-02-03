@@ -1727,31 +1727,61 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const welcomeHandler = async (event) => {
                     const message = JSON.parse(event.data);
                     if (message.metadata?.message_type === 'session_welcome') {
-                        console.log('New session established, closing old connection');
-                        // Close old WebSocket
-                        if (oldWs && oldWs.readyState === WebSocket.OPEN) {
-                            oldWs.close();
+                        const newSessionId = message.payload.session.id;
+                        console.log('New session established (id=' + newSessionId + '), attempting to register subscriptions on new session before switching...');
+                        // Attempt to subscribe on the new session before closing the old one to avoid missing events
+                        const maxAttempts = 3;
+                        let attempt = 0;
+                        let subscribed = 0;
+                        while (attempt < maxAttempts && subscribed === 0) {
+                            try {
+                                subscribed = await subscribeToEvents(newSessionId);
+                                if (subscribed > 0) break;
+                                console.warn(`Subscription attempt ${attempt + 1} on session ${newSessionId} returned 0 subscriptions. Retrying...`);
+                            } catch (e) {
+                                console.error('Error subscribing on new session attempt', attempt + 1, e);
+                            }
+                            attempt++;
+                            // small backoff
+                            await new Promise(res => setTimeout(res, 500 * attempt));
                         }
-                        // Switch to new WebSocket
-                        ws = newWs;
-                        sessionId = message.payload.session.id;
-                        console.log('New Session ID:', sessionId);
-                        updateStatus(true, 'Connected');
-                        reconnectAttempts = 0;
-                        // Subscribe to events with new session
-                        await subscribeToEvents();
-                        // Setup keepalive timeout
-                        const keepaliveTimeout = message.payload.session.keepalive_timeout_seconds;
-                        setupKeepaliveTimeout(keepaliveTimeout);
-                        console.log('Seamless reconnect complete');
-                        Toastify({
-                            text: 'Connection refreshed successfully',
-                            duration: 2000,
-                            gravity: 'top',
-                            position: 'right',
-                            backgroundColor: '#00b09b'
-                        }).showToast();
-                        resolve();
+                        if (subscribed > 0) {
+                            console.log('Subscriptions registered on new session, closing old connection and switching');
+                            // Close old WebSocket only after subscriptions are registered
+                            if (oldWs && oldWs.readyState === WebSocket.OPEN) {
+                                try { oldWs.close(); } catch (e) { console.warn('Failed to close old websocket', e); }
+                            }
+                            // Switch to new WebSocket
+                            ws = newWs;
+                            sessionId = newSessionId;
+                            console.log('New Session ID:', sessionId);
+                            updateStatus(true, 'Connected');
+                            reconnectAttempts = 0;
+                            // Setup keepalive timeout
+                            const keepaliveTimeout = message.payload.session.keepalive_timeout_seconds;
+                            setupKeepaliveTimeout(keepaliveTimeout);
+                            console.log('Seamless reconnect complete');
+                            Toastify({
+                                text: 'Connection refreshed successfully',
+                                duration: 2000,
+                                gravity: 'top',
+                                position: 'right',
+                                backgroundColor: '#00b09b'
+                            }).showToast();
+                            resolve();
+                        } else {
+                            console.error('Failed to register subscriptions on new session after retries. Keeping old connection active.');
+                            Toastify({
+                                text: 'Failed to refresh connection subscriptions — staying on existing connection',
+                                duration: 4000,
+                                gravity: 'top',
+                                position: 'right',
+                                backgroundColor: '#ff4d4f'
+                            }).showToast();
+                            // If newWs exists, close it since we can't use it
+                            try { newWs.close(); } catch (e) { }
+                            resolve();
+                        }
                     }
                 };
                 newWs.addEventListener('message', welcomeHandler, { once: true });
@@ -1835,7 +1865,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             }, timeoutDuration);
         }
-        async function subscribeToEvents() {
+        async function subscribeToEvents(sessionIdOverride) {
+            const sid = sessionIdOverride || sessionId;
             const subscriptions = [
                 {
                     type: 'channel.chat.message',
@@ -1896,7 +1927,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     ...sub,
                     transport: {
                         method: 'websocket',
-                        session_id: sessionId
+                        session_id: sid
                     }
                 };
                 try {
@@ -1909,15 +1940,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         },
                         body: JSON.stringify(subscriptionData)
                     });
-                    const result = await response.json();
+                    const result = await response.json().catch(() => ({}));
                     if (response.ok) {
-                        console.log(`Successfully subscribed to ${sub.type}`);
+                        console.log(`Successfully subscribed to ${sub.type} on session ${sid}`);
                         successCount++;
                     } else {
-                        console.error(`Subscription failed for ${sub.type}:`, result);
+                        console.error(`Subscription failed for ${sub.type} on session ${sid}:`, result);
                     }
                 } catch (error) {
-                    console.error(`Subscription error for ${sub.type}:`, error);
+                    console.error(`Subscription error for ${sub.type} on session ${sid}:`, error);
                 }
             }
             if (successCount > 0) {
@@ -1939,6 +1970,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             } else {
                 updateStatus(false, 'Subscription Failed');
             }
+            return successCount;
         }
         // Log raw chat event data to server for debugging
         async function logRawChatData(event) {
