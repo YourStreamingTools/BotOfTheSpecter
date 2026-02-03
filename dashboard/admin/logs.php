@@ -318,8 +318,8 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
 
 // Function to read local log files directly
 function read_local_log($filePath, $lines = 200, $startLine = null) {
-    if (!file_exists($filePath)) { return ['error' => 'not_found']; }
-    if (!is_readable($filePath)) { return ['error' => 'permission_denied']; }
+    if (!file_exists($filePath)) { return ['error' => 'not_found', 'path' => $filePath]; }
+    if (!is_readable($filePath)) { return ['error' => 'permission_denied', 'path' => $filePath]; }
     // Count total lines
     $linesTotal = 0;
     $handle = fopen($filePath, 'r');
@@ -573,9 +573,9 @@ if (isset($_GET['admin_system_log_type'])) {
     }
     if (isset($result['error'])) {
         if ($result['error'] === 'not_found') { 
-            echo json_encode(['error' => 'not_found']);
+            echo json_encode(['error' => 'not_found', 'path' => isset($result['path']) ? $result['path'] : $logPath]);
         } else if ($result['error'] === 'permission_denied') {
-            echo json_encode(['error' => 'permission_denied']);
+            echo json_encode(['error' => 'permission_denied', 'path' => isset($result['path']) ? $result['path'] : $logPath]);
         } else { 
             echo json_encode(['error' => 'connection_failed']); 
         }
@@ -1025,9 +1025,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const json = await resp.json();
             if (json.error) {
                 if (json.error === "not_found") {
-                    logTextarea.innerHTML = "System log file not found.";
+                    logTextarea.innerHTML = "System log file not found." + (json.path ? " Path: " + json.path : "");
                 } else if (json.error === "permission_denied") {
-                    logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions.";
+                    logTextarea.innerHTML = "Permission denied: Unable to read the log file. Please check file permissions." + (json.path ? " Path: " + json.path : "");
                 } else if (json.error === "connection_failed") {
                     logTextarea.innerHTML = "Unable to connect to the logging system.";
                 } else {
