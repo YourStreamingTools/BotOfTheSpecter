@@ -5,6 +5,70 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 function h($s){ return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 
+// Handle StreamersConnect auth_data callback (supports signed payloads and server tokens)
+if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+	$decoded = null;
+	// Load main config which contains the StreamersConnect API key
+	$cfg = require_once "/var/www/config/main.php";
+	$apiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
+
+	// Prefer server-side verification of signed payloads
+	if (isset($_GET['auth_data_sig']) && $apiKey) {
+		$sig = $_GET['auth_data_sig'];
+		$ch = curl_init('https://streamersconnect.com/verify_auth_sig.php');
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['auth_data_sig' => $sig]));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+		$response = curl_exec($ch);
+		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+		if ($response && $http === 200) {
+			$res = json_decode($response, true);
+			if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
+		}
+	}
+
+	// Next, try exchanging a short-lived server token
+	if (!$decoded && isset($_GET['server_token']) && $apiKey) {
+		$token = $_GET['server_token'];
+		$ch = curl_init('https://streamersconnect.com/token_exchange.php');
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['server_token' => $token]));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+		$response = curl_exec($ch);
+		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		curl_close($ch);
+		if ($response && $http === 200) {
+			$res = json_decode($response, true);
+			if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
+		}
+	}
+
+	// Fallback to legacy base64 auth_data if nothing else worked
+	if (!$decoded && isset($_GET['auth_data'])) {
+		$decoded = json_decode(base64_decode($_GET['auth_data']), true);
+	}
+
+	if (!is_array($decoded) || empty($decoded['success'])) {
+		$message = 'Authentication failed or was cancelled.';
+	} elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
+		$user = $decoded['user'] ?? [];
+		// Set session values similar to other login handlers
+		$_SESSION['twitch_user_id'] = $user['id'] ?? null;
+		$_SESSION['twitch_display_name'] = $user['display_name'] ?? ($user['global_name'] ?? ($user['login'] ?? $user['username'] ?? null));
+		$_SESSION['twitch_username'] = $user['login'] ?? $user['username'] ?? null;
+		$_SESSION['profile_image'] = $user['profile_image_url'] ?? null;
+		$_SESSION['user_email'] = $user['email'] ?? null;
+		$_SESSION['access_token'] = $decoded['access_token'] ?? null;
+		$_SESSION['refresh_token'] = $decoded['refresh_token'] ?? null;
+		// Redirect to clean URL
+		header('Location: feedback.php');
+		exit;
+	}
+}
+
 $logout = isset($_GET['logout']);
 if ($logout) {
 	// clear all session data and destroy the session so the user is fully logged out
@@ -70,13 +134,19 @@ if ($method === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submi
 	}
 }
 
-// Build Twitch authorize URL when needed
-$redirect_uri = 'https://botofthespecter.com/oauth_callback.php';
+// Build StreamersConnect authorize URL for centralized OAuth
 $authorize_url = '';
-$state = bin2hex(random_bytes(8));
-$_SESSION['oauth_state'] = $state;
-$scopes = urlencode('user:read:email');
-$authorize_url = "https://id.twitch.tv/oauth2/authorize?response_type=code&client_id=" . urlencode($clientID) . "&redirect_uri=" . urlencode($redirect_uri) . "&scope={$scopes}&state=" . urlencode($state) . "&force_verify=true";
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
+$originDomain = $_SERVER['HTTP_HOST'];
+$returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+$streamersconnectBase = 'https://streamersconnect.com/';
+$scopes = 'user:read:email';
+$authorize_url = $streamersconnectBase . '?' . http_build_query([
+	'service' => 'twitch',
+	'login' => $originDomain,
+	'scopes' => $scopes,
+	'return_url' => $returnUrl
+]);
 ?>
 <!doctype html>
 <html lang="en" data-theme="dark">

@@ -31,15 +31,100 @@ if (isset($_SESSION['access_token'])) {
     exit;
 }
 
-// If the user is not logged in and no authorization code is present, redirect to Twitch authorization page
+// If the user is not logged in and no authorization code or auth_data is present, redirect to StreamersConnect
 // UNLESS they just logged out (in which case, show them the logout message)
-if (!isset($_SESSION['access_token']) && !isset($_GET['code']) && !isset($_GET['logout'])) {
-    header('Location: https://id.twitch.tv/oauth2/authorize' .
-        '?client_id=' . $clientID .
-        '&redirect_uri=' . urlencode($redirectURI) .
-        '&response_type=code' .
-        '&scope=' . urlencode($IDScope));
+if (!isset($_SESSION['access_token']) && !isset($_GET['code']) && !isset($_GET['logout']) && !isset($_GET['auth_data'])) {
+    // Build StreamersConnect URL
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
+    $originDomain = $_SERVER['HTTP_HOST'];
+    $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    $streamersconnectBase = 'https://streamersconnect.com/';
+    $scopes = $IDScope;
+    $authUrl = $streamersconnectBase . '?' . http_build_query([
+        'service' => 'twitch',
+        'login' => $originDomain,
+        'scopes' => $scopes,
+        'return_url' => $returnUrl
+    ]);
+    header('Location: ' . $authUrl);
     exit;
+} 
+
+// Handle StreamersConnect auth_data response
+if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+    $decoded = null;
+    $cfg = require_once "/var/www/config/main.php";
+    $apiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
+    if (isset($_GET['auth_data_sig']) && $apiKey) {
+        $sig = $_GET['auth_data_sig'];
+        $ch = curl_init('https://streamersconnect.com/verify_auth_sig.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['auth_data_sig' => $sig]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
+        }
+    }
+    if (!$decoded && isset($_GET['server_token']) && $apiKey) {
+        $token = $_GET['server_token'];
+        $ch = curl_init('https://streamersconnect.com/token_exchange.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['server_token' => $token]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
+        }
+    }
+    if (!$decoded && isset($_GET['auth_data'])) {
+        $decoded = json_decode(base64_decode($_GET['auth_data']), true);
+    }
+
+    if (!is_array($decoded) || empty($decoded['success'])) {
+        $info = "Authentication failed or was cancelled.";
+    } elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
+        $accessToken = $decoded['access_token'] ?? null;
+        $refreshToken = $decoded['refresh_token'] ?? null;
+        $user = $decoded['user'] ?? [];
+        $twitchDisplayName = $user['display_name'] ?? null;
+        $userEmail = $user['email'] ?? '';
+        $twitchUsername = $user['login'] ?? $user['username'] ?? null;
+        $profileImageUrl = $user['profile_image_url'] ?? null;
+        $twitchUserId = $user['id'] ?? null;
+        if ($accessToken && $twitchUserId) {
+            // Store the tokens and basic user info in the session
+            $_SESSION['access_token'] = $accessToken;
+            $_SESSION['refresh_token'] = $refreshToken;
+            $_SESSION['user_email'] = $userEmail;
+            $_SESSION['twitch_username'] = $twitchUsername;
+            $_SESSION['twitch_user_id'] = $twitchUserId;
+            $_SESSION['profile_image_url'] = $profileImageUrl;
+            $_SESSION['display_name'] = $twitchDisplayName;
+
+            // Redirect to the original page or the dashboard
+            if (isset($_SESSION['redirect_url'])) {
+                $redirectUrl = filter_var($_SESSION['redirect_url'], FILTER_SANITIZE_URL);
+                unset($_SESSION['redirect_url']);
+                header("Location: $redirectUrl");
+            } else {
+                header('Location: ../');
+            }
+            exit;
+        } else {
+            $info = "Failed to parse authentication data from StreamersConnect.";
+        }
+    } else {
+        $info = "Unexpected response service from StreamersConnect.";
+    }
 }
 
 // If an authorization code is present, exchange it for an access token and refresh token

@@ -4,8 +4,57 @@ require_once "/var/www/config/twitch.php";
 session_start();
 
 // Handle OAuth callback from StreamersConnect
-if (isset($_GET['auth_data'])) {
-    $authData = json_decode(base64_decode($_GET['auth_data']), true);
+if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+    $authData = null;
+    $cfg = require_once "/var/www/config/main.php";
+    $apiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
+    // Prefer signed verification via StreamersConnect verify endpoint when an API key is configured
+    if (isset($_GET['auth_data_sig']) && $apiKey) {
+        $sig = $_GET['auth_data_sig'];
+        $ch = curl_init('https://streamersconnect.com/verify_auth_sig.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['auth_data_sig' => $sig]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-API-Key: ' . $apiKey
+        ]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) {
+                $authData = $res['payload'];
+            }
+        }
+    }
+    // If a server_token was provided, try exchanging server-side
+    if (!$authData && isset($_GET['server_token']) && $apiKey) {
+        $token = $_GET['server_token'];
+        $ch = curl_init('https://streamersconnect.com/token_exchange.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['server_token' => $token]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-API-Key: ' . $apiKey
+        ]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) {
+                $authData = $res['payload'];
+            }
+        }
+    }
+    // Fallback to legacy base64 encoded payload
+    if (!$authData && isset($_GET['auth_data'])) {
+        $authData = json_decode(base64_decode($_GET['auth_data']), true);
+    }
+
     if (isset($authData['success']) && $authData['success'] && $authData['service'] === 'twitch') {
         $_SESSION['access_token'] = $authData['access_token'];
         $_SESSION['refresh_token'] = $authData['refresh_token'];
@@ -16,6 +65,8 @@ if (isset($_GET['auth_data'])) {
             $_SESSION['user_login'] = $authData['user']['login'];
             $_SESSION['user_display_name'] = $authData['user']['display_name'];
         }
+        // Prevent session fixation after successful OAuth
+        session_regenerate_id(true);
     }
     // Redirect to clean URL
     header('Location: https://yourchat.botofthespecter.com/index.php');
@@ -50,9 +101,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'refresh_token') {
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($token_data));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
     $response = curl_exec($ch);
+    $curlErr = null;
+    if ($response === false) {
+        $curlErr = curl_error($ch);
+    }
     curl_close($ch);
+    if ($response === false) {
+        echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlErr]);
+        exit;
+    }
     $token_response = json_decode($response, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON from token endpoint: ' . json_last_error_msg()]);
+        exit;
+    }
     if (isset($token_response['access_token'])) {
         $_SESSION['access_token'] = $token_response['access_token'];
         $_SESSION['refresh_token'] = $token_response['refresh_token'];
@@ -71,6 +137,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'refresh_token') {
 // Handle session expiry
 if (isset($_GET['action']) && $_GET['action'] === 'expire_session') {
     header('Content-Type: application/json');
+    // Clear session data and cookie
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params['path'], $params['domain'],
+            $params['secure'], $params['httponly']
+        );
+    }
     session_destroy();
     echo json_encode(['success' => true, 'message' => 'Session expired']);
     exit;
@@ -446,14 +521,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         <script>
             // Configuration
             const CONFIG = {
-                ACCESS_TOKEN: '<?php echo $_SESSION['access_token']; ?>',
-                USER_ID: '<?php echo $_SESSION['user_id']; ?>',
-                USER_LOGIN: '<?php echo $_SESSION['user_login']; ?>',
-                TOKEN_CREATED_AT: <?php echo $_SESSION['token_created_at']; ?>,
-                CLIENT_ID: '<?php echo $clientID; ?>',
+                ACCESS_TOKEN: <?php echo json_encode($_SESSION['access_token'] ?? null); ?>,
+                USER_ID: <?php echo json_encode($_SESSION['user_id'] ?? null); ?>,
+                USER_LOGIN: <?php echo json_encode($_SESSION['user_login'] ?? null); ?>,
+                TOKEN_CREATED_AT: <?php echo json_encode($_SESSION['token_created_at'] ?? time()); ?>,
+                CLIENT_ID: <?php echo json_encode($clientID); ?>,
                 TOKEN_REFRESH_INTERVAL: 4 * 60 * 60 * 1000, // 4 hours in milliseconds
                 EVENTSUB_WS_URL: 'wss://eventsub.wss.twitch.tv/ws'
-            };
+            }; 
             // State management
             let ws = null;
             let sessionId = null;
@@ -611,6 +686,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let presenceMissCounts = {};
             // Presence polling: 3s interval optimized for Twitch's 800 points/minute rate limit
             const PRESENCE_API_INTERVAL_MS = 3 * 1000;
+            // Max chat messages to retain in overlay (match Twitch default of 50)
+            const MAX_CHAT_MESSAGES = 50;
             // Rate limit tracking
             let rateLimitRemaining = 800;
             let rateLimitReset = 0;
@@ -630,7 +707,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const overlay = document.getElementById('chat-overlay');
                 // Clear placeholder text if it's the only thing there
                 if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                    overlay.innerHTML = '';
+                    clearPlaceholderOnly();
                 }
                 const div = document.createElement('div');
                 div.className = 'system-message';
@@ -649,18 +726,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     overlay.insertBefore(div, ref);
                 }
                 // Enforce messages cap (count only message nodes)
-                const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
-                if (msgs.length > 100) {
-                    // Remove oldest messages (first ones in DOM order, skip exit button)
-                    for (let i = 0; i < msgs.length && msgs.length > 100; i++) {
-                        const node = msgs[i];
-                        // Skip exit button and presence summary (non-join/leave system messages)
-                        if (!node.classList.contains('fullscreen-exit-btn') &&
-                            !(node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave'))) {
-                            if (node && node.parentNode) node.parentNode.removeChild(node);
-                        }
-                    }
-                }
+                // Enforce cap using helper (default 50 messages)
+                enforceMessageCap(MAX_CHAT_MESSAGES);
             }
             // Update or insert a 'presence' system message (used for the "Currently in chat" summary)
             function setPresenceMessage(text) {
@@ -674,14 +741,51 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 // No existing presence message, prepend one
                 if ((overlay.children.length === 1 && overlay.children[0].tagName === 'P') || overlay.children.length === 0) {
-                    overlay.innerHTML = '';
-                    if (exitBtn) overlay.appendChild(exitBtn);
+                    clearPlaceholderOnly();
+                    if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
                 }
                 const div = document.createElement('div');
                 div.className = 'system-message join';
                 div.textContent = text;
                 const ref = exitBtn ? exitBtn.nextSibling : overlay.firstChild;
                 overlay.insertBefore(div, ref);
+            }
+            // Remove only placeholder/connected informational nodes from the overlay to avoid wiping live messages
+            function clearPlaceholderOnly() {
+                const overlay = document.getElementById('chat-overlay');
+                if (!overlay) return;
+                // Logging for debugging unexpected clears
+                try { console.debug('clearPlaceholderOnly called - removing any placeholders'); } catch (e) { }
+                // Remove explicit chat placeholder paragraphs and connected placeholder
+                const placeholders = overlay.querySelectorAll('.chat-placeholder, .connected-placeholder');
+                placeholders.forEach(p => {
+                    try { p.remove(); } catch (e) { /* ignore */ }
+                });
+            }
+            // Enforce a cap on the number of visible messages in the overlay
+            // Removes oldest eligible messages (skips persistent UI elements like presence summary)
+            function enforceMessageCap(maxMessages = MAX_CHAT_MESSAGES) {
+                const overlay = document.getElementById('chat-overlay');
+                if (!overlay) return;
+                try { console.debug('enforceMessageCap called - ensuring max', maxMessages); } catch (e) { }
+                const msgs = Array.from(overlay.querySelectorAll('.chat-message, .reward-message, .system-message'));
+                // Filter out nodes that should not be removed
+                const eligible = msgs.filter(node => {
+                    if (!node) return false;
+                    // presence summary and other important system messages should be preserved
+                    if (node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave') && !node.classList.contains('raid') && !node.classList.contains('bits')) return false;
+                    if (node.classList.contains('fullscreen-exit-btn')) return false;
+                    return true;
+                });
+                const excess = eligible.length - maxMessages;
+                if (excess > 0) {
+                    for (let i = 0; i < excess; i++) {
+                        const node = eligible[i];
+                        if (node && node.parentNode) {
+                            try { node.parentNode.removeChild(node); } catch (e) { /* ignore */ }
+                        }
+                    }
+                }
             }
             // Message-based presence removed — presence is provided via Helix API polling
             function extractTextFromEvent(event) {
@@ -1055,7 +1159,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const response = await fetch(`https://api.twitch.tv/helix/users?login=${username}`, {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
-                            'Client-Id': '<?php echo $clientID; ?>'
+                            'Client-Id': CONFIG.CLIENT_ID
                         }
                     });
                     if (!response.ok) {
@@ -1179,13 +1283,18 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         if (hasOnlyPlaceholder) {
                             // Preserve any non-message nodes like fullscreen button
                             const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                            // Clear placeholder but keep exit button
-                            overlay.innerHTML = '';
-                            if (exitBtn) overlay.appendChild(exitBtn);
+                            // Remove placeholder(s) but keep exit button
+                            clearPlaceholderOnly();
+                            if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
                             // Restore messages
                             result.messages.forEach(encoded => {
                                 try {
                                     const html = decodeURIComponent(escape(atob(encoded)));
+                                    // Basic sanitization: skip entries that contain script tags or inline event handlers
+                                    if (/<script\b|on\w+\s*=/.test(html)) {
+                                        console.warn('Skipping suspicious history entry');
+                                        return;
+                                    }
                                     const div = document.createElement('div');
                                     div.innerHTML = html;
                                     overlay.appendChild(div.firstChild);
@@ -1193,6 +1302,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                     console.log('Skipping invalid history entry');
                                 }
                             });
+                            // Enforce cap after restoring history to match Twitch's behavior (keep last messages)
+                            enforceMessageCap(MAX_CHAT_MESSAGES);
                             overlay.scrollTop = overlay.scrollHeight;
                         } else {
                             console.log('Skipping history restore - overlay already has live messages');
@@ -1211,20 +1322,34 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 users.forEach(filter => {
                     const tag = document.createElement('div');
                     tag.className = 'filter-tag';
-                    tag.innerHTML = `${filter} <button onclick="removeFilter('user','${filter.replace(/'/g, "\\'")}')">×</button>`;
-                listUsers.appendChild(tag);
-            });
-            // messages
-            const msgs = loadFiltersMessages();
-            const listMsgs = document.getElementById('filter-list-msg');
-            listMsgs.innerHTML = '';
-            msgs.forEach(filter => {
-                const tag = document.createElement('div');
-                tag.className = 'filter-tag';
-                tag.innerHTML = `${filter} <button onclick="removeFilter('message','${filter.replace(/'/g, "\\'")}')">×</button>`;
-                listMsgs.appendChild(tag);
-            });
-        }
+                    const label = document.createElement('span');
+                    label.textContent = filter;
+                    const btn = document.createElement('button');
+                    btn.title = 'Remove filter';
+                    btn.textContent = '×';
+                    btn.addEventListener('click', () => removeFilter('user', filter));
+                    tag.appendChild(label);
+                    tag.appendChild(btn);
+                    listUsers.appendChild(tag);
+                });
+                // messages
+                const msgs = loadFiltersMessages();
+                const listMsgs = document.getElementById('filter-list-msg');
+                listMsgs.innerHTML = '';
+                msgs.forEach(filter => {
+                    const tag = document.createElement('div');
+                    tag.className = 'filter-tag';
+                    const label = document.createElement('span');
+                    label.textContent = filter;
+                    const btn = document.createElement('button');
+                    btn.title = 'Remove filter';
+                    btn.textContent = '×';
+                    btn.addEventListener('click', () => removeFilter('message', filter));
+                    tag.appendChild(label);
+                    tag.appendChild(btn);
+                    listMsgs.appendChild(tag);
+                });
+            }
         function handleFilterInput(event, type) {
             if (event.key !== 'Enter') return;
             const inputId = type === 'user' ? 'filter-user-input' : 'filter-msg-input';
@@ -1549,16 +1674,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.warn('Failed to update chat placeholder status text', e);
             }
         }
-        function connectWebSocket() {
-            if (ws) {
-                ws.close();
-            }
-            updateStatus(false, 'Connecting...');
-            ws = new WebSocket(CONFIG.EVENTSUB_WS_URL);
-            ws.onopen = () => {
+        function setupWebSocketHandlers(socket) {
+            socket.onopen = () => {
                 console.log('WebSocket connected');
             };
-            ws.onmessage = async (event) => {
+            socket.onmessage = async (event) => {
                 const message = JSON.parse(event.data);
                 // Buffer messages during reconnection
                 if (isReconnecting) {
@@ -1574,15 +1694,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 setupKeepaliveTimeout(keepaliveTimeoutSeconds);
                 await handleWebSocketMessage(message);
             };
-            ws.onerror = (error) => {
+            socket.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 updateStatus(false, 'Error');
             };
-            ws.onclose = () => {
+            socket.onclose = () => {
                 console.log('WebSocket closed');
                 if (!isReconnecting) {
                     updateStatus(false, 'Disconnected');
-                    // Attempt to reconnect only if not part of token refresh
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
                         setTimeout(connectWebSocket, 5000);
@@ -1590,44 +1709,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             };
         }
+        function connectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+            updateStatus(false, 'Connecting...');
+            ws = new WebSocket(CONFIG.EVENTSUB_WS_URL);
+            setupWebSocketHandlers(ws);
+        }
         async function seamlessWebSocketReconnect() {
             console.log('Starting seamless WebSocket reconnect...');
             const oldWs = ws;
             return new Promise((resolve) => {
                 const newWs = new WebSocket(CONFIG.EVENTSUB_WS_URL);
-                newWs.onopen = () => {
-                    console.log('New WebSocket connected');
-                };
-                newWs.onmessage = async (event) => {
-                    const message = JSON.parse(event.data);
-                    // Buffer messages during reconnection
-                    if (isReconnecting) {
-                        console.log('Buffering message during reconnection');
-                        messageBuffer.push(message);
-                        return;
-                    }
-                    // Update keepalive timeout value if provided in this message
-                    if (message.payload?.session?.keepalive_timeout_seconds) {
-                        keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds;
-                    }
-                    // Reset keepalive timeout on EVERY message received
-                    setupKeepaliveTimeout(keepaliveTimeoutSeconds);
-                    await handleWebSocketMessage(message);
-                };
-                newWs.onerror = (error) => {
-                    console.error('New WebSocket error:', error);
-                    updateStatus(false, 'Error');
-                };
-                newWs.onclose = () => {
-                    console.log('New WebSocket closed');
-                    if (!isReconnecting) {
-                        updateStatus(false, 'Disconnected');
-                        if (reconnectAttempts < maxReconnectAttempts) {
-                            reconnectAttempts++;
-                            setTimeout(connectWebSocket, 5000);
-                        }
-                    }
-                };
+                setupWebSocketHandlers(newWs);
                 // Wait for session_welcome before closing old connection
                 const welcomeHandler = async (event) => {
                     const message = JSON.parse(event.data);
@@ -1720,7 +1815,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                     ws = new WebSocket(reconnectUrl);
                     setupWebSocketHandlers(ws);
-                    break;
+                    break; 
                 case 'revocation':
                     console.error('Subscription revoked:', payload);
                     updateStatus(false, 'Subscription Revoked');
@@ -1832,9 +1927,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 if (!hasMessages) {
                     // preserve exit button if present
                     const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                    overlay.innerHTML = '';
-                    if (exitBtn) overlay.appendChild(exitBtn);
+                    clearPlaceholderOnly();
+                    if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
                     const p = document.createElement('p');
+                    p.className = 'connected-placeholder';
                     p.style.color = '#999';
                     p.style.textAlign = 'center';
                     p.textContent = 'Connected to chat';
@@ -1921,7 +2017,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const overlay = document.getElementById('chat-overlay');
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                overlay.innerHTML = '';
+                clearPlaceholderOnly();
             }
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
@@ -2043,10 +2139,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             overlay.appendChild(messageDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
-            // Limit messages to prevent memory issues
-            if (overlay.children.length > 100) {
-                overlay.removeChild(overlay.firstChild);
-            }
+            // Enforce cap (remove oldest messages if needed)
+            enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
         }
@@ -2076,7 +2170,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (messageElement) {
                 // Add deleted class to strike through the message
                 messageElement.classList.add('deleted');
-                // Save updated history
+                // Enforce cap and save updated history
+                enforceMessageCap(MAX_CHAT_MESSAGES);
                 saveChatHistory();
             }
         }
@@ -2093,7 +2188,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const overlay = document.getElementById('chat-overlay');
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                overlay.innerHTML = '';
+                clearPlaceholderOnly();
             }
             const notificationDiv = document.createElement('div');
             notificationDiv.className = 'system-message sub-notification';
@@ -2120,10 +2215,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             overlay.appendChild(notificationDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
-            // Limit messages to prevent memory issues
-            if (overlay.children.length > 100) {
-                overlay.removeChild(overlay.firstChild);
-            }
+            // Enforce cap (remove oldest messages if needed)
+            enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
         }
@@ -2208,7 +2301,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
 
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                overlay.innerHTML = '';
+                clearPlaceholderOnly();
             }
             const rewardDiv = document.createElement('div');
             rewardDiv.className = 'reward-message automatic-reward';
@@ -2289,10 +2382,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                 `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
-            // Limit messages
-            if (overlay.children.length > 100) {
-                overlay.removeChild(overlay.firstChild);
-            }
+            // Enforce cap (remove oldest messages if needed)
+            enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
         }
@@ -2301,7 +2392,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const overlay = document.getElementById('chat-overlay');
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                overlay.innerHTML = '';
+                clearPlaceholderOnly();
             }
             const rewardDiv = document.createElement('div');
             rewardDiv.className = 'reward-message custom-reward';
@@ -2363,10 +2454,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                 `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
-            // Limit messages
-            if (overlay.children.length > 100) {
-                overlay.removeChild(overlay.firstChild);
-            }
+            // Enforce cap (remove oldest messages if needed)
+            enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
         }
@@ -2375,7 +2464,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const overlay = document.getElementById('chat-overlay');
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                overlay.innerHTML = '';
+                clearPlaceholderOnly();
             }
             const raidDiv = document.createElement('div');
             raidDiv.className = 'system-message raid';
@@ -2387,17 +2476,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                 `;
             overlay.appendChild(raidDiv);
             overlay.scrollTop = overlay.scrollHeight;
-            // Limit messages
-            const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
-            if (msgs.length > 100) {
-                for (let i = 0; i < msgs.length - 100; i++) {
-                    const node = msgs[i];
-                    if (!node.classList.contains('fullscreen-exit-btn') &&
-                        !(node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave') && !node.classList.contains('raid'))) {
-                        if (node && node.parentNode) node.parentNode.removeChild(node);
-                    }
-                }
-            }
+            // Enforce cap using helper (default 50 messages)
+            enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
         }
@@ -2418,7 +2498,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const overlay = document.getElementById('chat-overlay');
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
-                overlay.innerHTML = '';
+                clearPlaceholderOnly();
             }
             const bitsDiv = document.createElement('div');
             bitsDiv.className = 'system-message bits';
@@ -2450,17 +2530,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             bitsDiv.innerHTML = messageHtml;
             overlay.appendChild(bitsDiv);
             overlay.scrollTop = overlay.scrollHeight;
-            // Limit messages
-            const msgs = overlay.querySelectorAll('.chat-message, .reward-message, .system-message');
-            if (msgs.length > 100) {
-                for (let i = 0; i < msgs.length - 100; i++) {
-                    const node = msgs[i];
-                    if (!node.classList.contains('fullscreen-exit-btn') &&
-                        !(node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave') && !node.classList.contains('raid') && !node.classList.contains('bits'))) {
-                        if (node && node.parentNode) node.parentNode.removeChild(node);
-                    }
-                }
-            }
+            // Enforce cap using helper (default 50 messages)
+            enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
         }
@@ -2480,8 +2551,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const response = await fetch('https://api.twitch.tv/helix/chat/messages', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${CONFIG.ACCESS_TOKEN}`,
-                        'Client-Id': '<?php echo $clientID; ?>',
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Client-Id': CONFIG.CLIENT_ID,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
