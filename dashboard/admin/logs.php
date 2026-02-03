@@ -555,6 +555,11 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/var/log/mysql/error.log";
             $result = read_mysql_log_over_ssh($logPath);
             break;
+        case 'streamersconnect-cleanup':
+            // StreamersConnect cleanup tokens log (local file)
+            $logPath = "/var/log/streamersconnect/cleanup_tokens.log";
+            $result = read_local_log($logPath, 500);
+            break;
         default:
             // Other system logs in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
@@ -692,6 +697,7 @@ $systemLogTypes = [
             ['value' => 'websocket', 'label' => 'WebSocket Server Log'],
             ['value' => 'mysql-error', 'label' => 'MySQL Error Log'],
             ['value' => 'discordbot', 'label' => 'Discord Bot Log'],
+            ['value' => 'streamersconnect-cleanup', 'label' => 'StreamersConnect Cleanup Log'],
         ]
     ],
 ];
