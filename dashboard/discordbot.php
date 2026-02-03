@@ -176,6 +176,45 @@ if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
   $linkingMessageType = "is-danger";
 }
 
+// Handle StreamersConnect auth_data callback
+if (isset($_GET['auth_data'])) {
+  $decoded = json_decode(base64_decode($_GET['auth_data']), true);
+  if (!is_array($decoded) || empty($decoded['success'])) {
+    $linkingMessage = "Authentication failed or was cancelled.";
+    $linkingMessageType = "is-danger";
+  } elseif (isset($decoded['service']) && $decoded['service'] === 'discord') {
+    $access_token = $decoded['access_token'] ?? null;
+    $refresh_token = $decoded['refresh_token'] ?? null;
+    $expires_in = isset($decoded['expires_in']) ? intval($decoded['expires_in']) : null;
+    $discord_user = $decoded['user'] ?? [];
+    $discord_id = $discord_user['id'] ?? null;
+    if ($discord_id && $access_token) {
+      if ($refresh_token) {
+        $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, refresh_token, reauth) VALUES (?, ?, ?, ?, 0) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), refresh_token = VALUES(refresh_token), reauth = 0";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("isss", $user_id, $discord_id, $access_token, $refresh_token);
+      } else {
+        $sql = "INSERT INTO discord_users (user_id, discord_id, access_token, reauth) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE discord_id = VALUES(discord_id), access_token = VALUES(access_token), reauth = 0";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("iss", $user_id, $discord_id, $access_token);
+      }
+      if ($stmt->execute()) {
+        $linkingMessage = "Discord account successfully linked via StreamersConnect!";
+        $linkingMessageType = "is-success";
+        header("Location: discordbot.php");
+        exit();
+      } else {
+        $linkingMessage = "Linked, but failed to save Discord information.";
+        $linkingMessageType = "is-warning";
+      }
+      $stmt->close();
+    } else {
+      $linkingMessage = "Error: Invalid auth data received from StreamersConnect.";
+      $linkingMessageType = "is-danger";
+    }
+  }
+}
+
 // Handle Discord OAuth callback
 if (isset($_GET['code']) && !$is_linked) {
   // Validate state parameter for security
@@ -1368,7 +1407,8 @@ function updateExistingDiscordValues()
 $authURL = '';
 if (!$is_linked || $needs_relink) {
   $state = bin2hex(random_bytes(16));
-  $_SESSION['discord_oauth_state'] = $state;
+  // Store a lightweight flag for StreamersConnect flow
+  $_SESSION['discord_sc_auth_state'] = $state;
   // Determine OAuth scopes based on user status
   if (!$is_linked) {
     // New user: Include 'bot' scope to add bot to their server
@@ -1377,12 +1417,17 @@ if (!$is_linked || $needs_relink) {
     // Existing user relinking: Exclude 'bot' scope since bot should already be in server
     $oauth_scopes = 'identify guilds guilds.members.read connections';
   }
-  $authURL = "https://discord.com/oauth2/authorize"
-    . "?client_id=1170683250797187132"
-    . "&response_type=code"
-    . "&scope=" . urlencode($oauth_scopes)
-    . "&state={$state}"
-    . "&redirect_uri=" . urlencode('https://dashboard.botofthespecter.com/discordbot.php');
+  // Build StreamersConnect authorization URL
+  $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
+  $originDomain = $_SERVER['HTTP_HOST'];
+  $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+  $streamersconnectBase = 'https://streamersconnect.com/';
+  $authURL = $streamersconnectBase . '?' . http_build_query([
+    'service' => 'discord',
+    'login' => $originDomain,
+    'scopes' => $oauth_scopes,
+    'return_url' => $returnUrl
+  ]);
 }
 
 // Helper function to revoke Discord access or refresh token
