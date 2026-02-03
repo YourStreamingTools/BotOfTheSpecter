@@ -96,6 +96,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Start output buffering for layout
 ob_start();
 ?>
+<script>
+// Mobile device detection
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+}
+
+if (isMobileDevice()) {
+    document.addEventListener('DOMContentLoaded', function() {
+        document.body.innerHTML = `
+            <section class="section">
+                <div class="container">
+                    <div class="notification is-warning">
+                        <h1 class="title has-text-centered">Mobile Access Unavailable</h1>
+                        <div class="content has-text-centered">
+                            <p><strong>We apologize for the inconvenience.</strong></p>
+                            <p>The Known Users page is currently unavailable on mobile devices due to the complexity of the table interface.</p>
+                            <p>We are actively working to provide a mobile-friendly version in future releases and updates.</p>
+                            <p>Please access this page from a desktop or tablet device for the best experience.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    });
+}
+</script>
 <div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'has-background-warning has-text-warning-dark' : 'has-background-info-light has-text-info-dark'; ?>">
   <p id="loadingNotice">
     <?php 
@@ -161,13 +187,13 @@ ob_start();
             <table class="table is-fullwidth" id="commandsTable">
               <thead>
                 <tr>
-                  <th class="has-text-white col-username"><?php echo t('counters_username_column'); ?></th>
-                  <th class="has-text-white col-message"><?php echo t('known_users_welcome_message_column'); ?></th>
-                  <th class="has-text-white has-text-centered col-action"><?php echo t('known_users_status_column'); ?></th>
-                  <th class="has-text-white has-text-centered col-action"><?php echo t('known_users_action_column'); ?></th>
-                  <th class="has-text-white has-text-centered col-action"><?php echo t('known_users_editing_column'); ?></th>
-                  <th class="has-text-white has-text-centered col-action">Test</th>
-                  <th class="has-text-white has-text-centered col-action"><?php echo t('known_users_removing_column'); ?></th>
+                  <th class="has-text-white"><?php echo t('counters_username_column'); ?></th>
+                  <th class="has-text-white"><?php echo t('known_users_welcome_message_column'); ?></th>
+                  <th class="has-text-white has-text-centered"><?php echo t('known_users_status_column'); ?></th>
+                  <th class="has-text-white has-text-centered"><?php echo t('known_users_action_column'); ?></th>
+                  <th class="has-text-white has-text-centered"><?php echo t('known_users_editing_column'); ?></th>
+                  <th class="has-text-white has-text-centered">Test</th>
+                  <th class="has-text-white has-text-centered"><?php echo t('known_users_removing_column'); ?></th>
                 </tr>
               </thead>
               <tbody id="user-table">
