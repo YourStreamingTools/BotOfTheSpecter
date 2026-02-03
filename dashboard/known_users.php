@@ -104,166 +104,176 @@ function isMobileDevice() {
 
 if (isMobileDevice()) {
     document.addEventListener('DOMContentLoaded', function() {
-        document.body.innerHTML = `
-            <section class="section">
-                <div class="container">
-                    <div class="notification is-warning">
-                        <h1 class="title has-text-centered">Mobile Access Unavailable</h1>
-                        <div class="content has-text-centered">
-                            <p><strong>We apologize for the inconvenience.</strong></p>
-                            <p>The Known Users page is currently unavailable on mobile devices due to the complexity of the table interface.</p>
-                            <p>We are actively working to provide a mobile-friendly version in future releases and updates.</p>
-                            <p>Please access this page from a desktop or tablet device for the best experience.</p>
-                        </div>
+        // Hide all page content
+        const pageContent = document.getElementById('knownUsersPageContent');
+        if (pageContent) pageContent.style.display = 'none';
+        // Create and insert mobile warning message
+        const mobileWarning = document.createElement('div');
+        mobileWarning.className = 'columns is-centered';
+        mobileWarning.innerHTML = `
+            <div class="column is-10-tablet is-8-desktop">
+                <div class="notification is-warning" style="margin-top: 2rem;">
+                    <h1 class="title has-text-centered">Mobile Access Unavailable</h1>
+                    <div class="content has-text-centered">
+                        <p><strong>We apologize for the inconvenience.</strong></p>
+                        <p>The Welcome Messages page is currently unavailable on mobile devices due to the complexity of the table interface.</p>
+                        <p>We are actively working to provide a mobile-friendly version in future releases and updates.</p>
+                        <p>Please access this page from a desktop or tablet device for the best experience.</p>
                     </div>
                 </div>
-            </section>
+            </div>
         `;
+        // Insert the warning at the beginning of the page
+        if (pageContent && pageContent.parentNode) {
+            pageContent.parentNode.insertBefore(mobileWarning, pageContent);
+        }
     });
 }
 </script>
-<div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'has-background-warning has-text-warning-dark' : 'has-background-info-light has-text-info-dark'; ?>">
-  <p id="loadingNotice">
-    <?php 
-    if ($totalUsers > 0) {
-        echo t('known_users_loading', ['loaded' => 0, 'total' => $totalUsers]);
-    } else {
-        echo t('known_users_no_users');
-    }
-    ?>
-  </p>
-</div>
-<?php if ($cacheWarningMessage): ?>
-<div class="notification is-danger">
-    <?php echo htmlspecialchars($cacheWarningMessage); ?>
-</div>
-<?php endif; ?>
-<div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
-  <div class="columns is-centered">
-    <div class="column is-fullwidth">
-      <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-        <header class="card-header" style="border-bottom: 1px solid #23272f;">
-          <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-            <span class="icon mr-2"><i class="fas fa-users"></i></span>
-            <?php echo t('known_users_title'); ?>
-          </span>
-        </header>
-        <div class="card-content">
-          <div class="notification is-info mb-5">
-            <p class="has-text-weight-bold">
-              <span class="icon"><i class="fas fa-code"></i></span>
-              Custom Variables for Welcome Messages
-            </p>
-            <p>You can use the following variables in welcome messages:</p>
-            <ul>
-              <li><span class="has-text-weight-bold">(shoutout)</span>: Automatically sends a shoutout to the user.</li>
-            </ul>
-          </div>
-          <div class="notification is-warning has-text-dark mb-5">
-            <p class="has-text-weight-bold">
-              <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-              Important: How to Use Variables
-            </p>
-            <p>
-              <strong>If you only enter a variable</strong> (like <code>(shoutout)</code>) in the welcome message text area, <strong>the bot will NOT post anything to chat</strong>.
-            </p>
-            <p class="mt-3">
-              To send a welcome message, you must include <strong>text along with the variable</strong>. For example:
-            </p>
-            <ul class="mt-2">
-              <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
-              <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
-              <li><strong style="color: #c70000;">✗ No Message Sent:</strong> <code>(shoutout)</code> <em>(only the variable, no text)</em></li>
-            </ul>
-            <p class="mt-3">
-              <strong style="color: #d83838;">⚠️ Note:</strong> Entering any welcome message or variable for a user will <strong>override the default welcome message</strong> set in your bot settings.
-            </p>
-          </div>
-          <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
-          <!-- Search Bar -->
-          <input type="text" id="searchInput" class="input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()">
-          <br><br>
-          <div class="table-container">
-            <table class="table is-fullwidth" id="commandsTable">
-              <thead>
-                <tr>
-                  <th class="has-text-white"><?php echo t('counters_username_column'); ?></th>
-                  <th class="has-text-white"><?php echo t('known_users_welcome_message_column'); ?></th>
-                  <th class="has-text-white has-text-centered"><?php echo t('known_users_status_column'); ?></th>
-                  <th class="has-text-white has-text-centered"><?php echo t('known_users_action_column'); ?></th>
-                  <th class="has-text-white has-text-centered"><?php echo t('known_users_editing_column'); ?></th>
-                  <th class="has-text-white has-text-centered">Test</th>
-                  <th class="has-text-white has-text-centered"><?php echo t('known_users_removing_column'); ?></th>
-                </tr>
-              </thead>
-              <tbody id="user-table">
-                <?php foreach ($seenUsersData as $userData): ?>
-                  <tr class="is-vcentered has-text-white">
-                    <td>
-                      <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
-                        <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
-                      </span>
-                      <span class="banned-status"></span>
-                    </td>
-                    <td>
-                      <div id="welcome-message-<?php echo $userData['id']; ?>">
-                        <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
-                      </div>
-                      <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
-                        <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>" maxlength="255"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
-                        <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: #ccc;">
-                          <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 characters
-                        </div>
-                      </div>
-                    </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
-                      <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
-                        <?php echo isset($userData['status']) ? t($userData['status'] == 'True' ? 'known_users_status_true' : 'known_users_status_false') : ''; ?>
-                      </span>
-                    </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
-                      <label class="checkbox" style="cursor:pointer;">
-                        <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)" style="display:none;">
-                        <span class="icon is-medium" onclick="this.previousElementSibling.click();">
-                          <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                        </span>
-                      </label>
-                    </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
-                      <div class="edit-action-group" style="display: flex; flex-direction: column; align-items: center;">
-                        <button class="button is-primary is-small edit-btn" data-user-id="<?php echo $userData['id']; ?>">
-                          <i class="fas fa-pencil-alt"></i>
-                        </button>
-                        <button class="button is-small is-success save-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
-                          <span class="icon is-medium">
-                            <i class="fas fa-floppy-disk"></i>
-                          </span>
-                        </button>
-                        <button class="button is-small is-danger cancel-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
-                          <span class="icon is-medium">
-                            <i class="fas fa-xmark"></i>
-                          </span>
-                        </button>
-                      </div>
-                    </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
-                      <button class="button is-info is-small test-welcome-btn" 
-                              data-username="<?php echo htmlspecialchars($userData['username']); ?>" 
-                              data-message="<?php echo htmlspecialchars($userData['welcome_message']); ?>"
-                              <?php echo $userData['status'] != 'True' ? 'disabled title="User is inactive"' : ''; ?>>
-                        <i class="fas fa-paper-plane"></i>
-                      </button>
-                    </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
-                      <form method="POST" style="display:inline;" class="delete-user-form">
-                        <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
-                        <button type="button" class="button is-danger is-small delete-user-btn"><i class="fas fa-trash-alt"></i></button>
-                      </form>
-                    </td>
+<div id="knownUsersPageContent">
+  <div id="loadingNoticeBox" class="notification <?php echo $totalUsers > 0 ? 'has-background-warning has-text-warning-dark' : 'has-background-info-light has-text-info-dark'; ?>">
+    <p id="loadingNotice">
+      <?php 
+      if ($totalUsers > 0) {
+          echo t('known_users_loading', ['loaded' => 0, 'total' => $totalUsers]);
+      } else {
+          echo t('known_users_no_users');
+      }
+      ?>
+    </p>
+  </div>
+  <?php if ($cacheWarningMessage): ?>
+  <div class="notification is-danger">
+      <?php echo htmlspecialchars($cacheWarningMessage); ?>
+  </div>
+  <?php endif; ?>
+  <div id="content" style="display: <?php echo $totalUsers > 0 ? 'none' : 'block'; ?>;">
+    <div class="columns is-centered">
+      <div class="column is-fullwidth">
+        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
+          <header class="card-header" style="border-bottom: 1px solid #23272f;">
+            <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+              <span class="icon mr-2"><i class="fas fa-users"></i></span>
+              <?php echo t('known_users_title'); ?>
+            </span>
+          </header>
+          <div class="card-content">
+            <div class="notification is-info mb-5">
+              <p class="has-text-weight-bold">
+                <span class="icon"><i class="fas fa-code"></i></span>
+                Custom Variables for Welcome Messages
+              </p>
+              <p>You can use the following variables in welcome messages:</p>
+              <ul>
+                <li><span class="has-text-weight-bold">(shoutout)</span>: Automatically sends a shoutout to the user.</li>
+              </ul>
+            </div>
+            <div class="notification is-warning has-text-dark mb-5">
+              <p class="has-text-weight-bold">
+                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                Important: How to Use Variables
+              </p>
+              <p>
+                <strong>If you only enter a variable</strong> (like <code>(shoutout)</code>) in the welcome message text area, <strong>the bot will NOT post anything to chat</strong>.
+              </p>
+              <p class="mt-3">
+                To send a welcome message, you must include <strong>text along with the variable</strong>. For example:
+              </p>
+              <ul class="mt-2">
+                <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: #c70000;">✗ No Message Sent:</strong> <code>(shoutout)</code> <em>(only the variable, no text)</em></li>
+              </ul>
+              <p class="mt-3">
+                <strong style="color: #d83838;">⚠️ Note:</strong> Entering any welcome message or variable for a user will <strong>override the default welcome message</strong> set in your bot settings.
+              </p>
+            </div>
+            <div class="notification has-background-danger has-text-black has-text-weight-bold"><?php echo t('known_users_edit_notice'); ?></div>
+            <!-- Search Bar -->
+            <input type="text" id="searchInput" class="input" placeholder="<?php echo t('known_users_search_placeholder'); ?>" onkeyup="searchFunction()">
+            <br><br>
+            <div class="table-container">
+              <table class="table is-fullwidth" id="commandsTable">
+                <thead>
+                  <tr>
+                    <th class="has-text-white"><?php echo t('counters_username_column'); ?></th>
+                    <th class="has-text-white"><?php echo t('known_users_welcome_message_column'); ?></th>
+                    <th class="has-text-white has-text-centered"><?php echo t('known_users_status_column'); ?></th>
+                    <th class="has-text-white has-text-centered"><?php echo t('known_users_action_column'); ?></th>
+                    <th class="has-text-white has-text-centered"><?php echo t('known_users_editing_column'); ?></th>
+                    <th class="has-text-white has-text-centered">Test</th>
+                    <th class="has-text-white has-text-centered"><?php echo t('known_users_removing_column'); ?></th>
                   </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
+                </thead>
+                <tbody id="user-table">
+                  <?php foreach ($seenUsersData as $userData): ?>
+                    <tr class="is-vcentered has-text-white">
+                      <td>
+                        <span class="username" data-username="<?php echo htmlspecialchars($userData['username']); ?>">
+                          <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
+                        </span>
+                        <span class="banned-status"></span>
+                      </td>
+                      <td>
+                        <div id="welcome-message-<?php echo $userData['id']; ?>">
+                          <?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?>
+                        </div>
+                        <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
+                          <textarea class="textarea welcome-message" data-user-id="<?php echo $userData['id']; ?>" maxlength="255"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
+                          <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: #ccc;">
+                            <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 characters
+                          </div>
+                        </div>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <span style="color: <?php echo $userData['status'] == 'True' ? 'green' : 'red'; ?>">
+                          <?php echo isset($userData['status']) ? t($userData['status'] == 'True' ? 'known_users_status_true' : 'known_users_status_false') : ''; ?>
+                        </span>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <label class="checkbox" style="cursor:pointer;">
+                          <input type="checkbox" class="toggle-checkbox" <?php echo $userData['status'] == 'True' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $userData['username']; ?>', this.checked)" style="display:none;">
+                          <span class="icon is-medium" onclick="this.previousElementSibling.click();">
+                            <i class="fa-solid <?php echo $userData['status'] == 'True' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                          </span>
+                        </label>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <div class="edit-action-group" style="display: flex; flex-direction: column; align-items: center;">
+                          <button class="button is-primary is-small edit-btn" data-user-id="<?php echo $userData['id']; ?>">
+                            <i class="fas fa-pencil-alt"></i>
+                          </button>
+                          <button class="button is-small is-success save-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
+                            <span class="icon is-medium">
+                              <i class="fas fa-floppy-disk"></i>
+                            </span>
+                          </button>
+                          <button class="button is-small is-danger cancel-edit-btn" data-user-id="<?php echo $userData['id']; ?>" style="display:none; margin-top: 0.25em;">
+                            <span class="icon is-medium">
+                              <i class="fas fa-xmark"></i>
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <button class="button is-info is-small test-welcome-btn" 
+                                data-username="<?php echo htmlspecialchars($userData['username']); ?>" 
+                                data-message="<?php echo htmlspecialchars($userData['welcome_message']); ?>"
+                                <?php echo $userData['status'] != 'True' ? 'disabled title="User is inactive"' : ''; ?>>
+                          <i class="fas fa-paper-plane"></i>
+                        </button>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <form method="POST" style="display:inline;" class="delete-user-form">
+                          <input type="hidden" name="deleteUserId" value="<?php echo $userData['id']; ?>">
+                          <button type="button" class="button is-danger is-small delete-user-btn"><i class="fas fa-trash-alt"></i></button>
+                        </form>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
