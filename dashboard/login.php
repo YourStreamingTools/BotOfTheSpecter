@@ -18,14 +18,187 @@ if (isset($_SESSION['access_token'])) {
     exit;
 }
 
-// If the user is not logged in and no authorization code is present, redirect to Twitch authorization page
-if (!isset($_SESSION['access_token']) && !isset($_GET['code'])) {
-    header('Location: https://id.twitch.tv/oauth2/authorize' .
-        '?client_id=' . $clientID .
-        '&redirect_uri=' . urlencode($redirectURI) .
-        '&response_type=code' .
-        '&scope=' . urlencode($IDScope));
+// If the user is not logged in and no authorization code or auth_data is present, redirect to StreamersConnect
+if (!isset($_SESSION['access_token']) && !isset($_GET['code']) && !isset($_GET['auth_data']) && !isset($_GET['auth_data_sig']) && !isset($_GET['server_token'])) {
+    // Build StreamersConnect URL
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
+    $originDomain = $_SERVER['HTTP_HOST'];
+    $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    $streamersconnectBase = 'https://streamersconnect.com/';
+    $scopes = $IDScope;
+    $authUrl = $streamersconnectBase . '?' . http_build_query([
+        'service' => 'twitch',
+        'login' => $originDomain,
+        'scopes' => $scopes,
+        'return_url' => $returnUrl
+    ]);
+    header('Location: ' . $authUrl);
     exit;
+} 
+
+// Handle StreamersConnect auth_data response
+if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+    $decoded = null;
+    $cfg = require_once "/var/www/config/main.php";
+    $apiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
+    if (isset($_GET['auth_data_sig']) && $apiKey) {
+        $sig = $_GET['auth_data_sig'];
+        $ch = curl_init('https://streamersconnect.com/verify_auth_sig.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['auth_data_sig' => $sig]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
+        }
+    }
+    if (!$decoded && isset($_GET['server_token']) && $apiKey) {
+        $token = $_GET['server_token'];
+        $ch = curl_init('https://streamersconnect.com/token_exchange.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['server_token' => $token]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) $decoded = $res['payload'];
+        }
+    }
+    if (!$decoded && isset($_GET['auth_data'])) {
+        $decoded = json_decode(base64_decode($_GET['auth_data']), true);
+    }
+
+    if (!is_array($decoded) || empty($decoded['success'])) {
+        $info = "Authentication failed or was cancelled.";
+    } elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
+        $accessToken = $decoded['access_token'] ?? null;
+        $refreshToken = $decoded['refresh_token'] ?? null;
+        $user = $decoded['user'] ?? [];
+        $twitchDisplayName = $user['display_name'] ?? ($user['global_name'] ?? null);
+        $twitchUsername = $user['login'] ?? $user['username'] ?? null;
+        $profileImageUrl = $user['profile_image_url'] ?? null;
+        $twitchUserId = $user['id'] ?? null;
+        $email = $user['email'] ?? '';
+        if ($accessToken && $twitchUserId) {
+            // Set session tokens and basic user info
+            $_SESSION['access_token'] = $accessToken;
+            $_SESSION['refresh_token'] = $refreshToken;
+            $_SESSION['username'] = $twitchUsername;
+            $_SESSION['twitch_user_id'] = $twitchUserId;
+            $_SESSION['profile_image'] = $profileImageUrl;
+            $_SESSION['display_name'] = $twitchDisplayName;
+
+            // Database connect
+            require_once "/var/www/config/db_connect.php";
+
+            // Check if the user is in the restricted list
+            $restrictedQuery = "SELECT id FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
+            $stmt = mysqli_prepare($conn, $restrictedQuery);
+            mysqli_stmt_bind_param($stmt, 'ss', $twitchUserId, $twitchUsername);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_store_result($stmt);
+            if (mysqli_stmt_num_rows($stmt) > 0) {
+                $_SESSION = array();
+                session_destroy();
+                // User is in the restricted list
+                $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at support@botofthespecter.com.";
+                include 'restricted.php';
+                exit;
+            }
+            mysqli_stmt_close($stmt);
+
+            // Check if the user already exists
+            $checkQuery = "SELECT id, api_key FROM users WHERE twitch_user_id = ?";
+            $stmt = mysqli_prepare($conn, $checkQuery);
+            mysqli_stmt_bind_param($stmt, 's', $twitchUserId);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_store_result($stmt);
+            if (mysqli_stmt_num_rows($stmt) > 0) {
+                // User exists, fetch api_key and update their information
+                mysqli_stmt_bind_result($stmt, $userId, $apiKey);
+                mysqli_stmt_fetch($stmt);
+                mysqli_stmt_close($stmt);
+                $_SESSION['user_id'] = $userId;
+                $_SESSION['api_key'] = $apiKey;
+                // Update user information
+                $updateQuery = "UPDATE users SET access_token = ?, refresh_token = ?, profile_image = ?, username = ?, twitch_display_name = ?, last_login = ?, email = ? WHERE twitch_user_id = ?";
+                $stmt = mysqli_prepare($conn, $updateQuery);
+                $last_login = date('Y-m-d H:i:s');
+                mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
+                if (mysqli_stmt_execute($stmt)) {
+                    header('Location: dashboard.php');
+                    exit;
+                } else {
+                    echo 'Error updating user: ' . mysqli_stmt_error($stmt);
+                    exit;
+                }
+            } else {
+                // User does not exist, insert them as a new user
+                $apiKey = bin2hex(random_bytes(16));
+                $_SESSION['api_key'] = $apiKey;
+                $assignedId = null;
+                if (!mysqli_begin_transaction($conn, MYSQLI_TRANS_START_READ_WRITE)) {
+                    mysqli_autocommit($conn, false);
+                }
+                try {
+                    $idResult = mysqli_query($conn, "SELECT id FROM users ORDER BY id ASC FOR UPDATE");
+                    $expected = 1;
+                    if ($idResult) {
+                        while ($row = mysqli_fetch_assoc($idResult)) {
+                            $id = (int)$row['id'];
+                            if ($id !== $expected) {
+                                break;
+                            }
+                            $expected++;
+                        }
+                    }
+                    $assignedId = $expected;
+                    $insertQuery = "INSERT INTO users (id, username, access_token, refresh_token, api_key, profile_image, twitch_user_id, twitch_display_name, email, is_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+                    $stmt = mysqli_prepare($conn, $insertQuery);
+                    if ($stmt === false) {
+                        throw new Exception('Prepare failed: ' . mysqli_error($conn));
+                    }
+                    // bind types: i = id, followed by strings
+                    mysqli_stmt_bind_param($stmt, 'issssssss', $assignedId, $twitchUsername, $accessToken, $refreshToken, $apiKey, $profileImageUrl, $twitchUserId, $twitchDisplayName, $email);
+                    if (!mysqli_stmt_execute($stmt)) {
+                        throw new Exception('Error inserting user: ' . mysqli_stmt_error($stmt));
+                    }
+                    // Attempt to keep AUTO_INCREMENT at least max(id)+1 to avoid conflicts
+                    $maxRes = mysqli_query($conn, "SELECT MAX(id) AS maxid FROM users");
+                    if ($maxRes) {
+                        $maxRow = mysqli_fetch_assoc($maxRes);
+                        $nextAI = ((int)$maxRow['maxid']) + 1;
+                        // ALTER TABLE may require privileges; suppress errors if it fails
+                        @mysqli_query($conn, "ALTER TABLE users AUTO_INCREMENT = " . intval($nextAI));
+                    }
+                    // Commit transaction
+                    mysqli_commit($conn);
+                    // Set the session user id to the assigned id (don't rely on mysqli_insert_id when inserting explicit ids)
+                    $_SESSION['user_id'] = $assignedId;
+                    header('Location: dashboard.php');
+                    exit;
+                } catch (Exception $e) {
+                    // Rollback if possible
+                    @mysqli_rollback($conn);
+                    // Re-enable autocommit if we disabled it earlier
+                    mysqli_autocommit($conn, true);
+                    echo $e->getMessage();
+                    exit;
+                }
+            }
+        } else {
+            $info = "Failed to parse authentication data from StreamersConnect.";
+        }
+    } else {
+        $info = "Unexpected response service from StreamersConnect.";
+    }
 }
 
 // If an authorization code is present, exchange it for an access token and refresh token

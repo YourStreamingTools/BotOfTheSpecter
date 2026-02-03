@@ -22,16 +22,58 @@ function userDatabaseExists($username)
     return $count > 0;
 }
 
-if (isset($_GET['auth_data'])) {
-    $authDataEncoded = $_GET['auth_data'];
-    $authDataJson = base64_decode($authDataEncoded);
-    $authData = json_decode($authDataJson, true);
+if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+    $authData = null;
+    $cfg = require_once "/var/www/config/main.php";
+    $apiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
+    // Try signed payload verification via StreamersConnect verify endpoint
+    if (isset($_GET['auth_data_sig']) && $apiKey) {
+        $sig = $_GET['auth_data_sig'];
+        $ch = curl_init('https://streamersconnect.com/verify_auth_sig.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['auth_data_sig' => $sig]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) {
+                $authData = $res['payload'];
+            }
+        }
+    }
+    // Next, try exchanging server_token
+    if (!$authData && isset($_GET['server_token']) && $apiKey) {
+        $token = $_GET['server_token'];
+        $ch = curl_init('https://streamersconnect.com/token_exchange.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['server_token' => $token]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $apiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) {
+                $authData = $res['payload'];
+            }
+        }
+    }
+    // Fallback to legacy base64 auth_data
+    if (!$authData && isset($_GET['auth_data'])) {
+        $authDataEncoded = $_GET['auth_data'];
+        $authDataJson = base64_decode($authDataEncoded);
+        $authData = json_decode($authDataJson, true);
+    }
     if ($authData && isset($authData['success']) && $authData['success'] === true) {
         $accessToken = $authData['access_token'];
         $refreshToken = $authData['refresh_token'];
-        $twitchUsername = $authData['user']['login'];
-        $displayName = $authData['user']['display_name'];
-        $email = $authData['user']['email'];
+        $twitchUsername = $authData['user']['login'] ?? 'guest_user';
+        $displayName = $authData['user']['display_name'] ?? null;
+        $email = $authData['user']['email'] ?? null;
         $_SESSION['access_token'] = $accessToken;
         $_SESSION['refresh_token'] = $refreshToken;
         $_SESSION['twitch_username'] = $twitchUsername;
@@ -44,6 +86,8 @@ if (isset($_GET['auth_data'])) {
         if (!is_dir($userFolder)) {
             mkdir($userFolder, 0775, true);
         }
+        // Regenerate session id to prevent fixation
+        session_regenerate_id(true);
         header('Location: ' . strtok($redirectURI, '?'));
         exit;
     } else {
