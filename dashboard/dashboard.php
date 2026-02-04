@@ -138,11 +138,11 @@ if ($isLoggedIn) {
                                     <i class="fas fa-plug fa-2x"></i>
                                 </span>
                             </div>
-                            <h4 class="title is-5">OBSConnector</h4>
-                            <p class="subtitle is-6">Connect OBS to the Specter System</p>
+                            <h4 class="title is-5"><?php echo t('obsconnector_title'); ?></h4>
+                            <p class="subtitle is-6"><?php echo t('obsconnector_banner_title'); ?></p>
                             <a href="obsconnector.php" class="button is-link is-fullwidth">
                                 <span class="icon"><i class="fas fa-cogs"></i></span>
-                                <span>OBS Connector</span>
+                                <span><?php echo t('obsconnector_title'); ?></span>
                             </a>
                         </div>
                     </div>

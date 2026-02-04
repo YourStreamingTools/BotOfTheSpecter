@@ -3,7 +3,7 @@ session_start();
 include "/var/www/config/db_connect.php";
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
-$pageTitle = t('navbar_obsconnector') ?? 'OBSConnector';
+$pageTitle = t('navbar_obsconnector') ?? 'Controller App';
 
 // Include files for database and user data
 include 'userdata.php';
@@ -20,7 +20,7 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// OBSConnector version and download information
+// Controller App version and download information
 $obsconnectorVersion = "1.1";
 $githubReleasesUrl = "https://github.com/YourStreamingTools/BotOfTheSpecter-OBS-Connector/releases";
 $downloadUrl = "https://cdn.botofthespecter.com/app-builds/OBSConnector/BotOfTheSpecter-OBS-Connector-v$obsconnectorVersion.exe";
