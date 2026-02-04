@@ -821,34 +821,133 @@ async def save_freestuff_game(webhook_data):
                     )
                 """)
                 await conn.commit()
-                # Extract game data from webhook
-                data = webhook_data.get("data", {})
-                product = data.get("product", {})
-                game_id = product.get("id")
-                game_title = product.get("title", "Unknown Game")
-                game_org = product.get("org", {}).get("name", "Unknown")
-                # Get thumbnail - prefer Steam if available
-                thumbnails = product.get("thumbnails", {})
-                game_thumbnail = thumbnails.get("steam_library_600x900") or thumbnails.get("org_logo") or ""
-                # Get URL
-                urls = product.get("urls", {})
-                game_url = urls.get("default") or urls.get("org") or ""
-                game_description = product.get("description", "")
-                # Get price info
-                prices = product.get("prices", [])
-                game_price = "Free"
-                if prices:
-                    for price in prices:
-                        if price.get("oldValue"):
-                            game_price = f"Was ${price.get('oldValue')/100:.2f}"
-                            break
-                # Insert new game
-                await cur.execute("""
-                    INSERT INTO freestuff_games 
-                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price))
-                await conn.commit()
+                # Normalize products list (supports different webhook shapes)
+                data = webhook_data.get("data", {}) or {}
+                products = []
+                if isinstance(data, dict) and isinstance(data.get("resolvedProducts"), list):
+                    products = data.get("resolvedProducts", [])
+                elif isinstance(data, dict) and isinstance(data.get("product"), dict):
+                    products = [data.get("product")]
+                elif isinstance(data, dict) and ("id" in data or "title" in data):
+                    # data itself may be a product
+                    products = [data]
+                # Fallback: if no products found, try top-level 'product' or 'data' keys
+                if not products and isinstance(webhook_data.get("product"), dict):
+                    products = [webhook_data.get("product")]
+                # Determine a received_at timestamp (prefer webhook timestamp if present)
+                received_at = None
+                ts = webhook_data.get("timestamp")
+                if ts:
+                    try:
+                        received_at = datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)
+                    except Exception:
+                        try:
+                            received_at = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+                        except Exception:
+                            received_at = None
+                if not products:
+                    logging.warning("FreeStuff webhook contained no recognized product data")
+                    return
+                for product in products:
+                    try:
+                        # Extract fields with sensible fallbacks
+                        game_id = product.get("id") or product.get("gameId") or None
+                        game_title = product.get("title") or product.get("name") or "Unknown Game"
+                        game_org = product.get("store") or (product.get("org") or {}).get("name") or product.get("org") or "FreeStuff"
+                        # Thumbnail - prefer images array first then thumbnails map
+                        game_thumbnail = ""
+                        images = product.get("images") or []
+                        if images and isinstance(images, list) and images[0].get("url"):
+                            game_thumbnail = images[0].get("url")
+                        else:
+                            thumbnails = product.get("thumbnails") or {}
+                            game_thumbnail = thumbnails.get("steam_library_600x900") or thumbnails.get("org_logo") or thumbnails.get("thumbnail") or ""
+                        # URL - support list or dict shapes
+                        game_url = ""
+                        urls = product.get("urls") or []
+                        if isinstance(urls, list) and urls:
+                            first = urls[0]
+                            if isinstance(first, dict):
+                                game_url = first.get("url") or ""
+                            else:
+                                game_url = first
+                        elif isinstance(urls, dict):
+                            game_url = urls.get("default") or urls.get("org") or ""
+                        # Description - may be a list of localized entries
+                        game_description = ""
+                        desc = product.get("description")
+                        if isinstance(desc, list):
+                            # prefer English
+                            for d in desc:
+                                if d.get("lang") in ("en-US", "en"):
+                                    game_description = d.get("text", "")
+                                    break
+                            if not game_description and desc:
+                                game_description = desc[0].get("text", "")
+                        elif isinstance(desc, str):
+                            game_description = desc
+                        # Price - check prices list for oldValue (cents)
+                        game_price = "Free"
+                        prices = product.get("prices") or []
+                        if isinstance(prices, list) and prices:
+                            for price in prices:
+                                if price and price.get("oldValue"):
+                                    try:
+                                        game_price = f"Was ${price.get('oldValue')/100:.2f}"
+                                        break
+                                    except Exception:
+                                        pass
+                        # Use provided received_at when possible, else NULL (DB default will set now)
+                        if received_at:
+                            received_at_param = received_at.strftime("%Y-%m-%d %H:%M:%S")
+                        else:
+                            received_at_param = None
+                        # Upsert logic: update if a record with same game_id exists, else insert.
+                        existing_id = None
+                        if game_id:
+                            await cur.execute("SELECT id FROM freestuff_games WHERE game_id = %s LIMIT 1", (game_id,))
+                            row = await cur.fetchone()
+                            if row:
+                                existing_id = row[0]
+                        if not existing_id:
+                            # Fallback to match on title+org
+                            await cur.execute("SELECT id FROM freestuff_games WHERE game_title = %s AND game_org = %s LIMIT 1", (game_title, game_org))
+                            row = await cur.fetchone()
+                            if row:
+                                existing_id = row[0]
+                        if existing_id:
+                            # Update existing record
+                            if received_at_param:
+                                await cur.execute(
+                                    """
+                                    UPDATE freestuff_games SET game_id=%s, game_title=%s, game_org=%s,
+                                    game_thumbnail=%s, game_url=%s, game_description=%s, game_price=%s, received_at=%s
+                                    WHERE id=%s
+                                    """,
+                                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at_param, existing_id)
+                                )
+                            else:
+                                await cur.execute(
+                                    """
+                                    UPDATE freestuff_games SET game_id=%s, game_title=%s, game_org=%s,
+                                    game_thumbnail=%s, game_url=%s, game_description=%s, game_price=%s
+                                    WHERE id=%s
+                                    """,
+                                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, existing_id)
+                                )
+                        else:
+                            await cur.execute(
+                                """
+                                INSERT INTO freestuff_games 
+                                (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                """,
+                                (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at_param)
+                            )
+                        await conn.commit()
+                        logging.info(f"Saved/updated FreeStuff game: {game_title} ({game_org})")
+                    except Exception as ie:
+                        logging.error(f"Error processing product in FreeStuff webhook: {ie}")
                 # Keep only last 5 games
                 await cur.execute("""
                     DELETE FROM freestuff_games 
@@ -861,7 +960,6 @@ async def save_freestuff_game(webhook_data):
                     )
                 """)
                 await conn.commit()
-                logging.info(f"Saved FreeStuff game: {game_title} ({game_org})")
         finally:
             conn.close()
     except Exception as e:
