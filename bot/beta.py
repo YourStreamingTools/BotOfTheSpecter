@@ -10940,31 +10940,33 @@ async def handle_ad_break_start(duration_seconds):
                 ad_break_count = result['ad_break_count']
     except Exception as e:
         api_logger.error(f"Error updating ad break count in handle_ad_break_start: {e}")
+    # Pre-read ad-break chat file and clear it immediately so old messages don't pile up (even if AI is disabled/permission not granted)
+    chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+    chat_history = []
+    if chat_file.exists():
+        try:
+            with chat_file.open('r', encoding='utf-8') as f:
+                content = f.read()
+                if content:
+                    chat_history = json.loads(content)
+                    # Filter out only timed messages for AI context (keep command responses)
+                    timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
+                    chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
+        except Exception as e:
+            event_logger.error(f"Error reading ad break chat history (pre-clear): {e}")
+    # Clear the file IMMEDIATELY after reading so future ad-breaks don't process stale logs
+    try:
+        if chat_file.exists():
+            with chat_file.open('w', encoding='utf-8') as f:
+                json.dump([], f)
+    except Exception as e:
+        event_logger.error(f"Error clearing ad break chat history file (pre-clear): {e}")
     # 2. AI Logic
     enable_ai = settings.get('enable_ai_ad_breaks', 0)
     premium_tier = await check_premium_feature(CHANNEL_NAME)
     ai_message_sent = False
     if enable_ai and premium_tier >= 2000:
         try:
-            chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-            chat_history = []
-            if chat_file.exists():
-                try:
-                    with chat_file.open('r', encoding='utf-8') as f:
-                        content = f.read()
-                        if content:
-                            chat_history = json.loads(content)
-                            # Filter out only timed messages for AI context (keep command responses)
-                            timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
-                            chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
-                except Exception as e:
-                    event_logger.error(f"Error reading chat history: {e}")
-                # Clear the file IMMEDIATELY after reading
-                try:
-                    with chat_file.open('w', encoding='utf-8') as f:
-                        json.dump([], f)
-                except Exception as e:
-                    event_logger.error(f"Error clearing chat history file: {e}")
             # Check Ad Manager Status (to detect automated start-of-stream ads)
             uses_ad_manager = False
             try:
@@ -11097,6 +11099,29 @@ async def handle_ad_break_start(duration_seconds):
         ai_message_sent = False
         enable_ai = settings.get('enable_ai_ad_breaks', 0)
         premium_tier = await check_premium_feature(CHANNEL_NAME)
+        # Pre-read and clear ad-break chat history so old messages don't persist when AI is disabled/permission missing
+        chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+        chat_history = []
+        try:
+            if chat_file.exists():
+                try:
+                    with chat_file.open('r', encoding='utf-8') as f:
+                        content = f.read()
+                        if content:
+                            chat_history = json.loads(content)
+                            timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
+                            chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
+                except Exception as e:
+                    event_logger.error(f"Error reading ad break chat history (pre-clear ad end): {e}")
+            # Clear file after reading so future ad breaks start fresh
+            try:
+                if chat_file.exists():
+                    with chat_file.open('w', encoding='utf-8') as f:
+                        json.dump([], f)
+            except Exception as e:
+                event_logger.error(f"Error clearing ad break chat history file (pre-clear ad end): {e}")
+        except Exception as e:
+            event_logger.debug(f"No ad break chat file to pre-clear: {e}")
         if enable_ai and premium_tier >= 2000:
             try:
                 system_prompt = (
@@ -11107,22 +11132,6 @@ async def handle_ad_break_start(duration_seconds):
                     "1. Keep your response under 500 characters. "
                     "2. DO NOT use the phrase 'Chaos Crew' ever."
                 )
-                # Try to include recent ad-break chat and stream context so the AI can personalize the
-                # post-ad message (e.g., reference today's activity, collab, or recent chat jokes).
-                chat_history = []
-                try:
-                    chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-                    if chat_file.exists():
-                        with chat_file.open('r', encoding='utf-8') as f:
-                            content = f.read()
-                            if content:
-                                chat_history = json.loads(content)
-                                # Filter out only timed messages for AI context (keep command responses)
-                                timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
-                                chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
-                except Exception as e:
-                    event_logger.error(f"Error reading ad break chat history for ad end: {e}")
-                # Build a short recent-activity context from global vars (if available)
                 try:
                     recent_activity = ""
                     if 'stream_title' in globals() and stream_title:
@@ -11146,7 +11155,6 @@ async def handle_ad_break_start(duration_seconds):
                             json.dump([], f)
                 except Exception as e:
                     event_logger.error(f"Error clearing ad break chat history after ad end read: {e}")
-
                 # Analyze chat vibe and include guidance so the model doesn't invent unrelated activities
                 try:
                     vibe = analyze_chat_vibe(chat_history)
@@ -11157,7 +11165,6 @@ async def handle_ad_break_start(duration_seconds):
                     user_content += "\nInstruction: Prefer referencing detected topics/tone. Do not invent activities not present in the recent chat or stream title."
                 except Exception as e:
                     event_logger.debug(f"Could not analyze chat vibe for ad end: {e}")
-
                 messages = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
@@ -11165,7 +11172,6 @@ async def handle_ad_break_start(duration_seconds):
                 try:
                     chat_client = getattr(openai_client, 'chat', None)
                     ai_text = None
-                    
                     if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
                         resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
                         if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
