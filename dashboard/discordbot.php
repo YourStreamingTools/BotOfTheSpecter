@@ -4477,6 +4477,8 @@ ob_start();
     }
     // Check validation on page load and when inputs change - use longer delay
     setTimeout(validateSendStreamScheduleButton, 500);
+    // Expose as global so other callbacks can invoke it safely
+    window.validateSendStreamScheduleButton = validateSendStreamScheduleButton;
     $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content, #stream_schedule_timezone').on('change input', validateSendStreamScheduleButton);
   });
 </script>
@@ -4639,9 +4641,13 @@ ob_start();
         }
       });
   }
-
   // Channel/Role Configuration AJAX Handler
-  function saveChannelConfig(action, formData, button = null) {
+  function saveChannelConfig(action, formData, button = null, callback = null) {
+    // Support backward-compatible call signatures where a callback may be passed as the third arg
+    if (typeof button === 'function' && callback === null) {
+      callback = button;
+      button = null;
+    }
     const guildIdElement = document.getElementById('guild_id_config');
     const guildId = guildIdElement ? guildIdElement.value.trim() : '';
     // Validate that we have a guild ID
@@ -4745,7 +4751,16 @@ ob_start();
             timerProgressBar: true
           });
         }
+        // Restore loading state for button if provided
         if (button) setButtonLoading(button, false);
+        // Invoke optional callback so callers can run follow-up logic
+        if (typeof callback === 'function') {
+          try {
+            callback(data);
+          } catch (cbErr) {
+            console.error('Error in saveChannelConfig callback:', cbErr);
+          }
+        }
       })
       .catch(error => {
         console.error('Error details:', error);
@@ -5282,9 +5297,11 @@ ob_start();
       stream_schedule_content: scheduleContent,
       stream_schedule_color: scheduleColor,
       stream_schedule_timezone: scheduleTimezone
-    }, function () {
+    }, button, function () {
       // Enable send button after successful save
       validateSendStreamScheduleButton();
+      // Also restore the save button loading state (in case saveChannelConfig couldn't)
+      setButtonLoading(button, false);
     });
   }
 
