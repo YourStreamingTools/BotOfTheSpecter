@@ -250,7 +250,7 @@ function uuidv4()
                         <li><a href="streamelements.php" class="sidebar-submenu-link"><span
                                     class="sidebar-submenu-icon"><i class="fas fa-globe"></i></span><span
                                     class="sidebar-menu-text"><?php echo t('navbar_streamelements'); ?></span></a></li>
-                        <li><a href="obsconnector.php" class="sidebar-submenu-link"><span
+                        <li><a href="controllerapp.php" class="sidebar-submenu-link"><span
                                     class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span><span
                                     class="sidebar-menu-text"><?php echo t('navbar_obsconnector'); ?></span></a></li>
                         <li><a href="bingo.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i
@@ -533,7 +533,7 @@ function uuidv4()
                             </a>
                         </li>
                         <li>
-                            <a href="obsconnector.php" class="sidebar-submenu-link">
+                            <a href="controllerapp.php" class="sidebar-submenu-link">
                                 <span class="sidebar-submenu-icon"><i class="fas fa-plug"></i></span>
                                 <span class="sidebar-menu-text"><?php echo t('navbar_obsconnector'); ?></span>
                             </a>
