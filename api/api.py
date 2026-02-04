@@ -986,10 +986,11 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
             raise HTTPException(status_code=400, detail="Invalid webhook: missing type/timestamp")
         event_type = webhook_data.get("type")
         logging.info(f"FreeStuff: {event_type} | ID: {webhook_id} | Compat: {compatibility_date}")
-        # Save game announcement to database
-        if event_type == "fsb:announcement:free-games":
+        # Save game announcement to database (handle multiple announcement event types)
+        if event_type and "announcement" in event_type:
+            logging.info(f"FreeStuff announcement received (type={event_type}), attempting to save to DB")
             await save_freestuff_game(webhook_data)
-        if event_type == "fsb:event:ping":
+        elif event_type == "fsb:event:ping":
             manual = webhook_data.get("data", {}).get("manual", False)
             logging.info(f"FreeStuff ping ({'manual' if manual else 'automatic'})")
             return Response(status_code=204, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
