@@ -36,6 +36,13 @@ function fetch_freegames() {
 $result = fetch_freegames();
 
 function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+
+function format_date($datetime) {
+    if (empty($datetime)) return 'Unknown';
+    $ts = strtotime($datetime);
+    if ($ts === false || $ts === -1) return 'Unknown';
+    return date('M j, Y g:i A', $ts);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -83,8 +90,7 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
             </div>
         </div>
     </div>
-
-    <section class="section" style="padding-top: 100px;">
+    <section class="section freegames" style="padding-top: 100px;">
         <div class="container">
             <nav class="breadcrumb" aria-label="breadcrumbs">
                 <ul>
@@ -93,10 +99,8 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                     <li class="is-active"><a href="#" aria-current="page">Free Games</a></li>
                 </ul>
             </nav>
-
             <h1 class="title">FreeStuff — System Announcements</h1>
             <p class="subtitle">This page shows system-wide FreeStuff announcements used by our Discord and Twitch bots. The Twitch bot posts the most recent free game in chat with a link to view more here.</p>
-
             <?php if ($result['error']): ?>
                 <div class="notification is-warning">
                     <strong>Notice:</strong> <?php echo esc($result['message']); ?>
@@ -105,10 +109,9 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                 <?php if ($result['count'] == 0): ?>
                     <div class="notification is-info">No recent free games found.</div>
                 <?php else: ?>
-
                     <!-- Highlight the most recent game first for easy sharing -->
                     <?php $latest = $result['games'][0]; ?>
-                    <div class="box">
+                    <div class="box latest-banner">
                         <article class="media">
                             <?php if (!empty($latest['game_thumbnail'])): ?>
                                 <figure class="media-left">
@@ -122,7 +125,7 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                                     <p>
                                         <strong class="is-size-5"><?php echo esc($latest['game_title']); ?></strong>
                                         <br>
-                                        <small><strong><?php echo esc($latest['game_org']); ?></strong> &middot; <?php echo esc($latest['game_price']); ?> &middot; Received: <?php echo esc(date('M j, Y g:i A', strtotime($latest['received_at']))); ?></small>
+                                        <small><strong><?php echo esc($latest['game_org']); ?></strong> &middot; <?php echo esc($latest['game_price']); ?> &middot; Received: <?php echo esc(format_date($latest['received_at'])); ?></small>
                                         <br>
                                         <span><?php echo esc(mb_substr($latest['game_description'] ?? '', 0, 400)); ?></span>
                                     </p>
@@ -138,7 +141,6 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                             </div>
                         </article>
                     </div>
-
                     <div id="all" class="columns is-multiline">
                         <?php foreach ($result['games'] as $game): ?>
                             <div class="column is-12-mobile is-6-tablet is-4-desktop">
@@ -153,7 +155,7 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                                     <div class="card-content">
                                         <p class="title is-6"><?php echo esc($game['game_title']); ?></p>
                                         <p class="subtitle is-7"><strong><?php echo esc($game['game_org']); ?></strong> &middot; <?php echo esc($game['game_price']); ?></p>
-                                        <div class="content" style="max-height: 5.2rem; overflow: hidden;">
+                                        <div class="content game-description">
                                             <?php echo esc(mb_substr($game['game_description'] ?? '', 0, 300)); ?>
                                         </div>
                                     </div>
@@ -163,7 +165,7 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                                         <?php else: ?>
                                             <a class="card-footer-item">No Link</a>
                                         <?php endif; ?>
-                                        <a class="card-footer-item">Received: <?php echo esc(date('M j, Y g:i A', strtotime($game['received_at']))); ?></a>
+                                        <a class="card-footer-item">Received: <?php echo esc(format_date($game['received_at'])); ?></a>
                                     </footer>
                                 </div>
                             </div>
@@ -171,14 +173,11 @@ function esc($s) { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
-
             <div style="margin-top: 2rem;">
                 <a href="/members/" class="button is-light">Back to Members</a>
             </div>
         </div>
     </section>
-
     <script defer src="https://use.fontawesome.com/releases/v5.14.0/js/all.js"></script>
 </body>
-
 </html>
