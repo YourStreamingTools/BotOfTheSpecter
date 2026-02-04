@@ -1060,6 +1060,42 @@ async def get_freestuff_games():
         logging.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error fetching games: {str(e)}")
 
+# Latest FreeStuff Game Endpoint
+@app.get(
+    "/freestuff/latest",
+    response_model=FreeStuffGame,
+    summary="Get the most recent free game",
+    description="Retrieve the most recent free game announced via FreeStuff webhooks.",
+    tags=["Public"],
+    operation_id="get_freestuff_latest"
+)
+async def get_freestuff_latest():
+    logging.info("FreeStuff Latest endpoint called")
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("""
+                    SELECT id, game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at
+                    FROM freestuff_games
+                    ORDER BY received_at DESC
+                    LIMIT 1
+                """)
+                game = await cur.fetchone()
+                if not game:
+                    raise HTTPException(status_code=404, detail="No free games found")
+                if game.get('received_at'):
+                    game['received_at'] = game['received_at'].strftime('%Y-%m-%d %H:%M:%S')
+                return game
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching latest FreeStuff game: {type(e).__name__}: {str(e)}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error fetching latest free game: {str(e)}")
+
 # Account Information Endpoint
 @app.get(
     "/account",
