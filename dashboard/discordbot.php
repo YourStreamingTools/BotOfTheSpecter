@@ -3431,7 +3431,7 @@ ob_start();
                 </div>
                 <div class="field">
                   <div class="control">
-                    <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule()"
+                    <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule(event)"
                       name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Schedule Configuration</span>
@@ -4668,11 +4668,11 @@ ob_start();
       },
       body: JSON.stringify(formData)
     })
-      .then(async response => {
-        const contentType = response.headers.get('content-type');
-        let responseData;
+      // First get both response and text so we can inspect status and parse JSON
+      .then(response => response.text().then(text => ({ response: response, text: text })))
+      .then(({ response, text }) => {
+        var responseData;
         try {
-          const text = await response.text();
           responseData = JSON.parse(text);
         } catch (jsonError) {
           console.error('Failed to parse JSON. Error:', jsonError);
@@ -4682,7 +4682,7 @@ ob_start();
           console.error('HTTP error response data:', responseData);
           // Only throw if we don't have a valid error message in the response
           if (!responseData || !responseData.message) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error('HTTP error! status: ' + response.status);
           }
         }
         return responseData;
@@ -4699,7 +4699,6 @@ ob_start();
             timer: 2000,
             timerProgressBar: true
           });
-
           // Handle clearing data - disable the appropriate toggle
           if (action === 'clear_reaction_roles') {
             const toggle = document.getElementById('reactionRoles');
@@ -5220,8 +5219,8 @@ ob_start();
     }, button);
   }
 
-  function saveStreamSchedule() {
-    const button = event.target.closest('button');
+  function saveStreamSchedule(e) {
+    const button = (e && e.target) ? e.target.closest('button') : document.querySelector('button[name="save_stream_schedule"]');
     setButtonLoading(button, true);
     const scheduleChannelId = document.getElementById('stream_schedule_channel_id').value.trim();
     const scheduleTitle = document.getElementById('stream_schedule_title').value;
@@ -5295,18 +5294,7 @@ ob_start();
     const scheduleContent = document.getElementById('stream_schedule_content').value;
     const scheduleColor = document.getElementById('stream_schedule_color').value;
     const scheduleTimezone = document.getElementById('stream_schedule_timezone').value.trim();
-  }
-
-  // Handler for Free Games form submission
-  function handleFreestuffSubmit(event) {
-    const button = document.getElementById('save_freestuff_btn');
-    if (button) {
-      setButtonLoading(button, true);
-    }
-    // Let the form submit normally
-    return true;
-  }
-    // Validate required fields
+    // Validate required fields before sending
     if (!scheduleChannelId || scheduleChannelId === '') {
       Swal.fire({
         toast: true,
@@ -5338,7 +5326,7 @@ ob_start();
         icon: 'warning',
         title: 'Please enter your stream schedule',
         showConfirmButton: false,
-        timer: 4000,
+        timer: 3000,
         timerProgressBar: true
       });
       return;
@@ -5364,6 +5352,16 @@ ob_start();
         });
       }
     });
+  }
+
+  // Handler for Free Games form submission
+  function handleFreestuffSubmit(event) {
+    const button = document.getElementById('save_freestuff_btn');
+    if (button) {
+      setButtonLoading(button, true);
+    }
+    // Let the form submit normally
+    return true;
   }
 
   // Generic Clear Feature Function
