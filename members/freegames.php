@@ -11,7 +11,7 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
-$title = "Free Games";
+$title = "Free Games"; 
 
 function fetch_freegames() {
     $url = 'https://api.botofthespecter.com/freestuff/games';
@@ -57,7 +57,7 @@ function format_date($datetime) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/custom.css">
+    <link rel="stylesheet" href="<?php echo '/custom.css?v=' . filemtime(__DIR__.'/custom.css'); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
