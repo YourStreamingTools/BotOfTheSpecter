@@ -92,7 +92,7 @@ function sanitize_custom_vars($response)
 }
 
 // PAGE TITLE
-$title = "Members";
+$title = "Members"; 
 
 // Database credentials
 include '/var/www/config/database.php';
@@ -171,7 +171,7 @@ if ($username) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/custom.css">
+    <link rel="stylesheet" href="<?php echo '/custom.css?v=' . filemtime(__DIR__.'/custom.css'); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <meta name="twitter:card" content="summary_large_image" />
