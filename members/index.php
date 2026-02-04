@@ -241,6 +241,25 @@ if ($username) {
                             </div>
                         </form>
                     </div>
+
+                    <!-- Quick links / custom pages for users who haven't selected a channel -->
+                    <div class="box">
+                        <h3 class="subtitle">Member Information</h3>
+                        <div class="columns is-multiline">
+                            <div class="column is-4-tablet is-3-desktop">
+                                <div class="card">
+                                    <div class="card-content">
+                                        <p class="title is-5">FreeStuff (System): Recent Free Games</p>
+                                        <p class="content">System-wide announcements of free games used by our Discord and Twitch bots. The Twitch bot displays the most recent free game in chat and links back here for details.</p>
+                                    </div>
+                                    <footer class="card-footer">
+                                        <a href="/freegames.php" class="card-footer-item">View Free Games (System)</a>
+                                    </footer>
+                                </div>
+                            </div>
+                            <!-- Add more system pages here in future -->
+                        </div>
+                    </div>
                 <?php else: ?>
                     <div class="notification is-info">
                         <?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?>
