@@ -936,14 +936,25 @@ async def save_freestuff_game(webhook_data):
                                     (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, existing_id)
                                 )
                         else:
-                            await cur.execute(
-                                """
-                                INSERT INTO freestuff_games 
-                                (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                                """,
-                                (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at_param)
-                            )
+                            # Insert with received_at only if we have a valid timestamp; otherwise let DB default (CURRENT_TIMESTAMP) apply
+                            if received_at_param:
+                                await cur.execute(
+                                    """
+                                    INSERT INTO freestuff_games 
+                                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                    """,
+                                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price, received_at_param)
+                                )
+                            else:
+                                await cur.execute(
+                                    """
+                                    INSERT INTO freestuff_games 
+                                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                    """,
+                                    (game_id, game_title, game_org, game_thumbnail, game_url, game_description, game_price)
+                                )
                         await conn.commit()
                         logging.info(f"Saved/updated FreeStuff game: {game_title} ({game_org})")
                     except Exception as ie:
@@ -1050,7 +1061,9 @@ async def get_freestuff_games():
                     for game in games:
                         if game.get('received_at'):
                             game['received_at'] = game['received_at'].strftime('%Y-%m-%d %H:%M:%S')
-                
+                        else:
+                            # Ensure response model validation passes by returning an empty string when timestamp is missing
+                            game['received_at'] = ''
                 result = {"games": games or [], "count": len(games) if games else 0}
                 logging.info(f"Returning result with {result['count']} games")
                 return result
@@ -1087,6 +1100,8 @@ async def get_freestuff_latest():
                     raise HTTPException(status_code=404, detail="No free games found")
                 if game.get('received_at'):
                     game['received_at'] = game['received_at'].strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    game['received_at'] = ''
                 return game
         finally:
             conn.close()
