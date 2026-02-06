@@ -2070,7 +2070,7 @@ class TwitchBot(commands.AutoBot):
         self.running_commands = set()
 
     async def setup_hook(self) -> None:
-        self.add_component(TwitchBotCommnads(self))
+        pass
 
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.user.name}"')
@@ -2094,11 +2094,15 @@ class TwitchBot(commands.AutoBot):
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
+        # NOTE: TwitchIO v3 removed `event_channel_joined`. This handler will not be called by v3.
+        # Keep here for reference; move logic to `event_ready` or EventSub/conduit if needed.
         self.target_channel = channel 
         bot_logger.info(f"Joined channel: {channel.name}")
 
     # Errors
-    async def event_command_error(ctx: commands.Context, error: Exception) -> None:
+    async def event_command_error(self, payload: commands.CommandErrorPayload) -> None:
+        ctx = payload.context
+        error = payload.exception
         command = ctx.message.content.split()[0][1:]
         if isinstance(error, commands.CommandOnCooldown):
             retry_after = max(1, math.ceil(error.retry_after))
@@ -3385,7 +3389,7 @@ class TwitchBot(commands.AutoBot):
             await send_chat_message("An unexpected error occurred. Please try again later.")
 
     @commands.command(name='addpoints')
-    async def addpoints_command(ctx: commands.Context, user: str, points_to_add: int):
+    async def addpoints_command(self, ctx: commands.Context, user: str, points_to_add: int):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -3426,7 +3430,7 @@ class TwitchBot(commands.AutoBot):
             await send_chat_message("An unexpected error occurred. Please try again later.")
 
     @commands.command(name='removepoints')
-    async def removepoints_command(ctx: commands.Context, user: str, points_to_remove: int):
+    async def removepoints_command(self, ctx: commands.Context, user: str, points_to_remove: int):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -5890,7 +5894,7 @@ class TwitchBot(commands.AutoBot):
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
 
     @commands.command(name='followage')
-    async def followage_command(ctx: commands.Context, mentioned_username: str = None):
+    async def followage_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
         connection = await mysql_handler.get_connection()
         try:
@@ -6137,7 +6141,7 @@ class TwitchBot(commands.AutoBot):
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
 
     @commands.command(name='shoutout', aliases=('so',))
-    async def shoutout_command(ctx: commands.Context, user_to_shoutout: str = None):
+    async def shoutout_command(self, ctx: commands.Context, user_to_shoutout: str = None):
         global bot_owner, shoutout_user
         connection = await mysql_handler.get_connection()
         try:
@@ -6800,7 +6804,7 @@ class TwitchBot(commands.AutoBot):
             await send_chat_message("An unexpected error occurred. Please try again later.")
 
     @commands.command(name="story")
-    async def story_command(ctx: commands.Context):
+    async def story_command(self, ctx: commands.Context):
         global bot_owner
         connection = await mysql_handler.get_connection()
         try:
@@ -6931,7 +6935,7 @@ class TwitchBot(commands.AutoBot):
                 pass
 
     @commands.command(name='todo')
-    async def todo_command(ctx: commands.Context: commands.Context):
+    async def todo_command(ctx: commands.Context):
         global bot_owner
         message_content = ctx.message.content.strip()
         user = ctx.author
