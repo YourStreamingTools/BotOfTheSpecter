@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.3"
+VERSION = "5.7.4"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -3266,22 +3266,47 @@ class TwitchBot(commands.Bot):
                         await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
                         blacklist_result = await cursor.fetchone()
                         if blacklist_result:
-                            # Parse the blacklist
-                            blacklist = json.loads(blacklist_result.get("blacklist"))
+                            # Parse the blacklist safely (default to empty list if missing or invalid)
+                            blacklist_json = blacklist_result.get("blacklist") if blacklist_result else None
+                            try:
+                                blacklist = json.loads(blacklist_json) if blacklist_json else []
+                            except Exception as e:
+                                chat_logger.error(f"Error parsing joke blacklist: {e}")
+                                blacklist = []
                             blacklist_lower = {cat.lower() for cat in blacklist}
-                            joke = await Jokes()
+                            # Instantiate the JokeAPI client (constructor is not awaitable)
+                            joke = Jokes()
                             while True:
-                                # Fetch a joke from the JokeAPI
-                                get_joke = await joke.get_joke()
+                                # Fetch a joke synchronously in a thread to avoid blocking the event loop
+                                get_joke = await get_event_loop().run_in_executor(None, joke.get_joke)
+                                # Normalize response: some library versions return a list instead of a dict
+                                if isinstance(get_joke, list):
+                                    if len(get_joke) == 0:
+                                        continue
+                                    first = get_joke[0]
+                                    if isinstance(first, dict):
+                                        get_joke = first
+                                    else:
+                                        get_joke = {"type": "single", "category": "Unknown", "joke": str(first)}
+                                elif not isinstance(get_joke, dict):
+                                    # Coerce unexpected shapes to a safe dict
+                                    get_joke = {"type": "single", "category": "Unknown", "joke": str(get_joke)}
                                 # Resolve the category and check against the blacklist
-                                category = get_joke["category"].lower()
+                                try:
+                                    category = (get_joke.get("category") or "").lower()
+                                except Exception:
+                                    category = ""
                                 if category not in blacklist_lower:
                                     break
                             # Send the joke based on its type
-                            if get_joke["type"] == "single":
-                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
-                            else:
-                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
+                            try:
+                                if get_joke.get("type") == "single":
+                                    await send_chat_message(f"Here's a joke from {get_joke.get('category', 'Unknown')}: {get_joke.get('joke', '')}")
+                                else:
+                                    await send_chat_message(f"Here's a joke from {get_joke.get('category', 'Unknown')}: {get_joke.get('setup', '')} | {get_joke.get('delivery', '')}")
+                            except Exception as e:
+                                chat_logger.error(f"Failed to send joke message: {e}")
+                                await send_chat_message("Sorry, I couldn't fetch a joke right now. Try again later.")
                             # Record usage
                             add_usage('joke', bucket_key, cooldown_bucket)
                         else:
