@@ -11467,14 +11467,36 @@ async def get_custom_bot_credentials():
         async with await mysql_handler.get_connection('website') as connection:
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute(
-                    "SELECT bot_channel_id, access_token FROM custom_bots WHERE bot_username = %s AND is_verified = 1",
+                    "SELECT bot_channel_id, access_token, token_expires FROM custom_bots WHERE bot_username = %s AND is_verified = 1 LIMIT 1",
                     (BOT_USERNAME,)
                 )
                 result = await cursor.fetchone()
                 if result:
+                    system_logger.debug(f"Fetched custom bot creds from DB for {BOT_USERNAME}")
+                    # Parse token_expires to aware UTC datetime if present (DB uses Australia/Sydney timezone)
+                    token_expires = None
+                    if result.get('token_expires'):
+                        try:
+                            raw = result.get('token_expires')
+                            # Accept either datetime objects or strings
+                            if isinstance(raw, datetime):
+                                naive = raw
+                            else:
+                                naive = datetime.strptime(str(raw), '%Y-%m-%d %H:%M:%S')
+                            # Localize using DB timezone and convert to UTC
+                            try:
+                                local_tz = pytz_timezone('Australia/Sydney')
+                                local_dt = local_tz.localize(naive) if naive.tzinfo is None else naive.astimezone(local_tz)
+                                token_expires = local_dt.astimezone(timezone.utc)
+                            except Exception:
+                                # Fallback: treat naive as UTC
+                                token_expires = naive.replace(tzinfo=timezone.utc)
+                        except Exception:
+                            token_expires = None
                     return {
-                        'bot_channel_id': result['bot_channel_id'],
-                        'access_token': result['access_token']
+                        'bot_channel_id': result.get('bot_channel_id'),
+                        'access_token': result.get('access_token'),
+                        'token_expires': token_expires
                     }
                 else:
                     system_logger.error(f"No verified custom bot found for username: {BOT_USERNAME}")
@@ -11483,26 +11505,65 @@ async def get_custom_bot_credentials():
         system_logger.error(f"Error fetching custom bot credentials: {e}")
         return None
 
+# Lightweight expiry-aware in-memory cache keyed by bot username
+_custom_creds_cache = {}
+# Simple counter for retries after 401/403
+_custom_token_retry_count = 0
+
+async def get_current_custom_credentials():
+    global _custom_creds_cache
+    cache_entry = _custom_creds_cache.get(BOT_USERNAME)
+    now = datetime.now(timezone.utc)
+    # If cache present and not expired, return it
+    if cache_entry:
+        expires_at = cache_entry.get('expires_at')
+        if expires_at and expires_at > now + timedelta(seconds=2):
+            system_logger.debug(f"Using cached custom token for {BOT_USERNAME}, expires at {expires_at}")
+            return cache_entry
+    # Otherwise read DB for fresh creds
+    creds = await get_custom_bot_credentials()
+    if not creds:
+        system_logger.debug(f"No custom creds available from DB for {BOT_USERNAME}")
+        return None
+    access_token = creds.get('access_token')
+    expires_at = creds.get('token_expires')
+    if expires_at and isinstance(expires_at, datetime):
+        # Store in cache if expiry set
+        _custom_creds_cache[BOT_USERNAME] = {
+            'bot_channel_id': creds.get('bot_channel_id'),
+            'access_token': access_token,
+            'expires_at': expires_at
+        }
+        system_logger.debug(f"Cached custom token for {BOT_USERNAME} until {expires_at}")
+    else:
+        # Do not cache if no expiry
+        _custom_creds_cache.pop(BOT_USERNAME, None)
+        system_logger.debug(f"Not caching custom token for {BOT_USERNAME} (no expiry set)")
+    return {
+        'bot_channel_id': creds.get('bot_channel_id'),
+        'access_token': access_token,
+        'token_expires': expires_at
+    }
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
-    global CLIENT_ID, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
+    global CLIENT_ID, CHANNEL_ID, CHANNEL_AUTH, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
     if len(message) > 500:
         chat_logger.error(f"Message too long: {len(message)} characters (max 500)")
         return False
     # Determine credentials based on mode
     if SELF_MODE:
-        global CHANNEL_ID, CHANNEL_AUTH
         sender_id = CHANNEL_ID
         access_token = CHANNEL_AUTH
         client_id = CLIENT_ID
     elif CUSTOM_MODE:
-        # Fetch custom bot credentials from database
-        credentials = await get_custom_bot_credentials()
-        if not credentials:
+        # Use expiry-aware cached credentials when present, otherwise fetch from DB
+        creds = await get_current_custom_credentials()
+        if not creds:
             chat_logger.error(f"Failed to get custom bot credentials for {BOT_USERNAME}")
             return False
-        sender_id = credentials['bot_channel_id']
-        access_token = credentials['access_token']
+        sender_id = creds['bot_channel_id']
+        access_token = creds['access_token']
         client_id = CLIENT_ID  # Use the same client ID
     else:
         # Use main bot credentials from environment
@@ -11522,31 +11583,73 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     }
     if reply_parent_message_id:
         data["reply_parent_message_id"] = reply_parent_message_id
-    try:
+    async def _do_post(token_to_use):
+        hdrs = headers.copy()
+        hdrs['Authorization'] = f"Bearer {token_to_use}"
         async with httpClientSession() as session:
-            async with session.post(url, headers=headers, json=data) as response:
-                if response.status == 200:
-                    response_data = await response.json()
-                    if response_data.get("data"):
-                        msg_data = response_data["data"][0]
-                        message_id = msg_data.get("message_id")
-                        is_sent = msg_data.get("is_sent", False)
-                        drop_reason = msg_data.get("drop_reason")
-                        if is_sent:
-                            chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
-                            # Track message for chat counter
-                            await track_chat_message()
-                            return True
-                        else:
-                            chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
-                            return False
-                    else:
-                        chat_logger.error("No data in response")
-                        return False
+            async with session.post(url, headers=hdrs, json=data) as response:
+                return response
+    try:
+        response = await _do_post(access_token)
+        if response.status == 200:
+            response_data = await response.json()
+            if response_data.get("data"):
+                msg_data = response_data["data"][0]
+                message_id = msg_data.get("message_id")
+                is_sent = msg_data.get("is_sent", False)
+                drop_reason = msg_data.get("drop_reason")
+                if is_sent:
+                    chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
+                    await track_chat_message()
+                    return True
                 else:
-                    error_text = await response.text()
-                    chat_logger.error(f"Failed to send chat message: {response.status} - {error_text}")
+                    chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
                     return False
+            else:
+                chat_logger.error("No data in response")
+                return False
+        elif response.status in (401, 403) and CUSTOM_MODE:
+            # Token may have been refreshed externally - re-read the DB once and retry
+            chat_logger.warning(f"Custom bot token invalid/expired for {BOT_USERNAME}. Re-fetching credentials from DB and retrying.")
+            fresh = await get_custom_bot_credentials()
+            if not fresh or fresh.get('access_token') == access_token:
+                text = await response.text()
+                chat_logger.error(f"Failed to send chat message after DB re-fetch: {response.status} - {text}")
+                # Invalidate cache so next send will re-query DB
+                _custom_creds_cache.pop(BOT_USERNAME, None)
+                return False
+            # Update cache with new expiry/value and increment retry counter
+            try:
+                global _custom_token_retry_count
+                _custom_token_retry_count += 1
+                system_logger.info(f"Custom token retry for {BOT_USERNAME} count={_custom_token_retry_count}")
+            except Exception:
+                pass
+            if fresh.get('token_expires'):
+                _custom_creds_cache[BOT_USERNAME] = {
+                    'bot_channel_id': fresh.get('bot_channel_id'),
+                    'access_token': fresh.get('access_token'),
+                    'expires_at': fresh.get('token_expires')
+                }
+            response2 = await _do_post(fresh.get('access_token'))
+            if response2.status == 200:
+                response_data = await response2.json()
+                if response_data.get("data") and response_data["data"][0].get("is_sent"):
+                    chat_logger.info(f"Sent chat message after DB refresh: {message}")
+                    await track_chat_message()
+                    return True
+                else:
+                    text = await response2.text()
+                    chat_logger.error(f"Failed on retry after DB refresh: {response2.status} - {text}")
+                    return False
+            else:
+                text = await response2.text()
+                chat_logger.error(f"Retry failed after DB refresh: {response2.status} - {text}")
+                return False
+        else:
+            error_text = await response.text()
+            chat_logger.error(f"Failed to send chat message: {response.status} - {error_text}")
+            return False
     except Exception as e:
         chat_logger.error(f"Error sending chat message: {e}")
         return False
@@ -11686,9 +11789,10 @@ async def cleanup_gift_sub_tracking():
 
 # Determine the correct OAuth token based on mode
 if CUSTOM_MODE:
-    # In custom or self mode, use the channel's auth token as the bot token
+    # Use the broadcaster/channel auth token for TwitchIO connection when running in CUSTOM mode.
+    # The chat-sending functions will always read the most recent custom bot token from the DB
+    # when issuing Helix chat messages so we rely on the external token refresh system.
     BOT_OAUTH_TOKEN = CHANNEL_AUTH
-    # Log custom mode; if self_mode was provided, indicate it's the broadcaster account
     if SELF_MODE and not args.custom_mode:
         bot_logger.info(f"Running in CUSTOM mode (self) using broadcaster account: {BOT_USERNAME}")
     else:
