@@ -2375,7 +2375,11 @@ class TwitchBot(commands.Bot):
                 if message.author.name.lower() == self.nick.lower():
                     chat_logger.info(f"Ignoring AI mention from bot itself")
                     return
-                # Ignore messages from the channel owner in SELF mode
+                # If running in CUSTOM or SELF mode and the bot's nick equals the channel name, ignore mentions of the channel name
+                if (CUSTOM_MODE or SELF_MODE) and self.nick.lower() == CHANNEL_NAME.lower():
+                    chat_logger.info(f"Ignoring AI mention of channel name in CUSTOM/SELF mode")
+                    return
+                # Ignore messages from the channel owner in SELF mode (explicit owner messages)
                 if message.author.name.lower() == CHANNEL_NAME.lower():
                     chat_logger.info(f"Ignoring AI mention from channel owner in SELF mode")
                     return
@@ -2384,11 +2388,12 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(f'Hello, {message.author.name}!')
                 else:
                     await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
+            # Initialize link/term deletion flags
+            should_delete = False
+            alert_mods = False
+            send_warning = False
             if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                 # Block 3: Link Protection (Acquire -> Release immediately)
-                should_delete = False
-                alert_mods = False
-                send_warning = False
                 async with await mysql_handler.get_connection() as connection:
                     async with connection.cursor(DictCursor) as cursor:
                         # ALWAYS check blacklist first - blacklisted URLs are blocked regardless of URL blocking setting
@@ -3004,8 +3009,8 @@ class TwitchBot(commands.Bot):
 
     @commands.command(name='bot')
     async def bot_command(self, ctx):
-        global bot_owner
-        connection = await mysql_handler.get_connection()
+        global bot_owner, CUSTOM_MODE, BOT_USERNAME
+        connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
                 # Fetch both the status and permissions from the database
@@ -3027,7 +3032,12 @@ class TwitchBot(commands.Bot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         chat_logger.info(f"{ctx.author.name} ran the Bot Command.")
-                        await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
+                        # If running as a custom bot account, note it in chat and logs
+                        is_custom_bot = (('CUSTOM_MODE' in globals() and CUSTOM_MODE) or BOT_USERNAME.lower() != "botofthespecter")
+                        if is_custom_bot:
+                            await send_chat_message(f"The system I'm using is from BotOfTheSpecter. I'm a custom bot account @{BOT_USERNAME} linked to the Echo system — check out more features by my owner {bot_owner} at https://botofthespecter.com")
+                        else:
+                            await send_chat_message(f"This amazing bot is built by the one and the only {bot_owner}. Check me out on my website: https://botofthespecter.com")
                         # Record usage
                         add_usage('bot', bucket_key, cooldown_bucket)
                     else:
@@ -3036,6 +3046,8 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the bot command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            await connection.ensure_closed()
 
     @commands.command(name='wsstatus')
     async def websocket_status_command(self, ctx):
@@ -3619,27 +3631,46 @@ class TwitchBot(commands.Bot):
                         # Retrieve the blacklist from the joke_settings table
                         await cursor.execute("SELECT blacklist FROM joke_settings WHERE id = 1")
                         blacklist_result = await cursor.fetchone()
-                        if blacklist_result:
-                            # Parse the blacklist
-                            blacklist = json.loads(blacklist_result.get("blacklist"))
-                            blacklist_lower = {cat.lower() for cat in blacklist}
-                            joke = await Jokes()
-                            while True:
-                                # Fetch a joke from the JokeAPI
-                                get_joke = await joke.get_joke()
-                                # Resolve the category and check against the blacklist
-                                category = get_joke["category"].lower()
-                                if category not in blacklist_lower:
-                                    break
-                            # Send the joke based on its type
-                            if get_joke["type"] == "single":
-                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['joke']}")
-                            else:
-                                await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke['setup']} | {get_joke['delivery']}")
-                            # Record usage
-                            add_usage('joke', bucket_key, cooldown_bucket)
+                        # Parse the blacklist safely (default to empty list if missing or invalid)
+                        blacklist_json = blacklist_result.get("blacklist") if blacklist_result else None
+                        try:
+                            blacklist = json.loads(blacklist_json) if blacklist_json else []
+                        except Exception as e:
+                            chat_logger.error(f"Error parsing joke blacklist: {e}")
+                            blacklist = []
+                        blacklist_lower = {cat.lower() for cat in blacklist}
+                        # Instantiate the JokeAPI client (constructor is not awaitable)
+                        joke = Jokes()
+                        while True:
+                            # Fetch a joke from the JokeAPI
+                            # Fetch the joke synchronously in a thread to avoid blocking the event loop
+                            get_joke = await get_event_loop().run_in_executor(None, joke.get_joke)
+                            # Normalize response: some library versions return a list instead of a dict
+                            if isinstance(get_joke, list):
+                                if len(get_joke) == 0:
+                                    continue
+                                first = get_joke[0]
+                                if isinstance(first, dict):
+                                    get_joke = first
+                                else:
+                                    get_joke = {"type": "single", "category": "Unknown", "joke": str(first)}
+                            elif not isinstance(get_joke, dict):
+                                # Some unexpected shape (e.g., tuple); coerce to a safe dict
+                                get_joke = {"type": "single", "category": "Unknown", "joke": str(get_joke)}
+                            # Resolve the category and check against the blacklist
+                            try:
+                                category = (get_joke.get("category") or "").lower()
+                            except Exception:
+                                category = ""
+                            if category not in blacklist_lower:
+                                break
+                        # Send the joke based on its type
+                        if get_joke.get("type") == "single":
+                            await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke.get('joke')}")
                         else:
-                            await send_chat_message("Error: Could not fetch the blacklist settings.")
+                            await send_chat_message(f"Here's a joke from {get_joke['category']}: {get_joke.get('setup')} | {get_joke.get('delivery')}")
+                        # Record usage
+                        add_usage('joke', bucket_key, cooldown_bucket)    
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to run the joke command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
