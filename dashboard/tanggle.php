@@ -31,11 +31,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['api_token']) || isse
     $api_token = trim($_POST['api_token'] ?? '');
     $community_uuid = trim($_POST['community_uuid'] ?? '');
     if (!empty($api_token) && !empty($community_uuid)) {
-        $stmt = $db->prepare("UPDATE profile SET tanggle_api_token = ?, tanggle_community_uuid = ?");
-        $stmt->bind_param("ss", $api_token, $community_uuid);
-        $stmt->execute();
-        $stmt->close();
-        $message = "Tanggle credentials saved successfully!";
+        // Ensure a profile row exists; if not insert, otherwise update
+        $checkStmt = mysqli_prepare($db, "SELECT COUNT(*) as cnt FROM profile");
+        if ($checkStmt) {
+            mysqli_stmt_execute($checkStmt);
+            $checkRes = mysqli_stmt_get_result($checkStmt);
+            $row = mysqli_fetch_assoc($checkRes);
+            mysqli_stmt_close($checkStmt);
+        } else {
+            $row = ['cnt' => 0];
+        }
+        if (!isset($row['cnt']) || $row['cnt'] == 0) {
+            $stmt = mysqli_prepare($db, "INSERT INTO profile (tanggle_api_token, tanggle_community_uuid) VALUES (?, ?)");
+        } else {
+            $stmt = mysqli_prepare($db, "UPDATE profile SET tanggle_api_token = ?, tanggle_community_uuid = ?");
+        }
+        if ($stmt === false) {
+            $message = "Database error: " . mysqli_error($db);
+        } else {
+            mysqli_stmt_bind_param($stmt, "ss", $api_token, $community_uuid);
+            if (mysqli_stmt_execute($stmt)) {
+                $message = "Tanggle credentials saved successfully!";
+            } else {
+                $message = "Failed to save Tanggle credentials: " . mysqli_error($db);
+            }
+            mysqli_stmt_close($stmt);
+        }
     } else {
         $message = "Please enter both API Token and Community UUID.";
     }
