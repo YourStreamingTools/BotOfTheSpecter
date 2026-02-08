@@ -78,9 +78,6 @@ help/search_index.json
 *test*
 bot/export_user_data.log
 
-# Ignoring the next update changelog file
-docs/5.8.md
-
 # Ignoring entire directories
 /app
 /api/app
