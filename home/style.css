@@ -187,3 +187,37 @@ a.has-text-info:hover {
         padding-right: 0.5vw;
     }
 }
+
+/* Feedback page specific styles */
+.feedback-card {
+    background: linear-gradient(180deg, rgba(24,24,24,1) 0%, rgba(20,20,20,1) 100%);
+    border: 1px solid #2b2b2b;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.feedback-card .card-content {
+    padding: 1.6rem;
+}
+.feedback-form .label {
+    color: #dcdcdc;
+}
+.feedback-sidebar {
+    background-color: #151515;
+    border: 1px solid #232323;
+}
+.feedback-sidebar .title {
+    margin-bottom: 0.5rem;
+}
+.feedback-sidebar p {
+    color: #dcdcdc;
+}
+.feedback-sidebar hr {
+    border-color: #2a2a2a;
+}
+/* Make notification slightly more prominent on this page */
+.notification.is-light {
+    background-color: #202020;
+    color: #fff;
+}
+@media (max-width: 768px) {
+    .feedback-sidebar { display: none; }
+}

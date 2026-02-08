@@ -82,5 +82,6 @@ function uuidv4() {
         All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
     </div>
 </footer>
+<?= isset($customPageScript) ? $customPageScript : '' ?>
 </body>
 </html>
