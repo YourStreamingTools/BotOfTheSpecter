@@ -197,6 +197,8 @@ if (isMobileDevice()) {
                 <thead>
                   <tr>
                     <th class="has-text-white"><?php echo t('counters_username_column'); ?></th>
+                    <th class="has-text-white has-text-centered">First Seen</th>
+                    <th class="has-text-white has-text-centered">Last Seen</th>
                     <th class="has-text-white"><?php echo t('known_users_welcome_message_column'); ?></th>
                     <th class="has-text-white has-text-centered"><?php echo t('known_users_status_column'); ?></th>
                     <th class="has-text-white has-text-centered"><?php echo t('known_users_action_column'); ?></th>
@@ -213,6 +215,24 @@ if (isMobileDevice()) {
                           <?php echo isset($userData['username']) ? htmlspecialchars($userData['username']) : ''; ?>
                         </span>
                         <span class="banned-status"></span>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <?php
+                          if (!empty($userData['first_seen']) && $userData['first_seen'] !== '0000-00-00 00:00:00') {
+                              echo date('Y-m-d H:i:s', strtotime($userData['first_seen']));
+                          } else {
+                              echo 'Unknown';
+                          }
+                        ?>
+                      </td>
+                      <td class="has-text-centered" style="vertical-align: middle;">
+                        <?php
+                          if (!empty($userData['last_seen']) && $userData['last_seen'] !== '0000-00-00 00:00:00') {
+                              echo date('Y-m-d H:i:s', strtotime($userData['last_seen']));
+                          } else {
+                              echo 'Unknown';
+                          }
+                        ?>
                       </td>
                       <td>
                         <div id="welcome-message-<?php echo $userData['id']; ?>">

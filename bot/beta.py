@@ -2517,6 +2517,9 @@ class TwitchBot(commands.Bot):
                     )
                     await connection.commit()
                     chat_logger.info(f"Added new user to seen_users: {messageAuthor}")
+                # Update last_seen and set first_seen if null
+                await cursor.execute('UPDATE seen_users SET last_seen = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE username = %s', (messageAuthor,))
+                await connection.commit()
                 # Load streamer preferences
                 await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
                 preferences = await cursor.fetchone()

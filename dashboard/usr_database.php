@@ -190,7 +190,9 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 username VARCHAR(255),
                 welcome_message VARCHAR(255) DEFAULT NULL,
-                status VARCHAR(255)
+                status VARCHAR(255),
+                first_seen DATETIME DEFAULT NULL,
+                last_seen DATETIME DEFAULT NULL
             ) ENGINE=InnoDB",
         'seen_today' => "
             CREATE TABLE IF NOT EXISTS seen_today (
@@ -577,7 +579,7 @@ try {
         'followers_data' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'user_id' => "VARCHAR(255)", 'user_name' => "VARCHAR(255)", 'followed_at' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'raid_data' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'raider_name' => "VARCHAR(255)", 'raider_id' => "VARCHAR(255)", 'viewers' => "INT", 'raid_count' => "INT", 'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'quotes' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'quote' => "TEXT", 'added' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"],
-        'seen_users' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255)", 'welcome_message' => "VARCHAR(255) DEFAULT NULL", 'status' => "VARCHAR(255)"],
+        'seen_users' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255)", 'welcome_message' => "VARCHAR(255) DEFAULT NULL", 'status' => "VARCHAR(255)", 'first_seen' => "DATETIME DEFAULT NULL", 'last_seen' => "DATETIME DEFAULT NULL"],
         'seen_today' => ['user_id' => "VARCHAR(255)", 'username' => "VARCHAR(255)"],
         'timed_messages' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'interval_count' => "INT", 'chat_line_trigger' => "INT DEFAULT 5", 'message' => "TEXT", 'status' => "VARCHAR(10) DEFAULT True"],
         'profile' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'timezone' => "VARCHAR(255) DEFAULT NULL", 'weather_location' => "VARCHAR(255) DEFAULT NULL", 'heartrate_code' => "VARCHAR(8) DEFAULT NULL", 'stream_bounty_api_key' => "VARCHAR(255)", 'tanggle_api_token' => "VARCHAR(255) DEFAULT NULL", 'tanggle_community_uuid' => "VARCHAR(255) DEFAULT NULL"],
