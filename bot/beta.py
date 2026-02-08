@@ -209,6 +209,7 @@ GIFT_SUB_TRACKING_DURATION = 30                         # Seconds to track gift 
 specterSocket = AsyncClient()                           # Specter Socket Client instance
 streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
+_shared_http_session = None                              # Shared aiohttp session (lazy-created)
 bot_started = time_right_now()                          # Time the bot started
 stream_online = False                                   # Whether the stream is currently online 
 next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
@@ -291,6 +292,13 @@ async def async_signal_cleanup():
     await specterSocket.disconnect()     # Disconnect the SocketClient
     ssh_manager.close_all_connections()  # Close all SSH connections
     await mysql_handler.close_all()      # Close all MySQL connections
+    # Close shared HTTP session if created
+    try:
+        global _shared_http_session
+        if '_shared_http_session' in globals() and _shared_http_session:
+            await _shared_http_session.close()
+    except Exception as e:
+        bot_logger.error(f"Error closing shared HTTP session: {e}")
     for task in scheduled_tasks:
         task.cancel()
     for task in looped_tasks:
@@ -2505,22 +2513,28 @@ class TwitchBot(commands.Bot):
                                 chat_logger.info(f"URL found in message from {messageAuthor}, allowed because URL blocking is disabled.")
             # Check for blocked terms (independent of URL blocking)
             try:
-                await cursor.execute('SELECT term_blocking FROM protection')
-                result = await cursor.fetchone()
-                term_blocking = result.get("term_blocking") == 'True' if result else False
-                if term_blocking:
-                    # Fetch blocked terms
-                    await cursor.execute('SELECT term FROM blocked_terms')
-                    blocked_terms_result = await cursor.fetchall()
-                    blocked_terms = [row['term'].lower() for row in blocked_terms_result] if blocked_terms_result else []
-                    if blocked_terms:
-                        message_lower = messageContent.lower()
-                        for term in blocked_terms:
-                            if term in message_lower:
-                                should_delete = True
-                                chat_logger.info(f"Blocked term '{term}' detected in message from {messageAuthor}")
-                                await send_chat_message(f"{messageAuthor}, your message contained a blocked term and has been removed.")
-                                break
+                # Use a dedicated connection & cursor to avoid using a cursor that may have been closed
+                async with await mysql_handler.get_connection() as term_conn:
+                    async with term_conn.cursor(DictCursor) as term_cursor:
+                        await term_cursor.execute('SELECT term_blocking FROM protection')
+                        result = await term_cursor.fetchone()
+                        term_blocking = result.get("term_blocking") == 'True' if result else False
+                        if term_blocking:
+                            # Fetch blocked terms
+                            await term_cursor.execute('SELECT term FROM blocked_terms')
+                            blocked_terms_result = await term_cursor.fetchall()
+                            blocked_terms = [row['term'].lower() for row in blocked_terms_result] if blocked_terms_result else []
+                            if blocked_terms:
+                                message_lower = messageContent.lower()
+                                for term in blocked_terms:
+                                    if term in message_lower:
+                                        should_delete = True
+                                        chat_logger.info(f"Blocked term '{term}' detected in message from {messageAuthor}")
+                                        try:
+                                            await send_chat_message(f"{messageAuthor}, your message contained a blocked term and has been removed.")
+                                        except Exception as send_err:
+                                            chat_logger.error(f"Error sending blocked term notice: {send_err}")
+                                        break
             except Exception as term_error:
                 chat_logger.error(f"Error checking blocked terms: {term_error}")
             if should_delete:
@@ -11686,76 +11700,120 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     }
     if reply_parent_message_id:
         data["reply_parent_message_id"] = reply_parent_message_id
+    # Use a shared aiohttp session to reduce transient connection issues
+    async def _get_shared_session():
+        global _shared_http_session
+        try:
+            if _shared_http_session is None:
+                _shared_http_session = httpClientSession()
+        except Exception:
+            _shared_http_session = httpClientSession()
+        return _shared_http_session
     async def _do_post(token_to_use):
         hdrs = headers.copy()
         hdrs['Authorization'] = f"Bearer {token_to_use}"
-        async with httpClientSession() as session:
-            async with session.post(url, headers=hdrs, json=data) as response:
-                return response
-    try:
-        response = await _do_post(access_token)
-        if response.status == 200:
-            response_data = await response.json()
-            if response_data.get("data"):
-                msg_data = response_data["data"][0]
-                message_id = msg_data.get("message_id")
-                is_sent = msg_data.get("is_sent", False)
-                drop_reason = msg_data.get("drop_reason")
-                if is_sent:
-                    chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
-                    await track_chat_message()
-                    return True
+        session = await _get_shared_session()
+        try:
+            async with session.post(url, headers=hdrs, json=data, timeout=10) as resp:
+                status = resp.status
+                try:
+                    text = await resp.text()
+                except Exception:
+                    text = None
+                try:
+                    j = await resp.json()
+                except Exception:
+                    j = None
+                return status, text, j
+        except Exception as e:
+            # Surface the exception to caller for retry handling
+            raise
+    # Retry loop for transient network/server issues
+    max_attempts = 3
+    retryable_statuses = (502, 503, 504)
+    for attempt in range(1, max_attempts + 1):
+        try:
+            status, resp_text, resp_json = await _do_post(access_token)
+            if status == 200:
+                response_data = resp_json
+                if response_data and response_data.get("data"):
+                    msg_data = response_data["data"][0]
+                    message_id = msg_data.get("message_id")
+                    is_sent = msg_data.get("is_sent", False)
+                    drop_reason = msg_data.get("drop_reason")
+                    if is_sent:
+                        chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
+                        await track_chat_message()
+                        return True
+                    else:
+                        chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
+                        return False
                 else:
-                    chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
+                    chat_logger.error(f"No data in response; text={resp_text}")
                     return False
-            else:
-                chat_logger.error("No data in response")
-                return False
-        elif response.status in (401, 403) and CUSTOM_MODE:
-            # Token may have been refreshed externally - re-read the DB once and retry
-            chat_logger.warning(f"Custom bot token invalid/expired for {BOT_USERNAME}. Re-fetching credentials from DB and retrying.")
-            fresh = await get_custom_bot_credentials()
-            if not fresh or fresh.get('access_token') == access_token:
-                text = await response.text()
-                chat_logger.error(f"Failed to send chat message after DB re-fetch: {response.status} - {text}")
-                # Invalidate cache so next send will re-query DB
-                _custom_creds_cache.pop(BOT_USERNAME, None)
-                return False
-            # Update cache with new expiry/value and increment retry counter
-            try:
-                global _custom_token_retry_count
-                _custom_token_retry_count += 1
-                system_logger.info(f"Custom token retry for {BOT_USERNAME} count={_custom_token_retry_count}")
-            except Exception:
-                pass
-            if fresh.get('token_expires'):
-                _custom_creds_cache[BOT_USERNAME] = {
-                    'bot_channel_id': fresh.get('bot_channel_id'),
-                    'access_token': fresh.get('access_token'),
-                    'expires_at': fresh.get('token_expires')
-                }
-            response2 = await _do_post(fresh.get('access_token'))
-            if response2.status == 200:
-                response_data = await response2.json()
-                if response_data.get("data") and response_data["data"][0].get("is_sent"):
-                    chat_logger.info(f"Sent chat message after DB refresh: {message}")
-                    await track_chat_message()
-                    return True
+            # Handle token expiry for custom mode
+            if status in (401, 403) and CUSTOM_MODE:
+                chat_logger.warning(f"Custom bot token invalid/expired for {BOT_USERNAME}. Re-fetching credentials from DB and retrying.")
+                fresh = await get_custom_bot_credentials()
+                if not fresh or fresh.get('access_token') == access_token:
+                    text = resp_text
+                    chat_logger.error(f"Failed to send chat message after DB re-fetch: {status} - {text}")
+                    _custom_creds_cache.pop(BOT_USERNAME, None)
+                    return False
+                try:
+                    global _custom_token_retry_count
+                    _custom_token_retry_count += 1
+                    system_logger.info(f"Custom token retry for {BOT_USERNAME} count={_custom_token_retry_count}")
+                except Exception:
+                    pass
+                if fresh.get('token_expires'):
+                    _custom_creds_cache[BOT_USERNAME] = {
+                        'bot_channel_id': fresh.get('bot_channel_id'),
+                        'access_token': fresh.get('access_token'),
+                        'expires_at': fresh.get('token_expires')
+                    }
+                status2, resp_text2, resp_json2 = await _do_post(fresh.get('access_token'))
+                if status2 == 200:
+                    response_data = resp_json2
+                    if response_data and response_data.get("data") and response_data["data"][0].get("is_sent"):
+                        chat_logger.info(f"Sent chat message after DB refresh: {message}")
+                        await track_chat_message()
+                        return True
+                    else:
+                        text = resp_text2
+                        chat_logger.error(f"Failed on retry after DB refresh: {status2} - {text}")
+                        return False
                 else:
-                    text = await response2.text()
-                    chat_logger.error(f"Failed on retry after DB refresh: {response2.status} - {text}")
+                    text = resp_text2
+                    chat_logger.error(f"Retry failed after DB refresh: {status2} - {text}")
                     return False
-            else:
-                text = await response2.text()
-                chat_logger.error(f"Retry failed after DB refresh: {response2.status} - {text}")
-                return False
-        else:
-            error_text = await response.text()
-            chat_logger.error(f"Failed to send chat message: {response.status} - {error_text}")
+            # Retry on server errors
+            if status in retryable_statuses:
+                text = resp_text
+                chat_logger.warning(f"Transient error sending chat message (status {status}): {text}. Attempt {attempt}/{max_attempts}")
+                if attempt < max_attempts:
+                    await sleep(0.5 * attempt + (random.random() * 0.2))
+                    continue
+                else:
+                    return False
+            # Unretryable failure
+            error_text = resp_text
+            chat_logger.error(f"Failed to send chat message: {status} - {error_text}")
             return False
-    except Exception as e:
-        chat_logger.error(f"Error sending chat message: {e}")
-        return False
+        except aiohttpClientError as net_err:
+            chat_logger.warning(f"Network error sending chat message (attempt {attempt}/{max_attempts}): {net_err}")
+            if attempt < max_attempts:
+                await sleep(0.5 * attempt + (random.random() * 0.2))
+                continue
+            else:
+                chat_logger.error(f"Error sending chat message: {net_err}")
+                return False
+        except Exception as e:
+            chat_logger.error(f"Error sending chat message: {e}")
+            return False
+    # All retries failed
+    chat_logger.error("Exhausted retries sending chat message")
+    return False
 
 # Function to generate shoutout message with game info
 async def get_shoutout_message(user_id, user_name, action="command"):
