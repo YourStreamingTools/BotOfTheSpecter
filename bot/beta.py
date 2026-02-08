@@ -1,7 +1,7 @@
 # Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math
 import json, time, random, base64, operator, threading
-from asyncio import Queue, subprocess
+from asyncio import Queue, subprocess, Lock
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
@@ -362,54 +362,123 @@ class PoolConnectionWrapper:
             except Exception:
                 pass
 
-
-# Simplified MySQL handler - use direct connections like the stable `bot.py` implementation
+# Improved MySQL handler with connection pooling, health checks and cleanup
 class MySQLHandler:
     def __init__(self):
-        pass
+        # db_name -> aiomysql Pool
+        self.pools = {}
+        # db_name -> metadata (last_used)
+        self.pool_meta = {}
+        self.lock = Lock()
 
-    async def get_connection(self, db_name=None):
-        global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
-        if db_name is None:
-            db_name = CHANNEL_NAME
-        # Create a direct connection (no pooling) to match stable bot behavior
-        conn = await sql_connect(
+    async def _create_pool(self, db_name):
+        global SQL_HOST, SQL_USER, SQL_PASSWORD
+        pool = await create_pool(
             host=SQL_HOST,
             user=SQL_USER,
             password=SQL_PASSWORD,
-            db=db_name
+            db=db_name,
+            minsize=1,
+            maxsize=8,
+            autocommit=True,
+            connect_timeout=5
         )
-        return PoolConnectionWrapper(conn, pool=None)
+        self.pools[db_name] = pool
+        self.pool_meta[db_name] = {'last_used': time.time()}
+        return pool
+
+    async def _close_pool(self, db_name):
+        pool = self.pools.pop(db_name, None)
+        self.pool_meta.pop(db_name, None)
+        if pool:
+            try:
+                pool.close()
+                await pool.wait_closed()
+            except Exception as e:
+                bot_logger.error(f"Error closing pool {db_name}: {e}")
+
+    async def get_connection(self, db_name=None):
+        if db_name is None:
+            db_name = CHANNEL_NAME
+        for attempt in range(3):
+            try:
+                async with self.lock:
+                    pool = self.pools.get(db_name)
+                    if pool is None:
+                        pool = await self._create_pool(db_name)
+                # Acquire a connection from the pool
+                conn = await pool.acquire()
+                try:
+                    # Ensure the connection is alive; try ping, recreate pool on failure
+                    try:
+                        await conn.ping()
+                    except Exception:
+                        # Connection is dead - release and recreate pool, then retry acquisition
+                        try:
+                            pool.release(conn)
+                        except Exception:
+                            pass
+                        async with self.lock:
+                            await self._close_pool(db_name)
+                            pool = await self._create_pool(db_name)
+                        conn = await pool.acquire()
+                    # Update last used timestamp
+                    self.pool_meta.setdefault(db_name, {})['last_used'] = time.time()
+                    return PoolConnectionWrapper(conn, pool=pool)
+                except Exception:
+                    try:
+                        pool.release(conn)
+                    except Exception:
+                        pass
+                    raise
+            except Exception as e:
+                bot_logger.warning(f"MySQL get_connection attempt {attempt+1} failed for {db_name}: {e}")
+                await sleep(1 + attempt)
+        raise MySQLError(f"Unable to get MySQL connection for {db_name} after retries")
 
     async def close_all(self):
-        # Nothing to close for direct connections
-        return
+        # Close all pools and clear metadata
+        async with self.lock:
+            for db_name in list(self.pools.keys()):
+                await self._close_pool(db_name)
 
     async def cleanup_idle_pools(self, max_idle_time=1800):
-        return
+        now = time.time()
+        to_close = []
+        for db_name, meta in list(self.pool_meta.items()):
+            if now - meta.get('last_used', 0) > max_idle_time:
+                to_close.append(db_name)
+
+        for db_name in to_close:
+            bot_logger.info(f"Closing idle DB pool: {db_name}")
+            await self._close_pool(db_name)
 
     def get_pool_stats(self):
-        return {}
+        stats = {}
+        for db_name, pool in self.pools.items():
+            try:
+                stats[db_name] = {
+                    'minsize': getattr(pool, 'minsize', None),
+                    'maxsize': getattr(pool, 'maxsize', None),
+                    'free_size': getattr(pool, 'free_size', None)
+                }
+            except Exception:
+                stats[db_name] = {'info': 'unavailable'}
+        return stats
 
     def get_pool_status(self, db_name=None):
-        return {'connected': True, 'db_name': db_name}
-
+        if db_name is None:
+            return {'pools': list(self.pools.keys()), 'total': len(self.pools)}
+        return {'connected': db_name in self.pools}
 
 # Initialize global MySQL handler for backward compatibility
 mysql_handler = MySQLHandler()
 
-
-# Function to handle MySQL connections (simple direct connection, like `bot.py`)
+# Function to handle MySQL connections (returns a PoolConnectionWrapper compatible with existing usage)
 async def mysql_connection(db_name=None):
-    global SQL_HOST, SQL_USER, SQL_PASSWORD, CHANNEL_NAME
     if db_name is None:
         db_name = CHANNEL_NAME
-    return await sql_connect(
-        host=SQL_HOST,
-        user=SQL_USER,
-        password=SQL_PASSWORD,
-        db=db_name
-    )
+    return await mysql_handler.get_connection(db_name=db_name)
 
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
