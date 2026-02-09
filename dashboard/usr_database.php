@@ -179,6 +179,14 @@ try {
                 raid_count INT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
+        'analytic_raids' => "
+            CREATE TABLE IF NOT EXISTS analytic_raids (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                raider_name VARCHAR(255) NOT NULL,
+                viewers INT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_raider_name (raider_name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'quotes' => "
             CREATE TABLE IF NOT EXISTS quotes (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -578,6 +586,7 @@ try {
         'subscription_data' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'user_id' => "VARCHAR(255)", 'user_name' => "VARCHAR(255)", 'sub_plan' => "VARCHAR(255)", 'months' => "INT", 'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'followers_data' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'user_id' => "VARCHAR(255)", 'user_name' => "VARCHAR(255)", 'followed_at' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'raid_data' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'raider_name' => "VARCHAR(255)", 'raider_id' => "VARCHAR(255)", 'viewers' => "INT", 'raid_count' => "INT", 'timestamp' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
+        'analytic_raids' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'raider_name' => "VARCHAR(255)", 'viewers' => "INT", 'created_at' => "DATETIME DEFAULT CURRENT_TIMESTAMP"],
         'quotes' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'quote' => "TEXT", 'added' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"],
         'seen_users' => ['id' => "INT PRIMARY KEY AUTO_INCREMENT", 'username' => "VARCHAR(255)", 'welcome_message' => "VARCHAR(255) DEFAULT NULL", 'status' => "VARCHAR(255)", 'first_seen' => "DATETIME DEFAULT NULL", 'last_seen' => "DATETIME DEFAULT NULL"],
         'seen_today' => ['user_id' => "VARCHAR(255)", 'username' => "VARCHAR(255)"],
@@ -644,6 +653,7 @@ try {
         }
         // Check for columns that need to be added
         if (isset($columns[$table_name])) {
+            // Add missing columns
             foreach ($columns[$table_name] as $column_name => $column_definition) {
                 $result = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table_name' AND COLUMN_NAME = '$column_name'");
                 if (!$result) {
@@ -653,14 +663,56 @@ try {
                 if ($result->num_rows == 0) {
                     // Column doesn't exist, log and alter table to add it
                     $alter_sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
-                    echo "<script>console.log('Column $column_name does not exist, adding it to table $table_name...');</script>
-                    ";
+                    echo "<script>console.log('Column $column_name does not exist, adding it to table $table_name...');</script>";
                     if ($usrDBconn->query($alter_sql) === TRUE) {
+                        echo "<script>console.log('Column $column_name added to $table_name successfully.');</script>";
                     } else {
-                        echo "<script>console.error('Error adding column $column_name to table $table_name: " . addslashes($usrDBconn->error) . "');</script>
-                        ";
+                        echo "<script>console.error('Error adding column $column_name to table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
                     }
                 }
+            }
+            // Prune extra columns that aren't in the expected columns list (safe checks applied)
+            $existingColsRes = $usrDBconn->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table_name'");
+            if ($existingColsRes) {
+                $existingCols = [];
+                while ($row = $existingColsRes->fetch_assoc()) {
+                    $existingCols[] = $row['COLUMN_NAME'];
+                }
+                $expectedCols = array_keys($columns[$table_name]);
+                $extraCols = array_diff($existingCols, $expectedCols);
+                foreach ($extraCols as $extraCol) {
+                    // Safety checks: do not drop primary key columns
+                    $pkCheck = $usrDBconn->query("SHOW INDEX FROM `$table_name` WHERE Key_name = 'PRIMARY' AND Column_name = '$extraCol'");
+                    if ($pkCheck && $pkCheck->num_rows > 0) {
+                        echo "<script>console.log('Skipping drop of primary key column $extraCol on $table_name');</script>";
+                        continue;
+                    }
+                    // Don't drop columns that participate in foreign key constraints
+                    $fkCheck = $usrDBconn->query("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table_name' AND COLUMN_NAME = '$extraCol' AND REFERENCED_TABLE_NAME IS NOT NULL");
+                    if ($fkCheck && $fkCheck->num_rows > 0) {
+                        echo "<script>console.log('Skipping drop of FK column $extraCol on $table_name');</script>";
+                        continue;
+                    }
+                    // Prevent accidental removal of core audit columns if they exist in multiple places (id handled above)
+                    $safe_to_drop = true;
+                    $reserved = ['created_at','updated_at','timestamp'];
+                    if (in_array($extraCol, $reserved)) {
+                        echo "<script>console.log('Skipping drop of reserved column $extraCol on $table_name');</script>";
+                        $safe_to_drop = false;
+                    }
+                    if (!$safe_to_drop) continue;
+                    // Attempt to drop the column
+                    $drop_sql = "ALTER TABLE `$table_name` DROP COLUMN `$extraCol`";
+                    echo "<script>console.log('Extra column $extraCol found on $table_name, attempting to drop it...');</script>";
+                    if ($usrDBconn->query($drop_sql) === TRUE) {
+                        echo "<script>console.log('Dropped extra column $extraCol from $table_name successfully.');</script>";
+                    } else {
+                        echo "<script>console.error('Error dropping column $extraCol from table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                        // continue without failing entire migration
+                    }
+                }
+            } else {
+                echo "<script>console.error('Error fetching existing columns for table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
             }
         }
     }
