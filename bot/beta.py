@@ -228,6 +228,8 @@ CACHE_DURATION = 60                                     # 1 minute (matches ad c
 ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
 AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
 last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
+pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
+outgoing_raid_task = None                               # asyncio.Task that waits for stream end to persist outgoing raid
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -1180,6 +1182,60 @@ async def process_twitch_eventsub_message(message):
                             is_upgrade=True  # Skip sending duplicate subscription alert
                         ))
                         event_logger.info(f"Prime paid upgrade: {event_data['chatter_user_name']} upgraded from Prime Gaming to paid {tier_name} subscription")
+                    elif notice_type == "raid":
+                        # Detect outgoing raid initiated by broadcaster (sent)
+                        chatter_user_id = event_data.get("chatter_user_id")
+                        if chatter_user_id == CHANNEL_ID:
+                            system_msg = event_data.get("system_message", "") or ""
+                            target = None
+                            m = re.search(r'raiding\s+@?([A-Za-z0-9_\-]+)', system_msg, re.IGNORECASE)
+                            if m:
+                                target = m.group(1)
+                            else:
+                                # try message fragments
+                                fragments = event_data.get("message", {}).get("fragments", [])
+                                text = "".join([f.get("text","") for f in fragments if f.get("type") == "text"])
+                                m2 = re.search(r'raiding\s+@?([A-Za-z0-9_\-]+)', text, re.IGNORECASE)
+                                if m2:
+                                    target = m2.group(1)
+                                else:
+                                    # last resort, look for raid subobject
+                                    raid_obj = event_data.get("raid") or {}
+                                    target = raid_obj.get("user_name") or raid_obj.get("user_login") or "<unknown>"
+                            viewers_sent = 0
+                            try:
+                                async with httpClientSession() as session:
+                                    headers = {'Client-ID': CLIENT_ID, 'Authorization': f'Bearer {CHANNEL_AUTH}'}
+                                    async with session.get(f'https://api.twitch.tv/helix/streams?user_login={CHANNEL_NAME}&type=live', headers=headers) as resp:
+                                        data = await resp.json()
+                                        if data.get('data'):
+                                            viewers_sent = int(data['data'][0].get('viewer_count', 0))
+                            except Exception as e:
+                                event_logger.error(f"Failed to fetch viewer count for outgoing raid: {e}")
+                            global pending_outgoing_raid, outgoing_raid_task
+                            pending_outgoing_raid = {'target': target, 'viewers': viewers_sent, 'timestamp': time.time()}
+                            event_logger.info(f"Held outgoing raid to {target} with {viewers_sent} viewers until stream offline.")
+                            # Start (or restart) a background task that waits until the stream goes offline and persists the raid
+                            try:
+                                outgoing_raid_task = create_task(wait_and_persist_outgoing_raid())
+                            except Exception as e:
+                                event_logger.error(f"Failed to start outgoing raid persistence task: {e}")
+                        else:
+                            # an incoming raid that is also delivered through chat notification; handled by channel.raid
+                            pass
+                    elif notice_type == "unraid":
+                        # If broadcaster canceled outgoing raid
+                        chatter_user_id = event_data.get("chatter_user_id")
+                        if chatter_user_id == CHANNEL_ID:
+                            global pending_outgoing_raid, outgoing_raid_task
+                            pending_outgoing_raid = None
+                            if outgoing_raid_task and not outgoing_raid_task.done():
+                                try:
+                                    outgoing_raid_task.cancel()
+                                except Exception:
+                                    pass
+                                outgoing_raid_task = None
+                            event_logger.info("Outgoing raid canceled (unraid)")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
@@ -9147,8 +9203,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 user_conn = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
                 async with user_conn.cursor(DictCursor) as user_cursor:
                     await user_cursor.execute(
-                        "INSERT INTO analytic_raids (raider_name, viewers, created_at) VALUES (%s, %s, NOW())",
-                        (from_broadcaster_name, viewer_count)
+                        "INSERT INTO analytic_raids (raider_name, viewers, source, created_at) VALUES (%s, %s, %s, NOW())",
+                        (from_broadcaster_name, viewer_count, 'received')
                     )
                     await user_conn.commit()
             except Exception as e:
@@ -9837,6 +9893,30 @@ async def update_version_control():
         bot_logger.info(f"Version control updated")
     except Exception as e:
         bot_logger.error(f"An error occurred in update_version_control: {e}")
+
+async def wait_and_persist_outgoing_raid():
+    global pending_outgoing_raid, outgoing_raid_task
+    try:
+        # If the stream is currently live, wait until it ends (polling stream_online)
+        while stream_online:
+            await sleep(5)
+        # Stream is now offline (or was already); persist if we still have a pending outgoing raid
+        if not pending_outgoing_raid:
+            return
+        target = pending_outgoing_raid.get('target')
+        viewers_sent = pending_outgoing_raid.get('viewers', 0)
+        try:
+            user_conn = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
+            async with user_conn.cursor(DictCursor) as user_cursor:
+                await user_cursor.execute("INSERT INTO analytic_raids (raider_name, viewers, source, created_at) VALUES (%s, %s, %s, NOW())", (target, viewers_sent, 'sent'))
+                await user_conn.commit()
+        except Exception as e:
+            twitch_logger.error(f"Failed to save sent raid analytics for channel {CHANNEL_NAME}: {e}")
+    except asyncioCancelledError:
+        event_logger.info("Outgoing raid persistence task cancelled")
+    finally:
+        pending_outgoing_raid = None
+        outgoing_raid_task = None
 
 async def check_stream_online():
     global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
