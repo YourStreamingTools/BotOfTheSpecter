@@ -128,6 +128,7 @@ return [
     'navbar_subscribers' => 'Subscribers',
     'navbar_moderators' => 'Moderators',
     'navbar_vips' => 'VIP\'s',
+    'navbar_raids' => 'Raids',
     'navbar_streaming' => 'Streaming',
     'navbar_view_builtin_commands' => 'View Built-in Commands',
     'navbar_view_custom_commands' => 'View Custom Commands',

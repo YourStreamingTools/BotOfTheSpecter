@@ -205,6 +205,7 @@ function uuidv4()
                         <li><a href="vips.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i
                                         class="fas fa-crown"></i></span><span
                                     class="sidebar-menu-text"><?php echo t('navbar_vips'); ?></span></a></li>
+                        <li><a href="raids.php" class="sidebar-submenu-link"><span class="sidebar-submenu-icon"><i class="fas fa-bullhorn"></i></span><span class="sidebar-menu-text"><?php echo t('navbar_raids'); ?></span></a></li>
                     </ul>
                 </li>
                 <li class="sidebar-menu-item has-submenu">
@@ -453,6 +454,12 @@ function uuidv4()
                             <a href="vips.php" class="sidebar-submenu-link">
                                 <span class="sidebar-submenu-icon"><i class="fas fa-crown"></i></span>
                                 <span class="sidebar-menu-text"><?php echo t('navbar_vips'); ?></span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="raids.php" class="sidebar-submenu-link">
+                                <span class="sidebar-submenu-icon"><i class="fas fa-bullhorn"></i></span>
+                                <span class="sidebar-menu-text"><?php echo t('navbar_raids'); ?></span>
                             </a>
                         </li>
                     </ul>
