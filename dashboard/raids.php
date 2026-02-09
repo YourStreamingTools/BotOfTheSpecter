@@ -28,14 +28,22 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 // Fetch analytics data
-$recentRaids = [];
+$recentReceivedRaids = [];
+$recentSentRaids = [];
 $topRaiders = [];
 $avgViewers = null;
 try {
-    $recentRes = $db->query("SELECT id, raider_name, viewers, created_at FROM analytic_raids ORDER BY created_at DESC LIMIT 25");
-    if ($recentRes) {
-        $recentRaids = $recentRes->fetch_all(MYSQLI_ASSOC);
+    // Recent received raids (includes NULL source for historical rows)
+    $recentReceivedRes = $db->query("SELECT id, raider_name, viewers, created_at FROM analytic_raids WHERE source = 'received' OR source IS NULL ORDER BY created_at DESC LIMIT 25");
+    if ($recentReceivedRes) {
+        $recentReceivedRaids = $recentReceivedRes->fetch_all(MYSQLI_ASSOC);
     }
+    // Recent sent raids
+    $recentSentRes = $db->query("SELECT id, raider_name, viewers, created_at FROM analytic_raids WHERE source = 'sent' ORDER BY created_at DESC LIMIT 25");
+    if ($recentSentRes) {
+        $recentSentRaids = $recentSentRes->fetch_all(MYSQLI_ASSOC);
+    }
+    // Top raiders (overall)
     $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids GROUP BY raider_name ORDER BY raids DESC LIMIT 10");
     if ($topRes) {
         $topRaiders = $topRes->fetch_all(MYSQLI_ASSOC);
@@ -64,10 +72,10 @@ ob_start();
         <div class="content">
           <div class="columns">
             <div class="column is-two-thirds">
-              <h3 class="title is-5 has-text-white">Recent Raids</h3>
-              <?php if (empty($recentRaids)): ?>
+              <h3 class="title is-5 has-text-white">Recent Raids — Received</h3>
+              <?php if (empty($recentReceivedRaids)): ?>
                 <div class="has-text-centered py-6">
-                  <p class="has-text-grey-light is-size-5">No raid data available yet.</p>
+                  <p class="has-text-grey-light is-size-5">No received raid data available yet.</p>
                 </div>
               <?php else: ?>
                 <table class="table is-fullwidth is-striped is-hoverable has-text-white">
@@ -80,7 +88,7 @@ ob_start();
                     </tr>
                   </thead>
                   <tbody>
-                    <?php foreach ($recentRaids as $r): ?>
+                    <?php foreach ($recentReceivedRaids as $r): ?>
                       <tr>
                         <td><?php echo htmlspecialchars($r['id']); ?></td>
                         <td><?php echo htmlspecialchars($r['raider_name']); ?></td>
@@ -93,6 +101,33 @@ ob_start();
               <?php endif; ?>
             </div>
             <div class="column">
+              <h3 class="title is-5 has-text-white">Recent Raids — Sent</h3>
+              <?php if (empty($recentSentRaids)): ?>
+                <p class="has-text-grey-light">No sent raid data available yet.</p>
+              <?php else: ?>
+                <table class="table is-fullwidth is-striped is-hoverable has-text-white">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Target</th>
+                      <th>Viewers</th>
+                      <th>Date / Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($recentSentRaids as $s): ?>
+                      <tr>
+                        <td><?php echo htmlspecialchars($s['id']); ?></td>
+                        <td><?php echo htmlspecialchars($s['raider_name']); ?></td>
+                        <td><?php echo htmlspecialchars($s['viewers']); ?></td>
+                        <td><?php echo htmlspecialchars($s['created_at']); ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              <?php endif; ?>
+
+              <hr>
               <h3 class="title is-5 has-text-white">Top Raiders</h3>
               <?php if (empty($topRaiders)): ?>
                 <p class="has-text-grey-light">No data yet.</p>
