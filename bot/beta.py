@@ -9142,6 +9142,17 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                     (from_broadcaster_id, from_broadcaster_name, new_points)
                 )
             await connection.commit()
+            # Record raid in per-channel analytics DB (analytic_raids) if available
+            try:
+                user_conn = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
+                async with user_conn.cursor(DictCursor) as user_cursor:
+                    await user_cursor.execute(
+                        "INSERT INTO analytic_raids (raider_name, viewers, created_at) VALUES (%s, %s, NOW())",
+                        (from_broadcaster_name, viewer_count)
+                    )
+                    await user_conn.commit()
+            except Exception as e:
+                twitch_logger.error(f"Failed to write raid analytics to analytic_raids for channel {CHANNEL_NAME}: {e}")
             # Send raid notification to Twitch Chat, and Websocket
             create_task(websocket_notice(event="TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             # Send a message to the Twitch channel
