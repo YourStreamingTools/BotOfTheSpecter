@@ -1013,6 +1013,7 @@ async def process_tipping_message(data, source):
         integrations_logger.error(f"Error processing tipping message: {e}")
 
 async def process_twitch_eventsub_message(message):
+    global pending_outgoing_raid, outgoing_raid_task
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -1212,11 +1213,15 @@ async def process_twitch_eventsub_message(message):
                                             viewers_sent = int(data['data'][0].get('viewer_count', 0))
                             except Exception as e:
                                 event_logger.error(f"Failed to fetch viewer count for outgoing raid: {e}")
-                            global pending_outgoing_raid, outgoing_raid_task
                             pending_outgoing_raid = {'target': target, 'viewers': viewers_sent, 'timestamp': time.time()}
                             event_logger.info(f"Held outgoing raid to {target} with {viewers_sent} viewers until stream offline.")
                             # Start (or restart) a background task that waits until the stream goes offline and persists the raid
                             try:
+                                if outgoing_raid_task and not outgoing_raid_task.done():
+                                    try:
+                                        outgoing_raid_task.cancel()
+                                    except Exception:
+                                        pass
                                 outgoing_raid_task = create_task(wait_and_persist_outgoing_raid())
                             except Exception as e:
                                 event_logger.error(f"Failed to start outgoing raid persistence task: {e}")
@@ -1227,7 +1232,6 @@ async def process_twitch_eventsub_message(message):
                         # If broadcaster canceled outgoing raid
                         chatter_user_id = event_data.get("chatter_user_id")
                         if chatter_user_id == CHANNEL_ID:
-                            global pending_outgoing_raid, outgoing_raid_task
                             pending_outgoing_raid = None
                             if outgoing_raid_task and not outgoing_raid_task.done():
                                 try:
