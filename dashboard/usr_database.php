@@ -184,6 +184,7 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 raider_name VARCHAR(255) NOT NULL,
                 viewers INT NOT NULL,
+                source VARCHAR(20) DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_raider_name (raider_name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
