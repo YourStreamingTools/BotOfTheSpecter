@@ -233,11 +233,12 @@ $stmt->close();
 // Load protection settings
 $currentSettings = 'False';
 $termBlockingSettings = 'False';
-$getProtection = $db->query("SELECT url_blocking, term_blocking FROM protection LIMIT 1");
+$getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands FROM protection LIMIT 1");
 if ($getProtection) {
     $settings = $getProtection->fetch_assoc();
     $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
     $termBlockingSettings = isset($settings['term_blocking']) ? $settings['term_blocking'] : 'False';
+    $blockFirstMessageCommands = isset($settings['block_first_message_commands']) ? $settings['block_first_message_commands'] : 'False';
     $getProtection->free();
 }
 
@@ -708,7 +709,7 @@ ob_start();
                             </div>
                             <div class="columns is-multiline is-variable is-5 is-centered">
                                 <!-- URL Blocking Settings -->
-                                <div class="column is-4">
+                                <div class="column is-6">
                                     <div class="card" style="height: 100%;">
                                         <div class="card-content">
                                             <div class="has-text-centered mb-4">
@@ -738,8 +739,39 @@ ob_start();
                                         </div>
                                     </div>
                                 </div>
+                                <!-- Block first-message commands Settings -->
+                                <div class="column is-6">
+                                    <div class="card" style="height: 100%;">
+                                        <div class="card-content">
+                                            <div class="has-text-centered mb-4">
+                                                <h3 class="title is-5">
+                                                    <span class="icon has-text-link"><i class="fas fa-user-lock"></i></span>
+                                                    <?php echo t('protection_block_first_message_commands'); ?>
+                                                </h3>
+                                            </div>
+                                            <form action="module_data_post.php" method="post">
+                                                <div class="field">
+                                                    <div class="control">
+                                                        <div class="select is-fullwidth">
+                                                            <select name="block_first_message_commands" id="block_first_message_commands">
+                                                                <option value="True"<?php echo $blockFirstMessageCommands == 'True' ? ' selected' :'';?>><?php echo t('yes'); ?></option>
+                                                                <option value="False"<?php echo $blockFirstMessageCommands == 'False' ? ' selected' :'';?>><?php echo t('no'); ?></option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="field mt-4">
+                                                    <button type="submit" name="submit" class="button is-primary is-fullwidth">
+                                                        <span class="icon"><i class="fas fa-save"></i></span>
+                                                        <span><?php echo t('protection_update_btn'); ?></span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
                                 <!-- Whitelist Link Form -->
-                                <div class="column is-4">
+                                <div class="column is-6">
                                     <div class="card" style="height: 100%;">
                                         <div class="card-content">
                                             <div class="has-text-centered mb-4">
@@ -766,7 +798,7 @@ ob_start();
                                     </div>
                                 </div>
                                 <!-- Blacklist Link Form -->
-                                <div class="column is-4">
+                                <div class="column is-6">
                                     <div class="card" style="height: 100%;">
                                         <div class="card-content">
                                             <div class="has-text-centered mb-4">

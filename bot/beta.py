@@ -334,7 +334,6 @@ class PoolConnectionWrapper:
             await self._connection.rollback()
 
     async def release(self):
-        """Release or close the underlying connection. If using pools this would return it to the pool; here we close."""
         if self._connection and not self._released:
             try:
                 # If using a pool, release back to pool; otherwise close the single connection
@@ -2460,6 +2459,25 @@ class TwitchBot(commands.Bot):
                                 }
                 # Process Command Logic (Using captured data)
                 if command_data:
+                    # Protection: block custom commands when user hasn't sent a message this stream
+                    try:
+                        block_first_message_setting = False
+                        async with await mysql_handler.get_connection() as connection:
+                            async with connection.cursor(DictCursor) as cursor:
+                                await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
+                                protection_row = await cursor.fetchone()
+                                if protection_row and protection_row.get("block_first_message_commands") == 'True':
+                                    block_first_message_setting = True
+                        if block_first_message_setting and not await command_permissions("mod", message.author) and messageAuthor.lower() != CHANNEL_NAME.lower():
+                            async with await mysql_handler.get_connection() as connection:
+                                async with connection.cursor(DictCursor) as cursor:
+                                    await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
+                                    seen_today_res = await cursor.fetchone()
+                                    if not seen_today_res and stream_online:
+                                        await send_chat_message("Sorry, you cannot use this command because: you haven't sent a chat message recently")
+                                        command_data = None
+                    except Exception as e:
+                        bot_logger.error(f"Error checking first-message protection: {e}")
                     if command_data['type'] == 'custom':
                         response = command_data['response']
                         cc_status = command_data['status']
@@ -2686,8 +2704,9 @@ class TwitchBot(commands.Bot):
                     default_mod_welcome_message = preferences["default_mod_welcome_message"]
                 def replace_user_placeholder(message, username):
                     return message.replace("(user)", username)
-                # If user has not been seen today and stream is online, insert them and (conditionally) send welcome message
-                if not already_seen_today and stream_online:
+                # If user has not been seen today and stream is online, ONLY insert them when the message is NOT a command
+                is_command_message = bool(messageContent and messageContent.strip().startswith('!'))
+                if not already_seen_today and stream_online and not is_command_message:
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
                         (messageAuthorID, messageAuthor)
@@ -2720,12 +2739,15 @@ class TwitchBot(commands.Bot):
                             user_to_shoutout = messageAuthor
                             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
                         if message_to_send.strip():
-                                await send_chat_message(message_to_send)
+                            await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
                             await add_shoutout(user_to_shoutout, user_id, is_automated=True)
                             await send_chat_message(shoutout_message)
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         create_task(self.safe_walkon(messageAuthor))
+                elif not already_seen_today and stream_online and is_command_message:
+                    # First message is a command — do not mark as seen yet. This ensures the user must send a non-command chat message to be considered "seen".
+                    chat_logger.info(f"{messageAuthor} sent a command as their first message; deferring 'seen' until a non-command message is received.")
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
         finally:
