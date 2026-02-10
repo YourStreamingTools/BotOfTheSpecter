@@ -1044,6 +1044,7 @@ return [
     'protection_title' => 'Chat-Schutz Einstellungen',
     'protection_enable_url_blocking' => 'URL-Blockierung aktivieren:',
     'protection_update_btn' => 'Aktualisieren',
+    'protection_block_first_message_commands' => 'Benutzer blockieren, die während dieses Streams noch keine Chatnachricht gesendet haben :',
     'protection_enter_link_whitelist' => 'Link zur Whitelist hinzufügen:',
     'protection_enter_link_blacklist' => 'Link zur Blacklist hinzufügen:',
     'protection_enter_url_placeholder' => 'URL eingeben',

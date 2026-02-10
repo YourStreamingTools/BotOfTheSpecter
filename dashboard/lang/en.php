@@ -1101,6 +1101,7 @@ return [
     // Protection Page
     'protection_title' => 'Chat Protection Settings',
     'protection_enable_url_blocking' => 'Enable URL Blocking:',
+    'protection_block_first_message_commands' => 'Block custom commands for users who have not chatted this stream:',
     'protection_update_btn' => 'Update',
     'protection_enter_link_whitelist' => 'Enter Link to Whitelist:',
     'protection_enter_link_blacklist' => 'Enter Link to Blacklist:',

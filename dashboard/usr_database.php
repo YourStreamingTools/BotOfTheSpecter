@@ -230,7 +230,8 @@ try {
         'protection' => "
             CREATE TABLE IF NOT EXISTS protection (
                 url_blocking VARCHAR(500) DEFAULT 'False',
-                term_blocking VARCHAR(500) DEFAULT 'False'
+                term_blocking VARCHAR(500) DEFAULT 'False',
+                block_first_message_commands VARCHAR(10) DEFAULT 'False'
             ) ENGINE=InnoDB",
         'link_whitelist' => "
             CREATE TABLE IF NOT EXISTS link_whitelist (
@@ -720,7 +721,7 @@ try {
         async_log('Default subathon_settings options ensured.');
     }
     // Ensure default options for chat protection
-    if ($usrDBconn->query("INSERT INTO protection (url_blocking, term_blocking) SELECT 'False', 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO protection (url_blocking, term_blocking, block_first_message_commands) SELECT 'False', 'False', 'False' WHERE NOT EXISTS (SELECT 1 FROM protection)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default protection options ensured.');
     }
     // Ensure default options for joke command

@@ -535,6 +535,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
     }
+    elseif (isset($_POST['block_first_message_commands'])) {
+        $activeTab = "chat-protection";
+        $val = $_POST['block_first_message_commands'] == 'True' ? 'True' : 'False';
+        $stmt = $db->prepare("UPDATE protection SET block_first_message_commands = ?");
+        $stmt->bind_param("s", $val);
+        if ($stmt->execute()) {
+            $_SESSION['update_message'] = "First-message command blocking setting updated successfully.";
+        } else {
+            $_SESSION['update_message'] = "Failed to update the setting.";
+            error_log("Error updating block_first_message_commands: " . $db->error);
+        }
+        $stmt->close();
+    }
     elseif (isset($_POST['whitelist_link'])) {
         $activeTab = "chat-protection";
         $whitelist_link = $_POST['whitelist_link'];
