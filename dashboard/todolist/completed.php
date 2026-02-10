@@ -30,13 +30,13 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 // Check if a specific category is selected
-if (isset($_GET['category'])) {
-  $category_id = $_GET['category'];
-  $sql = "SELECT * FROM todos WHERE category = ? AND completed = 'No'";
+$categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 'all';
+if ($categoryFilter !== 'all') {
+  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.category = ? AND t.completed = 'No'";
   $stmt = $db->prepare($sql);
-  $stmt->bind_param("i", $category_id);
+  $stmt->bind_param("i", $categoryFilter);
 } else {
-  $sql = "SELECT * FROM todos WHERE completed = 'No'";
+  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.completed = 'No'";
   $stmt = $db->prepare($sql);
 }
 
@@ -46,7 +46,7 @@ $num_rows = count($incompleteTasks);
 
 // Mark task as completed
 if (isset($_POST['task_id'])) {
-  $task_id = $_POST['task_id'];
+  $task_id = intval($_POST['task_id']);
   $sql = "UPDATE todos SET completed = 'Yes' WHERE id = ?";
   $stmt = $db->prepare($sql);
   $stmt->bind_param("i", $task_id);
@@ -133,15 +133,7 @@ ob_start();
                       <p class="subtitle is-7 has-text-grey is-flex is-align-items-center">
                         <span class="icon is-align-self-center"><i class="fas fa-folder"></i></span>
                         <span class="ml-1">
-                          <?php
-                            $category_id = $row['category'];
-                            $category_sql = "SELECT category FROM categories WHERE id = ?";
-                            $category_stmt = $db->prepare($category_sql);
-                            $category_stmt->bind_param("i", $category_id);
-                            $category_stmt->execute();
-                            $category_row = $category_stmt->get_result()->fetch_assoc();
-                            echo htmlspecialchars($category_row['category']);
-                          ?>
+                          <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
                         </span>
                       </p>
                     </div>

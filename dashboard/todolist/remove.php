@@ -34,14 +34,14 @@ if ($db->connect_error) {
 }
 
 // Get the selected category filter, default to "all" if not provided
-$categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
+$categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 'all';
 
-// Build the SQL query based on the category filter
+// Build the SQL query based on the category filter (use join to include category name)
 if ($categoryFilter === 'all') {
-  $stmt = $db->prepare("SELECT * FROM todos ORDER BY id ASC");
+  $stmt = $db->prepare("SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id ORDER BY t.id ASC");
 } else {
-  $stmt = $db->prepare("SELECT * FROM todos WHERE category = ? ORDER BY id ASC");
-  $stmt->bind_param('s', $categoryFilter);
+  $stmt = $db->prepare("SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.category = ? ORDER BY t.id ASC");
+  $stmt->bind_param('i', $categoryFilter);
 }
 
 $stmt->execute();
@@ -50,7 +50,7 @@ $num_rows = count($result);
 
 // Handle remove item form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $todo_id = $_POST['todo_id'];
+  $todo_id = intval($_POST['todo_id']);
   // Delete item from database
   $stmt = $db->prepare("DELETE FROM todos WHERE id = ?");
   $stmt->bind_param('i', $todo_id);
@@ -134,14 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       <p class="subtitle is-7 has-text-grey is-flex is-align-items-center">
                         <span class="icon is-align-self-center"><i class="fas fa-folder"></i></span>
                         <span class="ml-1">
-                          <?php
-                          $category_id = $row['category'];
-                          $category_stmt = $db->prepare("SELECT category FROM categories WHERE id = ?");
-                          $category_stmt->bind_param('i', $category_id);
-                          $category_stmt->execute();
-                          $category_row = $category_stmt->get_result()->fetch_assoc();
-                          echo htmlspecialchars($category_row['category']);
-                          ?>
+                          <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
                         </span>
                         <span class="ml-2">
                           <?= ($row['completed'] === 'Yes') ? '<span class="tag is-success is-light">Completed</span>' : '<span class="tag is-warning is-light">Not completed</span>' ?>

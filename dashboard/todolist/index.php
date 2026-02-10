@@ -30,16 +30,16 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 // Get the selected category filter, default to "all" if not provided
-$categoryFilter = isset($_GET['category']) ? htmlspecialchars($_GET['category']) : 'all';
+$categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 'all';
 
-// Build the SQL query based on the category filter
+// Build the SQL query based on the category filter (use join to include category name)
 if ($categoryFilter === 'all') {
-  $sql = "SELECT * FROM todos ORDER BY id ASC";
+  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id ORDER BY t.id ASC";
   $stmt = $db->prepare($sql);
 } else {
-  $sql = "SELECT * FROM todos WHERE category = ? ORDER BY id ASC";
+  $sql = "SELECT t.*, c.category AS category_name FROM todos t LEFT JOIN categories c ON t.category = c.id WHERE t.category = ? ORDER BY t.id ASC";
   $stmt = $db->prepare($sql);
-  $stmt->bind_param("s", $categoryFilter);
+  $stmt->bind_param("i", $categoryFilter);
 }
 $stmt->execute();
 $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -113,15 +113,7 @@ ob_start();
                   <p class="subtitle is-7 mb-2 is-flex is-align-items-center" style="color:#fff;">
                     <span class="icon is-align-self-center"><i class="fas fa-folder"></i></span>
                     <span class="ml-1">
-                      <?php
-                        $category_id = $row['category'];
-                        $category_sql = "SELECT category FROM categories WHERE id = ?";
-                        $category_stmt = $db->prepare($category_sql);
-                        $category_stmt->bind_param("i", $category_id);
-                        $category_stmt->execute();
-                        $category_row = $category_stmt->get_result()->fetch_assoc();
-                        echo htmlspecialchars($category_row['category']);
-                      ?>
+                      <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
                     </span>
                     <span class="ml-2">
                       <?php echo ($row['completed'] === 'Yes')
@@ -162,21 +154,18 @@ ob_start();
   function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
     const now = new Date();
-    const diff = now - date;
-    let seconds = Math.floor(diff / 1000) % 60;
-    let minutes = Math.floor(diff / (1000 * 60)) % 60;
-    let hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
-    let days = Math.floor(diff / (1000 * 60 * 60 * 24)) % 30;
-    let months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30)) % 12;
-    let years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
-    let result = '';
-    if (years > 0) result += `${years} year${years > 1 ? 's' : ''}, `;
-    if (months > 0) result += `${months} month${months > 1 ? 's' : ''}, `;
-    if (days > 0) result += `${days} day${days > 1 ? 's' : ''}, `;
-    if (hours > 0) result += `${hours} hour${hours > 1 ? 's' : ''}, `;
-    if (minutes > 0) result += `${minutes} minute${minutes > 1 ? 's' : ''}, `;
-    result += `${seconds} second${seconds > 1 ? 's' : ''} ago`;
-    return result;
+    const diff = Math.floor((now - date) / 1000);
+    if (diff < 60) return diff + ' second' + (diff !== 1 ? 's' : '') + ' ago';
+    const minutes = Math.floor(diff / 60);
+    if (minutes < 60) return minutes + ' minute' + (minutes !== 1 ? 's' : '') + ' ago';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + ' hour' + (hours !== 1 ? 's' : '') + ' ago';
+    const days = Math.floor(hours / 24);
+    if (days < 30) return days + ' day' + (days !== 1 ? 's' : '') + ' ago';
+    const months = Math.floor(days / 30);
+    if (months < 12) return months + ' month' + (months !== 1 ? 's' : '') + ' ago';
+    const years = Math.floor(days / 365);
+    return years + ' year' + (years !== 1 ? 's' : '') + ' ago';
   }
   function updateTimestamps() {
     const elements = document.querySelectorAll('.timestamp');

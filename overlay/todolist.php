@@ -49,14 +49,29 @@ if (!$error_html) {
     $stmt->execute();
     $result = $stmt->get_result();
     $settings = $result->fetch_assoc();
-    $font = isset($settings['font']) ? $settings['font'] : null;
-    $color = isset($settings['color']) ? $settings['color'] : null;
+    // Sanitize and validate OBS display settings
+    $allowed_fonts = ['Arial','Arial Narrow','Verdana','Times New Roman','Courier New','Georgia'];
+    $font_raw = isset($settings['font']) ? $settings['font'] : '';
+    $font = in_array($font_raw, $allowed_fonts) ? $font_raw : null;
+    $color_raw = isset($settings['color']) ? $settings['color'] : '';
+    // Allow named colors or hex values
+    if (preg_match('/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/', $color_raw)) {
+        $color = $color_raw;
+    } else {
+        $named_colors = ['black'=>'black','white'=>'white','red'=>'red','blue'=>'blue'];
+        $lower = strtolower($color_raw);
+        $color = isset($named_colors[$lower]) ? $named_colors[$lower] : null;
+    }
     $list = isset($settings['list']) ? $settings['list'] : null;
-    $shadow = isset($settings['shadow']) ? $settings['shadow'] : null;
-    $font_size = isset($settings['font_size']) ? $settings['font_size'] : null;
+    $shadow = isset($settings['shadow']) && $settings['shadow'] == 1 ? true : false;
+    $bold = isset($settings['bold']) && $settings['bold'] == 1 ? true : false;
+    // Normalize font size to an integer (pixels)
+    $font_size_raw = isset($settings['font_size']) ? $settings['font_size'] : '';
+    $font_size = intval(preg_replace('/\D/', '', $font_size_raw));
+    if ($font_size <= 0) $font_size = 12;
     $listType = ($list === 'Numbered') ? 'ol' : 'ul';
-    $bold = isset($settings['bold']) ? $settings['bold'] : null;
     $category_id = isset($_GET['category']) && !empty($_GET['category']) ? $_GET['category'] : "1";
+    $category_id = intval($category_id);
     // Validate category_id
     $stmt = $user_db->prepare("SELECT category FROM categories WHERE id = ?");
     $stmt->bind_param("i", $category_id);
@@ -73,7 +88,7 @@ if (!$error_html) {
             $tasks[] = $row;
         }
     } else {
-        $error_html = "Invalid category ID.<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.</p>";
+        $error_html = "Invalid category ID.<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.";
     }
 }
 ob_end_flush();
@@ -87,16 +102,14 @@ ob_end_flush();
 <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
 <meta http-equiv='refresh' content='10'>
 <style>body { <?php
-if ($font) { echo "font-family: $font; "; }
+if ($font) { echo 'font-family: "' . htmlspecialchars($font) . '", sans-serif; '; }
 if ($color) {
-    echo "color: $color;";
-    if ($shadow && $shadow == 1) {
-        if ($color === 'Black') {
-            echo "text-shadow: 0px 0px 6px White;";
-        } elseif ($color === 'White') {
-            echo "text-shadow: 0px 0px 6px Black;";
+    echo 'color: ' . htmlspecialchars($color) . ';';
+    if ($shadow) {
+        if (strtolower($color) === 'black' || $color === '#000' || $color === '#000000') {
+            echo 'text-shadow: 0px 0px 6px white;';
         } else {
-            echo "text-shadow: 0px 0px 6px Black;";
+            echo 'text-shadow: 0px 0px 6px black;';
         }
     }
 }
@@ -108,14 +121,25 @@ if ($color) {
 <?php else: ?>
     <h1><?php echo htmlspecialchars($category); ?> List:</h1>
     <?php
-    echo "<$listType>";
-    foreach ($tasks as $task) {
-        $task_id = $task['id'];
-        $objective = $task['completed'] === 'Yes' ? '<s>' . htmlspecialchars($task['objective']) . '</s>' : htmlspecialchars($task['objective']);
-        $taskStyle = $bold == 1 ? 'style="font-size: ' . $font_size . 'px;"><strong>' : 'style="font-size: ' . $font_size . 'px;">';
-        echo "<li $taskStyle$objective</li>";
+    if (empty($tasks)) {
+        echo '<p>No tasks in this category.</p>';
+    } else {
+        echo "<$listType>";
+        foreach ($tasks as $task) {
+            $task_id = intval($task['id']);
+            $text = htmlspecialchars($task['objective']);
+            if ($task['completed'] === 'Yes') {
+                $text = '<s>' . $text . '</s>';
+            }
+            $style = 'style="font-size: ' . intval($font_size) . 'px;"';
+            if ($bold) {
+                echo "<li $style><strong>$text</strong></li>";
+            } else {
+                echo "<li $style>$text</li>";
+            }
+        }
+        echo "</$listType>";
     }
-    echo "</$listType>";
     ?>
 <?php endif; ?>
 
