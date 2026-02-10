@@ -66,12 +66,141 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['rewardid']) && isset($
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['deleteRewardId'])) {
     $deleteRewardId = $_POST['deleteRewardId'];
-    $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = ?");
-    $deleteQuery->bind_param('s', $deleteRewardId);
-    $deleteQuery->execute();
-    $deleteQuery->close();
-    header('Location: channel_rewards.php');
-    exit();
+    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest';
+    // Check if reward is marked as managed by Specter
+    $check = $db->prepare("SELECT managed_by FROM channel_point_rewards WHERE reward_id = ?");
+    $check->bind_param('s', $deleteRewardId);
+    $check->execute();
+    $res = $check->get_result();
+    $row = $res->fetch_assoc();
+    $check->close();
+    $managedBy = $row['managed_by'] ?? null;
+    if ($managedBy === 'specter') {
+        // Validate OAuth token and scopes before attempting delete
+        $valCh = curl_init();
+        curl_setopt($valCh, CURLOPT_URL, "https://id.twitch.tv/oauth2/validate");
+        curl_setopt($valCh, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($valCh, CURLOPT_HTTPHEADER, ["Authorization: Bearer {$_SESSION['access_token']}"]);
+        $valResp = curl_exec($valCh);
+        $valCode = curl_getinfo($valCh, CURLINFO_HTTP_CODE);
+        curl_close($valCh);
+        if ($valCode !== 200) {
+            $errorMsg = 'OAuth token validation failed. HTTP ' . $valCode . ': ' . $valResp;
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errorMsg, 'http_code' => $valCode]);
+                exit();
+            } else {
+                $_SESSION['sync_output'] = $errorMsg;
+                header('Location: channel_rewards.php');
+                exit();
+            }
+        }
+        $valData = json_decode($valResp, true);
+        $tokenClientId = $valData['client_id'] ?? null;
+        $tokenScopes = $valData['scopes'] ?? [];
+        // Check client id matches configured client id
+        if ($tokenClientId !== $clientID) {
+            $errorMsg = 'Client ID in token (' . ($tokenClientId ?? 'none') . ') does not match configured client ID (' . ($clientID ?? 'none') . '). Twitch will only allow the app that created the reward to delete it.';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                exit();
+            } else {
+                $_SESSION['sync_output'] = $errorMsg;
+                header('Location: channel_rewards.php');
+                exit();
+            }
+        }
+        // Check required scope
+        if (!in_array('channel:manage:redemptions', $tokenScopes, true)) {
+            $errorMsg = 'OAuth token missing required scope: channel:manage:redemptions. Please re-authenticate and grant that scope.';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                exit();
+            } else {
+                $_SESSION['sync_output'] = $errorMsg;
+                header('Location: channel_rewards.php');
+                exit();
+            }
+        }
+        // Proceed to delete on Twitch
+        $deleteUrl = "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={$_SESSION['twitchUserId']}&id={$deleteRewardId}";
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $deleteUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Authorization: Bearer {$_SESSION['access_token']}",
+            "Client-Id: {$clientID}"
+        ]);
+        $tResp = curl_exec($ch);
+        $tCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        // Try to parse response body if JSON to give clear errors
+        $tRespDecoded = null;
+        $tmp = json_decode($tResp, true);
+        if (is_array($tmp)) {
+            $tRespDecoded = $tmp;
+        }
+        if ($tCode === 204 || $tCode === 200 || $tCode === 404) {
+            // Delete local records and related tables
+            $del = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = ?");
+            $del->bind_param('s', $deleteRewardId);
+            $del->execute();
+            $del->close();
+            $related = ['reward_counts', 'reward_streaks', 'sound_alerts', 'video_alerts'];
+            foreach ($related as $table) {
+                $stmt = $db->prepare("DELETE FROM {$table} WHERE reward_id = ?");
+                if ($stmt) {
+                    $stmt->bind_param('s', $deleteRewardId);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => 'Deleted on Twitch and removed from Specter sync.', 'twitch_status' => $tCode]);
+                exit();
+            } else {
+                $_SESSION['sync_output'] = 'Deleted on Twitch and removed from Specter sync.';
+                header('Location: channel_rewards.php');
+                exit();
+            }
+        } else {
+            // Failed to delete on Twitch - include parsed message if available
+            $errorExtra = '';
+            if (is_array($tRespDecoded)) {
+                if (isset($tRespDecoded['message'])) $errorExtra = $tRespDecoded['message'];
+                elseif (isset($tRespDecoded['error'])) $errorExtra = $tRespDecoded['error'];
+            }
+            $errorMsg = 'Failed to delete on Twitch. HTTP ' . $tCode . ': ' . ($errorExtra ?: $tResp);
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errorMsg, 'http_code' => $tCode, 'twitch_response' => $tRespDecoded ?: $tResp]);
+                exit();
+            } else {
+                $_SESSION['sync_output'] = $errorMsg;
+                header('Location: channel_rewards.php');
+                exit();
+            }
+        }
+    } else {
+        // Not managed by Specter - just remove from local sync
+        $deleteQuery = $db->prepare("DELETE FROM channel_point_rewards WHERE reward_id = ?");
+        $deleteQuery->bind_param('s', $deleteRewardId);
+        $deleteQuery->execute();
+        $deleteQuery->close();
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Removed from Specter sync (reward remains on Twitch).']);
+            exit();
+        } else {
+            header('Location: channel_rewards.php');
+            exit();
+        }
+    }
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
@@ -87,13 +216,60 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
     }
     if ($isAjax) {
         header('Content-Type: application/json');
-        echo json_encode(['output' => nl2br(htmlspecialchars($output))]);
+        echo json_encode(['output' => nl2br(htmlspecialchars($output ?? '', ENT_QUOTES, 'UTF-8'))]);
         exit();
     } else {
-        $_SESSION['sync_output'] = nl2br(htmlspecialchars($output));
+        $_SESSION['sync_output'] = nl2br(htmlspecialchars($output ?? '', ENT_QUOTES, 'UTF-8'));
         header('Location: channel_rewards.php');
         exit();
     }
+}
+
+// On-load: ensure Twitch 'manageable' rewards are present in the DB so they show up immediately
+$syncErrors = [];
+if (isset($_SESSION['access_token']) && !empty($clientID)) {
+    $ch = curl_init();
+    $after = null;
+    do {
+        $url = "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id={$_SESSION['twitchUserId']}&only_manageable_rewards=true&first=50";
+        if ($after) $url .= '&after=' . urlencode($after);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Authorization: Bearer {$_SESSION['access_token']}",
+            "Client-Id: {$clientID}"
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($code >= 200 && $code < 300) {
+            $data = json_decode($resp, true);
+            if (!empty($data['data']) && is_array($data['data'])) {
+                foreach ($data['data'] as $r) {
+                    $rewardId = $r['id'];
+                    $rewardTitle = $r['title'];
+                    $rewardCost = isset($r['cost']) ? (int)$r['cost'] : 0;
+                    $customMsg = $rewardTitle;
+                    // Upsert into per-user DB (no is_enabled column in schema)
+                    $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=VALUES(custom_message), managed_by=VALUES(managed_by)";
+                    $stmtUp = $db->prepare($upsertSql);
+                    if ($stmtUp) {
+                        $stmtUp->bind_param('ssis', $rewardId, $rewardTitle, $rewardCost, $customMsg);
+                        if (!$stmtUp->execute()) {
+                            $syncErrors[] = 'DB execute failed for ' . $rewardId . ': ' . $stmtUp->error;
+                        }
+                        $stmtUp->close();
+                    } else {
+                        $syncErrors[] = 'DB prepare failed: ' . $db->error;
+                    }
+                }
+            }
+            $after = $data['pagination']['cursor'] ?? null;
+        } else {
+            $syncErrors[] = 'Twitch API Error: ' . $resp;
+            break;
+        }
+    } while ($after);
+    curl_close($ch);
 }
 
 // Fetch channel point rewards
@@ -102,6 +278,10 @@ $rewardsQuery->execute();
 $result = $rewardsQuery->get_result();
 $channelPointRewards = $result->fetch_all(MYSQLI_ASSOC);
 $rewardsQuery->close();
+
+if (!empty($syncErrors)) {
+    $syncMessage = implode("\n", $syncErrors);
+}
 
 // Start output buffering for layout template
 ob_start();
@@ -320,7 +500,7 @@ ob_start();
                                                     $imageUrl = $reward['default_image']['url_2x'];
                                                 }
                                                 if (!empty($imageUrl)): ?>
-                                                    <img src="<?php echo htmlspecialchars($imageUrl); ?>" alt="Reward Icon"
+                                                    <img src="<?php echo htmlspecialchars($imageUrl ?? '', ENT_QUOTES, 'UTF-8'); ?>" alt="Reward Icon"
                                                         style="width: 56px; height: 56px; border-radius: 4px;">
                                                 <?php else: ?>
                                                     <span class="icon has-text-grey">
@@ -328,16 +508,16 @@ ob_start();
                                                     </span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td><?php echo htmlspecialchars($rTitle); ?></td>
+                                            <td><?php echo htmlspecialchars($rTitle ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
                                             <td>
                                                 <?php if ($isSynced): ?>
                                                     <div id="<?php echo $rId; ?>">
-                                                        <?php echo htmlspecialchars($customMessage); ?>
+                                                        <?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?>
                                                     </div>
                                                     <div class="edit-box" id="edit-box-<?php echo $rId; ?>" style="display: none;">
                                                         <textarea class="textarea custom-message"
                                                             data-reward-id="<?php echo $rId; ?>"
-                                                            maxlength="255"><?php echo htmlspecialchars($customMessage); ?></textarea>
+                                                            maxlength="255"><?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                                                         <div class="character-count" id="count-<?php echo $rId; ?>"
                                                             style="margin-top: 5px; font-size: 0.8em;">0 / 255 characters
                                                         </div>
@@ -347,7 +527,7 @@ ob_start();
                                                 <?php endif; ?>
                                             </td>
                                             <td class="has-text-centered" style="vertical-align: middle;">
-                                                <?php echo htmlspecialchars($rCost); ?>
+                                                <?php echo htmlspecialchars((string)($rCost ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                                             </td>
                                             <td class="has-text-centered" style="vertical-align: middle;">
                                                 <?php
@@ -396,7 +576,7 @@ ob_start();
                                                 <?php if ($isSynced): ?>
                                                     <button class="button is-small is-danger delete-btn"
                                                         data-reward-id="<?php echo $rId; ?>"
-                                                        data-managed-by="<?php echo htmlspecialchars($reward['managed_by'] ?? 'twitch'); ?>"><i
+                                                        data-managed-by="<?php echo htmlspecialchars($managedBy ?? 'twitch', ENT_QUOTES, 'UTF-8'); ?>"><i
                                                             class="fas fa-trash-alt"></i></button>
                                                 <?php else: ?>
                                                     <button class="button is-small is-dark" disabled>
@@ -780,14 +960,7 @@ if (!empty($channelPointRewards)) {
             updateCharCount(rewardid);
         });
     });
-    document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const rewardid = this.getAttribute('data-reward-id');
-            if (confirm('<?php echo t('channel_rewards_delete_confirm'); ?>')) {
-                deleteReward(rewardid);
-            }
-        });
-    });
+
     function updateCustomMessage(rewardid, newCustomMessage, button, originalIcon) {
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "", true);
@@ -836,15 +1009,36 @@ if (!empty($channelPointRewards)) {
             color: '#fff'
         }).then((result) => {
             if (result.isConfirmed) {
-                var xhr = new XMLHttpRequest();
-                xhr.open("POST", "", true);
-                xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-                xhr.onreadystatechange = function () {
-                    if (xhr.readyState === XMLHttpRequest.DONE) {
-                        location.reload();
-                    }
-                };
-                xhr.send("deleteRewardId=" + encodeURIComponent(rewardid));
+                // Use fetch + JSON response handling
+                fetch('', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: 'deleteRewardId=' + encodeURIComponent(rewardid)
+                })
+                    .then(res => {
+                        // Try to parse JSON on success, otherwise throw with text
+                        const contentType = res.headers.get('content-type') || '';
+                        if (!res.ok) {
+                            return res.text().then(txt => { throw new Error(txt || ('HTTP ' + res.status)); });
+                        }
+                        if (contentType.indexOf('application/json') === -1) {
+                            return res.text().then(txt => { throw new Error(txt || 'Unexpected response'); });
+                        }
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire({ icon: 'success', title: 'Deleted', text: data.message || '' }).then(() => location.reload());
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to delete reward.' });
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Request failed' });
+                    });
             }
         });
     }
