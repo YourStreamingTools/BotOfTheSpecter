@@ -105,6 +105,18 @@ class EventHandler:
         # Broadcast custom command event to clients and global listeners
         await self.broadcast_with_globals("CUSTOM_COMMAND", data, code)
 
+    async def handle_raffle_winner(self, sid, data):
+        self.logger.info(f"Raffle winner event from SID [{sid}]: {data}")
+        channel = data.get('channel')
+        winner = data.get('winner')
+        raffle_name = data.get('raffle_name')
+        if not channel or not winner or not raffle_name:
+            self.logger.error('Missing channel, raffle_name or winner information for RAFFLE_WINNER event')
+            return
+        payload = {'channel': channel, 'raffle_name': raffle_name, 'winner': winner}
+        code = self.get_code_by_sid(sid) if self.get_code_by_sid else None
+        await self.broadcast_with_globals("RAFFLE_WINNER", payload, code)
+
     async def handle_walkon(self, sid, data):
         self.logger.info(f"Walkon event from SID [{sid}]: {data}")
         channel = data.get('channel')

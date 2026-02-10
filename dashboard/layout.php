@@ -282,6 +282,12 @@ function uuidv4()
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
+                    <a href="raffles.php" class="sidebar-menu-link">
+                        <span class="sidebar-menu-icon"><i class="fas fa-ticket-alt"></i></span>
+                        <span class="sidebar-menu-text">Raffles</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
                     <a href="todolist/index.php" class="sidebar-menu-link">
                         <span class="sidebar-menu-icon"><i class="fas fa-list-check"></i></span>
                         <span class="sidebar-menu-text"><?php echo t('navbar_todo_list'); ?></span>
