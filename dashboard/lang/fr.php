@@ -1044,7 +1044,7 @@ return [
     'protection_title' => 'Paramètres de protection du chat',
     'protection_enable_url_blocking' => 'Activer le blocage des URL :',
     'protection_update_btn' => 'Mettre à jour',
-    'protection_block_first_message_commands' => 'Bloquer les commandes personnalisées pour les utilisateurs qui n\'ont pas encore envoyé de message pendant ce stream :',
+    'protection_block_first_message_commands' => 'Bloquer les commandes jusqu\'au premier message :',
     'protection_enter_link_whitelist' => 'Entrer un lien à mettre en liste blanche :',
     'protection_enter_link_blacklist' => 'Entrer un lien à mettre en liste noire :',
     'protection_enter_url_placeholder' => 'Entrez une URL',

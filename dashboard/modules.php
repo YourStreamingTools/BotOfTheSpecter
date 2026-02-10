@@ -747,6 +747,7 @@ ob_start();
                                                 <h3 class="title is-5">
                                                     <span class="icon has-text-link"><i class="fas fa-user-lock"></i></span>
                                                     <?php echo t('protection_block_first_message_commands'); ?>
+                                                    <span class="tag is-warning is-light ml-2">BETA 5.8</span>
                                                 </h3>
                                             </div>
                                             <form action="module_data_post.php" method="post">
