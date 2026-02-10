@@ -33,10 +33,11 @@ date_default_timezone_set($timezone);
 $message = ""; 
 $messageType = ""; 
 
+$objective = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   // Get form data
-  $objective = $_POST['objective'];
-  $category = $_POST['category'];
+  $objective = isset($_POST['objective']) ? trim($_POST['objective']) : '';
+  $category = isset($_POST['category']) ? intval($_POST['category']) : 1;
   // Basic validation
   if (empty($objective)) {
     $message = "Please enter a task.";
@@ -53,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       $messageType = "is-danger"; 
     }
   }
-}
+} 
 
 ob_start();
 ?>
@@ -88,7 +89,7 @@ ob_start();
               Task
             </label>
             <div class="control has-icons-left">
-              <textarea id="objective" name="objective" class="textarea is-medium is-rounded" placeholder="Describe your task..."></textarea>
+              <textarea id="objective" name="objective" class="textarea is-medium is-rounded" placeholder="Describe your task..."><?php echo htmlspecialchars($objective); ?></textarea> 
             </div>
           </div>
           <div class="field mb-5">

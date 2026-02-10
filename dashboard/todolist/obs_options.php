@@ -35,14 +35,20 @@ $stmt->execute();
 $result = $stmt->get_result()->fetch_assoc();
 
 $font = isset($result['font']) && $result['font'] !== '' ? $result['font'] : 'Not set';
-$color = isset($result['color']) && $result['color'] !== '' ? $result['color'] : 'Not set';
-if ($color !== 'Black' && $color !== 'White' && $color !== 'Red' && $color !== 'Blue' && $color !== 'Not set') {
-    $color = 'Other';
+$color_raw = isset($result['color']) && $result['color'] !== '' ? $result['color'] : 'Not set';
+if (preg_match('/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/', $color_raw)) {
+    $color = $color_raw;
+} else {
+    $allowed_named_colors = ['Black','White','Red','Blue'];
+    $color = in_array($color_raw, $allowed_named_colors) ? $color_raw : ($color_raw === 'Not set' ? 'Not set' : 'Other');
 }
 $list = isset($result['list']) && $result['list'] !== '' ? $result['list'] : 'Bullet';
 $shadow = isset($result['shadow']) && $result['shadow'] == 1 ? true : false;
 $bold = isset($result['bold']) && $result['bold'] == 1 ? true : false;
-$font_size = isset($result['font_size']) ? $result['font_size'] : '12px';
+// Normalize font size to integer pixels
+$font_size_raw = isset($result['font_size']) ? $result['font_size'] : '';
+$font_size = intval(preg_replace('/\D/', '', $font_size_raw));
+if ($font_size <= 0) $font_size = 12; 
 
 // Process form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -52,41 +58,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $selectedList = isset($_POST["list"]) ? $_POST["list"] : 'Bullet';
     $selectedShadow = isset($_POST["shadow"]) ? 1 : 0;
     $selectedBold = isset($_POST["bold"]) ? 1 : 0;
-    $selectedFontSize = isset($_POST["font_size"]) ? $_POST["font_size"] : '12px';
+    // Normalize font size to integer pixels
+    $selectedFontSize = isset($_POST["font_size"]) ? intval(preg_replace('/\D/', '', $_POST["font_size"])) : 12;
+    if ($selectedFontSize <= 0) $selectedFontSize = 12;
 
     // Check if the user has selected "Other" color option
     if ($selectedColor === 'Other') {
-        $customColor = isset($_POST["custom_color"]) ? $_POST["custom_color"] : '';
-        if (!empty($customColor)) {
+        $customColor = isset($_POST["custom_color"]) ? trim($_POST["custom_color"]) : '';
+        if (preg_match('/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/', $customColor)) {
             $selectedColor = $customColor;
+        } else {
+            // fallback to white if invalid
+            $selectedColor = 'White';
         }
     }
 
-    // Check if the user has existing settings
+    // Use prepared statements with correct types (s = string, i = integer)
     if ($result) {
-        // Update the font, color, list, shadow, bold, and font_size data in the database
         $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? LIMIT 1");
-        $stmt->bind_param("sssiss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt->bind_param("sssiii", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
         if ($stmt->execute()) {
-            // Update successful
             header("Location: obs_options.php");
         } else {
-            // Display error message
-            echo "Error updating settings: " . $stmt->error;
+            echo "Error updating settings: " . htmlspecialchars($stmt->error);
         }
     } else {
-        // Insert new settings for the user
         $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssiss", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt->bind_param("sssiii", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
         if ($stmt->execute()) {
-            // Insertion successful
             header("Location: obs_options.php");
         } else {
-            // Display error message
-            echo "Error inserting settings: " . $stmt->error;
+            echo "Error inserting settings: " . htmlspecialchars($stmt->error);
         }
     }
-}
+} 
 
 ob_start();
 ?>
@@ -139,8 +144,8 @@ ob_start();
                                 </div>
                                 <div class="column is-6-tablet is-4-desktop">
                                     <strong>Color:</strong>
-                                    <span style="display:inline-block;width:18px;height:18px;background-color:<?php echo htmlspecialchars($result['color']); ?>;margin-right:3px;vertical-align:middle;border-radius:3px;"></span>
-                                    <span><?php echo htmlspecialchars($result['color']); ?></span>
+                                    <span style="display:inline-block;width:18px;height:18px;background-color:<?php echo htmlspecialchars($color); ?>;margin-right:3px;vertical-align:middle;border-radius:3px;"></span>
+                                    <span><?php echo htmlspecialchars($color); ?></span>
                                 </div>
                                 <div class="column is-6-tablet is-4-desktop">
                                     <strong>List Type:</strong> <span><?php echo htmlspecialchars($list); ?></span>
@@ -207,7 +212,7 @@ ob_start();
                             <div class="field mb-4" id="custom-color-group"<?php if ($color !== 'Other') echo ' style="display: none;"'; ?>>
                                 <label class="label" for="custom_color">Custom Color</label>
                                 <div class="control">
-                                    <input type="text" name="custom_color" id="custom-color-input" class="input is-rounded" value="<?php echo htmlspecialchars($result['color']); ?>">
+                                    <input type="text" name="custom_color" id="custom-color-input" class="input is-rounded" value="<?php echo htmlspecialchars($color_raw); ?>">
                                 </div>
                             </div>
                         </div>
@@ -229,7 +234,7 @@ ob_start();
                             <div class="field mb-4">
                                 <label class="label" for="font_size">Font Size</label>
                                 <div class="control has-icons-left">
-                                    <input type="text" name="font_size" value="<?php echo htmlspecialchars($font_size); ?>" class="input is-rounded">
+                                    <input type="number" name="font_size" value="<?php echo htmlspecialchars($font_size); ?>" class="input is-rounded" min="8" max="72">
                                     <span class="icon is-left"><i class="fas fa-text-height"></i></span>
                                 </div>
                             </div>

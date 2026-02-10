@@ -40,15 +40,41 @@ if (!$result) {
 }
 
 // Handle remove category form submission
+$message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_category_id'])) {
   $remove_id = intval($_POST['remove_category_id']);
-  // Remove the category
-  $stmt = $db->prepare("DELETE FROM categories WHERE id = ?");
-  $stmt->bind_param("i", $remove_id);
-  $stmt->execute();
-  // Optionally, you may want to handle orphaned todos here
-  header("Location: categories.php");
-  exit();
+  // Prevent deleting default category (id 1)
+  if ($remove_id === 1) {
+    $message = 'Cannot remove the default category.';
+  } else {
+    // Check if category exists
+    $stmt = $db->prepare("SELECT id FROM categories WHERE id = ?");
+    $stmt->bind_param("i", $remove_id);
+    $stmt->execute();
+    $exists = $stmt->get_result()->fetch_assoc();
+    if ($exists) {
+      // Ensure default category exists (id 1); if not, create it
+      $stmt = $db->prepare("SELECT id FROM categories WHERE id = 1");
+      $stmt->execute();
+      $default_exists = $stmt->get_result()->fetch_assoc();
+      if (!$default_exists) {
+        $stmt = $db->prepare("INSERT INTO categories (id, category) VALUES (1, 'Default')");
+        $stmt->execute();
+      }
+      // Reassign any todos in this category to default (1)
+      $stmt = $db->prepare("UPDATE todos SET category = 1 WHERE category = ?");
+      $stmt->bind_param("i", $remove_id);
+      $stmt->execute();
+      // Now delete the category
+      $stmt = $db->prepare("DELETE FROM categories WHERE id = ?");
+      $stmt->bind_param("i", $remove_id);
+      $stmt->execute();
+      header("Location: categories.php");
+      exit();
+    } else {
+      $message = 'Category not found.';
+    }
+  }
 }
 ob_start();
 ?>
@@ -65,8 +91,11 @@ ob_start();
     </div>
   </div>
 </div>
+<?php if (!empty($message)): ?>
+  <div class="notification is-info mt-4"><?php echo htmlspecialchars($message); ?></div>
+<?php endif; ?>
 <div class="columns is-multiline">
-  <?php foreach ($result as $row): ?>
+  <?php foreach ($result as $row): ?> 
     <div class="column is-4-tablet is-3-desktop">
       <div class="box" style="background: transparent; border-radius: 14px; border: 1px solid #d3d3d3; box-shadow: none; padding: 1.5rem 1.25rem;">
         <div class="media is-align-items-center">
