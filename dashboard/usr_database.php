@@ -447,6 +447,30 @@ try {
                 supplementary_numbers VARCHAR(255),
                 UNIQUE (winning_numbers)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'raffles' => "
+            CREATE TABLE IF NOT EXISTS raffles (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                start_time DATETIME DEFAULT NULL,
+                end_time DATETIME DEFAULT NULL,
+                status VARCHAR(20) DEFAULT 'scheduled',
+                is_weighted TINYINT(1) DEFAULT 0,
+                winner_username VARCHAR(255) DEFAULT NULL,
+                winner_user_id VARCHAR(255) DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'raffle_entries' => "
+            CREATE TABLE IF NOT EXISTS raffle_entries (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                raffle_id INT NOT NULL,
+                user_id VARCHAR(255),
+                username VARCHAR(255),
+                weight INT DEFAULT 1,
+                entered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (raffle_id, username),
+                FOREIGN KEY (raffle_id) REFERENCES raffles(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'ad_notice_settings' => "
             CREATE TABLE IF NOT EXISTS ad_notice_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,

@@ -225,6 +225,7 @@ class BotOfTheSpecter_WebsocketServer:
             ("TWITCH_SUB", self.event_handler.handle_twitch_sub),
             ("TWITCH_CHANNELPOINTS", self.event_handler.handle_twitch_channelpoints),
             ("WALKON", self.event_handler.handle_walkon),
+            ("RAFFLE_WINNER", self.event_handler.handle_raffle_winner),
             ("TTS", self.tts),
             ("SOUND_ALERT", self.event_handler.handle_sound_alert),
             ("VIDEO_ALERT", self.event_handler.handle_video_alert),

@@ -1822,6 +1822,22 @@ async def websocket_stream_online(api_key: str = Query(...)):
     await websocket_notice("STREAM_ONLINE", params, api_key)
     return {"status": "success"}
 
+# WebSocket Raffle Winner Trigger
+@app.get(
+    "/websocket/raffle_winner",
+    summary="Trigger Raffle Winner via API",
+    description="Notify WebSocket clients and the bot that a raffle winner has been selected.",
+    tags=["WebSocket Triggers"],
+    operation_id="trigger_websocket_raffle_winner"
+)
+async def websocket_raffle_winner(api_key: str = Query(...), raffle_name: str = Query(...), winner: str = Query(...)):
+    valid = await verify_api_key(api_key)
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    params = {"event": "RAFFLE_WINNER", "channel": valid, "raffle_name": raffle_name, "winner": winner}
+    await websocket_notice("RAFFLE_WINNER", params, api_key)
+    return {"status": "success"}
+
 # WebSocket Stream Offline Trigger
 @app.get(
     "/websocket/stream_offline",
