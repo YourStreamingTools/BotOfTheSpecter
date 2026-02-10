@@ -941,7 +941,7 @@ ob_start();
                             </div>
                             <div class="columns is-multiline is-variable is-5 is-centered">
                                 <!-- Term Blocking Settings -->
-                                <div class="column is-4">
+                                <div class="column is-6">
                                     <div class="card" style="height: 100%;">
                                         <div class="card-content">
                                             <div class="has-text-centered mb-4">
@@ -972,7 +972,7 @@ ob_start();
                                     </div>
                                 </div>
                                 <!-- Add Blocked Term Form -->
-                                <div class="column is-4">
+                                <div class="column is-6">
                                     <div class="card" style="height: 100%;">
                                         <div class="card-content">
                                             <div class="has-text-centered mb-4">
@@ -998,8 +998,8 @@ ob_start();
                                         </div>
                                     </div>
                                 </div>
-                                <!-- Blocked Terms Table -->
-                                <div class="column is-8">
+                                <!-- Blocked Terms Table (full-width) -->
+                                <div class="column is-12">
                                     <div class="box">
                                         <h2 class="subtitle is-5 mb-3">
                                             <span class="icon has-text-danger"><i class="fas fa-list-ul"></i></span>
