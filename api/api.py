@@ -111,6 +111,23 @@ def _is_ip_allowed(ip: str) -> bool:
         pass
     return False
 
+
+def _format_duration(seconds: int) -> str:
+    if seconds < 0:
+        seconds = 0
+    parts = []
+    days, rem = divmod(seconds, 86400)
+    if days:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    hours, rem = divmod(rem, 3600)
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    minutes, secs = divmod(rem, 60)
+    if minutes:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    parts.append(f"{secs} second{'s' if secs != 1 else ''}")
+    return ", ".join(parts)
+
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
 
@@ -1376,26 +1393,91 @@ async def system_uptime(request: Request):
         client_ip = request.client.host if request.client else '127.0.0.1'
     # Whitelisted IPs are exempt from throttling
     try:
-        if _is_ip_allowed(client_ip):
-            uptime_seconds = int((datetime.now() - _process_start_time).total_seconds())
-            return {"uptime_seconds": uptime_seconds, "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
+        whitelisted = _is_ip_allowed(client_ip)
     except Exception:
-        # If whitelist check fails for any reason, treat as non-whitelisted and continue
         logging.exception("Error checking IP whitelist")
-    # Enforce per-IP 10 second throttle (in-memory)
-    now_ts = datetime.now().timestamp()
-    async with _uptime_lock:
-        last_ts = _uptime_requests.get(client_ip)
-        if last_ts:
-            elapsed = now_ts - last_ts
-            if elapsed < 10:
-                retry_after = int(10 - elapsed)
-                # Return 429 with Retry-After header and JSON detail
-                raise HTTPException(status_code=429, detail={"error": "rate_limited", "retry_after": retry_after})
-        # Update last call timestamp
-        _uptime_requests[client_ip] = now_ts
+        whitelisted = False
+    # If not whitelisted, enforce per-IP 10 second throttle (in-memory)
+    if not whitelisted:
+        now_ts = datetime.now().timestamp()
+        async with _uptime_lock:
+            last_ts = _uptime_requests.get(client_ip)
+            if last_ts:
+                elapsed = now_ts - last_ts
+                if elapsed < 10:
+                    retry_after = int(10 - elapsed)
+                    raise HTTPException(status_code=429, detail={"error": "rate_limited", "retry_after": retry_after})
+            # Update last call timestamp
+            _uptime_requests[client_ip] = now_ts
+    # Prepare grouped response structure
     uptime_seconds = int((datetime.now() - _process_start_time).total_seconds())
-    return {"uptime_seconds": uptime_seconds, "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
+    api_section = {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
+    websocket_section = {"uptime": "Unknown", "started_at": "Unknown"}
+    # Attempt to fetch websocket uptime via SSH marker file on the websocket host
+    ws_uptime_path = "/home/botofthespecter/websocket_uptime"
+    if all([BOTS_SSH_HOST, BOTS_SSH_USERNAME, BOTS_SSH_PASSWORD]):
+        try:
+            ssh = SSHClient()
+            ssh.set_missing_host_key_policy(AutoAddPolicy())
+            ssh.connect(hostname=BOTS_SSH_HOST, username=BOTS_SSH_USERNAME, password=BOTS_SSH_PASSWORD, timeout=8)
+            sftp = ssh.open_sftp()
+            try:
+                st = sftp.stat(ws_uptime_path)
+                started_at_dt = datetime.fromtimestamp(st.st_mtime)
+                ws_seconds = int((datetime.now() - started_at_dt).total_seconds())
+                websocket_section["uptime"] = _format_duration(ws_seconds)
+                websocket_section["started_at"] = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+            finally:
+                sftp.close()
+                ssh.close()
+        except Exception:
+            logging.exception("Error fetching websocket uptime via SSH")
+    # Database fallback: include system_metrics rows for websocket and api (if present)
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT server_name, cpu_percent, ram_percent, ram_used, ram_total, disk_percent, disk_used, disk_total, net_sent, net_recv, last_updated FROM system_metrics WHERE server_name IN ('websocket','api')")
+                rows = await cur.fetchall()
+                for row in rows:
+                    server = row.get('server_name')
+                    last_updated = row.get('last_updated')
+                    metrics = {
+                        'cpu_percent': row.get('cpu_percent'),
+                        'ram_percent': row.get('ram_percent'),
+                        'ram_used': row.get('ram_used'),
+                        'ram_total': row.get('ram_total'),
+                        'disk_percent': row.get('disk_percent'),
+                        'disk_used': row.get('disk_used'),
+                        'disk_total': row.get('disk_total'),
+                        'net_sent': row.get('net_sent'),
+                        'net_recv': row.get('net_recv')
+                    }
+                    # place metrics under the appropriate section
+                    if server == 'api':
+                        api_section['metrics'] = metrics
+                    elif server == 'websocket':
+                        websocket_section['metrics'] = metrics
+                    # If websocket SSH marker was unavailable, treat DB last_updated as uptime anchor
+                    if server == 'websocket' and websocket_section.get('started_at') == 'Unknown' and last_updated:
+                        try:
+                            ws_started_dt = last_updated if isinstance(last_updated, datetime) else datetime.strptime(last_updated, '%Y-%m-%d %H:%M:%S')
+                            ws_seconds = int((datetime.now() - ws_started_dt).total_seconds())
+                            websocket_section['started_at'] = ws_started_dt.strftime('%Y-%m-%d %H:%M:%S')
+                            websocket_section['uptime'] = _format_duration(ws_seconds)
+                        except Exception:
+                            # If parsing fails, leave values as-is
+                            logging.exception('Error parsing websocket last_updated from DB')
+        finally:
+            conn.close()
+    except Exception:
+        logging.exception("Error fetching system_metrics from database")
+    # Build final grouped response
+    final = {
+        'API': api_section,
+        'WEBSOCKET': websocket_section
+    }
+    return final
 
 # Chat instructions endpoint
 @app.get(
