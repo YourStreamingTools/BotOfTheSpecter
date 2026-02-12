@@ -1840,6 +1840,12 @@ nav.top-navbar,
     cursor: pointer;
 }
 
+/* Make all `.tag` badges non-interactive by default (visual-only). */
+.tag {
+    pointer-events: none;
+    cursor: default;
+}
+
 /* Sidebar version badge */
 .sidebar-version {
     padding: 0.75rem;

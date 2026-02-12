@@ -23,6 +23,7 @@ function getMenuItems()
             [ 'label' => t('navbar_bot_logs'), 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],
             [ 'label' => t('navbar_counters'), 'icon' => 'fas fa-calculator', 'href' => 'counters.php' ],
             [ 'label' => t('navbar_followers'), 'icon' => 'fas fa-user-plus', 'href' => 'followers.php' ],
+            [ 'label' => 'Schedule', 'icon' => 'fas fa-calendar-days', 'href' => 'schedule.php' ],
             [ 'label' => t('navbar_subscribers'), 'icon' => 'fas fa-star', 'href' => 'subscribers.php' ],
             [ 'label' => t('navbar_moderators'), 'icon' => 'fas fa-user-shield', 'href' => 'mods.php' ],
             [ 'label' => t('navbar_vips'), 'icon' => 'fas fa-crown', 'href' => 'vips.php' ],
