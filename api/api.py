@@ -1412,8 +1412,8 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
             _uptime_requests[client_ip] = now_ts
     # Prepare grouped response structure
     uptime_seconds = int((datetime.now() - _process_start_time).total_seconds())
-    api_section = {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
-    websocket_section = {"uptime": "Unknown", "started_at": "Unknown"}
+    api_section = {"Local Read": {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}}
+    websocket_section = {"Local Read": {"uptime": "Unknown", "started_at": "Unknown"}}
     other_sections = {}
     ssh_ok = False
     # Attempt to fetch websocket uptime via SSH marker file on the websocket host
@@ -1428,8 +1428,8 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
                 st = sftp.stat(ws_uptime_path)
                 started_at_dt = datetime.fromtimestamp(st.st_mtime)
                 ws_seconds = int((datetime.now() - started_at_dt).total_seconds())
-                websocket_section["uptime"] = _format_duration(ws_seconds)
-                websocket_section["started_at"] = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+                websocket_section.setdefault('Local Read', {})['uptime'] = _format_duration(ws_seconds)
+                websocket_section['Local Read']['started_at'] = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
                 ssh_ok = True
             finally:
                 sftp.close()
@@ -1461,20 +1461,20 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
                         'net_sent': row.get('net_sent'),
                         'net_recv': row.get('net_recv')
                     }
-                    # place metrics under the appropriate section
+                    # place metrics under the appropriate section (label as Local Metrics Script)
                     if server == 'api':
-                        api_section['metrics'] = metrics
+                        api_section['Local Metrics Script'] = metrics
                     elif server == 'websocket':
-                        websocket_section['metrics'] = metrics
+                        websocket_section['Local Metrics Script'] = metrics
                     else:
-                        other_sections[server.upper()] = { 'metrics': metrics }
+                        other_sections[server.upper()] = { 'Local Metrics Script': metrics }
                     # If websocket SSH marker was unavailable, treat DB last_updated as uptime anchor
-                    if server == 'websocket' and websocket_section.get('started_at') == 'Unknown' and last_updated:
+                    if server == 'websocket' and websocket_section.get('Local Read', {}).get('started_at') == 'Unknown' and last_updated:
                         try:
                             ws_started_dt = last_updated if isinstance(last_updated, datetime) else datetime.strptime(last_updated, '%Y-%m-%d %H:%M:%S')
                             ws_seconds = int((datetime.now() - ws_started_dt).total_seconds())
-                            websocket_section['started_at'] = ws_started_dt.strftime('%Y-%m-%d %H:%M:%S')
-                            websocket_section['uptime'] = _format_duration(ws_seconds)
+                            websocket_section.setdefault('Local Read', {})['started_at'] = ws_started_dt.strftime('%Y-%m-%d %H:%M:%S')
+                            websocket_section['Local Read']['uptime'] = _format_duration(ws_seconds)
                         except Exception:
                             logging.exception('Error parsing websocket last_updated from DB')
         finally:
@@ -1551,13 +1551,13 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
                             else:
                                 target = other_sections.setdefault(section_name, {})
                             if summary:
-                                target['hetrixtools'] = summary
+                                target['External API Metrics'] = summary
                                 # include most-recent-day details when available
                                 data_days = sanitized.get('data', {})
                                 if isinstance(data_days, dict):
                                     latest_day = sorted(data_days.keys(), reverse=True)[0] if data_days else None
                                     if latest_day:
-                                        target.setdefault('hetrixtools', {})['latest_day'] = {latest_day: data_days[latest_day]}
+                                        target.setdefault('External API Metrics', {})['latest_day'] = {latest_day: data_days[latest_day]}
                             section_diag['ok'] = True
                             hetrix_ok = True
                         else:
