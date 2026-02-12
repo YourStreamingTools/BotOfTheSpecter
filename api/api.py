@@ -1471,15 +1471,6 @@ async def system_uptime(request: Request):
                             'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'},
                             'Local Metrics Script': metrics
                         }
-                    # If websocket SSH marker was unavailable, treat DB last_updated as uptime anchor
-                    if server == 'websocket' and websocket_section.get('Local Read', {}).get('started_at') == 'Unknown' and last_updated:
-                        try:
-                            ws_started_dt = last_updated if isinstance(last_updated, datetime) else datetime.strptime(last_updated, '%Y-%m-%d %H:%M:%S')
-                            ws_seconds = int((datetime.now() - ws_started_dt).total_seconds())
-                            websocket_section.setdefault('Local Read', {})['started_at'] = ws_started_dt.strftime('%Y-%m-%d %H:%M:%S')
-                            websocket_section['Local Read']['uptime'] = _format_duration(ws_seconds)
-                        except Exception:
-                            logging.exception('Error parsing websocket last_updated from DB')
         finally:
             conn.close()
     except Exception:
