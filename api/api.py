@@ -27,6 +27,7 @@ from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlencode
 from contextlib import asynccontextmanager
+import ipaddress
 
 # Load ENV file
 load_dotenv(find_dotenv("/home/botofthespecter/.env"))
@@ -68,6 +69,54 @@ rotating_handler.setFormatter(formatter)
 
 # Add handler to logger
 logger.addHandler(rotating_handler)
+
+# Local IP whitelist (reads /home/botofthespecter/ips.txt)
+_ips_file = "/home/botofthespecter/ips.txt"
+_allowed_ip_networks = []
+_ips_file_mtime = 0
+
+def _load_allowed_ips():
+    global _allowed_ip_networks, _ips_file_mtime
+    try:
+        mtime = os.path.getmtime(_ips_file)
+        if _allowed_ip_networks and mtime == _ips_file_mtime:
+            return
+        allowed = []
+        with open(_ips_file, 'r') as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                try:
+                    allowed.append(ipaddress.ip_network(line))
+                except ValueError:
+                    logger.warning(f"Invalid IP/network in {_ips_file}: {line}")
+        _allowed_ip_networks = allowed
+        _ips_file_mtime = mtime
+        logger.info(f"Loaded {_ips_file} with {len(_allowed_ip_networks)} networks")
+    except FileNotFoundError:
+        _allowed_ip_networks = []
+    except Exception:
+        logger.exception("Error loading ips file")
+
+def _is_ip_allowed(ip: str) -> bool:
+    try:
+        _load_allowed_ips()
+        addr = ipaddress.ip_address(ip)
+        for net in _allowed_ip_networks:
+            if addr in net:
+                return True
+    except Exception:
+        # Invalid IP format or load error -> treat as not allowed
+        pass
+    return False
+
+# Process start time for basic uptime reporting
+_process_start_time = datetime.now()
+
+# In-memory per-IP timestamp store for /system/uptime rate limiting
+_uptime_requests = {}  # ip -> last_request_epoch_seconds
+_uptime_lock = asyncio.Lock()  # protect access to _uptime_requests
 
 # Define the tags metadata
 tags_metadata = [
@@ -1306,6 +1355,47 @@ async def database_heartbeat():
     db_host = os.getenv('SQL-HOST')
     is_alive = await check_icmp_ping(db_host)
     return {"status": "OK" if is_alive else "OFF"}
+
+@app.get(
+    "/system/uptime",
+    response_model=dict,
+    summary="Get API process uptime",
+    description="Return the API process uptime. Public endpoint with per-IP rate limit (10s). Whitelisted IPs are exempt.",
+    tags=["Public"],
+    operation_id="get_system_uptime"
+)
+async def system_uptime(request: Request):
+    # Extract client IP (respect common proxy headers)
+    client_ip = None
+    if 'X-Forwarded-For' in request.headers:
+        client_ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
+    elif 'X-Real-IP' in request.headers:
+        client_ip = request.headers['X-Real-IP']
+    else:
+        # FastAPI/Starlette Request.client may be None in some testing contexts
+        client_ip = request.client.host if request.client else '127.0.0.1'
+    # Whitelisted IPs are exempt from throttling
+    try:
+        if _is_ip_allowed(client_ip):
+            uptime_seconds = int((datetime.now() - _process_start_time).total_seconds())
+            return {"uptime_seconds": uptime_seconds, "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
+    except Exception:
+        # If whitelist check fails for any reason, treat as non-whitelisted and continue
+        logging.exception("Error checking IP whitelist")
+    # Enforce per-IP 10 second throttle (in-memory)
+    now_ts = datetime.now().timestamp()
+    async with _uptime_lock:
+        last_ts = _uptime_requests.get(client_ip)
+        if last_ts:
+            elapsed = now_ts - last_ts
+            if elapsed < 10:
+                retry_after = int(10 - elapsed)
+                # Return 429 with Retry-After header and JSON detail
+                raise HTTPException(status_code=429, detail={"error": "rate_limited", "retry_after": retry_after})
+        # Update last call timestamp
+        _uptime_requests[client_ip] = now_ts
+    uptime_seconds = int((datetime.now() - _process_start_time).total_seconds())
+    return {"uptime_seconds": uptime_seconds, "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
 
 # Chat instructions endpoint
 @app.get(
