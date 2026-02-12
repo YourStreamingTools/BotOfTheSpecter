@@ -1413,6 +1413,7 @@ async def system_uptime(request: Request):
     uptime_seconds = int((datetime.now() - _process_start_time).total_seconds())
     api_section = {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
     websocket_section = {"uptime": "Unknown", "started_at": "Unknown"}
+    other_sections = {}
     # Attempt to fetch websocket uptime via SSH marker file on the websocket host
     ws_uptime_path = "/home/botofthespecter/websocket_uptime"
     if all([BOTS_SSH_HOST, BOTS_SSH_USERNAME, BOTS_SSH_PASSWORD]):
@@ -1437,7 +1438,7 @@ async def system_uptime(request: Request):
         conn = await get_mysql_connection()
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT server_name, cpu_percent, ram_percent, ram_used, ram_total, disk_percent, disk_used, disk_total, net_sent, net_recv, last_updated FROM system_metrics WHERE server_name IN ('websocket','api')")
+                await cur.execute("SELECT server_name, cpu_percent, ram_percent, ram_used, ram_total, disk_percent, disk_used, disk_total, net_sent, net_recv, last_updated FROM system_metrics")
                 rows = await cur.fetchall()
                 for row in rows:
                     server = row.get('server_name')
@@ -1458,6 +1459,8 @@ async def system_uptime(request: Request):
                         api_section['metrics'] = metrics
                     elif server == 'websocket':
                         websocket_section['metrics'] = metrics
+                    else:
+                        other_sections[server.upper()] = { 'metrics': metrics }
                     # If websocket SSH marker was unavailable, treat DB last_updated as uptime anchor
                     if server == 'websocket' and websocket_section.get('started_at') == 'Unknown' and last_updated:
                         try:
@@ -1477,6 +1480,9 @@ async def system_uptime(request: Request):
         'API': api_section,
         'WEBSOCKET': websocket_section
     }
+    # include any other servers (WEB1, SQL, BOTS, etc.)
+    if other_sections:
+        final.update(other_sections)
     return final
 
 # Chat instructions endpoint
