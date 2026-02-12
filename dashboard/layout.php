@@ -116,7 +116,8 @@ function uuidv4()
             </button>
         </div>
         <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
-            <ul class="sidebar-menu">
+            <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile'); ?>
+            <!-- LEGACY MOBILE MENU START
                 <li class="sidebar-menu-item">
                     <a href="dashboard.php" class="sidebar-menu-link">
                         <span class="sidebar-menu-icon"><i class="fas fa-home"></i></span>
@@ -293,7 +294,7 @@ function uuidv4()
                         <span class="sidebar-menu-text"><?php echo t('navbar_todo_list'); ?></span>
                     </a>
                 </li>
-            </ul>
+            LEGACY MOBILE MENU END -->
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
                 <a href="mod_channels.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
@@ -332,7 +333,8 @@ function uuidv4()
             </button>
         </div>
         <div class="sidebar-content-wrapper">
-            <ul class="sidebar-menu">
+            <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop'); ?>
+            <!-- LEGACY MENU START
                 <li class="sidebar-menu-item">
                     <a href="dashboard.php" class="sidebar-menu-link">
                         <span class="sidebar-menu-icon"><i class="fas fa-home"></i></span>
@@ -608,7 +610,7 @@ function uuidv4()
                     </a>
                     <div class="sidebar-tooltip"><?php echo t('navbar_todo_list'); ?></div>
                 </li>
-            </ul>
+            LEGACY MENU END -->
             <div class="sidebar-user-section">
                 <a href="mod_channels.php" class="sidebar-user-item">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
