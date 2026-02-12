@@ -2,6 +2,7 @@
 import os
 import random
 import json
+import copy
 import logging
 from logging.handlers import RotatingFileHandler
 import asyncio
@@ -1381,7 +1382,7 @@ async def database_heartbeat():
     tags=["Public"],
     operation_id="get_system_uptime"
 )
-async def system_uptime(request: Request):
+async def system_uptime(request: Request, debug: bool = Query(False, description="Include diagnostic info (debug)", include_in_schema=False)):
     # Extract client IP (respect common proxy headers)
     client_ip = None
     if 'X-Forwarded-For' in request.headers:
@@ -1414,6 +1415,7 @@ async def system_uptime(request: Request):
     api_section = {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}
     websocket_section = {"uptime": "Unknown", "started_at": "Unknown"}
     other_sections = {}
+    ssh_ok = False
     # Attempt to fetch websocket uptime via SSH marker file on the websocket host
     ws_uptime_path = "/home/botofthespecter/websocket_uptime"
     if all([BOTS_SSH_HOST, BOTS_SSH_USERNAME, BOTS_SSH_PASSWORD]):
@@ -1428,19 +1430,24 @@ async def system_uptime(request: Request):
                 ws_seconds = int((datetime.now() - started_at_dt).total_seconds())
                 websocket_section["uptime"] = _format_duration(ws_seconds)
                 websocket_section["started_at"] = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+                ssh_ok = True
             finally:
                 sftp.close()
                 ssh.close()
         except Exception:
             logging.exception("Error fetching websocket uptime via SSH")
-    # Database fallback: include system_metrics rows for websocket and api (if present)
+    # Database fallback: include system_metrics rows for websocket, api, and others
+    db_ok = False
+    db_rows_count = 0
     try:
         conn = await get_mysql_connection()
+        db_ok = True
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute("SELECT server_name, cpu_percent, ram_percent, ram_used, ram_total, disk_percent, disk_used, disk_total, net_sent, net_recv, last_updated FROM system_metrics")
                 rows = await cur.fetchall()
-                for row in rows:
+                db_rows_count = len(rows) if rows else 0
+                for row in rows or []:
                     server = row.get('server_name')
                     last_updated = row.get('last_updated')
                     metrics = {
@@ -1469,12 +1476,98 @@ async def system_uptime(request: Request):
                             websocket_section['started_at'] = ws_started_dt.strftime('%Y-%m-%d %H:%M:%S')
                             websocket_section['uptime'] = _format_duration(ws_seconds)
                         except Exception:
-                            # If parsing fails, leave values as-is
                             logging.exception('Error parsing websocket last_updated from DB')
         finally:
             conn.close()
     except Exception:
         logging.exception("Error fetching system_metrics from database")
+    # Call Hetrixtools for external uptime data (if configured) and attach summaries
+    hetrix_key = os.getenv('HETRIXTOOLS_API_KEY')
+    monitor_map = {
+        'API': 'HETRIX_MONITOR_API',
+        'WEBSOCKET': 'HETRIX_MONITOR_WEBSOCKET',
+        'WEB1': 'HETRIX_MONITOR_WEB1',
+        'SQL': 'HETRIX_MONITOR_SQL',
+        'BOTS': 'HETRIX_MONITOR_BOTS'
+    }
+    hetrix_ok = False
+    hetrix_results = {}
+    if hetrix_key:
+        async with aiohttp.ClientSession() as session:
+            for section_name, env_name in monitor_map.items():
+                monitor_id = os.getenv(env_name)
+                if not monitor_id:
+                    continue
+                url = f"https://api.hetrixtools.com/v3/uptime-monitors/{monitor_id}/report"
+                headers = {"Authorization": f"Bearer {hetrix_key}"}
+                # prepare per-section diagnostics container
+                section_diag = {"ok": False, "status": None, "body": None, "error": None}
+                try:
+                    async with session.get(url, headers=headers, timeout=10) as resp:
+                        section_diag['status'] = resp.status
+                        # try to read response body safely
+                        try:
+                            text = await resp.text()
+                            # attempt to parse JSON, but keep raw text on failure
+                            try:
+                                body = json.loads(text) if text else None
+                            except Exception:
+                                body = text
+                            section_diag['body'] = body
+                        except Exception as e:
+                            section_diag['error'] = f"failed-to-read-response-body: {e}"
+                            logging.exception(f"Failed to read Hetrixtools response body for {section_name}")
+                        if resp.status == 200 and isinstance(section_diag.get('body'), dict):
+                            # sanitize body to remove response_time fields we don't want to expose
+                            data = section_diag['body']
+                            sanitized = copy.deepcopy(data)
+                            # drop top-level response_time in summary
+                            if isinstance(sanitized.get('summary'), dict):
+                                sanitized['summary'].pop('response_time', None)
+                            # drop any response_time entries under daily data
+                            if isinstance(sanitized.get('data'), dict):
+                                for day_key, day_val in sanitized['data'].items():
+                                    if isinstance(day_val, dict):
+                                        # remove direct response_time container
+                                        day_val.pop('response_time', None)
+                                        # also remove nested response_time fields if present in sub-objects
+                                        for sub_k, sub_v in list(day_val.items()):
+                                            if isinstance(sub_v, dict) and 'response_time' in sub_v:
+                                                sub_v.pop('response_time', None)
+                            # replace diagnostics body with sanitized copy
+                            section_diag['body'] = sanitized
+                            summary = sanitized.get('summary')
+                            # attach into the appropriate section
+                            if section_name == 'API':
+                                target = api_section
+                            elif section_name == 'WEBSOCKET':
+                                target = websocket_section
+                            elif section_name == 'WEB1':
+                                target = other_sections.setdefault('WEB1', {})
+                            elif section_name == 'SQL':
+                                target = other_sections.setdefault('SQL', {})
+                            elif section_name == 'BOTS':
+                                target = other_sections.setdefault('BOTS', {})
+                            else:
+                                target = other_sections.setdefault(section_name, {})
+                            if summary:
+                                target['hetrixtools'] = summary
+                                # include most-recent-day details when available
+                                data_days = sanitized.get('data', {})
+                                if isinstance(data_days, dict):
+                                    latest_day = sorted(data_days.keys(), reverse=True)[0] if data_days else None
+                                    if latest_day:
+                                        target.setdefault('hetrixtools', {})['latest_day'] = {latest_day: data_days[latest_day]}
+                            section_diag['ok'] = True
+                            hetrix_ok = True
+                        else:
+                            # non-200 or unexpected body
+                            logging.warning(f"Hetrixtools request for {section_name} monitor {monitor_id} returned status={resp.status}; body={section_diag.get('body')}")
+                except Exception as exc:
+                    section_diag['error'] = str(exc)
+                    logging.exception(f"Error fetching Hetrixtools report for {section_name}: {exc}")
+                # store diagnostics for this monitor so ?debug=true can show raw details and errors
+                hetrix_results[section_name] = section_diag
     # Build final grouped response
     final = {
         'API': api_section,
@@ -1483,6 +1576,15 @@ async def system_uptime(request: Request):
     # include any other servers (WEB1, SQL, BOTS, etc.)
     if other_sections:
         final.update(other_sections)
+    # Attach diagnostics when requested
+    if debug:
+        final['_diagnostics'] = {
+            'ssh_ok': ssh_ok,
+            'db_ok': db_ok,
+            'db_rows': db_rows_count,
+            'hetrix_ok': hetrix_ok,
+            'hetrix_results': hetrix_results
+        }
     return final
 
 # Chat instructions endpoint
