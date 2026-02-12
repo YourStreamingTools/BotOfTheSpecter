@@ -29,6 +29,86 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Handle schedule settings updates (vacation) via Twitch Helix PATCH
+$success = null; // used for UI feedback
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) {
+    $broadcasterId = $_SESSION['twitchUserId'] ?? null;
+    if (empty($broadcasterId)) {
+        $error = 'Broadcaster ID not available. Please re-login to update schedule settings.';
+    } else {
+        $action = $_POST['action'] ?? ($_POST['submit'] ?? 'save');
+        $params = [];
+        if ($action === 'clear') {
+            // Cancel vacation
+            $params = [
+                'broadcaster_id' => $broadcasterId,
+                'is_vacation_enabled' => 'false'
+            ];
+        } else {
+            // Save/update
+            $isVac = !empty($_POST['is_vacation_enabled']) ? true : false;
+            if ($isVac) {
+                $startLocal = trim($_POST['vacation_start'] ?? '');
+                $endLocal = trim($_POST['vacation_end'] ?? '');
+                $tzPost = trim($_POST['timezone'] ?? $timezone);
+                if ($startLocal === '' || $endLocal === '' || $tzPost === '') {
+                    $error = 'Start, end and timezone are required when enabling vacation.';
+                } else {
+                    try {
+                        $dtStart = new DateTime($startLocal, new DateTimeZone($tzPost));
+                        $dtEnd = new DateTime($endLocal, new DateTimeZone($tzPost));
+                        if ($dtEnd <= $dtStart) {
+                            $error = 'Vacation end must be after start.';
+                        } else {
+                            $dtStart->setTimezone(new DateTimeZone('UTC'));
+                            $dtEnd->setTimezone(new DateTimeZone('UTC'));
+                            $params = [
+                                'broadcaster_id' => $broadcasterId,
+                                'is_vacation_enabled' => 'true',
+                                'vacation_start_time' => $dtStart->format('Y-m-d\TH:i:s\Z'),
+                                'vacation_end_time' => $dtEnd->format('Y-m-d\TH:i:s\Z'),
+                                'timezone' => $tzPost
+                            ];
+                        }
+                    } catch (Exception $e) {
+                        $error = 'Invalid date/time or timezone provided.';
+                    }
+                }
+            } else {
+                // Explicitly disable
+                $params = [
+                    'broadcaster_id' => $broadcasterId,
+                    'is_vacation_enabled' => 'false'
+                ];
+            }
+        }
+        // If params set and no validation error, call Twitch
+        if (empty($error) && !empty($params)) {
+            $url = 'https://api.twitch.tv/helix/schedule/settings?' . http_build_query($params);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            $headers = [
+                'Client-ID: ' . $clientID,
+                'Authorization: Bearer ' . $_SESSION['access_token']
+            ];
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+            if ($httpCode === 204) {
+                $success = 'Schedule settings updated successfully.';
+            } else {
+                $body = $resp ?: '';
+                $error = 'Twitch API returned HTTP ' . $httpCode . '. ' . htmlspecialchars($body ?: $curlErr);
+            }
+        }
+    }
+}
+
 // Fetch schedule from Twitch Helix
 $schedule = null;
 $error = null;
@@ -87,7 +167,7 @@ ob_start();
     <div class="hero-body">
         <div class="container">
             <h1 class="title is-3 has-text-white"><i class="fas fa-calendar-days"></i> Twitch Schedule</h1>
-            <p class="subtitle has-text-grey-light">Displays the broadcaster's official Twitch schedule (read-only).</p>
+            <p class="subtitle has-text-grey-light">Your official Twitch schedule.</p>
         </div>
     </div>
 </div>
@@ -99,6 +179,44 @@ ob_start();
                 <strong>Notice:</strong> <?php echo htmlspecialchars($error); ?>
             </div>
         <?php endif; ?>
+        <?php if (!empty($success)): ?>
+            <div class="notification is-success is-light">
+                <span class="icon"><i class="fas fa-check-circle"></i></span>
+                <strong>Success:</strong> <?php echo htmlspecialchars($success); ?>
+            </div>
+        <?php endif; ?>
+        <!-- Vacation / Schedule settings form -->
+        <div class="box has-background-darker mb-4">
+            <form method="post" class="columns is-vcentered is-multiline">
+                <div class="column is-12">
+                    <label class="label has-text-white">Vacation / Off dates</label>
+                    <div class="field is-grouped is-align-items-center">
+                        <div class="control">
+                            <label class="checkbox">
+                                <input type="checkbox" name="is_vacation_enabled" value="1" <?php echo (!empty($schedule['vacation'])) ? 'checked' : ''; ?> />
+                                Enable vacation
+                            </label>
+                        </div>
+                        <div class="control">
+                            <input class="input" type="datetime-local" name="vacation_start" value="<?php echo isset($schedule['vacation']['start_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
+                        </div>
+                        <div class="control">
+                            <input class="input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
+                        </div>
+                        <div class="control" style="max-width:220px;">
+                            <input class="input" type="text" name="timezone" value="<?php echo htmlspecialchars($timezone); ?>" placeholder="IANA timezone (e.g. America/New_York)" />
+                        </div>
+                        <div class="control">
+                            <button class="button is-link" type="submit" name="action" value="save">Save</button>
+                        </div>
+                        <div class="control">
+                            <button class="button is-danger" type="submit" name="action" value="clear">Cancel vacation</button>
+                        </div>
+                    </div>
+                    <p class="help has-text-grey-light">Times are shown/entered in your profile timezone (<?php echo htmlspecialchars($timezone); ?>).</p>
+                </div>
+            </form>
+        </div>
         <?php if (empty($schedule) || empty($schedule['segments'])): ?>
             <div class="box has-background-dark">
                 <div class="content has-text-centered">
