@@ -1382,7 +1382,7 @@ async def database_heartbeat():
     tags=["Public"],
     operation_id="get_system_uptime"
 )
-async def system_uptime(request: Request, debug: bool = Query(False, description="Include diagnostic info (debug)", include_in_schema=False)):
+async def system_uptime(request: Request):
     # Extract client IP (respect common proxy headers)
     client_ip = None
     if 'X-Forwarded-For' in request.headers:
@@ -1467,7 +1467,10 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
                     elif server == 'websocket':
                         websocket_section['Local Metrics Script'] = metrics
                     else:
-                        other_sections[server.upper()] = { 'Local Metrics Script': metrics }
+                        other_sections[server.upper()] = {
+                            'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'},
+                            'Local Metrics Script': metrics
+                        }
                     # If websocket SSH marker was unavailable, treat DB last_updated as uptime anchor
                     if server == 'websocket' and websocket_section.get('Local Read', {}).get('started_at') == 'Unknown' and last_updated:
                         try:
@@ -1491,7 +1494,6 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
         'BOTS': 'HETRIX_MONITOR_BOTS'
     }
     hetrix_ok = False
-    hetrix_results = {}
     if hetrix_key:
         async with aiohttp.ClientSession() as session:
             for section_name, env_name in monitor_map.items():
@@ -1566,8 +1568,8 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
                 except Exception as exc:
                     section_diag['error'] = str(exc)
                     logging.exception(f"Error fetching Hetrixtools report for {section_name}: {exc}")
-                # store diagnostics for this monitor so ?debug=true can show raw details and errors
-                hetrix_results[section_name] = section_diag
+                # store per-monitor diagnostics only in logs (removed debug exposure)
+                logging.debug(f"Hetrixtools diag for {section_name}: {section_diag}")
     # Build final grouped response
     final = {
         'API': api_section,
@@ -1576,15 +1578,6 @@ async def system_uptime(request: Request, debug: bool = Query(False, description
     # include any other servers (WEB1, SQL, BOTS, etc.)
     if other_sections:
         final.update(other_sections)
-    # Attach diagnostics when requested
-    if debug:
-        final['_diagnostics'] = {
-            'ssh_ok': ssh_ok,
-            'db_ok': db_ok,
-            'db_rows': db_rows_count,
-            'hetrix_ok': hetrix_ok,
-            'hetrix_results': hetrix_results
-        }
     return final
 
 # Chat instructions endpoint
