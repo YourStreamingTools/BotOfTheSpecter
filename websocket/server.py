@@ -16,6 +16,7 @@ import aiomysql
 import shutil
 import subprocess
 from scp import SCPClient
+from datetime import datetime
 
 # Import our modular components
 from music_handler import MusicHandler
@@ -921,10 +922,25 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info("All clients disconnected.")
 
     async def on_startup(self, app):
-        self.logger.info("Starting application startup tasks...")        # Start the SSH cleanup task
+        self.logger.info("Starting application startup tasks...")
+        # Start the SSH cleanup task
         await self.start_ssh_cleanup_task()
         # Start the TTS processing task
         await self.tts_handler.start_processing()
+        # Write (or touch) an uptime marker file so external services can read websocket start time via SSH
+        try:
+            uptime_path = "/home/botofthespecter/websocket_uptime"
+            # Ensure directory exists (should on production hosts)
+            dirpath = os.path.dirname(uptime_path)
+            if not os.path.exists(dirpath):
+                os.makedirs(dirpath, exist_ok=True)
+            with open(uptime_path, "w") as fh:
+                fh.write(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'))
+            # Update file mtime to now
+            os.utime(uptime_path, None)
+            self.logger.info(f"Wrote websocket uptime file: {uptime_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to write websocket uptime file: {e}")
         self.logger.info("Application startup completed.")
 
     async def start_ssh_cleanup_task(self):
