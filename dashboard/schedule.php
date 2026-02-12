@@ -29,6 +29,82 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// AJAX endpoints used by this page (category search / lookup)
+if (isset($_GET['ajax'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $ajax = $_GET['ajax'];
+
+    // Search categories by name (Helix: search/categories)
+    if ($ajax === 'search_categories' && !empty($_GET['q'])) {
+        $q = substr(trim($_GET['q']), 0, 200);
+        $url = 'https://api.twitch.tv/helix/search/categories?query=' . urlencode($q) . '&first=10';
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        $headers = [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . ($_SESSION['access_token'] ?? '')
+        ];
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($resp === false) {
+            http_response_code(502);
+            echo json_encode(['error' => 'Twitch request failed: ' . $err]);
+            exit();
+        } elseif ($code === 200) {
+            $data = json_decode($resp, true);
+            echo json_encode($data['data'] ?? []);
+            exit();
+        } else {
+            http_response_code($code);
+            echo json_encode(['error' => 'Twitch API returned ' . $code, 'body' => $resp]);
+            exit();
+        }
+    }
+
+    // Lookup game/category by ID (Helix: games)
+    if ($ajax === 'get_game_name' && !empty($_GET['id'])) {
+        $id = trim($_GET['id']);
+        $url = 'https://api.twitch.tv/helix/games?id=' . urlencode($id);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        $headers = [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . ($_SESSION['access_token'] ?? '')
+        ];
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($resp === false) {
+            http_response_code(502);
+            echo json_encode(['error' => 'Twitch request failed: ' . $err]);
+            exit();
+        } elseif ($code === 200) {
+            $data = json_decode($resp, true);
+            $row = $data['data'][0] ?? null;
+            if ($row) echo json_encode(['id' => $row['id'], 'name' => $row['name'], 'box_art_url' => $row['box_art_url'] ?? '']);
+            else http_response_code(404);
+            exit();
+        } else {
+            http_response_code($code);
+            echo json_encode(['error' => 'Twitch API returned ' . $code, 'body' => $resp]);
+            exit();
+        }
+    }
+
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid ajax request']);
+    exit();
+}
+
 // Handle schedule settings updates (vacation) via Twitch Helix PATCH
 $success = null; // used for UI feedback
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) {
@@ -82,8 +158,146 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
                 ];
             }
         }
+        // Process create/update/delete actions submitted from the page for schedule segments
+        $op = $_POST['action'] ?? '';
+        if (empty($error) && $op === 'create_segment') {
+            $sStart = trim($_POST['segment_start'] ?? '');
+            $sTz = trim($_POST['segment_timezone'] ?? $timezone);
+            $sDur = trim($_POST['segment_duration'] ?? '');
+            $sRec = !empty($_POST['segment_recurring']) ? true : false;
+            $sCat = trim($_POST['segment_category_id'] ?? '');
+            $sTitle = trim($_POST['segment_title'] ?? '');
+            if ($sStart === '' || $sTz === '' || $sDur === '') {
+                $error = 'Start time, timezone and duration are required to create a segment.';
+            } elseif (!is_numeric($sDur) || (int)$sDur < 30 || (int)$sDur > 1380) {
+                $error = 'Duration must be a number between 30 and 1380 minutes.';
+            } elseif (strlen($sTitle) > 140) {
+                $error = 'Title cannot exceed 140 characters.';
+            } else {
+                try {
+                    $dt = new DateTime($sStart, new DateTimeZone($sTz));
+                    $dt->setTimezone(new DateTimeZone('UTC'));
+                    $body = [
+                        'start_time' => $dt->format('Y-m-d\TH:i:s\Z'),
+                        'timezone' => $sTz,
+                        'duration' => (string)(int)$sDur,
+                        'is_recurring' => $sRec ? true : false
+                    ];
+                    if ($sCat !== '') $body['category_id'] = $sCat;
+                    if ($sTitle !== '') $body['title'] = mb_substr($sTitle, 0, 140);
+                    $urlSeg = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId);
+                    $chSeg = curl_init($urlSeg);
+                    curl_setopt($chSeg, CURLOPT_POST, true);
+                    curl_setopt($chSeg, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chSeg, CURLOPT_TIMEOUT, 10);
+                    curl_setopt($chSeg, CURLOPT_SSL_VERIFYPEER, true);
+                    $headersSeg = [
+                        'Client-ID: ' . $clientID,
+                        'Authorization: Bearer ' . $_SESSION['access_token'],
+                        'Content-Type: application/json'
+                    ];
+                    curl_setopt($chSeg, CURLOPT_HTTPHEADER, $headersSeg);
+                    curl_setopt($chSeg, CURLOPT_POSTFIELDS, json_encode($body));
+                    $respSeg = curl_exec($chSeg);
+                    $codeSeg = curl_getinfo($chSeg, CURLINFO_HTTP_CODE);
+                    $errSeg = curl_error($chSeg);
+                    curl_close($chSeg);
+                    if ($codeSeg === 200) {
+                        $success = 'Schedule segment created successfully.';
+                    } else {
+                        $error = 'Twitch API returned HTTP ' . $codeSeg . '. ' . htmlspecialchars($respSeg ?: $errSeg);
+                    }
+                } catch (Exception $e) {
+                    $error = 'Invalid start time or timezone for new segment.';
+                }
+            }
+        }
+        if (empty($error) && $op === 'update_segment') {
+            $segId = trim($_POST['segment_id'] ?? '');
+            if ($segId === '') {
+                $error = 'Segment ID is required to update.';
+            } else {
+                $payload = [];
+                if (!empty($_POST['segment_start'])) {
+                    try {
+                        $dt = new DateTime(trim($_POST['segment_start']), new DateTimeZone(trim($_POST['segment_timezone'] ?? $timezone)));
+                        $dt->setTimezone(new DateTimeZone('UTC'));
+                        $payload['start_time'] = $dt->format('Y-m-d\TH:i:s\Z');
+                    } catch (Exception $e) {
+                        $error = 'Invalid segment start time.';
+                    }
+                }
+                if (!empty($_POST['segment_duration'])) {
+                    $d = trim($_POST['segment_duration']);
+                    if (!is_numeric($d) || (int)$d < 30 || (int)$d > 1380) $error = 'Duration must be between 30 and 1380.';
+                    else $payload['duration'] = (string)(int)$d;
+                }
+                if (isset($_POST['segment_title'])) {
+                    $t = trim($_POST['segment_title']);
+                    if (strlen($t) > 140) $error = 'Title cannot exceed 140 characters.';
+                    else $payload['title'] = mb_substr($t,0,140);
+                }
+                if (!empty($_POST['segment_category_id'])) $payload['category_id'] = trim($_POST['segment_category_id']);
+                if (!empty($_POST['segment_timezone'])) $payload['timezone'] = trim($_POST['segment_timezone']);
+                if (isset($_POST['segment_canceled'])) $payload['is_canceled'] = ($_POST['segment_canceled'] ? true : false);
+                if (empty($error) && empty($payload)) {
+                    $error = 'No update fields provided for segment.';
+                }
+                if (empty($error)) {
+                    $urlUpd = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
+                    $chUpd = curl_init($urlUpd);
+                    curl_setopt($chUpd, CURLOPT_CUSTOMREQUEST, 'PATCH');
+                    curl_setopt($chUpd, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chUpd, CURLOPT_TIMEOUT, 10);
+                    curl_setopt($chUpd, CURLOPT_SSL_VERIFYPEER, true);
+                    $headersUpd = [
+                        'Client-ID: ' . $clientID,
+                        'Authorization: Bearer ' . $_SESSION['access_token'],
+                        'Content-Type: application/json'
+                    ];
+                    curl_setopt($chUpd, CURLOPT_HTTPHEADER, $headersUpd);
+                    curl_setopt($chUpd, CURLOPT_POSTFIELDS, json_encode($payload));
+                    $respUpd = curl_exec($chUpd);
+                    $codeUpd = curl_getinfo($chUpd, CURLINFO_HTTP_CODE);
+                    $errUpd = curl_error($chUpd);
+                    curl_close($chUpd);
+                    if ($codeUpd === 200) {
+                        $success = 'Schedule segment updated successfully.';
+                    } else {
+                        $error = 'Twitch API returned HTTP ' . $codeUpd . '. ' . htmlspecialchars($respUpd ?: $errUpd);
+                    }
+                }
+            }
+        }
+        if (empty($error) && $op === 'delete_segment') {
+            $segId = trim($_POST['segment_id'] ?? '');
+            if ($segId === '') {
+                $error = 'Segment ID is required to delete.';
+            } else {
+                $urlDel = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
+                $chDel = curl_init($urlDel);
+                curl_setopt($chDel, CURLOPT_CUSTOMREQUEST, 'DELETE');
+                curl_setopt($chDel, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($chDel, CURLOPT_TIMEOUT, 10);
+                curl_setopt($chDel, CURLOPT_SSL_VERIFYPEER, true);
+                $headersDel = [
+                    'Client-ID: ' . $clientID,
+                    'Authorization: Bearer ' . $_SESSION['access_token']
+                ];
+                curl_setopt($chDel, CURLOPT_HTTPHEADER, $headersDel);
+                $respDel = curl_exec($chDel);
+                $codeDel = curl_getinfo($chDel, CURLINFO_HTTP_CODE);
+                $errDel = curl_error($chDel);
+                curl_close($chDel);
+                if ($codeDel === 204) {
+                    $success = 'Schedule segment deleted.';
+                } else {
+                    $error = 'Twitch API returned HTTP ' . $codeDel . '. ' . htmlspecialchars($respDel ?: $errDel);
+                }
+            }
+        }
         // If params set and no validation error, call Twitch
-        if (empty($error) && !empty($params)) {
+        if (!empty($params) && empty($error)) {
             $url = 'https://api.twitch.tv/helix/schedule/settings?' . http_build_query($params);
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
@@ -204,7 +418,13 @@ ob_start();
                             <input class="input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
                         </div>
                         <div class="control" style="max-width:220px;">
-                            <input class="input" type="text" name="timezone" value="<?php echo htmlspecialchars($timezone); ?>" placeholder="IANA timezone (e.g. America/New_York)" />
+                            <div class="select is-fullwidth">
+                                <select name="timezone">
+                                    <?php foreach (DateTimeZone::listIdentifiers() as $tzid): ?>
+                                        <option value="<?php echo htmlspecialchars($tzid); ?>" <?php echo ($tzid === $timezone) ? 'selected' : ''; ?>><?php echo htmlspecialchars($tzid); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                         </div>
                         <div class="control">
                             <button class="button is-link" type="submit" name="action" value="save">Save</button>
@@ -214,6 +434,41 @@ ob_start();
                         </div>
                     </div>
                     <p class="help has-text-grey-light">Times are shown/entered in your profile timezone (<?php echo htmlspecialchars($timezone); ?>).</p>
+                </div>
+            </form>
+        </div>
+        <!-- Create new schedule segment -->
+        <div class="box has-background-darker mb-4">
+            <form method="post" class="columns is-vcentered is-multiline">
+                <div class="column is-12">
+                    <label class="label has-text-white">Add schedule segment</label>
+                    <div class="field is-grouped is-align-items-center">
+                        <div class="control">
+                            <input class="input" type="datetime-local" name="segment_start" placeholder="Start (local)" />
+                        </div>
+                        <div class="control">
+                            <input class="input" type="text" name="segment_timezone" value="<?php echo htmlspecialchars($timezone); ?>" placeholder="Timezone (IANA)" />
+                        </div>
+                        <div class="control">
+                            <input class="input" type="number" name="segment_duration" min="30" max="1380" placeholder="Duration (minutes)" />
+                        </div>
+                        <div class="control" style="min-width:260px; position:relative;">
+                            <input class="input" type="text" id="segment_category_search" placeholder="Search category (name or id) — type to search" autocomplete="off" />
+                            <input type="hidden" name="segment_category_id" id="segment_category_id" />
+                            <div id="segment_category_suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--card-bg); border:1px solid #333; border-radius:4px; margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
+                            <p class="help has-text-grey-light"><span id="segment_category_name"></span></p>
+                        </div>
+                        <div class="control" style="min-width:220px;">
+                            <input class="input" type="text" name="segment_title" maxlength="140" placeholder="Title (optional)" />
+                        </div>
+                        <div class="control">
+                            <label class="checkbox"><input type="checkbox" name="segment_recurring" value="1"> Recurring</label>
+                        </div>
+                        <div class="control">
+                            <button class="button is-primary" type="submit" name="action" value="create_segment">Create</button>
+                        </div>
+                    </div>
+                    <p class="help has-text-grey-light">Duration must be between 30 and 1380 minutes. Non-recurring segments may be restricted to partners/affiliates.</p>
                 </div>
             </form>
         </div>
@@ -257,10 +512,43 @@ ob_start();
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <footer class="card-footer">
-                            <a class="card-footer-item" href="https://www.twitch.tv/<?php echo htmlspecialchars($schedule['broadcaster_login'] ?? ($_SESSION['username'] ?? '')); ?>" target="_blank">View channel</a>
-                            <a class="card-footer-item" href="https://www.twitch.tv/<?php echo htmlspecialchars($schedule['broadcaster_login'] ?? ($_SESSION['username'] ?? '')); ?>/schedule" target="_blank">Open schedule</a>
-                        </footer>
+                        <!-- Inline edit / delete form for this segment -->
+                        <div class="card-content has-background-darker">
+                            <form method="post" class="columns is-multiline">
+                                <input type="hidden" name="segment_id" value="<?php echo htmlspecialchars($seg['id']); ?>" />
+                                <div class="column is-12">
+                                    <div class="field is-grouped is-align-items-center is-flex-wrap-wrap">
+                                        <div class="control">
+                                            <input class="input" type="datetime-local" name="segment_start" value="<?php echo isset($seg['start_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
+                                        </div>
+                                        <div class="control">
+                                            <input class="input" type="number" name="segment_duration" min="30" max="1380" value="<?php echo (isset($seg['start_time']) && isset($seg['end_time'])) ? intval(((new DateTime($seg['end_time']))->getTimestamp() - (new DateTime($seg['start_time']))->getTimestamp())/60) : ''; ?>" placeholder="duration (minutes)" />
+                                        </div>
+                                        <div class="control">
+                                            <input class="input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="Title" />
+                                        </div>
+                                        <div class="control" style="min-width:220px; position:relative;">
+                                            <input class="input segment-category-search" type="text" placeholder="Search category..." value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
+                                            <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" />
+                                            <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--card-bg); border:1px solid #333; border-radius:4px; margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
+                                            <p class="help has-text-grey-light"><span class="segment-category-name"><?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?></span></p>
+                                        </div>
+                                        <div class="control">
+                                            <input class="input" type="text" name="segment_timezone" value="<?php echo htmlspecialchars($seg['timezone'] ?? $timezone); ?>" placeholder="Timezone" />
+                                        </div>
+                                        <div class="control">
+                                            <label class="checkbox"><input type="checkbox" name="segment_canceled" value="1" <?php echo !empty($seg['canceled_until']) ? 'checked' : ''; ?> /> Canceled</label>
+                                        </div>
+                                        <div class="control">
+                                            <button class="button is-link" type="submit" name="action" value="update_segment">Update</button>
+                                        </div>
+                                        <div class="control">
+                                            <button class="button is-danger" type="submit" name="action" value="delete_segment">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -274,6 +562,106 @@ ob_start();
         <?php endif; ?>
     </div>
 </section>
+
+<script>
+// Schedule page: category search + lookup (small, dependency-free)
+(function(){
+    const debounce = (fn, ms = 250) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
+
+    function renderSuggestions(container, items) {
+        container.innerHTML = '';
+        if (!items || items.length === 0) { container.style.display = 'none'; return; }
+        items.forEach(it => {
+            const el = document.createElement('div');
+            el.className = 'dropdown-item';
+            el.style.padding = '0.5rem';
+            el.style.cursor = 'pointer';
+            el.innerHTML = '<strong>' + (it.name || '') + '</strong> <span style="float:right;opacity:0.8;">id:' + (it.id||'') + '</span>';
+            el.addEventListener('click', () => {
+                container.style.display = 'none';
+                const root = container.closest('.control');
+                const hidden = root.querySelector('input[type="hidden"]');
+                const visible = root.querySelector('input[type="text"]');
+                const nameEl = root.querySelector('.segment-category-name, #segment_category_name');
+                if (hidden) hidden.value = it.id || '';
+                if (visible) visible.value = it.name || '';
+                if (nameEl) nameEl.textContent = it.name || '';
+            });
+            container.appendChild(el);
+        });
+        container.style.display = 'block';
+    }
+
+    async function searchCategories(q) {
+        if (!q || q.trim().length === 0) return [];
+        try {
+            const res = await fetch('schedule.php?ajax=search_categories&q=' + encodeURIComponent(q));
+            if (!res.ok) return [];
+            return await res.json();
+        } catch (e) { return []; }
+    }
+
+    async function getGameName(id) {
+        if (!id) return null;
+        try {
+            const res = await fetch('schedule.php?ajax=get_game_name&id=' + encodeURIComponent(id));
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (e) { return null; }
+    }
+
+    // Create-segment search box
+    const createSearch = document.getElementById('segment_category_search');
+    const createHidden = document.getElementById('segment_category_id');
+    const createSug = document.getElementById('segment_category_suggestions');
+    const createName = document.getElementById('segment_category_name');
+    if (createSearch) {
+        createSearch.addEventListener('input', debounce(async (ev) => {
+            const q = ev.target.value.trim();
+            // if user typed only digits, try lookup by id
+            if (/^\d+$/.test(q)) {
+                const g = await getGameName(q);
+                if (g) {
+                    createHidden.value = g.id || '';
+                    createName.textContent = g.name || '';
+                    return renderSuggestions(createSug, [g]);
+                }
+            }
+            const items = await searchCategories(q);
+            renderSuggestions(createSug, items);
+        }, 200));
+        // clear hidden id when user edits the visible search
+        createSearch.addEventListener('change', (e) => { if (createHidden && createHidden.value && createSearch.value.trim() === '') createHidden.value = ''; });
+        document.addEventListener('click', (ev) => { if (!createSearch.contains(ev.target) && !createSug.contains(ev.target)) createSug.style.display = 'none'; });
+    }
+
+    // Per-segment search boxes
+    document.querySelectorAll('.segment-category-search').forEach(function(input){
+        const root = input.closest('.control');
+        const hidden = root.querySelector('.segment-category-id');
+        const sug = root.querySelector('.suggestions');
+        const nameEl = root.querySelector('.segment-category-name');
+        // if input has data-current-id, try to resolve name (in case only id saved)
+        const currentId = input.getAttribute('data-current-id');
+        if (currentId && !input.value) {
+            getGameName(currentId).then(g => { if (g) { input.value = g.name || ''; if (hidden) hidden.value = g.id || ''; if (nameEl) nameEl.textContent = g.name || ''; } });
+        }
+        const doSearch = debounce(async (ev) => {
+            const q = ev.target.value.trim();
+            if (/^\d+$/.test(q)) {
+                const g = await getGameName(q);
+                if (g) { if (hidden) hidden.value = g.id || ''; if (nameEl) nameEl.textContent = g.name || ''; return renderSuggestions(sug, [g]); }
+            }
+            const items = await searchCategories(q);
+            renderSuggestions(sug, items);
+        }, 200);
+        input.addEventListener('input', doSearch);
+        input.addEventListener('change', () => { if (hidden && hidden.value && input.value.trim() === '') hidden.value = ''; });
+        document.addEventListener('click', (ev) => { if (!root.contains(ev.target)) sug.style.display = 'none'; });
+    });
+})();
+</script>
+
 <?php
 $content = ob_get_clean();
 include 'layout.php';
