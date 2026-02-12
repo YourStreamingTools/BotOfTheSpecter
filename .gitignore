@@ -54,6 +54,7 @@ api/authusers.json
 websocket/service-account-file.json
 api/service-account-file.json
 websocket/ips.txt
+api/ips.txt
 api/shazam.txt
 api/exchangerate.txt
 api/steamapplist.json
