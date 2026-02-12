@@ -155,6 +155,7 @@ return [
     'alerts_storage_usage' => 'Storage Usage',
     'navbar_premium' => 'Premium',
     'navbar_vod_music' => 'VOD Music',
+    'navbar_raffles' => 'Raffles',
     'navbar_todo_list' => 'To Do List',
     'navbar_profile' => 'Profile',
     'navbar_logout' => 'Log Out',

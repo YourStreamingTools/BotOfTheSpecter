@@ -127,6 +127,7 @@ return [
     'navbar_platform_integrations' => 'Plattform-Integrationen',
     'navbar_premium' => 'Premium',
     'navbar_vod_music' => 'VOD-Musik',
+    'navbar_raffles' => 'Verlosungen',
     'navbar_todo_list' => 'To-Do-Liste',
     'navbar_profile' => 'Profil',
     'navbar_logout' => 'Abmelden',
