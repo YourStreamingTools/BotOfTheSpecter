@@ -485,6 +485,7 @@ return [
     'channel_rewards_var_user' => 'Mentionne l\'utilisateur qui a utilisé la récompense.',
     'channel_rewards_var_usercount' => 'Indique combien de fois l\'utilisateur a utilisé cette récompense.',
     'channel_rewards_var_userstreak' => 'Indique combien de fois de suite l\'utilisateur a utilisé cette récompense.',
+    'channel_rewards_var_customapi' => 'Récupère des informations depuis une URL personnalisée et les insère dans le message. Utilisez (customapi.json.URL) pour parser JSON.',
     'channel_rewards_reward_name' => 'Nom de la récompense',
     'channel_rewards_custom_message' => 'Message personnalisé',
     'channel_rewards_reward_cost' => 'Coût de la récompense',
