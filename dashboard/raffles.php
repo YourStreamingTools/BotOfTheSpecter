@@ -110,58 +110,75 @@ if ($res) {
     while ($row = $res->fetch_assoc()) $raffles[] = $row;
 }
 
-$pageContent = '<div class="box">';
-if ($message) $pageContent .= '<div class="notification is-info">' . htmlspecialchars($message) . '</div>';
-$pageContent .= <<<HTML
-<h3 class="title is-5">Create New Raffle</h3>
-<form method="post">
-<input type="hidden" name="action" value="create">
-<div class="field">
-<label class="label">Raffle Name</label>
-<div class="control"><input class="input" name="name" required></div>
-</div>
-<div class="field">
-<label class="label">Duration (minutes)</label>
-<div class="control"><input class="input" type="number" name="duration" min="1" required></div>
-</div>
-<div class="field">
-<label class="checkbox"><input type="checkbox" name="weighted"> Weighted (subscribers get enhanced odds)</label>
-</div>
-<div class="field">
-<div class="control"><button class="button is-primary" type="submit">Start Raffle</button></div>
-</div>
-</form>
-<hr>
-<h3 class="title is-5">Active Raffles</h3>
-<table class="table is-fullwidth is-striped">
-<thead><tr><th>ID</th><th>Name</th><th>Start</th><th>End</th><th>Status</th><th>Winner</th><th>Action</th></tr></thead>
-<tbody>
-HTML;
-foreach ($raffles as $r) {
-    $pageContent .= '<tr>';
-    $pageContent .= '<td>' . htmlspecialchars($r['id']) . '</td>';
-    $pageContent .= '<td>' . htmlspecialchars($r['name']) . '</td>';
-    $pageContent .= '<td>' . htmlspecialchars($r['start_time']) . '</td>';
-    $pageContent .= '<td>' . htmlspecialchars($r['end_time']) . '</td>';
-    $pageContent .= '<td>' . htmlspecialchars($r['status']) . '</td>';
-    $pageContent .= '<td>' . htmlspecialchars($r['winner_username'] ?? '') . '</td>';
-    $pageContent .= '<td>';
-    if ($r['status'] !== 'ended') {
-        $pageContent .= '<form method="post" style="display:inline"><input type="hidden" name="action" value="draw"><input type="hidden" name="raffle_id" value="' . htmlspecialchars($r['id']) . '"><button class="button is-small is-warning" type="submit">Draw</button></form>';
-    }
-    $pageContent .= '</td>';
-    $pageContent .= '</tr>';
-}
-$pageContent .= '</tbody></table></div>';
-
-include 'layout.php';
+ob_start();
 ?>
-<div class="page-content">
-    <div class="columns" style="flex: 1 0 auto;">
-        <div class="column is-10 is-offset-1 main-content">
-            <section class="section">
-                <?php echo $pageContent; ?>
-            </section>
-        </div>
+<div class="columns" style="flex: 1 0 auto;">
+    <div class="column is-10 is-offset-1 main-content">
+        <section class="section">
+            <?php if ($message): ?>
+                <div class="notification is-info"><?php echo htmlspecialchars($message); ?></div>
+            <?php endif; ?>
+            <div class="box">
+                <h3 class="title is-5">Create New Raffle</h3>
+                <form method="post">
+                    <input type="hidden" name="action" value="create">
+                    <div class="field">
+                        <label class="label">Raffle Name</label>
+                        <div class="control"><input class="input" name="name" required></div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Duration (minutes)</label>
+                        <div class="control"><input class="input" type="number" name="duration" min="1" required></div>
+                    </div>
+                    <div class="field">
+                        <label class="checkbox"><input type="checkbox" name="weighted"> Weighted (subscribers get enhanced odds)</label>
+                    </div>
+                    <div class="field">
+                        <div class="control"><button class="button is-primary" type="submit">Start Raffle</button></div>
+                    </div>
+                </form>
+                <hr>
+                <h3 class="title is-5">Active Raffles</h3>
+                <table class="table is-fullwidth is-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Status</th>
+                            <th>Winner</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($raffles as $r): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($r['id']); ?></td>
+                                <td><?php echo htmlspecialchars($r['name']); ?></td>
+                                <td><?php echo htmlspecialchars($r['start_time']); ?></td>
+                                <td><?php echo htmlspecialchars($r['end_time']); ?></td>
+                                <td><?php echo htmlspecialchars($r['status']); ?></td>
+                                <td><?php echo htmlspecialchars($r['winner_username'] ?? ''); ?></td>
+                                <td>
+                                    <?php if ($r['status'] !== 'ended'): ?>
+                                        <form method="post" style="display:inline">
+                                            <input type="hidden" name="action" value="draw">
+                                            <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
+                                            <button class="button is-small is-warning" type="submit">Draw</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 </div>
+<?php
+$content = ob_get_clean();
+
+require 'layout.php';
+?>
