@@ -447,6 +447,13 @@ try {
                 supplementary_numbers VARCHAR(255),
                 UNIQUE (winning_numbers)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'vip_today' => "
+            CREATE TABLE IF NOT EXISTS vip_today (
+                user_id VARCHAR(255) NOT NULL,
+                username VARCHAR(255) DEFAULT NULL,
+                added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'raffles' => "
             CREATE TABLE IF NOT EXISTS raffles (
                 id INT PRIMARY KEY AUTO_INCREMENT,

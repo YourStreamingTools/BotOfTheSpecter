@@ -8818,6 +8818,11 @@ async def process_stream_offline_websocket():
     # Schedule the clearing task with a 5-minute delay
     scheduled_clear_task = create_task(delayed_clear_tables())
     bot_logger.info("Scheduled task to clear tables if stream remains offline for 5 minutes.")
+    # Immediately remove any temporary VIPs granted with (vip.today)
+    try:
+        await clear_temporary_vips()
+    except Exception as e:
+        bot_logger.error(f"Error clearing temporary VIPs on stream offline: {e}")
     # Log the status to the file
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
@@ -8845,6 +8850,11 @@ async def delayed_clear_tables():
     await clear_per_stream_deaths()
     await clear_lotto_numbers()
     await stop_all_timed_messages()
+    # Ensure temporary VIPs are removed as part of end-of-stream cleanup
+    try:
+        await clear_temporary_vips()
+    except Exception as e:
+        bot_logger.error(f"Error clearing temporary VIPs during delayed cleanup: {e}")
     for task_name in ["timed_message", "handle_upcoming_ads"]:
         task = looped_tasks.get(task_name)
         if task and not task.done():
@@ -8866,6 +8876,46 @@ async def clear_seen_today():
             bot_logger.info('Seen today table cleared successfully.')
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear seen today table: {err}')
+    finally:
+        pass
+
+
+# Clear temporary VIPs granted with (vip.today) at end of stream
+async def clear_temporary_vips():
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT user_id, username FROM vip_today")
+            rows = await cursor.fetchall()
+            if not rows:
+                return
+            async with httpClientSession() as session:
+                headers_vip = {
+                    'Client-Id': CLIENT_ID,
+                    'Authorization': f'Bearer {CHANNEL_AUTH}'
+                }
+                for row in rows:
+                    uid = row.get('user_id')
+                    uname = row.get('username') or uid
+                    try:
+                        params = {'broadcaster_id': CHANNEL_ID, 'user_id': uid}
+                        url = 'https://api.twitch.tv/helix/channels/vips'
+                        async with session.delete(url, headers=headers_vip, params=params) as resp:
+                            if resp.status == 204:
+                                bot_logger.info(f"Removed temporary VIP for {uname} ({uid})")
+                            else:
+                                text = await resp.text()
+                                bot_logger.error(f"Failed to remove VIP for {uname} ({uid}): {resp.status} {text}")
+                        # be conservative with rate limits
+                        await sleep(0.25)
+                    except Exception as e:
+                        bot_logger.error(f"Exception removing VIP for {uname} ({uid}): {e}")
+            # Remove all entries from vip_today regardless of success to avoid repeated attempts
+            await cursor.execute('TRUNCATE TABLE vip_today')
+            await connection.commit()
+            bot_logger.info('Cleared vip_today table after attempting removals.')
+    except MySQLOtherErrors as err:
+        bot_logger.error(f'Failed to clear vip_today table: {err}')
     finally:
         pass
 
@@ -10259,7 +10309,7 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Apply all replacements in a loop until no more variables are found
                     max_iterations = 8
                     iteration = 0
-                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(customapi.']
+                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(customapi.']
                     while iteration < max_iterations:
                         iteration += 1
                         has_vars = any(var in custom_message for var in vars_to_replace if var != '(customapi.')
@@ -10352,6 +10402,41 @@ async def process_channel_point_rewards(event_data, event_type):
                             fortune_message = await tell_fortune()
                             fortune_message = fortune_message[0].lower() + fortune_message[1:]
                             replacements['(fortune)'] = fortune_message
+                        # Handle (vip) and (vip.today) - grant VIP via Twitch Helix API
+                        if '(vip)' in custom_message or '(vip.today)' in custom_message:
+                            try:
+                                # Make POST to add VIP
+                                async with httpClientSession() as session:
+                                    headers_vip = {
+                                        'Client-Id': CLIENT_ID,
+                                        'Authorization': f'Bearer {CHANNEL_AUTH}'
+                                    }
+                                    params_vip = {'broadcaster_id': CHANNEL_ID, 'user_id': user_id}
+                                    add_vip_url = 'https://api.twitch.tv/helix/channels/vips'
+                                    async with session.post(add_vip_url, headers=headers_vip, params=params_vip) as vip_resp:
+                                        if vip_resp.status == 204:
+                                            replacements['(vip)'] = ''
+                                            replacements['(vip.today)'] = ''
+                                            # If vip.today, record the user so we can remove at stream end
+                                            if '(vip.today)' in custom_message:
+                                                try:
+                                                    await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (user_id, user_name))
+                                                    await connection.commit()
+                                                except Exception as _e:
+                                                    chat_logger.error(f"Failed to record vip_today for {user_name}: {_e}")
+                                            # Notify chat of success (only if the placeholder stands alone / developer can customize message)
+                                            create_task(websocket_notice(event='VIP_ADDED', user=user_name))
+                                        else:
+                                            txt = await vip_resp.text()
+                                            chat_logger.error(f"Failed to add VIP for {user_name}: {vip_resp.status} {txt}")
+                                            replacements['(vip)'] = ''
+                                            replacements['(vip.today)'] = ''
+                                            # Inform chat of failure
+                                            create_task(send_chat_message(f"@{user_name} I couldn't grant VIP (Twitch API returned {vip_resp.status})."))
+                            except Exception as e:
+                                chat_logger.error(f"Error while handling (vip)/(vip.today): {e}")
+                                replacements['(vip)'] = ''
+                                replacements['(vip.today)'] = ''
                         # Apply all replacements
                         for var, value in replacements.items():
                             if value is None:
