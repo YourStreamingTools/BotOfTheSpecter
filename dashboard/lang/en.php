@@ -542,6 +542,7 @@ return [
     'channel_rewards_var_user' => 'Tags the user who redeemed the reward.',
     'channel_rewards_var_usercount' => 'Shows how many times the user has redeemed this reward.',
     'channel_rewards_var_userstreak' => 'Shows how many times in a row the user has redeemed this reward.',
+    'channel_rewards_var_customapi' => 'Fetches data from a custom API URL and inserts the response. Use (customapi.json.URL) to parse JSON.',
     'channel_rewards_reward_name' => 'Reward Name',
     'channel_rewards_custom_message' => 'Custom Message',
     'channel_rewards_reward_cost' => 'Reward Cost',

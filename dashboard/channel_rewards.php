@@ -250,7 +250,7 @@ if (isset($_SESSION['access_token']) && !empty($clientID)) {
                     $rewardCost = isset($r['cost']) ? (int)$r['cost'] : 0;
                     $customMsg = $rewardTitle;
                     // Upsert into per-user DB (no is_enabled column in schema)
-                    $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=VALUES(custom_message), managed_by=VALUES(managed_by)";
+                    $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=IF(custom_message IS NULL OR custom_message = '', VALUES(custom_message), custom_message), managed_by=VALUES(managed_by)";
                     $stmtUp = $db->prepare($upsertSql);
                     if ($stmtUp) {
                         $stmtUp->bind_param('ssis', $rewardId, $rewardTitle, $rewardCost, $customMsg);
@@ -365,6 +365,7 @@ ob_start();
                                     text-to-speech (removes from message).</li>
                                 <li><span class="has-text-weight-bold">(tts.message)</span>: Sends the final complete
                                     message to both chat and text-to-speech.</li>
+                                <li><span class="has-text-weight-bold">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
                             </ul>
                         </div>
                     </div>

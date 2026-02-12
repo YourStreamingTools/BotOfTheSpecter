@@ -484,6 +484,7 @@ return [
     'channel_rewards_var_user' => 'Markiert den Nutzer, der die Belohnung eingelöst hat.',
     'channel_rewards_var_usercount' => 'Zeigt an, wie oft der Nutzer diese Belohnung eingelöst hat.',
     'channel_rewards_var_userstreak' => 'Zeigt an, wie oft der Nutzer diese Belohnung hintereinander eingelöst hat.',
+    'channel_rewards_var_customapi' => 'Ruft Daten von einer benutzerdefinierten API-URL ab und fügt die Antwort ein. Verwende (customapi.json.URL) zum Parsen von JSON.',
     'channel_rewards_reward_name' => 'Belohnungsname',
     'channel_rewards_custom_message' => 'Eigene Nachricht',
     'channel_rewards_reward_cost' => 'Belohnungskosten',
