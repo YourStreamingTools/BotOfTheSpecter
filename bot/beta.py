@@ -8301,8 +8301,8 @@ async def trigger_twitch_title_update(new_title):
 # Function to update the current stream category
 async def update_twitch_game(game_name: str):
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-    # Twitch API URLs
-    twitch_game_lookup_url = "https://api.twitch.tv/helix/games"
+    # Twitch Helix endpoints
+    twitch_search_url = "https://api.twitch.tv/helix/search/categories"
     twitch_game_update_url = "https://api.twitch.tv/helix/channels"
     # Headers for Twitch API
     twitch_headers = {
@@ -8310,27 +8310,26 @@ async def update_twitch_game(game_name: str):
         "Client-ID": CLIENT_ID,
         "Content-Type": "application/json",
     }
-    # Fetch game ID using Twitch API
+    # Use the new search/categories endpoint so partial and multi-word queries work reliably
     async with httpClientSession() as session:
-        params = {"name": game_name}
-        async with session.get(twitch_game_lookup_url, headers=twitch_headers, params=params) as response:
+        params = {"query": game_name, "first": 1}
+        async with session.get(twitch_search_url, headers=twitch_headers, params=params) as response:
             if response.status == 200:
                 data = await response.json()
-                games = data.get("data", [])
-                if games:
-                    game_id = games[0]["id"]
-                    game_name = games[0]["name"]
+                matches = data.get("data", [])
+                if matches:
+                    game_id = matches[0].get("id")
+                    game_name = matches[0].get("name")
                 else:
-                    raise GameNotFoundException(f"Game '{game_name}' not found in Twitch API response.")
+                    raise GameNotFoundException(f"Game '{game_name}' not found in Twitch search results.")
             else:
                 error_message = await response.text()
-                raise GameNotFoundException(f"Failed to fetch game ID from Twitch API: {error_message}")
+                raise GameNotFoundException(f"Failed to search game on Twitch API: {error_message}")
         # Update the Twitch stream game/category
         payload = {
             "broadcaster_id": CHANNEL_ID,
             "game_id": game_id
         }
-        # Update the Twitch stream game/category
         async with session.patch(twitch_game_update_url, headers=twitch_headers, json=payload) as twitch_response:
             if twitch_response.status == 200:
                 twitch_logger.info(f"Stream game updated to: {game_name}")
