@@ -2342,41 +2342,64 @@ async def web_weather(api_key: str = Query(...), location: str = Query(...), cha
 # Games endpoint
 @app.get(
     "/games",
-    summary="Search for a game",
+    summary="Search for a game (Helix token taken from DB)",
     include_in_schema=False
 )
 async def get_game(
     api_key: str = Query(..., description="API key to authenticate the request"),
     game_name: str = Query(..., description="Name of the game to search for"),
-    twitch_auth_token: str = Query(..., description="Twitch OAuth token for IGDB authorization"),
-    channel: str = Query(None)
+    channel: str = Query(None, description="Website username (required when using an admin key)")
 ):
     key_info = await verify_key(api_key)
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    # IGDB API details
-    igdb_url = "https://api.igdb.com/v4/games"
+    # Resolve the website username (admin keys must provide `channel`)
+    username = resolve_username(key_info, channel)
+    # Fetch the usable Twitch access token from the website DB (twitch_bot_access)
+    twitch_token = None
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("""
+                SELECT t.twitch_access_token
+                FROM users u
+                LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
+                WHERE u.username = %s
+            """, (username,))
+            row = await cur.fetchone()
+            if row and row.get("twitch_access_token"):
+                twitch_token = row["twitch_access_token"]
+            # Admin fallback: if no token for requested account, try to grab a bot token
+            if not twitch_token and key_info["type"] == "admin":
+                await cur.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_access_token IS NOT NULL LIMIT 1")
+                bot_row = await cur.fetchone()
+                if bot_row:
+                    twitch_token = bot_row["twitch_access_token"]
+    except Exception as e:
+        logging.error(f"Error fetching Twitch token for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error accessing token store")
+    finally:
+        conn.close()
+    if not twitch_token:
+        raise HTTPException(status_code=400, detail="Twitch OAuth token not available for this account")
+    # Use Twitch Helix `search/categories` (returns id, name, box_art_url)
+    helix_url = "https://api.twitch.tv/helix/search/categories"
     headers = {
         "Client-ID": "mrjucsmsnri89ifucl66jj1n35jkj8",
-        "Authorization": f"Bearer {twitch_auth_token}",
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {twitch_token}"
     }
-    body = f'fields name; search "{game_name}"; limit 1;'
-    # Make the request to IGDB
+    params = {"query": game_name, "first": 1}
+
     async with aiohttp.ClientSession() as session:
-        async with session.post(igdb_url, headers=headers, data=body) as response:
+        async with session.get(helix_url, headers=headers, params=params) as response:
             if response.status != 200:
-                raise HTTPException(
-                    status_code=response.status,
-                    detail=f"Error from IGDB: {await response.text()}"
-                )
-            game_data = await response.json()
-            # Handle empty response
-            if not game_data:
+                raise HTTPException(status_code=response.status, detail=f"Twitch Helix error: {await response.text()}")
+            data = await response.json()
+            items = data.get("data", [])
+            if not items:
                 raise HTTPException(status_code=404, detail="Game not found")
-            # Return the first game
-            game = game_data[0]
-            return {"id": game["id"], "name": game["name"]}
+            match = items[0]
+            return {"id": match.get("id"), "name": match.get("name")}
 
 # Get a list of authorized users
 @app.get(
