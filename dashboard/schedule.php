@@ -400,6 +400,15 @@ ob_start();
             </div>
         <?php endif; ?>
         <!-- Vacation / Schedule settings form -->
+        <?php
+        // provide a client-side list of IANA timezones for validation/autocomplete
+        $tzList = DateTimeZone::listIdentifiers();
+        ?>
+        <datalist id="tz-list">
+            <?php foreach ($tzList as $tz): ?>
+                <option value="<?php echo htmlspecialchars($tz); ?>"></option>
+            <?php endforeach; ?>
+        </datalist>
         <div class="box has-background-darker mb-4">
             <form method="post" class="columns is-vcentered is-multiline">
                 <div class="column is-12">
@@ -418,13 +427,7 @@ ob_start();
                             <input class="input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
                         </div>
                         <div class="control" style="max-width:220px;">
-                            <div class="select is-fullwidth">
-                                <select name="timezone">
-                                    <?php foreach (DateTimeZone::listIdentifiers() as $tzid): ?>
-                                        <option value="<?php echo htmlspecialchars($tzid); ?>" <?php echo ($tzid === $timezone) ? 'selected' : ''; ?>><?php echo htmlspecialchars($tzid); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                            <input class="input tz-input" type="text" name="timezone" list="tz-list" value="<?php echo htmlspecialchars($timezone); ?>" placeholder="IANA timezone (e.g. America/New_York)" />
                         </div>
                         <div class="control">
                             <button class="button is-link" type="submit" name="action" value="save">Save</button>
@@ -447,7 +450,7 @@ ob_start();
                             <input class="input" type="datetime-local" name="segment_start" placeholder="Start (local)" />
                         </div>
                         <div class="control">
-                            <input class="input" type="text" name="segment_timezone" value="<?php echo htmlspecialchars($timezone); ?>" placeholder="Timezone (IANA)" />
+                            <input class="input tz-input" type="text" name="segment_timezone" list="tz-list" value="<?php echo htmlspecialchars($timezone); ?>" placeholder="Timezone (IANA)" />
                         </div>
                         <div class="control">
                             <input class="input" type="number" name="segment_duration" min="30" max="1380" placeholder="Duration (minutes)" />
@@ -534,7 +537,7 @@ ob_start();
                                             <p class="help has-text-grey-light"><span class="segment-category-name"><?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?></span></p>
                                         </div>
                                         <div class="control">
-                                            <input class="input" type="text" name="segment_timezone" value="<?php echo htmlspecialchars($seg['timezone'] ?? $timezone); ?>" placeholder="Timezone" />
+                                            <input class="input tz-input" type="text" name="segment_timezone" list="tz-list" value="<?php echo htmlspecialchars($seg['timezone'] ?? $timezone); ?>" placeholder="Timezone" />
                                         </div>
                                         <div class="control">
                                             <label class="checkbox"><input type="checkbox" name="segment_canceled" value="1" <?php echo !empty($seg['canceled_until']) ? 'checked' : ''; ?> /> Canceled</label>
@@ -563,10 +566,13 @@ ob_start();
     </div>
 </section>
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
-// Schedule page: category search + lookup (small, dependency-free)
+// Schedule page: category search + lookup (debounced to avoid Twitch rate limits)
 (function(){
-    const debounce = (fn, ms = 250) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
+    // default debounce set to 1s for Twitch lookups
+    const debounce = (fn, ms = 1000) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
 
     function renderSuggestions(container, items) {
         container.innerHTML = '';
@@ -586,6 +592,10 @@ ob_start();
                 if (hidden) hidden.value = it.id || '';
                 if (visible) visible.value = it.name || '';
                 if (nameEl) nameEl.textContent = it.name || '';
+                // visual confirmation
+                Toastify({ text: 'Category set: ' + (it.name || '') + ' (id:' + (it.id||'') + ')', duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
+                // mark resolved for client-side validation
+                if (visible) visible.dataset.categoryResolved = '1';
             });
             container.appendChild(el);
         });
@@ -610,6 +620,9 @@ ob_start();
         } catch (e) { return null; }
     }
 
+    // helper: timezone validation set from server-side datalist
+    const tzListSet = new Set(Array.from(document.querySelectorAll('#tz-list option')).map(o => o.value));
+    function showToastError(msg){ Toastify({ text: msg, duration: 3000, gravity: 'bottom', position: 'right', style: { background: '#ff4d4f', color: '#fff' } }).showToast(); }
     // Create-segment search box
     const createSearch = document.getElementById('segment_category_search');
     const createHidden = document.getElementById('segment_category_id');
@@ -618,21 +631,51 @@ ob_start();
     if (createSearch) {
         createSearch.addEventListener('input', debounce(async (ev) => {
             const q = ev.target.value.trim();
+            // clear resolved flag whenever user types
+            ev.target.dataset.categoryResolved = '';
             // if user typed only digits, try lookup by id
             if (/^\d+$/.test(q)) {
                 const g = await getGameName(q);
                 if (g) {
                     createHidden.value = g.id || '';
                     createName.textContent = g.name || '';
+                    ev.target.dataset.categoryResolved = '1';
+                    Toastify({ text: 'Category resolved: ' + (g.name||''), duration: 1800, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
                     return renderSuggestions(createSug, [g]);
                 }
             }
             const items = await searchCategories(q);
             renderSuggestions(createSug, items);
-        }, 200));
+        }, 1000));
         // clear hidden id when user edits the visible search
-        createSearch.addEventListener('change', (e) => { if (createHidden && createHidden.value && createSearch.value.trim() === '') createHidden.value = ''; });
+        createSearch.addEventListener('change', (e) => {
+            if (createHidden && createHidden.value && createSearch.value.trim() === '') {
+                createHidden.value = '';
+                createSearch.dataset.categoryResolved = '';
+                Toastify({ text: 'Category cleared', duration: 1400, gravity: 'bottom', position: 'right', style: { background: '#3b82f6', color: '#fff' } }).showToast();
+            }
+        });
         document.addEventListener('click', (ev) => { if (!createSearch.contains(ev.target) && !createSug.contains(ev.target)) createSug.style.display = 'none'; });
+        // validate create form before submit
+        const createForm = createSearch.closest('form');
+        if (createForm) createForm.addEventListener('submit', (ev) => {
+            const visible = createSearch;
+            const hidden = createHidden;
+            if (visible && visible.value.trim() !== '' && (!hidden || hidden.value.trim() === '')) {
+                ev.preventDefault();
+                showToastError('Please select a valid category from the suggestions or clear the category field.');
+                visible.focus();
+                return false;
+            }
+            // timezone validation
+            const tz = createForm.querySelector('input[name="segment_timezone"]');
+            if (tz && tz.value && !tzListSet.has(tz.value.trim())) {
+                ev.preventDefault();
+                showToastError('Please select a valid IANA timezone.');
+                tz.focus();
+                return false;
+            }
+        });
     }
 
     // Per-segment search boxes
@@ -644,20 +687,50 @@ ob_start();
         // if input has data-current-id, try to resolve name (in case only id saved)
         const currentId = input.getAttribute('data-current-id');
         if (currentId && !input.value) {
-            getGameName(currentId).then(g => { if (g) { input.value = g.name || ''; if (hidden) hidden.value = g.id || ''; if (nameEl) nameEl.textContent = g.name || ''; } });
+            getGameName(currentId).then(g => { if (g) { input.value = g.name || ''; if (hidden) hidden.value = g.id || ''; if (nameEl) nameEl.textContent = g.name || ''; input.dataset.categoryResolved = '1'; } });
         }
         const doSearch = debounce(async (ev) => {
             const q = ev.target.value.trim();
+            // clear resolved flag whenever user types
+            ev.target.dataset.categoryResolved = '';
             if (/^\d+$/.test(q)) {
                 const g = await getGameName(q);
-                if (g) { if (hidden) hidden.value = g.id || ''; if (nameEl) nameEl.textContent = g.name || ''; return renderSuggestions(sug, [g]); }
+                if (g) { if (hidden) hidden.value = g.id || ''; if (nameEl) nameEl.textContent = g.name || ''; ev.target.dataset.categoryResolved = '1'; Toastify({ text: 'Category resolved: ' + (g.name||''), duration: 1600, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast(); return renderSuggestions(sug, [g]); }
             }
             const items = await searchCategories(q);
             renderSuggestions(sug, items);
-        }, 200);
+        }, 1000);
         input.addEventListener('input', doSearch);
-        input.addEventListener('change', () => { if (hidden && hidden.value && input.value.trim() === '') hidden.value = ''; });
+        input.addEventListener('change', () => {
+            if (hidden && hidden.value && input.value.trim() === '') {
+                hidden.value = '';
+                input.dataset.categoryResolved = '';
+                Toastify({ text: 'Category cleared', duration: 1400, gravity: 'bottom', position: 'right', style: { background: '#3b82f6', color: '#fff' } }).showToast();
+            }
+        });
         document.addEventListener('click', (ev) => { if (!root.contains(ev.target)) sug.style.display = 'none'; });
+    });
+    // validate per-segment update forms to prevent unknown category IDs and invalid timezones
+    document.querySelectorAll('form').forEach(function(f){
+        // only target segment update/delete forms (they include an input[name="segment_id"])
+        if (!f.querySelector('input[name="segment_id"]')) return;
+        f.addEventListener('submit', function(ev){
+            const visible = f.querySelector('.segment-category-search');
+            const hidden = f.querySelector('.segment-category-id');
+            if (visible && visible.value.trim() !== '' && (!hidden || hidden.value.trim() === '')) {
+                ev.preventDefault();
+                showToastError('Please select a valid category from suggestions or clear the category field.');
+                visible.focus();
+                return false;
+            }
+            const tz = f.querySelector('input[name="segment_timezone"]');
+            if (tz && tz.value && !tzListSet.has(tz.value.trim())) {
+                ev.preventDefault();
+                showToastError('Please select a valid IANA timezone.');
+                tz.focus();
+                return false;
+            }
+        });
     });
 })();
 </script>
