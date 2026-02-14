@@ -625,6 +625,17 @@ class WebsocketListener:
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
+            # If websocket payload lacks channel_code, try to resolve it by twitch username (helps with partial/malformed events)
+            if not data.get('channel_code') and (data.get('twitch-username') or data.get('twitch_username')):
+                try:
+                    uname = (data.get('twitch-username') or data.get('twitch_username')).strip().lower()
+                    if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                        resolved_code = await self.bot.live_channel_manager._resolve_channel_code_for_username(uname)
+                        if resolved_code:
+                            data['channel_code'] = resolved_code
+                            self.logger.debug(f"Resolved missing channel_code for STREAM_ONLINE via username '{uname}' -> {resolved_code}")
+                except Exception as _e:
+                    self.logger.debug(f"Failed to resolve channel_code for STREAM_ONLINE event: {_e}")
             await self.bot.handle_stream_event("ONLINE", data)
             try:
                 if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
@@ -634,6 +645,17 @@ class WebsocketListener:
         # Event handlers for Twitch Stream Offline Events
         @self.specterSocket.event
         async def STREAM_OFFLINE(data):
+            # Attempt to resolve missing channel_code from twitch username if provided
+            if not (data.get('channel_code') or data.get('code')) and (data.get('twitch-username') or data.get('twitch_username')):
+                try:
+                    uname = (data.get('twitch-username') or data.get('twitch_username')).strip().lower()
+                    if hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                        resolved_code = await self.bot.live_channel_manager._resolve_channel_code_for_username(uname)
+                        if resolved_code:
+                            data['channel_code'] = resolved_code
+                            self.logger.debug(f"Resolved missing channel_code for STREAM_OFFLINE via username '{uname}' -> {resolved_code}")
+                except Exception as _e:
+                    self.logger.debug(f"Failed to resolve channel_code for STREAM_OFFLINE event: {_e}")
             await self.bot.handle_stream_event("OFFLINE", data)
             try:
                 channel_code = data.get('channel_code') or data.get('code')
@@ -701,7 +723,9 @@ class WebsocketListener:
 
 # Channel mapping class to manage multiple Discord servers
 class ChannelMapping:
-    def __init__(self, logger=None):
+    def __init__(self, bot=None, logger=None):
+        # Optionally accept bot so the mapping layer can trigger live checks immediately
+        self.bot = bot
         self.logger = logger
         self.mysql = MySQLHelper(logger)
         self.mappings = {}  # Memory cache: channel_code -> full mapping data
@@ -722,6 +746,7 @@ class ChannelMapping:
     async def refresh_mappings(self):
         try:
             # Since we ensure schema exists, always try enhanced schema first
+            old_keys = set(self.mappings.keys()) if self.mappings else set()
             rows = await self.mysql.fetchall(
                 """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
                           guild_id, guild_name, channel_id, channel_name, 
@@ -731,16 +756,34 @@ class ChannelMapping:
                    FROM channel_mappings WHERE is_active = 1""",
                 database_name='specterdiscordbot', dict_cursor=True
             )
-            self.mappings = {row['channel_code']: dict(row) for row in rows}
+            new_mappings = {row['channel_code']: dict(row) for row in rows}
+            self.mappings = new_mappings
+            # Detect newly discovered mappings (e.g., added via web dashboard) and trigger immediate fallback checks
+            added_keys = set(self.mappings.keys()) - old_keys
+            if added_keys and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                for added_code in added_keys:
+                    try:
+                        asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
+                    except Exception as _e:
+                        self.logger.debug(f"Failed to schedule fallback check for new mapping {added_code}: {_e}")
         except Exception as e:
             self.logger.error(f"Error loading channel mappings from DB: {e}")
             # Fallback to basic schema if there's still an issue
             try:
+                old_keys = set(self.mappings.keys()) if self.mappings else set()
                 rows = await self.mysql.fetchall(
                     "SELECT channel_code, guild_id, channel_id, channel_name FROM channel_mappings",
                     database_name='specterdiscordbot', dict_cursor=True
                 )
-                self.mappings = {row['channel_code']: dict(row) for row in rows}
+                new_mappings = {row['channel_code']: dict(row) for row in rows}
+                self.mappings = new_mappings
+                added_keys = set(self.mappings.keys()) - old_keys
+                if added_keys and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                    for added_code in added_keys:
+                        try:
+                            asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
+                        except Exception as _e:
+                            self.logger.debug(f"Failed to schedule fallback check for new mapping {added_code} (basic): {_e}")
             except Exception as e2:
                 self.logger.error(f"Error loading channel mappings with basic schema: {e2}")
                 self.mappings = {}
@@ -873,6 +916,12 @@ class ChannelMapping:
             self.logger.debug(f"Inserted mapping using enhanced schema for {mapping_data['channel_code']}")
             # Add to memory cache
             self.mappings[mapping_data['channel_code']] = mapping_data
+            # If bot is available, trigger an immediate fallback check so we catch missed STREAM_ONLINE events
+            try:
+                if hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                    asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(mapping_data['channel_code']))
+            except Exception as _e:
+                self.logger.debug(f"Could not schedule fallback_check_and_mark for {mapping_data['channel_code']}: {_e}")
         except Exception as e:
             self.logger.error(f"Error inserting mapping to DB: {e}")
             # Fallback to basic schema if enhanced schema fails
@@ -888,6 +937,12 @@ class ChannelMapping:
                 self.logger.debug(f"Inserted mapping using basic schema fallback for {mapping_data['channel_code']}")
                 # Add to memory cache
                 self.mappings[mapping_data['channel_code']] = mapping_data
+                # If bot is available, trigger an immediate fallback check so we catch missed STREAM_ONLINE events
+                try:
+                    if hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                        asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(mapping_data['channel_code']))
+                except Exception as _e:
+                    self.logger.debug(f"Could not schedule fallback_check_and_mark for {mapping_data['channel_code']} (fallback): {_e}")
             except Exception as e2:
                 self.logger.error(f"Error inserting mapping with basic schema fallback: {e2}")
 
@@ -1038,10 +1093,17 @@ class ChannelMapping:
             created_count = 0
             for row in users_rows:
                 channel_code = row['api_key']
+                was_present = channel_code in self.mappings
                 # Use get_mapping which will auto-create if needed
                 mapping = await self.get_mapping(channel_code)
-                if mapping and channel_code not in self.mappings:
+                # If it was not present before but now exists, count it and trigger immediate fallback check
+                if mapping and not was_present:
                     created_count += 1
+                    try:
+                        if bot and hasattr(bot, 'live_channel_manager') and bot.live_channel_manager:
+                            asyncio.create_task(bot.live_channel_manager.fallback_check_and_mark(channel_code))
+                    except Exception as _e:
+                        self.logger.debug(f"Failed to schedule fallback check for auto-created mapping {channel_code}: {_e}")
             if created_count > 0:
                 self.logger.info(f"Auto-created {created_count} missing channel mappings")
         except Exception as e:
@@ -1924,7 +1986,7 @@ class BotOfTheSpecter(commands.Bot):
         self.processed_messages_file = config.processed_messages_file
         self.version = config.bot_version
         self.pool = None  # Initialize the pool attribute
-        self.channel_mapping = ChannelMapping(logger=discord_logger)
+        self.channel_mapping = ChannelMapping(bot=self, logger=discord_logger)
         # Live channel manager - track currently online streams
         self.live_channel_manager = LiveChannelManager(self, self.logger)
         self.mysql_helper = MySQLHelper(logger=discord_logger)
