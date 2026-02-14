@@ -37,9 +37,14 @@ SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 SQL_PORT = int(os.getenv('SQL_PORT'))
 # SSH credentials for bot status checking
-BOTS_SSH_HOST = os.getenv('BOTS_SSH_HOST')
-BOTS_SSH_USERNAME = os.getenv('BOTS_SSH_USERNAME')
-BOTS_SSH_PASSWORD = os.getenv('BOTS_SSH_PASSWORD')
+# SSH credentials for bot status checking — use canonical .env keys only
+BOTS_SSH_HOST = os.getenv('BOT-SRV-HOST')
+BOTS_SSH_USERNAME = os.getenv('SSH_USERNAME')
+BOTS_SSH_PASSWORD = os.getenv('SSH_PASSWORD')
+# Websocket SSH host (explicit .env key: WEBSOCKET-HOST)
+WEBSOCKET_SSH_HOST = os.getenv('WEBSOCKET-HOST')
+WEBSOCKET_SSH_USERNAME = os.getenv('SSH_USERNAME')
+WEBSOCKET_SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 
 # Validate required database environment variables
 if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
@@ -1418,11 +1423,12 @@ async def system_uptime(request: Request):
     ssh_ok = False
     # Attempt to fetch websocket uptime via SSH marker file on the websocket host
     ws_uptime_path = "/home/botofthespecter/websocket_uptime"
-    if all([BOTS_SSH_HOST, BOTS_SSH_USERNAME, BOTS_SSH_PASSWORD]):
+    if all([WEBSOCKET_SSH_HOST, WEBSOCKET_SSH_USERNAME, WEBSOCKET_SSH_PASSWORD]):
         try:
             ssh = SSHClient()
             ssh.set_missing_host_key_policy(AutoAddPolicy())
-            ssh.connect(hostname=BOTS_SSH_HOST, username=BOTS_SSH_USERNAME, password=BOTS_SSH_PASSWORD, timeout=8)
+            logging.info(f"Attempting SSH to {WEBSOCKET_SSH_HOST} as {WEBSOCKET_SSH_USERNAME} to stat {ws_uptime_path}")
+            ssh.connect(hostname=WEBSOCKET_SSH_HOST, username=WEBSOCKET_SSH_USERNAME, password=WEBSOCKET_SSH_PASSWORD, timeout=8)
             sftp = ssh.open_sftp()
             try:
                 st = sftp.stat(ws_uptime_path)
@@ -1431,11 +1437,18 @@ async def system_uptime(request: Request):
                 websocket_section.setdefault('Local Read', {})['uptime'] = _format_duration(ws_seconds)
                 websocket_section['Local Read']['started_at'] = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
                 ssh_ok = True
+                logging.info(f"Successfully read websocket uptime marker via SSH on {WEBSOCKET_SSH_HOST} (started_at={websocket_section['Local Read']['started_at']})")
             finally:
-                sftp.close()
-                ssh.close()
-        except Exception:
-            logging.exception("Error fetching websocket uptime via SSH")
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
+        except Exception as exc:
+            logging.exception(f"Error fetching websocket uptime via SSH ({WEBSOCKET_SSH_HOST}): {exc}")
     # Database fallback: include system_metrics rows for websocket, api, and others
     db_ok = False
     db_rows_count = 0
