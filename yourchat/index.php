@@ -1,5 +1,6 @@
 <?php
 require_once "/var/www/config/twitch.php";
+require_once "/var/www/config/database.php";
 
 session_start();
 
@@ -348,6 +349,80 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_chat_history' && $_SERV
         }
     }
     echo json_encode(['success' => true, 'message' => 'Chat history cleared']);
+    exit;
+}
+
+// Handle EventSub session ID save
+if (isset($_GET['action']) && $_GET['action'] === 'save_session_id' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['access_token']) || !isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    // Get JSON data from request body
+    $jsonData = file_get_contents('php://input');
+    if (empty($jsonData)) {
+        echo json_encode(['success' => false, 'error' => 'No data received']);
+        exit;
+    }
+    $data = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
+        exit;
+    }
+    if (!isset($data['session_id']) || empty($data['session_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Session ID is required']);
+        exit;
+    }
+    $sessionId = $data['session_id'];
+    // Get username from Twitch API
+    $ch = curl_init('https://api.twitch.tv/helix/users?id=' . urlencode($_SESSION['user_id']));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $_SESSION['access_token'],
+        'Client-Id: ' . $clientID
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($httpCode !== 200 || !$response) {
+        echo json_encode(['success' => false, 'error' => 'Failed to get user info from Twitch']);
+        exit;
+    }
+    $userData = json_decode($response, true);
+    if (!isset($userData['data'][0]['login'])) {
+        echo json_encode(['success' => false, 'error' => 'Invalid user data from Twitch']);
+        exit;
+    }
+    $username = $userData['data'][0]['login'];
+    // Connect to user's database
+    try {
+        $usrDBconn = new mysqli($db_servername, $db_username, $db_password, $username);
+        if ($usrDBconn->connect_error) {
+            echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+            exit;
+        }
+        // Save session ID to database
+        $stmt = $usrDBconn->prepare(
+            "INSERT INTO eventsub_sessions (session_id, session_name) VALUES (?, 'YourChat') "
+            . "ON DUPLICATE KEY UPDATE session_name = 'YourChat', last_updated = CURRENT_TIMESTAMP"
+        );
+        if (!$stmt) {
+            echo json_encode(['success' => false, 'error' => 'Failed to prepare statement']);
+            $usrDBconn->close();
+            exit;
+        }
+        $stmt->bind_param('s', $sessionId);
+        if ($stmt->execute()) {
+            echo json_encode(['success' => true, 'message' => 'Session ID saved']);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save session ID']);
+        }
+        $stmt->close();
+        $usrDBconn->close();
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    }
     exit;
 }
 
@@ -1062,6 +1137,25 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }).showToast();
                 }
             }
+            async function saveSessionIdToServer(sessionId) {
+                try {
+                    const response = await fetch('index.php?action=save_session_id', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ session_id: sessionId })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        console.log('Session ID saved to database:', sessionId);
+                    } else {
+                        console.error('Failed to save session ID:', data.error || 'Unknown error');
+                    }
+                } catch (e) {
+                    console.error('Failed to save session ID to server:', e);
+                }
+            }
             // Load filters from cookies
             // Filters storage: separate username and message filters
             function loadFiltersUsernames() {
@@ -1758,6 +1852,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             console.log('New Session ID:', sessionId);
                             updateStatus(true, 'Connected');
                             reconnectAttempts = 0;
+                            // Save new session ID to database
+                            await saveSessionIdToServer(sessionId);
                             // Setup keepalive timeout
                             const keepaliveTimeout = message.payload.session.keepalive_timeout_seconds;
                             setupKeepaliveTimeout(keepaliveTimeout);
@@ -1813,6 +1909,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     console.log('Session ID:', sessionId);
                     updateStatus(true, 'Connected');
                     reconnectAttempts = 0;
+                    // Save session ID to database
+                    await saveSessionIdToServer(sessionId);
                     // Subscribe to chat messages
                     await subscribeToEvents();
                     // Setup keepalive timeout
