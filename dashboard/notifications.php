@@ -1,6 +1,11 @@
 <?php 
 // Initialize the session
 session_start();
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
 
@@ -96,6 +101,21 @@ foreach ($subscriptions as $sub) {
     }
 }
 
+// Query session names from the database
+$sessionNames = [];
+try {
+    $stmt = $db->prepare("SELECT session_id, session_name FROM eventsub_sessions");
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $sessionNames[$row['session_id']] = $row['session_name'];
+    }
+    $stmt->close();
+} catch (Exception $e) {
+    // If there's an error, just continue with empty session names
+    error_log("Failed to fetch session names: " . $e->getMessage());
+}
+
 // Start output buffering
 ob_start();
 ?>
@@ -126,7 +146,7 @@ ob_start();
                 <div class="stat-value"><?php echo $totalCount; ?></div>
                 <div class="stat-secondary">across all transports</div>
             </div>
-            <div class="stat-card <?php echo count($websocketSubs) > 10 ? 'warning-card' : ''; ?>">
+            <div class="stat-card <?php echo (count($websocketSubs) > 250 || count($sessionGroups) >= 3) ? 'warning-card' : ''; ?>">
                 <div class="stat-label">WebSocket Subscriptions</div>
                 <div class="stat-value"><?php echo count($websocketSubs); ?></div>
                 <div class="stat-secondary"><?php echo count($sessionGroups); ?> active sessions (limit: 3)</div>
@@ -159,7 +179,13 @@ ob_start();
                 $sessionNumber = 0;
                 foreach ($sessionGroups as $sessionId => $subs): 
                     $sessionNumber++;
-                    $sessionName = "WebSocket Session " . $sessionNumber;
+                    // Check if we have a name for this session in the database
+                    if (isset($sessionNames[$sessionId]) && !empty($sessionNames[$sessionId])) {
+                        $sessionName = $sessionNames[$sessionId];
+                    } else {
+                        // Fall back to numbered format if no name found
+                        $sessionName = "WebSocket Session " . $sessionNumber;
+                    }
                 ?>
                     <div class="session-group">
                         <div class="session-header">
