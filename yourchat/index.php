@@ -481,8 +481,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_session_id' && $_SERVER[
         }
         // Save session ID to database
         $stmt = $usrDBconn->prepare(
-            "INSERT INTO eventsub_sessions (session_id, session_name) VALUES (?, 'YourChat') "
-            . "ON DUPLICATE KEY UPDATE session_name = 'YourChat', last_updated = CURRENT_TIMESTAMP"
+            "INSERT IGNORE INTO eventsub_sessions (session_id, session_name) VALUES (?, 'YourChat.BOTSpecter.com')"
         );
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Failed to prepare statement']);
@@ -515,6 +514,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>YourChat - Custom Twitch Chat Overlay</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
@@ -531,7 +533,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <h1>YourChat - Custom Twitch Chat Overlay</h1>
                 <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
                 <?php
-                $scopes = 'user:read:chat user:write:chat channel:read:redemptions moderator:read:chatters bits:read';
+                $scopes = 'user:read:chat user:write:chat chat:read chat:edit channel:read:redemptions moderator:read:chatters bits:read';
                 $authUrl = 'https://streamersconnect.com/?' . http_build_query([
                     'service' => 'twitch',
                     'login' => 'yourchat.botofthespecter.com',
@@ -693,23 +695,32 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 TOKEN_CREATED_AT: <?php echo json_encode($_SESSION['token_created_at'] ?? time()); ?>,
                 CLIENT_ID: <?php echo json_encode($clientID); ?>,
                 TOKEN_REFRESH_INTERVAL: 4 * 60 * 60 * 1000, // 4 hours in milliseconds
+                IRC_WS_URL: 'wss://irc-ws.chat.twitch.tv:443',
                 EVENTSUB_WS_URL: 'wss://eventsub.wss.twitch.tv/ws'
             }; 
-            // State management
-            let ws = null;
-            let sessionId = null;
-            let connectionErrorToast = null; // Track connection error toast to dismiss on success
+            // State management - Dual WebSocket connections
+            let ircWs = null; // IRC WebSocket for chat messages
+            let eventSubWs = null; // EventSub WebSocket for activity events
+            let ircAuthenticated = false;
+            let ircJoined = false;
+            let eventSubSessionId = null;
+            let eventSubConnected = false;
+            let connectionErrorToast = null;
             let accessToken = CONFIG.ACCESS_TOKEN;
             let tokenCreatedAt = CONFIG.TOKEN_CREATED_AT;
-            let tokenExpiresIn = null; // Actual expires_in from Twitch validation API
-            let tokenValidatedAt = null; // When we last validated the token
-            let reconnectAttempts = 0;
+            let tokenExpiresIn = null;
+            let tokenValidatedAt = null;
+            let tokenScopes = []; // Store token scopes
+            let ircReconnectAttempts = 0;
+            let eventSubReconnectAttempts = 0;
             let maxReconnectAttempts = 5;
+            let pingTimeoutHandle = null;
+            let pingTimeoutSeconds = 300; // IRC PING timeout
             let keepaliveTimeoutHandle = null;
-            let keepaliveTimeoutSeconds = 10; // Default, will be updated from session
-            let badgeCache = {}; // Cache for badge URLs
-            let messageBuffer = []; // Buffer for messages during reconnection
-            let isReconnecting = false; // Flag to track reconnection state
+            let keepaliveTimeoutSeconds = 10; // EventSub keepalive
+            let badgeCache = {};
+            let messageBuffer = [];
+            let isReconnecting = false;
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
             // Recent chat messages cache for bidirectional deduplication
@@ -843,26 +854,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.log('No matching bits event found');
                 return false;
             }
-            // Presence settings (API-only)
+            // Presence settings (IRC-based)
             const PRESENCE_JOIN_KEY = 'notify_join_leave';
             let presenceEnabled = false;
-            let presencePollHandle = null;
-            let lastChatters = new Set(); // API-confirmed chatters
+            let activeChatters = new Set(); // Users currently in chat (tracked via IRC JOIN/PART)
             let messageBasedChatters = new Set(); // Users detected via first message only
-            // Tracks consecutive missed polls for users before announcing they left
-            let presenceMissCounts = {};
-            // Presence polling: 3s interval optimized for Twitch's 800 points/minute rate limit
-            const PRESENCE_API_INTERVAL_MS = 3 * 1000;
             // Max chat messages to retain in overlay (match Twitch default of 50)
             const MAX_CHAT_MESSAGES = 50;
-            // Rate limit tracking
-            let rateLimitRemaining = 800;
-            let rateLimitReset = 0;
-            // Poll/backoff state
-            const presenceBaseInterval = PRESENCE_API_INTERVAL_MS;
-            let presenceCurrentInterval = presenceBaseInterval;
-            let presenceBackoffAttempts = 0;
-            const PRESENCE_MAX_BACKOFF_MS = 5 * 60 * 1000;
             function loadPresenceSetting() {
                 return userSettings.presence_enabled || false;
             }
@@ -998,6 +996,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     console.error('Error fetching badges:', error);
                 }
             }
+            /*
+            // DEPRECATED: API polling removed - now using IRC JOIN/PART for presence tracking
             // Fetch current chatters using Helix API with rate limit monitoring
             async function fetchChattersFromAPI() {
                 try {
@@ -1167,6 +1167,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 presenceBackoffAttempts = 0;
                 presenceCurrentInterval = presenceBaseInterval;
             }
+            */
             // Server-side settings management
             let userSettings = {
                 filters_usernames: [],
@@ -1916,7 +1917,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const data = await response.json();
                     tokenExpiresIn = data.expires_in;
                     tokenValidatedAt = Math.floor(Date.now() / 1000);
+                    tokenScopes = data.scopes || [];
                     console.log(`Token validated: expires in ${tokenExpiresIn}s (${Math.floor(tokenExpiresIn / 3600)}h ${Math.floor((tokenExpiresIn % 3600) / 60)}m)`);
+                    console.log('Token scopes:', tokenScopes.join(', '));
+                    // Check for required IRC scopes
+                    const hasIRCRead = tokenScopes.includes('chat:read');
+                    const hasIRCEdit = tokenScopes.includes('chat:edit');
+                    if (!hasIRCRead || !hasIRCEdit) {
+                        console.warn('⚠️ Token missing IRC chat scopes. Required: chat:read, chat:edit');
+                        console.warn('⚠️ IRC chat connection will fail. Please re-authenticate with correct scopes.');
+                        Toastify({
+                            text: '⚠️ Your token is missing required chat scopes. IRC connection will fail.',
+                            duration: 10000,
+                            gravity: 'top',
+                            position: 'right',
+                            style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                        }).showToast();
+                    }
                     return true;
                 } else if (response.status === 401) {
                     console.error('Token validation failed: invalid token');
@@ -1984,7 +2001,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const data = await response.json();
                 if (data.success) {
                     accessToken = data.access_token;
+                    CONFIG.ACCESS_TOKEN = data.access_token; // Update CONFIG as well
                     tokenCreatedAt = data.created_at;
+                    CONFIG.TOKEN_CREATED_AT = data.created_at;
                     console.log('Token refreshed successfully');
                     // Validate new token to get accurate expires_in
                     await validateToken();
@@ -2004,12 +2023,34 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 processMessageBuffer();
             }
         }
+        async function seamlessWebSocketReconnect() {
+            console.log('Reconnecting WebSockets with new token...');
+            // Close existing connections
+            if (ircWs && ircWs.readyState === WebSocket.OPEN) {
+                ircWs.close();
+            }
+            if (eventSubWs && eventSubWs.readyState === WebSocket.OPEN) {
+                eventSubWs.close();
+            }
+            // Reset reconnection attempts
+            ircReconnectAttempts = 0;
+            eventSubReconnectAttempts = 0;
+            // Wait a moment for clean disconnect
+            await new Promise(resolve => setTimeout(resolve, 500));
+            // Reconnect both WebSockets
+            connectIRCWebSocket();
+            connectEventSubWebSocket();
+        }
         async function handleSessionExpiry() {
             console.log('Token refresh failed - ending session...');
-            // Disconnect WebSocket
-            if (ws) {
-                ws.close();
-                ws = null;
+            // Disconnect both WebSockets
+            if (ircWs) {
+                ircWs.close();
+                ircWs = null;
+            }
+            if (eventSubWs) {
+                eventSubWs.close();
+                eventSubWs = null;
             }
             updateStatus(false, 'Session Expired');
             document.getElementById('token-timer').textContent = 'EXPIRED';
@@ -2022,19 +2063,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Display expiry message
             const overlay = document.getElementById('chat-overlay');
             overlay.innerHTML = `
-                                    <div class="expired-message">
-                                        <h3>Session Expired</h3>
-                                        <p>Unable to refresh your session. Please refresh the page to log in again.</p>
-                                        <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
-                                    </div>
-                                `;
+                <div class="expired-message">
+                    <h3>Session Expired</h3>
+                    <p>Unable to refresh your session. Please refresh the page to log in again.</p>
+                    <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
+                </div>
+            `;
         }
         // Logout action: destroy PHP session and reload to show login button
         async function logoutUser() {
             try {
-                if (ws) {
-                    ws.close();
-                    ws = null;
+                if (ircWs) {
+                    ircWs.close();
+                    ircWs = null;
+                }
+                if (eventSubWs) {
+                    eventSubWs.close();
+                    eventSubWs = null;
                 }
                 await fetch('?action=expire_session');
             } catch (err) {
@@ -2043,10 +2088,141 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Reload to show login view
             window.location.reload();
         }
+        // IRC Message Parsing Functions
+        function parseIRCTags(tagString) {
+            const tags = {}; if (!tagString) return tags;
+            const tagPairs = tagString.split(';');
+            for (const pair of tagPairs) {
+                const [key, value] = pair.split('=');
+                tags[key] = value ? decodeIRCValue(value) : '';
+            }
+            return tags;
+        }
+        function decodeIRCValue(value) {
+            return value
+                .replace(/\\s/g, ' ')
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '\r')
+                .replace(/\\:/g, ';')
+                .replace(/\\\\/g, '\\');
+        }
+        function parseIRCMessage(rawMessage) {
+            let message = { raw: rawMessage, tags: {}, prefix: '', command: '', params: [] };
+            let position = 0;
+            // Parse tags if present (starts with @)
+            if (rawMessage[0] === '@') {
+                const tagsEnd = rawMessage.indexOf(' ');
+                message.tags = parseIRCTags(rawMessage.substring(1, tagsEnd));
+                position = tagsEnd + 1;
+            }
+            // Parse prefix if present (starts with :)
+            if (rawMessage[position] === ':') {
+                const prefixEnd = rawMessage.indexOf(' ', position);
+                message.prefix = rawMessage.substring(position + 1, prefixEnd);
+                position = prefixEnd + 1;
+            }
+            // Parse command
+            const commandEnd = rawMessage.indexOf(' ', position);
+            if (commandEnd === -1) {
+                message.command = rawMessage.substring(position);
+                return message;
+            }
+            message.command = rawMessage.substring(position, commandEnd);
+            position = commandEnd + 1;
+            // Parse parameters
+            while (position < rawMessage.length) {
+                if (rawMessage[position] === ':') {
+                    message.params.push(rawMessage.substring(position + 1));
+                    break;
+                }
+                const nextSpace = rawMessage.indexOf(' ', position);
+                if (nextSpace === -1) {
+                    message.params.push(rawMessage.substring(position));
+                    break;
+                }
+                message.params.push(rawMessage.substring(position, nextSpace));
+                position = nextSpace + 1;
+            }
+            return message;
+        }
+        function parseBadges(badgeString) {
+            if (!badgeString) return [];
+            const badges = [];
+            const badgePairs = badgeString.split(',');
+            for (const pair of badgePairs) {
+                const [set_id, id] = pair.split('/');
+                badges.push({ set_id, id, info: '' });
+            }
+            return badges;
+        }
+        function parseEmotes(text, emotesString) {
+            if (!emotesString) {
+                return [{ type: 'text', text: text }];
+            }
+            // Parse emotes format: emoteId:start-end,start-end/emoteId:start-end
+            const emoteData = [];
+            const emoteParts = emotesString.split('/');
+            for (const part of emoteParts) {
+                const [emoteId, positions] = part.split(':');
+                const ranges = positions.split(',');
+                for (const range of ranges) {
+                    const [start, end] = range.split('-').map(Number);
+                    emoteData.push({ emoteId, start, end });
+                }
+            }
+            // Sort by position
+            emoteData.sort((a, b) => a.start - b.start);
+            // Build fragments
+            const fragments = [];
+            let lastEnd = 0;
+            for (const emote of emoteData) {
+                // Add text before emote
+                if (emote.start > lastEnd) {
+                    fragments.push({
+                        type: 'text',
+                        text: text.substring(lastEnd, emote.start)
+                    });
+                }
+                // Add emote
+                fragments.push({
+                    type: 'emote',
+                    text: text.substring(emote.start, emote.end + 1),
+                    emote: {
+                        id: emote.emoteId,
+                        emote_set_id: ''
+                    }
+                });
+                lastEnd = emote.end + 1;
+            }
+            // Add remaining text
+            if (lastEnd < text.length) {
+                fragments.push({
+                    type: 'text',
+                    text: text.substring(lastEnd)
+                });
+            }
+            return fragments.length > 0 ? fragments : [{ type: 'text', text: text }];
+        }
         // WebSocket management
         function updateStatus(connected, text) {
             const statusLight = document.getElementById('ws-status');
             const statusText = document.getElementById('ws-status-text');
+            // Auto-detect connection status if not provided
+            if (connected === undefined || connected === null) {
+                // Check both connections
+                const ircConnected = ircWs && ircWs.readyState === WebSocket.OPEN && ircJoined;
+                const eventSubConnected = eventSubWs && eventSubWs.readyState === WebSocket.OPEN && eventSubConnected;
+                connected = ircConnected && eventSubConnected;
+                if (ircConnected && eventSubConnected) {
+                    text = 'Connected';
+                } else if (ircConnected && !eventSubConnected) {
+                    text = 'IRC: Connected | EventSub: Connecting...';
+                } else if (!ircConnected && eventSubConnected) {
+                    text = 'IRC: Connecting... | EventSub: Connected';
+                } else {
+                    text = 'Connecting...';
+                }
+            }
             if (connected) {
                 statusLight.classList.add('connected');
             } else {
@@ -2066,583 +2242,658 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         function setupWebSocketHandlers(socket) {
             socket.onopen = () => {
-                console.log('WebSocket connected');
-            };
-            socket.onmessage = async (event) => {
-                const message = JSON.parse(event.data);
-                // Buffer messages during reconnection
-                if (isReconnecting) {
-                    console.log('Buffering message during reconnection');
-                    messageBuffer.push(message);
+                console.log('IRC WebSocket connected');
+                ircAuthenticated = false;
+                ircJoined = false;
+                // Validate token before attempting IRC auth
+                if (!CONFIG.ACCESS_TOKEN) {
+                    console.error('No access token available for IRC authentication');
+                    updateStatus(false, 'Error: No access token');
                     return;
                 }
-                // Update keepalive timeout value if provided in this message
-                if (message.payload?.session?.keepalive_timeout_seconds) {
-                    keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds;
+                console.log('Using access token:', CONFIG.ACCESS_TOKEN ? `${CONFIG.ACCESS_TOKEN.substring(0, 10)}...` : 'null');
+                // Send IRC CAP REQ for capabilities
+                socket.send('CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
+                console.log('IRC >>> CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
+                // Send PASS (OAuth token)
+                socket.send(`PASS oauth:${CONFIG.ACCESS_TOKEN}`);
+                console.log('IRC >>> PASS oauth:***');
+                // Send NICK (username)
+                socket.send(`NICK ${CONFIG.USER_LOGIN.toLowerCase()}`);
+                console.log(`IRC >>> NICK ${CONFIG.USER_LOGIN.toLowerCase()}`);
+                updateStatus(false, 'Authenticating...');
+            };
+            socket.onmessage = (event) => {
+                // IRC messages are delimited by CRLF
+                const messages = event.data.split('\r\n').filter(msg => msg.length > 0);
+                
+                for (const rawMessage of messages) {
+                    console.log('IRC <<<', rawMessage);
+                    const message = parseIRCMessage(rawMessage);
+                    handleIRCMessage(message);
                 }
-                // Reset keepalive timeout on EVERY message received
-                setupKeepaliveTimeout(keepaliveTimeoutSeconds);
-                await handleWebSocketMessage(message);
             };
             socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
+                console.error('IRC WebSocket error:', error);
+                if (!connectionErrorToast) {
+                    connectionErrorToast = Toastify({
+                        text: 'Connection error. Reconnecting...',
+                        duration: -1,
+                        gravity: 'top',
+                        position: 'right',
+                        style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                    }).showToast();
+                }
                 updateStatus(false, 'Error');
             };
             socket.onclose = () => {
-                console.log('WebSocket closed');
-                if (!isReconnecting) {
-                    updateStatus(false, 'Disconnected');
-                    if (reconnectAttempts < maxReconnectAttempts) {
-                        reconnectAttempts++;
-                        setTimeout(connectWebSocket, 5000);
-                    }
+                console.log('IRC WebSocket closed');
+                ircAuthenticated = false;
+                ircJoined = false;
+                updateStatus(false, 'IRC: Disconnected');
+                if (pingTimeoutHandle) {
+                    clearTimeout(pingTimeoutHandle);
+                    pingTimeoutHandle = null;
+                }
+                // Clear presence tracking
+                activeChatters.clear();
+                messageBasedChatters.clear();
+                // Attempt reconnection
+                if (ircReconnectAttempts < maxReconnectAttempts) {
+                    const delay = Math.min(1000 * Math.pow(2, ircReconnectAttempts), 30000);
+                    ircReconnectAttempts++;
+                    console.log(`IRC Reconnecting in ${delay}ms (attempt ${ircReconnectAttempts}/${maxReconnectAttempts})`);
+                    setTimeout(connectIRCWebSocket, delay);
+                } else {
+                    console.error('IRC: Failed to connect after multiple attempts');
                 }
             };
         }
-        function connectWebSocket() {
-            if (ws) {
-                ws.close();
+        function connectIRCWebSocket() {
+            if (ircWs && ircWs.readyState === WebSocket.OPEN) {
+                ircWs.close();
             }
-            updateStatus(false, 'Connecting...');
-            ws = new WebSocket(CONFIG.EVENTSUB_WS_URL);
-            setupWebSocketHandlers(ws);
+            
+            // Check for required IRC scopes
+            const hasIRCRead = tokenScopes.includes('chat:read');
+            const hasIRCEdit = tokenScopes.includes('chat:edit');
+            
+            if (!hasIRCRead || !hasIRCEdit) {
+                console.error('❌ Cannot connect to IRC: Missing required scopes (chat:read, chat:edit)');
+                updateStatus(false, 'IRC: Missing Scopes');
+                
+                Toastify({
+                    text: 'Cannot connect to IRC chat: Your token is missing required scopes. Please log out and re-authenticate.',
+                    duration: -1,
+                    gravity: 'top',
+                    position: 'right',
+                    style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                }).showToast();
+                
+                return;
+            }
+            
+            console.log('Connecting to IRC WebSocket...');
+            ircWs = new WebSocket(CONFIG.IRC_WS_URL);
+            setupWebSocketHandlers(ircWs);
         }
-        async function seamlessWebSocketReconnect() {
-            console.log('Starting seamless WebSocket reconnect...');
-            const oldWs = ws;
-            return new Promise((resolve) => {
-                const newWs = new WebSocket(CONFIG.EVENTSUB_WS_URL);
-                setupWebSocketHandlers(newWs);
-                // Wait for session_welcome before closing old connection
-                const welcomeHandler = async (event) => {
-                    const message = JSON.parse(event.data);
-                    if (message.metadata?.message_type === 'session_welcome') {
-                        const newSessionId = message.payload.session.id;
-                        console.log('New session established (id=' + newSessionId + '), attempting to register subscriptions on new session before switching...');
-                        // Attempt to subscribe on the new session before closing the old one to avoid missing events
-                        const maxAttempts = 3;
-                        let attempt = 0;
-                        let subscribed = 0;
-                        while (attempt < maxAttempts && subscribed === 0) {
-                            try {
-                                subscribed = await subscribeToEvents(newSessionId);
-                                if (subscribed > 0) break;
-                                console.warn(`Subscription attempt ${attempt + 1} on session ${newSessionId} returned 0 subscriptions. Retrying...`);
-                            } catch (e) {
-                                console.error('Error subscribing on new session attempt', attempt + 1, e);
-                            }
-                            attempt++;
-                            // small backoff
-                            await new Promise(res => setTimeout(res, 500 * attempt));
-                        }
-                        if (subscribed > 0) {
-                            console.log('Subscriptions registered on new session, closing old connection and switching');
-                            // Close old WebSocket only after subscriptions are registered
-                            if (oldWs && oldWs.readyState === WebSocket.OPEN) {
-                                try { oldWs.close(); } catch (e) { console.warn('Failed to close old websocket', e); }
-                            }
-                            // Switch to new WebSocket
-                            ws = newWs;
-                            sessionId = newSessionId;
-                            console.log('New Session ID:', sessionId);
-                            updateStatus(true, 'Connected');
-                            reconnectAttempts = 0;
-                            // Save new session ID to database
-                            await saveSessionIdToServer(sessionId);
-                            // Setup keepalive timeout
-                            const keepaliveTimeout = message.payload.session.keepalive_timeout_seconds;
-                            setupKeepaliveTimeout(keepaliveTimeout);
-                            console.log('Seamless reconnect complete');
-                            Toastify({
-                                text: 'Connection refreshed successfully',
-                                duration: 2000,
-                                gravity: 'top',
-                                position: 'right',
-                                backgroundColor: '#00b09b'
-                            }).showToast();
-                            resolve();
-                        } else {
-                            console.error('Failed to register subscriptions on new session after retries. Keeping old connection active.');
-                            Toastify({
-                                text: 'Failed to refresh connection subscriptions — staying on existing connection',
-                                duration: 4000,
-                                gravity: 'top',
-                                position: 'right',
-                                backgroundColor: '#ff4d4f'
-                            }).showToast();
-                            // If newWs exists, close it since we can't use it
-                            try { newWs.close(); } catch (e) { }
-                            resolve();
-                        }
-                    }
-                };
-                newWs.addEventListener('message', welcomeHandler, { once: true });
-            });
+        // Setup PING timeout for IRC
+        function setupPingTimeout() {
+            if (pingTimeoutHandle) {
+                clearTimeout(pingTimeoutHandle);
+            }
+            // If we don't receive a PING within timeout period, connection is dead
+            pingTimeoutHandle = setTimeout(() => {
+                console.warn('No PING received within timeout, reconnecting...');
+                if (ircWs) {
+                    ircWs.close();
+                }
+            }, pingTimeoutSeconds * 1000);
         }
-        function processMessageBuffer() {
-            if (messageBuffer.length > 0) {
-                console.log(`Processing ${messageBuffer.length} buffered messages`);
-                messageBuffer.forEach(async (message) => {
-                    try {
-                        await handleWebSocketMessage(message);
-                    } catch (error) {
-                        console.error('Error processing buffered message:', error);
+        // EventSub WebSocket Handlers
+        function setupEventSubWebSocketHandlers(socket) {
+            socket.onopen = () => {
+                console.log('EventSub WebSocket connected');
+            };
+            socket.onmessage = async (event) => {
+                const message = JSON.parse(event.data);
+                // Update keepalive timeout
+                if (message.payload?.session?.keepalive_timeout_seconds) {
+                    keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds;
+                }
+                setupKeepaliveTimeout(keepaliveTimeoutSeconds);
+                await handleEventSubMessage(message);
+            };
+            socket.onerror = (error) => {
+                console.error('EventSub WebSocket error:', error);
+            };
+            socket.onclose = () => {
+                console.log('EventSub WebSocket closed');
+                eventSubConnected = false;
+                eventSubSessionId = null;
+                if (keepaliveTimeoutHandle) {
+                    clearTimeout(keepaliveTimeoutHandle);
+                    keepaliveTimeoutHandle = null;
+                }
+                // Attempt reconnection
+                if (eventSubReconnectAttempts < maxReconnectAttempts) {
+                    const delay = Math.min(1000 * Math.pow(2, eventSubReconnectAttempts), 30000);
+                    eventSubReconnectAttempts++;
+                    console.log(`EventSub Reconnecting in ${delay}ms (attempt ${eventSubReconnectAttempts}/${maxReconnectAttempts})`);
+                    setTimeout(connectEventSubWebSocket, delay);
+                } else {
+                    console.error('EventSub: Failed to connect after multiple attempts');
+                }
+            };
+        }
+        function connectEventSubWebSocket() {
+            if (eventSubWs && eventSubWs.readyState === WebSocket.OPEN) {
+                eventSubWs.close();
+            }
+            console.log('Connecting to EventSub WebSocket...');
+            eventSubWs = new WebSocket(CONFIG.EVENTSUB_WS_URL);
+            setupEventSubWebSocketHandlers(eventSubWs);
+        }
+        // Subscribe to activity events (NOT chat messages)
+        async function subscribeToActivityEvents() {
+            if (!eventSubSessionId) {
+                console.error('Cannot subscribe: No EventSub session ID');
+                return;
+            }
+            
+            const broadcasterUserId = CONFIG.USER_ID;
+            
+            // List of activity event subscriptions (excluding chat messages)
+            const subscriptions = [
+                {
+                    type: 'channel.channel_points_automatic_reward_redemption.add',
+                    version: '1',
+                    condition: { broadcaster_user_id: broadcasterUserId }
+                },
+                {
+                    type: 'channel.channel_points_custom_reward_redemption.add',
+                    version: '1',
+                    condition: { broadcaster_user_id: broadcasterUserId }
+                },
+                {
+                    type: 'channel.raid',
+                    version: '1',
+                    condition: { to_broadcaster_user_id: broadcasterUserId }
+                },
+                {
+                    type: 'channel.cheer',
+                    version: '1',
+                    condition: { broadcaster_user_id: broadcasterUserId }
+                },
+                {
+                    type: 'channel.chat.notification',
+                    version: '1',
+                    condition: {
+                        broadcaster_user_id: broadcasterUserId,
+                        user_id: broadcasterUserId
                     }
-                });
-                messageBuffer = [];
+                }
+            ];
+            
+            // Subscribe to each event type
+            for (const subscription of subscriptions) {
+                try {
+                    const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${CONFIG.ACCESS_TOKEN}`,
+                            'Client-Id': CONFIG.CLIENT_ID,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            type: subscription.type,
+                            version: subscription.version,
+                            condition: subscription.condition,
+                            transport: {
+                                method: 'websocket',
+                                session_id: eventSubSessionId
+                            }
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        console.log(`✓ Subscribed to ${subscription.type}`);
+                    } else {
+                        const errorData = await response.json();
+                        console.error(`✗ Failed to subscribe to ${subscription.type}:`, errorData);
+                    }
+                } catch (error) {
+                    console.error(`Error subscribing to ${subscription.type}:`, error);
+                }
             }
         }
-        async function handleWebSocketMessage(message) {
+        
+        // Setup keepalive timeout for EventSub
+        function setupKeepaliveTimeout(seconds) {
+            if (keepaliveTimeoutHandle) {
+                clearTimeout(keepaliveTimeoutHandle);
+            }
+            const timeoutDuration = (seconds + 3) * 1000;
+            keepaliveTimeoutHandle = setTimeout(() => {
+                console.error('EventSub keepalive timeout - no message received');
+                if (eventSubWs) {
+                    eventSubWs.close();
+                }
+            }, timeoutDuration);
+        }
+        // Handle EventSub messages
+        async function handleEventSubMessage(message) {
             const metadata = message.metadata;
             const payload = message.payload;
             if (!metadata || !metadata.message_type) {
                 return;
             }
             switch (metadata.message_type) {
-                case 'session_welcome':
-                    sessionId = payload.session.id;
-                    console.log('Session ID:', sessionId);
-                    updateStatus(true, 'Connected');
-                    reconnectAttempts = 0;
-                    // Save session ID to database
-                    await saveSessionIdToServer(sessionId);
-                    // Subscribe to chat messages
-                    await subscribeToEvents();
-                    // Setup keepalive timeout
-                    const keepaliveTimeout = payload.session.keepalive_timeout_seconds;
-                    setupKeepaliveTimeout(keepaliveTimeout);
+                case 'session_welcome': {
+                    eventSubSessionId = payload.session.id;
+                    console.log('EventSub Session ID:', eventSubSessionId);
+                    eventSubConnected = true;
+                    eventSubReconnectAttempts = 0;
+                    // Subscribe to activity events (NOT chat messages)
+                    await subscribeToActivityEvents();
+                    // Save session ID to server
+                    await saveSessionIdToServer(eventSubSessionId);
+                    // Update status if IRC is also connected
+                    if (ircJoined) {
+                        updateStatus(true, 'Connected');
+                        if (connectionErrorToast) {
+                            connectionErrorToast.hideToast();
+                            connectionErrorToast = null;
+                        }
+                    }
                     break;
+                }
                 case 'session_keepalive':
+                    // Just a keepalive, no action needed
                     break;
-                case 'notification':
-                    if (payload.subscription.type === 'channel.chat.message') {
-                        handleChatMessage(payload.event);
-                    } else if (payload.subscription.type === 'channel.channel_points_automatic_reward_redemption.add') {
-                        handleAutomaticReward(payload.event);
-                    } else if (payload.subscription.type === 'channel.channel_points_custom_reward_redemption.add') {
-                        handleCustomReward(payload.event);
-                    } else if (payload.subscription.type === 'channel.raid') {
-                        handleRaidEvent(payload.event);
-                    } else if (payload.subscription.type === 'channel.bits.use') {
-                        handleBitsEvent(payload.event);
-                    } else if (payload.subscription.type === 'channel.chat.message_delete') {
-                        handleMessageDelete(payload.event);
-                    } else if (payload.subscription.type === 'channel.chat.notification') {
-                        handleChatNotification(payload.event);
+                case 'notification': {
+                    const eventType = payload.subscription.type;
+                    const eventData = payload.event;
+                    // Handle activity events
+                    if (eventType === 'channel.channel_points_automatic_reward_redemption.add') {
+                        handleAutomaticReward(eventData);
+                    } else if (eventType === 'channel.channel_points_custom_reward_redemption.add') {
+                        handleCustomReward(eventData);
+                    } else if (eventType === 'channel.raid') {
+                        handleRaidEvent(eventData);
+                    } else if (eventType === 'channel.cheer') {
+                        handleBitsEvent(eventData);
+                    } else if (eventType === 'channel.chat.notification') {
+                        handleChatNotification(eventData);
                     }
                     break;
-                case 'session_reconnect':
-                    console.log('Reconnecting to new session...');
+                }
+                case 'session_reconnect': {
+                    console.log('EventSub reconnecting to new session...');
                     const reconnectUrl = payload.session.reconnect_url;
-                    if (ws) {
-                        ws.close();
+                    if (eventSubWs) {
+                        eventSubWs.close();
                     }
-                    ws = new WebSocket(reconnectUrl);
-                    setupWebSocketHandlers(ws);
-                    break; 
+                    eventSubWs = new WebSocket(reconnectUrl);
+                    setupEventSubWebSocketHandlers(eventSubWs);
+                    break;
+                }
                 case 'revocation':
-                    console.error('Subscription revoked:', payload);
-                    updateStatus(false, 'Subscription Revoked');
+                    console.error('EventSub subscription revoked:', payload);
                     break;
             }
         }
-        function setupKeepaliveTimeout(seconds) {
-            if (keepaliveTimeoutHandle) {
-                clearTimeout(keepaliveTimeoutHandle);
-            }
-            // Add 3 second buffer to prevent race conditions
-            const timeoutDuration = (seconds + 3) * 1000;
-            keepaliveTimeoutHandle = setTimeout(() => {
-                console.error('Keepalive timeout - no message received');
-                if (ws) {
-                    ws.close();
-                }
-            }, timeoutDuration);
-        }
-        // Track YourChat session IDs to safely cleanup only our own subscriptions
-        function storeYourChatSessionId(sid) {
-            try {
-                const stored = JSON.parse(localStorage.getItem('yourchat_session_ids') || '[]');
-                if (!stored.includes(sid)) {
-                    stored.push(sid);
-                    // Keep only last 5 session IDs to prevent unbounded growth
-                    if (stored.length > 5) stored.shift();
-                    localStorage.setItem('yourchat_session_ids', JSON.stringify(stored));
-                    console.log(`📝 YourChat session ${sid} tracked for future cleanup (${stored.length} sessions tracked)`);
-                }
-            } catch (e) {
-                console.warn('Failed to store session ID:', e);
-            }
-        }
-        function getYourChatSessionIds() {
-            try {
-                return JSON.parse(localStorage.getItem('yourchat_session_ids') || '[]');
-            } catch (e) {
-                return [];
-            }
-        }
-        function removeYourChatSessionId(sid) {
-            try {
-                const stored = JSON.parse(localStorage.getItem('yourchat_session_ids') || '[]');
-                const filtered = stored.filter(id => id !== sid);
-                if (filtered.length < stored.length) {
-                    localStorage.setItem('yourchat_session_ids', JSON.stringify(filtered));
-                    console.log(`🗑️ YourChat session ${sid} removed from tracking (${filtered.length} sessions remaining)`);
-                }
-            } catch (e) {
-                console.warn('Failed to remove session ID:', e);
-            }
-        }
-        // Safely cleanup ONLY old YourChat subscriptions, leave bot subscriptions untouched
-        async function cleanupOldYourChatSubscriptions() {
-            try {
-                const ourOldSessionIds = getYourChatSessionIds();
-                if (ourOldSessionIds.length === 0) {
-                    console.log('✓ No old YourChat sessions to cleanup');
-                    return;
-                }
-                console.log(`🔍 Checking for old YourChat subscriptions (${ourOldSessionIds.length} old sessions tracked)`);
-                console.log(`   Old sessions: ${ourOldSessionIds.join(', ')}`);
-                console.log(`   ⚠️ Bot subscriptions will NOT be touched`);
-                const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions?status=enabled', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Client-Id': CONFIG.CLIENT_ID
+        // Handle IRC messages
+        function handleIRCMessage(message) {
+            switch (message.command) {
+                case 'PING':
+                    // Respond to PING with PONG
+                    if (ircWs && ircWs.readyState === WebSocket.OPEN) {
+                        ircWs.send(`PONG :${message.params[0]}`);
+                        console.log('IRC >>>', `PONG :${message.params[0]}`);
                     }
-                });
-                if (!response.ok) {
-                    console.warn('Failed to fetch existing subscriptions:', response.status);
-                    return;
-                }
-                const data = await response.json();
-                const subscriptions = data.data || [];
-                // Only delete subscriptions that match OUR old session IDs
-                // This ensures we don't touch the bot's subscriptions
-                const toDelete = subscriptions.filter(sub => {
-                    if (sub.transport?.method !== 'websocket') return false;
-                    const sessionId = sub.transport?.session_id;
-                    return sessionId && ourOldSessionIds.includes(sessionId);
-                });
-                if (toDelete.length === 0) {
-                    console.log('✓ No old YourChat subscriptions found (bot subscriptions safe)');
-                    return;
-                }
-                console.log(`🧹 Cleaning up ${toDelete.length} old YourChat subscriptions...`);
-                // Delete old subscriptions with delay to avoid rate limits
-                for (const sub of toDelete) {
-                    try {
-                        const delResponse = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${sub.id}`, {
-                            method: 'DELETE',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Client-Id': CONFIG.CLIENT_ID
+                    setupPingTimeout();
+                    break;
+                case '001': // Welcome message
+                    console.log('IRC authenticated successfully');
+                    ircAuthenticated = true;
+                    // Join our own channel
+                    if (ircWs && ircWs.readyState === WebSocket.OPEN) {
+                        ircWs.send(`JOIN #${CONFIG.USER_LOGIN.toLowerCase()}`);
+                        console.log('IRC >>>', `JOIN #${CONFIG.USER_LOGIN.toLowerCase()}`);
+                    }
+                    break;
+                case '002':
+                case '003':
+                case '004':
+                case '375':
+                case '372':
+                case '376':
+                case 'GLOBALUSERSTATE':
+                    // Authentication messages, just log them
+                    break;
+                case 'CAP':
+                    // Capability acknowledgment
+                    if (message.params[1] === 'ACK') {
+                        console.log('IRC capabilities acknowledged:', message.params[2]);
+                    }
+                    break;
+                case 'JOIN': {
+                    // Successfully joined channel
+                    const joinChannel = message.params[0];
+                    const joinUser = message.prefix.split('!')[0];
+                    if (joinUser.toLowerCase() === CONFIG.USER_LOGIN.toLowerCase()) {
+                        console.log('Successfully joined channel:', joinChannel);
+                        ircJoined = true;
+                        ircReconnectAttempts = 0;
+                        // Update status based on both connections
+                        if (eventSubConnected) {
+                            updateStatus(true, 'Connected');
+                            if (connectionErrorToast) {
+                                connectionErrorToast.hideToast();
+                                connectionErrorToast = null;
                             }
-                        });
-                        if (delResponse.ok) {
-                            console.log(`  ✓ Deleted old YourChat subscription: ${sub.type}`);
-                            // Remove this session ID from storage once its subscriptions are cleaned
-                            removeYourChatSessionId(sub.transport?.session_id);
                         } else {
-                            console.warn(`  ⚠ Failed to delete subscription ${sub.id}:`, delResponse.status);
+                            updateStatus(false, 'IRC: Connected | EventSub: Connecting...');
                         }
-                        // Small delay to avoid rate limits
-                        await new Promise(resolve => setTimeout(resolve, 150));
-                    } catch (error) {
-                        console.error(`  ✗ Error deleting subscription ${sub.id}:`, error);
-                    }
-                }
-                console.log('✅ YourChat cleanup complete - bot subscriptions remain intact');
-            } catch (error) {
-                console.error('Error in cleanupOldYourChatSubscriptions:', error);
-            }
-        }
-        // Check current EventSub subscription counts before attempting to subscribe
-        async function checkSubscriptionLimits() {
-            try {
-                const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions?status=enabled', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Client-Id': CONFIG.CLIENT_ID
-                    }
-                });
-                if (!response.ok) {
-                    console.warn('Failed to check subscription limits:', response.status);
-                    return { canSubscribe: true, reason: null }; // Proceed if we can't check
-                }
-                const data = await response.json();
-                const allSubs = data.data || [];
-                // Count WebSocket subscriptions
-                const websocketSubs = allSubs.filter(sub => sub.transport?.method === 'websocket');
-                const websocketCount = websocketSubs.length;
-                // Count unique WebSocket sessions
-                const sessions = new Set();
-                websocketSubs.forEach(sub => {
-                    if (sub.transport?.session_id) {
-                        sessions.add(sub.transport.session_id);
-                    }
-                });
-                const sessionCount = sessions.size;
-                console.log(`📊 Current state: ${websocketCount} WebSocket subs across ${sessionCount} sessions (limit: 3 sessions)`);
-                // Twitch limits: Maximum 3 WebSocket connections per user token
-                // Each connection can have up to 300 subscriptions
-                if (sessionCount >= 3) {
-                    return {
-                        canSubscribe: false,
-                        reason: 'websocket_session_limit',
-                        count: websocketCount,
-                        sessions: sessionCount,
-                        limit: 3,
-                        message: `You currently have ${sessionCount} active WebSocket sessions (limit: 3). Twitch allows a maximum of 3 WebSocket connections per account. Your bot is likely using ${sessionCount} sessions. You need to close an existing connection before creating a new one.`
-                    };
-                }
-                // Warn if we're at 2 sessions (one more would hit the limit)
-                if (sessionCount === 2) {
-                    console.warn(`⚠️ You have ${sessionCount}/3 WebSocket sessions active. You can create 1 more connection.`);
-                }
-                return { canSubscribe: true, reason: null, sessions: sessionCount };
-            } catch (error) {
-                console.error('Error checking subscription limits:', error);
-                return { canSubscribe: true, reason: null }; // Proceed if check fails
-            }
-        }
-        async function subscribeToEvents(sessionIdOverride) {
-            const sid = sessionIdOverride || sessionId;
-            // Check if we're already at subscription limits
-            const limitCheck = await checkSubscriptionLimits();
-            if (!limitCheck.canSubscribe) {
-                console.error('❌ Cannot create subscriptions:', limitCheck.message);
-                // Show error to user
-                updateStatus(false, 'Connection Limit Reached');
-                const overlay = document.getElementById('chat-overlay');
-                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                clearPlaceholderOnly();
-                if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
-                const errorDiv = document.createElement('div');
-                errorDiv.style.cssText = 'color: #ff4444; text-align: center; padding: 20px; max-width: 600px; margin: 0 auto;';
-                errorDiv.innerHTML = `
-                    <h3>⚠️ WebSocket Session Limit Reached</h3>
-                    <p style="margin: 15px 0; line-height: 1.6;">${limitCheck.message}</p>
-                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
-                        <strong>Current Status:</strong><br>
-                        ${limitCheck.sessions}/${limitCheck.limit} WebSocket sessions (LIMIT REACHED)<br>
-                        ${limitCheck.count} total subscriptions
-                    </div>
-                    <p style="margin-top: 15px; font-size: 14px;">
-                        <strong>📘 Twitch Limits:</strong> Maximum 3 WebSocket connections per account<br>
-                        <strong>🤖 Your Bot:</strong> Using ${limitCheck.sessions - 1} session(s)<br>
-                        <strong>💬 YourChat:</strong> Needs 1 session
-                    </p>
-                    <p style="margin-top: 15px; font-size: 14px;">
-                        <strong>Solutions:</strong><br>
-                        • Restart your Twitch bot to free up a session<br>
-                        • Wait a few minutes and try again
-                    </p>
-                `;
-                overlay.appendChild(errorDiv);
-                // Show toast notification
-                Toastify({
-                    text: `WebSocket limit: ${limitCheck.sessions}/${limitCheck.limit} sessions active`,
-                    duration: 8000,
-                    gravity: 'top',
-                    position: 'right',
-                    backgroundColor: '#ff4444',
-                    style: { fontSize: '14px' }
-                }).showToast();
-                
-                return 0; // Return 0 subscriptions created
-            }
-            
-            // Log success status if we can proceed
-            if (limitCheck.sessions !== undefined) {
-                console.log(`✅ WebSocket session check passed: ${limitCheck.sessions}/3 sessions in use`);
-            }
-            
-            console.log(`🔌 Creating subscriptions for session ${sid}`);
-            const subscriptions = [
-                {
-                    type: 'channel.chat.message',
-                    version: '1',
-                    condition: {
-                        broadcaster_user_id: CONFIG.USER_ID,
-                        user_id: CONFIG.USER_ID
-                    }
-                },
-                {
-                    type: 'channel.channel_points_automatic_reward_redemption.add',
-                    version: '2',
-                    condition: {
-                        broadcaster_user_id: CONFIG.USER_ID
-                    }
-                },
-                {
-                    type: 'channel.channel_points_custom_reward_redemption.add',
-                    version: '1',
-                    condition: {
-                        broadcaster_user_id: CONFIG.USER_ID
-                    }
-                },
-                {
-                    type: 'channel.raid',
-                    version: '1',
-                    condition: {
-                        to_broadcaster_user_id: CONFIG.USER_ID
-                    }
-                },
-                {
-                    type: 'channel.bits.use',
-                    version: '1',
-                    condition: {
-                        broadcaster_user_id: CONFIG.USER_ID
-                    }
-                },
-                {
-                    type: 'channel.chat.message_delete',
-                    version: '1',
-                    condition: {
-                        broadcaster_user_id: CONFIG.USER_ID,
-                        user_id: CONFIG.USER_ID
-                    }
-                },
-                {
-                    type: 'channel.chat.notification',
-                    version: '1',
-                    condition: {
-                        broadcaster_user_id: CONFIG.USER_ID,
-                        user_id: CONFIG.USER_ID
-                    }
-                }
-            ];
-            let successCount = 0;
-            let transportLimitExceeded = false;
-            for (const sub of subscriptions) {
-                // If we hit the transport limit, stop trying more subscriptions
-                if (transportLimitExceeded) {
-                    console.warn(`⏭️ Skipping ${sub.type} (transport limit reached)`);
-                    continue;
-                }
-                const subscriptionData = {
-                    ...sub,
-                    transport: {
-                        method: 'websocket',
-                        session_id: sid
-                    }
-                };
-                try {
-                    const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Client-Id': CONFIG.CLIENT_ID,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(subscriptionData)
-                    });
-                    const result = await response.json().catch(() => ({}));
-                    if (response.ok) {
-                        console.log(`✓ Subscribed to ${sub.type}`);
-                        successCount++;
-                    } else if (response.status === 429) {
-                        // Check if it's the transport limit error specifically
-                        if (result.message && result.message.includes('websocket transports limit exceeded')) {
-                            console.error(`❌ WebSocket transport limit exceeded - your bot is likely using the available connections`);
-                            console.error(`💡 Solution: Close other WebSocket connections or restart your bot to free up slots`);
-                            transportLimitExceeded = true;
-                            // Show user-friendly error message and store reference
-                            connectionErrorToast = Toastify({
-                                text: 'Connection limit reached. Your bot may be using available slots. Try restarting the bot.',
-                                duration: 8000,
-                                gravity: 'top',
-                                position: 'right',
-                                backgroundColor: '#ff4444',
-                                style: { fontSize: '14px' }
-                            }).showToast();
-                            break; // Stop trying more subscriptions
-                        }
-                        // Regular rate limit - retry
-                        console.warn(`⚠ Rate limited on ${sub.type}, waiting...`);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        // Retry once
-                        const retryResponse = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Client-Id': CONFIG.CLIENT_ID,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(subscriptionData)
-                        });
-                        const retryResult = await retryResponse.json().catch(() => ({}));
-                        if (retryResponse.ok) {
-                            console.log(`✓ Subscribed to ${sub.type} (retry)`);
-                            successCount++;
-                        } else if (retryResponse.status === 429 && retryResult.message?.includes('websocket transports limit exceeded')) {
-                            console.error(`❌ WebSocket transport limit exceeded on retry`);
-                            transportLimitExceeded = true;
-                            break;
-                        } else {
-                            console.error(`✗ Subscription failed for ${sub.type}:`, retryResult);
-                        }
-                    } else if (response.status === 409) {
-                        // Subscription already exists - this is OK
-                        console.log(`✓ ${sub.type} (already subscribed)`);
-                        successCount++;
+                        clearPlaceholderOnly();
+                        // Fetch badges for the channel
+                        fetchBadges();
+                        // Setup ping timeout
+                        setupPingTimeout();
+                        Toastify({
+                            text: 'Connected to IRC chat',
+                            duration: 3000,
+                            gravity: 'top',
+                            position: 'right',
+                            style: { background: 'linear-gradient(to right, #00b09b, #96c93d)' }
+                        }).showToast();
                     } else {
-                        console.error(`✗ Subscription failed for ${sub.type}:`, result);
+                        // Another user joined
+                        const userId = message.tags && message.tags['user-id'];
+                        const displayName = (message.tags && message.tags['display-name']) || joinUser;
+                        const userKey = userId || joinUser.toLowerCase(); // Use userId if available, otherwise login name
+                        activeChatters.add(userKey);
+                        // Show join message if presence notifications enabled and user hasn't sent a message yet
+                        if (presenceEnabled && !messageBasedChatters.has(userKey)) {
+                            showSystemMessage(`${displayName} joined the chat`, 'join');
+                        }
                     }
-                    // Add delay between subscriptions to avoid rate limits
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                } catch (error) {
-                    console.error(`✗ Subscription error for ${sub.type}:`, error);
+                    break;
                 }
+                case '353': // NAMES list
+                case '366': // End of NAMES list
+                   // Membership information, we can ignore for now
+                    break;
+                case 'PART': {
+                    // User left channel
+                    const partUserId = message.tags && message.tags['user-id'];
+                    const partUser = message.prefix.split('!')[0];
+                    const partDisplayName = (message.tags && message.tags['display-name']) || partUser;
+                    const partUserKey = partUserId || partUser.toLowerCase(); // Use userId if available, otherwise login name
+                    
+                    activeChatters.delete(partUserKey);
+                    messageBasedChatters.delete(partUserKey);
+                    
+                    // Show leave message if presence notifications enabled
+                    if (presenceEnabled) {
+                        showSystemMessage(`${partDisplayName} left the chat`, 'leave');
+                    }
+                    break;
+                }
+                case 'PRIVMSG':
+                    // Chat message
+                    handleIRCChatMessage(message);
+                    break;
+                case 'USERSTATE':
+                    // Our message was sent (echo)
+                    console.log('Message sent successfully');
+                    break;
+                case 'ROOMSTATE':
+                    // Room state update
+                    console.log('Room state:', message.tags);
+                    break;
+                case 'USERNOTICE':
+                    // Sub, resub, gift, raid, etc.
+                    handleIRCUserNotice(message);
+                    break;
+                case 'CLEARCHAT': {
+                    // Chat cleared or user timed out/banned
+                    if (message.params.length > 1) {
+                        const username = message.params[1];
+                        const duration = message.tags['ban-duration'];
+                        if (duration) {
+                            showSystemMessage(`${username} was timed out for ${duration} seconds`, 'timeout');
+                        } else {
+                            showSystemMessage(`${username} was banned`, 'ban');
+                        }
+                    } else {
+                        showSystemMessage('Chat was cleared', 'clear');
+                    }
+                    break;
+                }
+                case 'CLEARMSG': {
+                    // Single message deleted
+                    const targetMsgId = message.tags['target-msg-id'];
+                    if (targetMsgId) {
+                        handleMessageDelete({ message_id: targetMsgId });
+                    }
+                    break;
+                }
+                case 'NOTICE': {
+                    // Server notice
+                    const noticeMsg = message.params[message.params.length - 1] || '';
+                    const msgId = message.tags['msg-id'];
+                    console.warn('🔔 IRC NOTICE:', msgId, noticeMsg);
+                    
+                    // Handle authentication failure specifically
+                    if (noticeMsg.includes('Login unsuccessful') || noticeMsg.includes('Login authentication failed')) {
+                        console.error('❌ IRC authentication failed');
+                        console.error('Token scopes:', tokenScopes.join(', '));
+                        
+                        const hasIRCRead = tokenScopes.includes('chat:read');
+                        const hasIRCEdit = tokenScopes.includes('chat:edit');
+                        
+                        let errorMessage = 'IRC authentication failed. ';
+                        if (!hasIRCRead || !hasIRCEdit) {
+                            errorMessage += `Missing required scopes: ${!hasIRCRead ? 'chat:read ' : ''}${!hasIRCEdit ? 'chat:edit' : ''}. Please log out and re-authenticate.`;
+                        } else {
+                            errorMessage += 'Your token may be invalid. Please log out and re-authenticate.';
+                        }
+                        
+                        Toastify({
+                            text: errorMessage,
+                            duration: -1,
+                            gravity: 'top',
+                            position: 'right',
+                            style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' },
+                            onClick: () => {
+                                if (confirm('Would you like to log out and re-authenticate now?')) {
+                                    logoutUser();
+                                }
+                            }
+                        }).showToast();
+                        
+                        updateStatus(false, 'IRC: Auth Failed');
+                        
+                        // Stop reconnection attempts for auth failures
+                        ircReconnectAttempts = maxReconnectAttempts;
+                        return;
+                    }
+                    
+                    // Handle critical errors that should show to user
+                    const criticalErrors = [
+                        'msg_channel_suspended', 'msg_banned', 'msg_channel_blocked',
+                        'msg_requires_verified_phone_number', 'msg_verified_email',
+                        'tos_ban'
+                    ];
+                    if (criticalErrors.includes(msgId)) {
+                        Toastify({
+                            text: noticeMsg || 'Cannot connect to channel',
+                            duration: -1,
+                            gravity: 'top',
+                            position: 'right',
+                            style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                        }).showToast();
+                    }
+                    // Handle rate limit warnings
+                    const rateLimitErrors = ['msg_ratelimit', 'msg_slowmode', 'msg_timedout'];
+                    if (rateLimitErrors.includes(msgId)) {
+                        Toastify({
+                            text: noticeMsg,
+                            duration: 5000,
+                            gravity: 'top',
+                            position: 'right',
+                            style: { background: 'linear-gradient(to right, #ff9800, #ff5722)' }
+                        }).showToast();
+                    }
+                    // Handle room mode changes (show as system messages)
+                    const roomModeChanges = [
+                        'emote_only_on', 'emote_only_off', 'followers_on', 'followers_off',
+                        'slow_on', 'slow_off', 'subs_on', 'subs_off'
+                    ];
+                    if (roomModeChanges.includes(msgId)) {
+                        showSystemMessage(noticeMsg, 'info');
+                    }
+                    break;
+                }
+                case 'RECONNECT':
+                    // Server requests reconnection
+                    console.log('Server requested reconnection');
+                    if (ircWs) {
+                        ircWs.close();
+                    }
+                    break;
+                default:
+                    console.log('Unhandled IRC command:', message.command, message);
             }
-            if (successCount > 0) {
-                // Dismiss connection error toast if it was shown previously
-                if (connectionErrorToast) {
-                    connectionErrorToast.hideToast();
-                    connectionErrorToast = null;
-                }
-                const overlay = document.getElementById('chat-overlay');
-                // Only show "Connected to chat" if there are no messages loaded (including system messages)
-                const hasMessages = overlay.querySelector('.chat-message, .reward-message, .system-message');
-                if (!hasMessages) {
-                    // preserve exit button if present
-                    const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                    clearPlaceholderOnly();
-                    if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
-                    const p = document.createElement('p');
-                    p.className = 'connected-placeholder';
-                    p.style.color = '#999';
-                    p.style.textAlign = 'center';
-                    p.textContent = 'Connected to chat';
-                    overlay.appendChild(p);
-                }
-            } else {
-                updateStatus(false, transportLimitExceeded ? 'Connection Limit Reached' : 'Subscription Failed');
-                if (transportLimitExceeded) {
-                    // Show error message in overlay
-                    const overlay = document.getElementById('chat-overlay');
-                    const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                    clearPlaceholderOnly();
-                    if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
-                    const errorDiv = document.createElement('div');
-                    errorDiv.style.cssText = 'color: #ff4444; text-align: center; padding: 20px;';
-                    errorDiv.innerHTML = `
-                        <h3>⚠️ Connection Limit Reached</h3>
-                        <p>Twitch limits the number of active WebSocket connections.</p>
-                        <p>Your bot is likely using the available slots.</p>
-                        <p style="margin-top: 15px; font-size: 14px;">
-                            <strong>Solutions:</strong><br>
-                            • Restart your Twitch bot to free up connections<br>
-                            • Wait a few minutes and refresh this page<br>
-                            • Check that you don't have multiple YourChat tabs open
-                        </p>
-                    `;
-                    overlay.appendChild(errorDiv);
-                }
+        }
+        // Handle IRC PRIVMSG (chat messages)
+        function handleIRCChatMessage(message) {
+            const tags = message.tags;
+            const text = message.params[message.params.length - 1] || '';
+            // Extract user info from tags
+            const userId = tags['user-id'];
+            const username = message.prefix.split('!')[0];
+            const displayName = tags['display-name'] || username;
+            const color = tags['color'] || '#808080';
+            const badges = tags['badges'] || '';
+            const emotes = tags['emotes'] || '';
+            const messageId = tags['id'];
+            // Build event object matching EventSub format for compatibility
+            const event = {
+                chatter_user_id: userId,
+                chatter_user_login: username,
+                chatter_user_name: displayName,
+                color: color,
+                badges: parseBadges(badges),
+                message: {
+                    text: text,
+                    fragments: parseEmotes(text, emotes)
+                },
+                message_id: messageId,
+                message_type: 'text'
+            };
+            // Check for bits in message (Cheer emotes)
+            const bits = tags['bits']; if (bits) {
+                event.cheer = { bits: parseInt(bits) };
             }
-            return successCount;
+            // Check for reply
+            const replyParentMsgId = tags['reply-parent-msg-id'];
+            if (replyParentMsgId) {
+                event.reply = {
+                    parent_message_id: replyParentMsgId,
+                    parent_user_login: tags['reply-parent-user-login'] || '',
+                    parent_message_body: tags['reply-parent-msg-body'] || ''
+                };
+            }
+            // Track presence
+            const userKey = userId || username.toLowerCase(); // Use userId if available, otherwise login name
+            activeChatters.add(userKey);
+            messageBasedChatters.add(userKey);
+            
+            // Apply filters
+            if (isMessageFiltered(event)) {
+                return;
+            }
+            // Check for duplicates with redemptions/bits
+            const messageText = event.message.text;
+            if (consumeMatchingRedemption(event.chatter_user_login, event.chatter_user_name, event.chatter_user_id, messageText)) {
+                return;
+            }
+            if (consumeMatchingBitsEvent(event.chatter_user_login, event.chatter_user_name, event.chatter_user_id, messageText)) {
+                return;
+            }
+            // Add to recent messages cache
+            addRecentChatMessage(event.chatter_user_login, event.chatter_user_name, event.chatter_user_id, messageText);
+            // Display message using existing handler
+            handleChatMessage(event);
+        }
+        // Handle IRC USERNOTICE (subs, resubs, gifts, raids, etc.)
+        function handleIRCUserNotice(message) {
+            const tags = message.tags;
+            const msgId = tags['msg-id'];
+            const systemMsg = tags['system-msg'] || '';
+            const userId = tags['user-id'];
+            const username = tags['login'] || '';
+            const displayName = tags['display-name'] || username;
+            const messageText = message.params[message.params.length - 1] || '';
+            // Build notification event
+            let noticeType = 'unknown';
+            let noticeHtml = '';
+            switch (msgId) {
+                case 'sub':
+                case 'resub':
+                    noticeType = 'subscription';
+                    const months = tags['msg-param-cumulative-months'] || '1';
+                    noticeHtml = `🎉 ${escapeHtml(displayName)} subscribed${months > 1 ? ` for ${months} months` : ''}!`;
+                    if (messageText) {
+                        noticeHtml += `<br><em>${escapeHtml(messageText)}</em>`;
+                    }
+                    break;
+                case 'subgift':
+                case 'anonsubgift':
+                    noticeType = 'gift';
+                    const recipient = tags['msg-param-recipient-display-name'] || '';
+                    const gifter = msgId === 'anonsubgift' ? 'An anonymous user' : escapeHtml(displayName);
+                    noticeHtml = `🎁 ${gifter} gifted a subscription to ${escapeHtml(recipient)}!`;
+                    break;
+                case 'submysterygift':
+                case 'anonsubmysterygift':
+                    noticeType = 'gift';
+                    const giftCount = tags['msg-param-mass-gift-count'] || '1';
+                    const mysteryGifter = msgId === 'anonsubmysterygift' ? 'An anonymous user' : escapeHtml(displayName);
+                    noticeHtml = `🎁 ${mysteryGifter} gifted ${giftCount} subscriptions!`;
+                    break;
+                case 'raid':
+                    noticeType = 'raid';
+                    const viewers = tags['msg-param-viewerCount'] || '0';
+                    noticeHtml = `⚔️ ${escapeHtml(displayName)} is raiding with ${viewers} viewers!`;
+                    break;
+                default:
+                    noticeType = 'notification';
+                    noticeHtml = escapeHtml(systemMsg.replace(/\\s/g, ' '));
+            }
+            // Display notification
+            const overlay = document.getElementById('chat-overlay');
+            const noticeElement = document.createElement('div');
+            noticeElement.className = `chat-notification chat-notification-${noticeType}`;
+            noticeElement.innerHTML = noticeHtml;
+            overlay.appendChild(noticeElement);
+            enforceMessageCap();
+            // Scroll to bottom
+            overlay.scrollTop = overlay.scrollHeight;
+            // Add to activity feed
+            const activityFeed = document.getElementById('activity-feed-scroll');
+            if (activityFeed) {
+                const activityElement = document.createElement('div');
+                activityElement.className = `activity-item activity-${noticeType}`;
+                activityElement.innerHTML = `
+                    <span class="activity-time">${new Date().toLocaleTimeString()}</span>
+                    <span class="activity-text">${noticeHtml}</span>
+                `;
+                activityFeed.insertBefore(activityElement, activityFeed.firstChild);
+            }
         }
         // Log raw chat event data to server for debugging
         async function logRawChatData(event) {
@@ -2672,9 +2923,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Check if this user needs to be marked as joined first
             const userLogin = event.chatter_user_login;
-            if (presenceEnabled && userLogin && !lastChatters.has(userLogin) && !messageBasedChatters.has(userLogin)) {
+            const userKey = userId || (userLogin ? userLogin.toLowerCase() : null);
+            if (presenceEnabled && userKey && !activeChatters.has(userKey) && !messageBasedChatters.has(userKey)) {
                 // User hasn't been detected by presence system, mark them as joined via message
-                messageBasedChatters.add(userLogin);
+                messageBasedChatters.add(userKey);
                 showSystemMessage(`${event.chatter_user_name} joined the chat`, 'join');
             }
             // Presence is handled via Twitch Helix API (no message-based presence)
@@ -2729,8 +2981,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Add special classes based on message_type
             if (event.message_type) {
                 messageDiv.setAttribute('data-message-type', event.message_type);
-                if (event.message_type === 'user_intro') {
+                if (event.message_type === 'user_intro' || event.is_first_message) {
                     messageDiv.classList.add('first-time-chatter');
+                } else if (event.message_type === 'action') {
+                    messageDiv.classList.add('action-message');
                 } else if (event.message_type === 'channel_points_highlighted') {
                     messageDiv.classList.add('highlighted-message');
                 } else if (event.message_type === 'channel_points_sub_only') {
@@ -2833,12 +3087,21 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const isSharedChat = event.source_broadcaster_user_id !== null && event.source_broadcaster_user_login && event.source_broadcaster_user_login.toLowerCase() !== CONFIG.USER_LOGIN.toLowerCase();
             const sharedChatIndicator = isSharedChat ?
                 `<span class="shared-chat-indicator">[from ${escapeHtml(event.source_broadcaster_user_name || event.source_broadcaster_user_login)}]</span>` : '';
-            messageHtml += `
-                                    ${badgesHtml}
-                                    <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
-                                    ${sharedChatIndicator}
-                                    <span class="chat-text">${messageTextHtml}</span>
-                                `;
+            // Handle action messages (/me) differently
+            if (event.message_type === 'action') {
+                messageHtml += `
+                        ${badgesHtml}
+                        ${sharedChatIndicator}
+                        <span class="action-text" style="color: ${event.color || '#ffffff'}"><em>${escapeHtml(displayName)} ${messageTextHtml}</em></span>
+                    `;
+            } else {
+                messageHtml += `
+                        ${badgesHtml}
+                        <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
+                        ${sharedChatIndicator}
+                        <span class="chat-text">${messageTextHtml}</span>
+                    `;
+            }
             messageDiv.innerHTML = messageHtml;
             overlay.appendChild(messageDiv);
             // Auto-scroll to bottom
@@ -3294,46 +3557,52 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (!message) {
                 return;
             }
+            
+            // Check if connected
+            if (!ircWs || ircWs.readyState !== WebSocket.OPEN || !ircJoined) {
+                Toastify({
+                    text: 'Not connected to chat. Please wait for connection.',
+                    duration: 3000,
+                    gravity: 'top',
+                    position: 'right',
+                    style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                }).showToast();
+                return;
+            }
+            
             // Disable input and button while sending
             input.disabled = true;
             sendBtn.disabled = true;
             sendBtn.textContent = 'Sending...';
+            
             try {
-                const response = await fetch('https://api.twitch.tv/helix/chat/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Client-Id': CONFIG.CLIENT_ID,
-                        'Content-Type': 'application/json'
+                // Send IRC PRIVMSG
+                const channel = `#${CONFIG.USER_LOGIN.toLowerCase()}`;
+                ircWs.send(`PRIVMSG ${channel} :${message}`);
+                console.log('IRC >>>', `PRIVMSG ${channel} :${message}`);
+                
+                // Clear input on success
+                input.value = '';
+                
+                // IRC doesn't echo back our PRIVMSG, so we need to display it ourselves
+                // Create a synthetic event to display our message
+                const ourEvent = {
+                    chatter_user_id: CONFIG.USER_ID,
+                    chatter_user_login: CONFIG.USER_LOGIN,
+                    chatter_user_name: CONFIG.USER_LOGIN,
+                    color: '#9146FF',
+                    badges: [],
+                    message: {
+                        text: message,
+                        fragments: [{ type: 'text', text: message }]
                     },
-                    body: JSON.stringify({
-                        broadcaster_id: CONFIG.USER_ID,
-                        sender_id: CONFIG.USER_ID,
-                        message: message
-                    })
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.data && data.data[0] && data.data[0].is_sent) {
-                        // Clear input on success
-                        input.value = '';
-                        // Message will appear via WebSocket event
-                    } else {
-                        throw new Error('Message not sent');
-                    }
-                } else if (response.status === 401) {
-                    // Token expired, try to refresh
-                    Toastify({
-                        text: 'Session expired. Please refresh the page.',
-                        duration: 5000,
-                        gravity: 'top',
-                        position: 'right',
-                        backgroundColor: '#ff4444'
-                    }).showToast();
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || 'Failed to send message');
-                }
+                    message_id: 'local-' + Date.now(),
+                    message_type: 'text'
+                };
+                
+                // Display our own message
+                handleChatMessage(ourEvent);
+                
             } catch (error) {
                 console.error('Error sending message:', error);
                 Toastify({
@@ -3341,7 +3610,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     duration: 5000,
                     gravity: 'top',
                     position: 'right',
-                    backgroundColor: '#ff4444'
+                    style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
                 }).showToast();
             } finally {
                 // Re-enable input and button
@@ -3380,9 +3649,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             fetchBadges(); // Fetch badge data
             // Validate token on startup to get accurate expires_in
             await validateToken();
-            connectWebSocket();
+            // Connect both IRC and EventSub WebSockets
+            connectIRCWebSocket();
+            connectEventSubWebSocket();
             updateTokenTimer();
-            // Initialize presence checkbox and state (API-only)
+            // Initialize presence checkbox and state (IRC-based)
             try {
                 const checkbox = document.getElementById('notify-joins-checkbox');
                 presenceEnabled = loadPresenceSetting();
@@ -3391,11 +3662,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     checkbox.addEventListener('change', (e) => {
                         presenceEnabled = !!e.target.checked;
                         savePresenceSetting(presenceEnabled);
-                        if (presenceEnabled) startPresenceAPI(); else stopPresenceAPI();
+                        console.log(`Presence notifications ${presenceEnabled ? 'enabled' : 'disabled'} (IRC-based)`);
                     });
                 }
-                // Start polling immediately if setting enabled
-                if (presenceEnabled) startPresenceAPI();
             } catch (e) {
                 console.error('Error initializing presence setting', e);
             }
