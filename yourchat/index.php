@@ -2083,13 +2083,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.log('Using access token:', CONFIG.ACCESS_TOKEN ? `${CONFIG.ACCESS_TOKEN.substring(0, 10)}...` : 'null');
                 // Send IRC CAP REQ for capabilities
                 socket.send('CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
-                console.log('IRC >>> CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
                 // Send PASS (OAuth token)
                 socket.send(`PASS oauth:${CONFIG.ACCESS_TOKEN}`);
-                console.log('IRC >>> PASS oauth:***');
                 // Send NICK (username)
                 socket.send(`NICK ${CONFIG.USER_LOGIN.toLowerCase()}`);
-                console.log(`IRC >>> NICK ${CONFIG.USER_LOGIN.toLowerCase()}`);
                 updateStatus(false, 'Authenticating...');
             };
             socket.onmessage = (event) => {
@@ -2097,7 +2094,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const messages = event.data.split('\r\n').filter(msg => msg.length > 0);
                 
                 for (const rawMessage of messages) {
-                    console.log('IRC <<<', rawMessage);
                     const message = parseIRCMessage(rawMessage);
                     handleIRCMessage(message);
                 }
@@ -2379,7 +2375,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     // Respond to PING with PONG
                     if (ircWs && ircWs.readyState === WebSocket.OPEN) {
                         ircWs.send(`PONG :${message.params[0]}`);
-                        console.log('IRC >>>', `PONG :${message.params[0]}`);
                     }
                     setupPingTimeout();
                     break;
@@ -2389,7 +2384,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     // Join our own channel
                     if (ircWs && ircWs.readyState === WebSocket.OPEN) {
                         ircWs.send(`JOIN #${CONFIG.USER_LOGIN.toLowerCase()}`);
-                        console.log('IRC >>>', `JOIN #${CONFIG.USER_LOGIN.toLowerCase()}`);
                     }
                     break;
                 case '002':
@@ -2488,6 +2482,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     break;
                 case 'CLEARCHAT': {
                     // Chat cleared or user timed out/banned
+                    const overlay = document.getElementById('chat-overlay');
                     if (message.params.length > 1) {
                         const username = message.params[1];
                         const duration = message.tags['ban-duration'];
@@ -2496,8 +2491,53 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         } else {
                             showSystemMessage(`${username} was banned`, 'ban');
                         }
+                        // Remove all messages from that user in the overlay and purge caches
+                        try {
+                            const normalized = username ? username.replace(':','').trim().toLowerCase() : null;
+                            if (normalized && overlay) {
+                                const msgs = overlay.querySelectorAll('.chat-message, .reward-message');
+                                msgs.forEach(m => {
+                                    const uname = m.querySelector('.chat-username')?.textContent?.replace(':','').trim().toLowerCase();
+                                    if (uname === normalized) m.remove();
+                                });
+                                // Purge from recent chat cache
+                                recentChatMessages = recentChatMessages.filter(e => {
+                                    const login = (e.user_login || e.user_name || '').toLowerCase();
+                                    return login !== normalized && (e.user_name || '').toLowerCase() !== normalized;
+                                });
+                                // Remove from presence sets
+                                messageBasedChatters.delete(normalized);
+                                activeChatters.delete(normalized);
+                                // If target user-id is present, remove by id too
+                                if (message.tags && message.tags['target-user-id']) {
+                                    const targetId = message.tags['target-user-id'];
+                                    messageBasedChatters.delete(targetId);
+                                    activeChatters.delete(targetId);
+                                    recentChatMessages = recentChatMessages.filter(e => (e.user_id || '') !== targetId);
+                                }
+                                // Persist updated history
+                                saveChatHistory();
+                            }
+                        } catch (e) {
+                            console.error('Error handling CLEARCHAT for user:', e);
+                        }
                     } else {
-                        showSystemMessage('Chat was cleared', 'clear');
+                        // Full chat clear: clear UI, server history and reset local caches
+                        try {
+                            clearChatHistory(); // clears DOM and server-side persisted chat
+                            recentChatMessages = [];
+                            recentRedemptions = [];
+                            recentBitsEvents = [];
+                            activeChatters.clear();
+                            messageBasedChatters.clear();
+                            // Remove presence summary if present
+                            if (overlay) {
+                                const presenceEl = overlay.querySelector('.system-message.join');
+                                if (presenceEl) presenceEl.remove();
+                            }
+                        } catch (e) {
+                            console.error('Error handling CLEARCHAT (full clear):', e);
+                        }
                     }
                     break;
                 }
@@ -2519,17 +2559,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     if (noticeMsg.includes('Login unsuccessful') || noticeMsg.includes('Login authentication failed')) {
                         console.error('❌ IRC authentication failed');
                         console.error('Token scopes:', tokenScopes.join(', '));
-                        
                         const hasIRCRead = tokenScopes.includes('chat:read');
                         const hasIRCEdit = tokenScopes.includes('chat:edit');
-                        
                         let errorMessage = 'IRC authentication failed. ';
                         if (!hasIRCRead || !hasIRCEdit) {
                             errorMessage += `Missing required scopes: ${!hasIRCRead ? 'chat:read ' : ''}${!hasIRCEdit ? 'chat:edit' : ''}. Please log out and re-authenticate.`;
                         } else {
                             errorMessage += 'Your token may be invalid. Please log out and re-authenticate.';
                         }
-                        
                         Toastify({
                             text: errorMessage,
                             duration: -1,
@@ -2542,14 +2579,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                 }
                             }
                         }).showToast();
-                        
                         updateStatus(false, 'IRC: Auth Failed');
-                        
                         // Stop reconnection attempts for auth failures
                         ircReconnectAttempts = maxReconnectAttempts;
                         return;
                     }
-                    
                     // Handle critical errors that should show to user
                     const criticalErrors = [
                         'msg_channel_suspended', 'msg_banned', 'msg_channel_blocked',
@@ -3403,21 +3437,16 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }).showToast();
                 return;
             }
-            
             // Disable input and button while sending
             input.disabled = true;
             sendBtn.disabled = true;
             sendBtn.textContent = 'Sending...';
-            
             try {
                 // Send IRC PRIVMSG
                 const channel = `#${CONFIG.USER_LOGIN.toLowerCase()}`;
                 ircWs.send(`PRIVMSG ${channel} :${message}`);
-                console.log('IRC >>>', `PRIVMSG ${channel} :${message}`);
-                
                 // Clear input on success
                 input.value = '';
-                
                 // IRC doesn't echo back our PRIVMSG, so we need to display it ourselves
                 // Create a synthetic event to display our message
                 const ourEvent = {
@@ -3433,10 +3462,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     message_id: 'local-' + Date.now(),
                     message_type: 'text'
                 };
-                
                 // Display our own message
                 handleChatMessage(ourEvent);
-                
             } catch (error) {
                 console.error('Error sending message:', error);
                 Toastify({
