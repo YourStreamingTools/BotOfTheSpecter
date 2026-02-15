@@ -30,67 +30,6 @@ include 'storage_used.php';
 $accessToken = $_SESSION['access_token'];
 $userId = $_SESSION['user_id'];
 
-// Handle subscription deletion
-if (isset($_POST['delete_subscription']) && isset($_POST['subscription_id'])) {
-    $subId = $_POST['subscription_id'];
-    $ch = curl_init("https://api.twitch.tv/helix/eventsub/subscriptions?id=" . urlencode($subId));
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
-        'Client-Id: ' . $clientID
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpCode === 204) {
-        $deleteSuccess = "Successfully deleted subscription: " . htmlspecialchars($subId);
-    } else {
-        $deleteError = "Failed to delete subscription. HTTP Code: " . $httpCode;
-    }
-    // Redirect to prevent form resubmission
-    header("Location: notifications.php");
-    exit;
-}
-
-// Handle bulk session deletion
-if (isset($_POST['delete_session']) && isset($_POST['subscription_ids'])) {
-    $subIds = json_decode($_POST['subscription_ids'], true);
-    if (is_array($subIds) && count($subIds) > 0) {
-        $deletedCount = 0;
-        $failedCount = 0;
-        foreach ($subIds as $subId) {
-            $ch = curl_init("https://api.twitch.tv/helix/eventsub/subscriptions?id=" . urlencode($subId));
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Bearer ' . $accessToken,
-                'Client-Id: ' . $clientID
-            ]);
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($httpCode === 204) {
-                $deletedCount++;
-            } else {
-                $failedCount++;
-            }
-            // Small delay to avoid rate limiting
-            usleep(100000); // 0.1 seconds
-        }
-        if ($deletedCount > 0 && $failedCount === 0) {
-            $deleteSuccess = "Successfully deleted {$deletedCount} subscription(s) from session.";
-        } elseif ($deletedCount > 0 && $failedCount > 0) {
-            $deleteSuccess = "Deleted {$deletedCount} subscription(s), but {$failedCount} failed.";
-        } else {
-            $deleteError = "Failed to delete subscriptions from session.";
-        }
-    }
-    // Redirect to prevent form resubmission
-    header("Location: notifications.php");
-    exit;
-}
-
 // Fetch all EventSub subscriptions (including stale/disabled)
 $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -134,7 +73,6 @@ foreach ($subscriptions as $sub) {
         $websocketSubs[] = $sub;
         $sessionId = $sub['transport']['session_id'] ?? 'unknown';
         $isEnabled = ($sub['status'] === 'enabled');
-        
         if ($isEnabled) {
             $websocketSubsEnabled[] = $sub;
             if (!isset($sessionGroups[$sessionId])) {
@@ -176,386 +114,455 @@ ob_start();
         <h1 class="title is-2">
             <i class="fas fa-bell"></i> EventSub Notifications
         </h1>
-        <p class="subtitle">Monitor and manage your Twitch EventSub subscriptions</p>
-        <?php if ($error): ?>
-            <div class="error-box">
-                <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-        <?php if (isset($deleteSuccess)): ?>
-            <div class="info-box">
-                <strong>Success:</strong> <?php echo $deleteSuccess; ?>
-            </div>
-        <?php endif; ?>
-        <?php if (isset($deleteError)): ?>
-            <div class="error-box">
-                <strong>Error:</strong> <?php echo $deleteError; ?>
-            </div>
-        <?php endif; ?>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Subscriptions</div>
-                <div class="stat-value"><?php echo $totalCount; ?></div>
-                <div class="stat-secondary">across all transports</div>
-            </div>
-            <?php
-            // Calculate per-connection subscription counts for Active WebSocket Subscriptions
-            $connectionCounts = [];
-            foreach ($sessionGroups as $sessionId => $subs) {
-                $connectionCounts[$sessionId] = count($subs);
-            }
-            $subCount = count($websocketSubsEnabled);
-            ?>
-            <div class="stat-card">
-                <div class="stat-label">Active WebSocket Subscriptions</div>
-                <div class="stat-value"><?php echo $subCount; ?></div>
-                <div class="stat-secondary">limit: 300 per connection</div>
-                <?php 
-                $connectionNumber = 0;
-                foreach ($connectionCounts as $sessionId => $count): 
-                    $connectionNumber++;
-                    // Determine text color based on subscription count
-                    $textColor = '#e6e6e6'; // default/normal
-                    if ($count >= 250) {
-                        $textColor = '#e74c3c'; // danger (red)
-                    } elseif ($count >= 150) {
-                        $textColor = '#f39c12'; // warning (orange)
-                    }
-                ?>
-                    <div class="stat-secondary" style="color: <?php echo $textColor; ?>; margin-top: 4px;">
-                        Connection <?php echo $connectionNumber; ?>: <?php echo $count; ?> subscriptions
-                    </div>
-                <?php endforeach; ?>
-                <?php if (count($websocketSubsDisabled) > 0): ?>
-                    <div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">
-                        <?php echo count($websocketSubsDisabled); ?> disabled/stale
-                    </div>
-                <?php endif; ?>
-            </div>
-            <?php
-            // Determine color class for Active Sessions
-            $sessionCount = count($sessionGroups);
-            $sessionColorClass = '';
-            if ($sessionCount >= 3) {
-                $sessionColorClass = 'danger-card';
-            } elseif ($sessionCount >= 2) {
-                $sessionColorClass = 'warning-card';
-            }
-            ?>
-            <div class="stat-card <?php echo $sessionColorClass; ?>">
-                <div class="stat-label">Active Connections</div>
-                <div class="stat-value"><?php echo $sessionCount; ?></div>
-                <div class="stat-secondary">limit: 3 connections</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Webhook Subscriptions</div>
-                <div class="stat-value"><?php echo count($webhookSubs); ?></div>
-                <div class="stat-secondary">callback-based</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Cost Usage</div>
-                <div class="stat-value"><?php echo $totalCost; ?></div>
-                <div class="stat-secondary">of <?php echo $maxCost; ?> max</div>
-            </div>
+        <p class="subtitle">Monitor and manage your Twitch EventSub subscriptions <span id="auto-refresh-indicator" style="font-size: 12px; color: #aaa;">(Auto-refreshing every 10s)</span></p>
+        <div id="notification-messages">
+            <?php if ($error): ?>
+                <div class="error-box">
+                    <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
+                </div>
+            <?php endif; ?>
         </div>
-        <?php if (count($sessionGroups) > 0): ?>
-            <div class="box">
-                <h2 class="title is-4">
-                    <i class="fas fa-network-wired"></i> Active WebSocket Sessions
-                    <a href="notifications.php" class="refresh-btn" style="margin-left: auto; float: right;">
-                        <i class="fas fa-sync-alt"></i> Refresh
-                    </a>
-                </h2>
-                <div class="info-box">
-                    <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
-                    Each session below counts toward that limit. Your bot and YourChat each need their own session. 
-                    If you hit the limit, delete old/unused sessions.
-                </div>
-                <?php 
-                $sessionNumber = 0;
-                foreach ($sessionGroups as $sessionId => $subs): 
-                    $sessionNumber++;
-                    // Check if we have a name for this session in the database
-                    if (isset($sessionNames[$sessionId]) && !empty($sessionNames[$sessionId])) {
-                        $sessionName = $sessionNames[$sessionId];
-                    } else {
-                        // Fall back to numbered format if no name found
-                        $sessionName = "WebSocket Session " . $sessionNumber;
-                    }
-                ?>
-                    <div class="session-group">
-                        <div class="session-header">
-                            <div>
-                                <strong>Session Name:</strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
-                                <br>
-                                <strong>Session ID:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
-                            </div>
-                            <div class="sub-count"><?php echo count($subs); ?> subscriptions</div>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>Version</th>
-                                    <th>Condition</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($subs as $sub): ?>
-                                    <tr>
-                                        <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
-                                        <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
-                                        <td style="font-size: 12px; color: #aaa;">
-                                            <?php 
-                                            $conditions = [];
-                                            foreach ($sub['condition'] as $key => $value) {
-                                                if ($value === $userId) {
-                                                    $conditions[] = "$key: <strong style='color: #00ff00;'>YOU</strong>";
-                                                } else {
-                                                    $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
-                                                }
-                                            }
-                                            echo implode('<br>', $conditions);
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <?php 
-                                            $status = $sub['status'];
-                                            $statusClass = 'status-' . strtolower($status);
-                                            ?>
-                                            <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
-                                        </td>
-                                        <td style="font-size: 12px; color: #aaa;">
-                                            <?php 
-                                            $created = new DateTime($sub['created_at']);
-                                            echo $created->format('M d, H:i:s');
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this subscription?');">
-                                                <input type="hidden" name="subscription_id" value="<?php echo htmlspecialchars($sub['id']); ?>">
-                                                <button type="submit" name="delete_subscription" class="delete-btn">
-                                                    <i class="fas fa-trash"></i> Delete
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-        <?php if (count($sessionGroupsDisabled) > 0): ?>
-            <div class="box" style="border-left: 3px solid #e74c3c;">
-                <h2 class="title is-4">
-                    <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
-                </h2>
-                <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
-                    <strong><i class="fas fa-info-circle"></i> Note:</strong> These subscriptions are no longer active and can be safely deleted. 
-                    They do not count toward your connection or subscription limits.
-                </div>
-                <?php 
-                $sessionNumber = 0;
-                foreach ($sessionGroupsDisabled as $sessionId => $subs): 
-                    $sessionNumber++;
-                    // Check if we have a name for this session in the database
-                    if (isset($sessionNames[$sessionId]) && !empty($sessionNames[$sessionId])) {
-                        $sessionName = $sessionNames[$sessionId];
-                    } else {
-                        // Fall back to numbered format if no name found
-                        $sessionName = "WebSocket Session " . $sessionNumber;
-                    }
-                ?>
-                    <div class="session-group">
-                        <div class="session-header">
-                            <div>
-                                <strong>Session Name:</strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
-                                <br>
-                                <strong>Session ID:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
-                            </div>
-                            <div class="sub-count">
-                                <?php echo count($subs); ?> subscriptions
-                                <button class="custom-btn" onclick="deleteAllInSession('<?php echo htmlspecialchars($sessionId, ENT_QUOTES, 'UTF-8'); ?>', <?php echo count($subs); ?>, '<?php echo htmlspecialchars($sessionName, ENT_QUOTES, 'UTF-8'); ?>')" style="margin-left: 10px;">
-                                    <i class="fas fa-trash-alt"></i> Delete All in Session
-                                </button>
-                            </div>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>Version</th>
-                                    <th>Condition</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($subs as $sub): ?>
-                                    <tr style="opacity: 0.7;">
-                                        <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
-                                        <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
-                                        <td style="font-size: 12px; color: #aaa;">
-                                            <?php 
-                                            $conditions = [];
-                                            foreach ($sub['condition'] as $key => $value) {
-                                                if ($value === $userId) {
-                                                    $conditions[] = "$key: <strong style='color: #00ff00;'>YOU</strong>";
-                                                } else {
-                                                    $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
-                                                }
-                                            }
-                                            echo implode('<br>', $conditions);
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <?php 
-                                            $status = $sub['status'];
-                                            $statusClass = 'status-' . strtolower($status);
-                                            ?>
-                                            <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
-                                        </td>
-                                        <td style="font-size: 12px; color: #aaa;">
-                                            <?php 
-                                            $created = new DateTime($sub['created_at']);
-                                            echo $created->format('M d, H:i:s');
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this subscription?');">
-                                                <input type="hidden" name="subscription_id" value="<?php echo htmlspecialchars($sub['id']); ?>">
-                                                <button type="submit" name="delete_subscription" class="delete-btn">
-                                                    <i class="fas fa-trash"></i> Delete
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-        <?php if (count($webhookSubs) > 0): ?>
-            <div class="box">
-                <h2 class="title is-4">
-                    <i class="fas fa-link"></i> Webhook Subscriptions
-                </h2>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Version</th>
-                            <th>Callback URL</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($webhookSubs as $sub): ?>
-                            <tr>
-                                <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
-                                <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
-                                <td style="font-size: 11px; color: #aaa; word-break: break-all;">
-                                    <?php echo htmlspecialchars($sub['transport']['callback'] ?? 'N/A'); ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    $status = $sub['status'];
-                                    $statusClass = 'status-' . strtolower($status);
-                                    ?>
-                                    <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
-                                </td>
-                                <td>
-                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this subscription?');">
-                                        <input type="hidden" name="subscription_id" value="<?php echo htmlspecialchars($sub['id']); ?>">
-                                        <button type="submit" name="delete_subscription" class="delete-btn">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-        <?php if (count($sessionGroups) === 0 && count($webhookSubs) === 0): ?>
+        <div id="subscription-content">
+            <?php include 'notifications_content.php'; ?>
+        </div>
+    </div>
+</div>
+<script>
+console.log('Initial PHP session names:', <?php echo json_encode($sessionNames); ?>);
+console.log('Initial PHP session groups:', <?php echo json_encode(array_keys($sessionGroups)); ?>);
+
+// Auto-refresh interval (10 seconds)
+let autoRefreshInterval;
+let isDeleting = false; // Flag to prevent refresh during deletion
+
+// Show notification message
+function showNotification(message, type = 'success') {
+    const container = document.getElementById('notification-messages');
+    const div = document.createElement('div');
+    div.className = type === 'success' ? 'info-box' : 'error-box';
+    div.innerHTML = `<strong>${type === 'success' ? 'Success' : 'Error'}:</strong> ${message}`;
+    container.appendChild(div);
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        div.style.opacity = '0';
+        div.style.transition = 'opacity 0.5s';
+        setTimeout(() => div.remove(), 500);
+    }, 5000);
+}
+
+// Fetch and render subscriptions
+async function refreshSubscriptions() {
+    if (isDeleting) {
+        console.log('Skipping refresh during deletion');
+        return;
+    }
+    // If triggered by a button click, show loading state
+    let button = null;
+    let originalHTML = null;
+    if (typeof event !== 'undefined' && event && event.target) {
+        button = event.target.closest('button');
+        if (button && button.classList.contains('refresh-btn')) {
+            originalHTML = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+        }
+    }
+    try {
+        const response = await fetch('notifications_api.php?action=fetch_subscriptions');
+        if (!response.ok) {
+            throw new Error('Failed to fetch subscriptions');
+        }
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || 'Unknown error');
+        }
+        // Render the content using the API data
+        renderSubscriptions(result.data);
+        // Update indicator
+        const indicator = document.getElementById('auto-refresh-indicator');
+        if (indicator) {
+            indicator.textContent = `(Last updated: ${new Date().toLocaleTimeString()})`;
+        }
+    } catch (error) {
+        console.error('Refresh error:', error);
+        showNotification('Failed to refresh subscriptions: ' + error.message, 'error');
+    } finally {
+        // Restore button state if it was manually triggered
+        if (button && originalHTML) {
+            button.disabled = false;
+            button.innerHTML = originalHTML;
+        }
+    }
+}
+
+// Render subscriptions content
+function renderSubscriptions(data) {
+    const container = document.getElementById('subscription-content');
+    if (!container) return;
+    // Debug: Log session names to console
+    console.log('Session names from API:', data.sessionNames);
+    console.log('Session IDs from sessionGroups:', Object.keys(data.sessionGroups));
+    // Build HTML content
+    let html = '';
+    // Stats Grid
+    html += buildStatsGrid(data);
+    // Active WebSocket Sessions
+    if (Object.keys(data.sessionGroups).length > 0) {
+        html += buildActiveSessionsSection(data);
+    }
+    // Disabled/Stale WebSocket Sessions
+    if (Object.keys(data.sessionGroupsDisabled).length > 0) {
+        html += buildDisabledSessionsSection(data);
+    }
+    // Webhook Subscriptions
+    if (data.webhookSubs.length > 0) {
+        html += buildWebhookSection(data);
+    }
+    // Empty state
+    if (Object.keys(data.sessionGroups).length === 0 && data.webhookSubs.length === 0) {
+        html += `
             <div class="box has-text-centered">
                 <p class="subtitle">
                     <i class="fas fa-inbox"></i><br>
                     No EventSub subscriptions found.
                 </p>
             </div>
-        <?php endif; ?>
-    </div>
-</div>
+        `;
+    }
+    container.innerHTML = html;
+}
 
-<script>
-function deleteAllInSession(sessionId, count, sessionName) {
-    if (!confirm(`Are you sure you want to delete all ${count} subscriptions from "${sessionName}"?\n\nThis action cannot be undone.`)) {
-        return;
+// Build stats grid HTML
+function buildStatsGrid(data) {
+    const connectionCounts = {};
+    for (const [sessionId, subs] of Object.entries(data.sessionGroups)) {
+        connectionCounts[sessionId] = subs.length;
     }
-    
-    // Collect all subscription IDs from this session
-    const subscriptionIds = [];
-    const tables = document.querySelectorAll('.session-group');
-    
-    tables.forEach(table => {
-        const sessionIdElement = table.querySelector('.session-id');
-        if (sessionIdElement && sessionIdElement.textContent === sessionId) {
-            const forms = table.querySelectorAll('form[method="POST"]');
-            forms.forEach(form => {
-                const subIdInput = form.querySelector('input[name="subscription_id"]');
-                if (subIdInput) {
-                    subscriptionIds.push(subIdInput.value);
-                }
-            });
+    const subCount = data.websocketSubsEnabled.length;
+    const sessionCount = Object.keys(data.sessionGroups).length;
+    let sessionColorClass = '';
+    if (sessionCount >= 3) sessionColorClass = 'danger-card';
+    else if (sessionCount >= 2) sessionColorClass = 'warning-card';
+    let connectionDetails = '';
+    let connectionNumber = 0;
+    for (const [sessionId, count] of Object.entries(connectionCounts)) {
+        connectionNumber++;
+        let textColor = '#e6e6e6';
+        if (count >= 250) textColor = '#e74c3c';
+        else if (count >= 150) textColor = '#f39c12';
+        connectionDetails += `<div class="stat-secondary" style="color: ${textColor}; margin-top: 4px;">Connection ${connectionNumber}: ${count} subscriptions</div>`;
+    }
+    if (data.websocketSubsDisabled.length > 0) {
+        connectionDetails += `<div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">${data.websocketSubsDisabled.length} disabled/stale</div>`;
+    }
+    return `
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Subscriptions</div>
+                <div class="stat-value">${data.totalCount}</div>
+                <div class="stat-secondary">across all transports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active WebSocket Subscriptions</div>
+                <div class="stat-value">${subCount}</div>
+                <div class="stat-secondary">limit: 300 per connection</div>
+                ${connectionDetails}
+            </div>
+            <div class="stat-card ${sessionColorClass}">
+                <div class="stat-label">Active Connections</div>
+                <div class="stat-value">${sessionCount}</div>
+                <div class="stat-secondary">limit: 3 connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Webhook Subscriptions</div>
+                <div class="stat-value">${data.webhookSubs.length}</div>
+                <div class="stat-secondary">callback-based</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cost Usage</div>
+                <div class="stat-value">${data.totalCost}</div>
+                <div class="stat-secondary">of ${data.maxCost} max</div>
+            </div>
+        </div>
+    `;
+}
+
+// Build active sessions section
+function buildActiveSessionsSection(data) {
+    let html = `
+        <div class="box">
+            <h2 class="title is-4">
+                <i class="fas fa-network-wired"></i> Active WebSocket Sessions
+                <button onclick="refreshSubscriptions()" class="refresh-btn" style="margin-left: auto; float: right; border: none; background: none; cursor: pointer; color: inherit;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </h2>
+            <div class="info-box">
+                <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
+                Each session below counts toward that limit. Your bot and YourChat each need their own session. 
+                If you hit the limit, delete old/unused sessions.
+            </div>
+    `;
+    let sessionNumber = 0;
+    for (const [sessionId, subs] of Object.entries(data.sessionGroups)) {
+        sessionNumber++;
+        const sessionName = data.sessionNames[sessionId] || `WebSocket Session ${sessionNumber}`;
+        html += buildSessionGroup(sessionId, subs, sessionName, data.userId, false);
+    }
+    html += '</div>';
+    return html;
+}
+
+// Build disabled sessions section
+function buildDisabledSessionsSection(data) {
+    let html = `
+        <div class="box" style="border-left: 3px solid #e74c3c;">
+            <h2 class="title is-4">
+                <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
+            </h2>
+            <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
+                <strong><i class="fas fa-info-circle"></i> Note:</strong> These subscriptions are no longer active and can be safely deleted. 
+                They do not count toward your connection or subscription limits.
+            </div>
+    `;
+    let sessionNumber = 0;
+    for (const [sessionId, subs] of Object.entries(data.sessionGroupsDisabled)) {
+        sessionNumber++;
+        const sessionName = data.sessionNames[sessionId] || `WebSocket Session ${sessionNumber}`;
+        html += buildSessionGroup(sessionId, subs, sessionName, data.userId, true);
+    }
+    html += '</div>';
+    return html;
+}
+
+// Build session group HTML
+function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
+    const deleteAllButton = isDisabled ? 
+        `<button class="custom-btn" onclick="deleteAllInSession('${escapeHtml(sessionId)}', ${subs.length}, '${escapeHtml(sessionName)}')" style="margin-left: 10px;">
+            <i class="fas fa-trash-alt"></i> Delete All in Session
+        </button>` : '';
+    let html = `
+        <div class="session-group">
+            <div class="session-header">
+                <div>
+                    <strong>Session Name:</strong> <span class="session-name">${escapeHtml(sessionName)}</span>
+                    <br>
+                    <strong>Session ID:</strong> <span class="session-id">${escapeHtml(sessionId)}</span>
+                </div>
+                <div class="sub-count">
+                    ${subs.length} subscriptions
+                    ${deleteAllButton}
+                </div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Version</th>
+                        <th>Condition</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    for (const sub of subs) {
+        const conditions = [];
+        for (const [key, value] of Object.entries(sub.condition)) {
+            if (value === userId) {
+                conditions.push(`${key}: <strong style='color: #00ff00;'>YOU</strong>`);
+            } else {
+                conditions.push(`${key}: ${escapeHtml(value.substring(0, 12))}`);
+            }
         }
-    });
-    
-    if (subscriptionIds.length === 0) {
-        alert('No subscriptions found to delete.');
+        const created = new Date(sub.created_at);
+        const createdStr = created.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + 
+                          created.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        const statusClass = 'status-' + sub.status.toLowerCase();
+        const rowStyle = isDisabled ? 'opacity: 0.7;' : '';
+        html += `
+            <tr style="${rowStyle}">
+                <td><span class="sub-type">${escapeHtml(sub.type)}</span></td>
+                <td><span class="sub-version">v${escapeHtml(sub.version)}</span></td>
+                <td style="font-size: 12px; color: #aaa;">${conditions.join('<br>')}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(sub.status)}</span></td>
+                <td style="font-size: 12px; color: #aaa;">${createdStr}</td>
+                <td>
+                    <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}')" class="delete-btn">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    return html;
+}
+
+// Build webhook section
+function buildWebhookSection(data) {
+    let html = `
+        <div class="box">
+            <h2 class="title is-4">
+                <i class="fas fa-link"></i> Webhook Subscriptions
+            </h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Version</th>
+                        <th>Callback URL</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    for (const sub of data.webhookSubs) {
+        const statusClass = 'status-' + sub.status.toLowerCase();
+        const callback = sub.transport.callback || 'N/A';
+        html += `
+            <tr>
+                <td><span class="sub-type">${escapeHtml(sub.type)}</span></td>
+                <td><span class="sub-version">v${escapeHtml(sub.version)}</span></td>
+                <td style="font-size: 11px; color: #aaa; word-break: break-all;">${escapeHtml(callback)}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(sub.status)}</span></td>
+                <td>
+                    <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}')" class="delete-btn">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    return html;
+}
+
+// Delete single subscription
+async function deleteSingleSubscription(subscriptionId) {
+    if (!confirm('Are you sure you want to delete this subscription?')) {
         return;
     }
-    
-    // Show loading state
+    isDeleting = true;
+    // Get the button that was clicked
     const button = event.target.closest('button');
     const originalText = button.innerHTML;
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-    
-    // Send POST request
-    const formData = new FormData();
-    formData.append('delete_session', '1');
-    formData.append('subscription_ids', JSON.stringify(subscriptionIds));
-    
-    fetch(window.location.href, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        if (response.ok) {
-            window.location.reload();
+    try {
+        const formData = new FormData();
+        formData.append('action', 'delete_subscription');
+        formData.append('subscription_id', subscriptionId);
+        const response = await fetch('notifications_api.php', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success) {
+            showNotification(result.message || 'Successfully deleted subscription', 'success');
+            await refreshSubscriptions();
         } else {
-            throw new Error('Failed to delete subscriptions');
+            throw new Error(result.error || 'Failed to delete subscription');
         }
-    })
-    .catch(error => {
-        alert('Error deleting subscriptions: ' + error.message);
+    } catch (error) {
+        console.error('Delete error:', error);
+        showNotification('Error: ' + error.message, 'error');
         button.disabled = false;
         button.innerHTML = originalText;
-    });
+    } finally {
+        isDeleting = false;
+    }
 }
-</script>
 
+// Delete all subscriptions in a session
+async function deleteAllInSession(sessionId, count, sessionName) {
+    if (!confirm(`Are you sure you want to delete all ${count} subscriptions from "${sessionName}"?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    isDeleting = true;
+    // Get the button that was clicked
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    // Collect all subscription IDs from this session
+    const subscriptionIds = [];
+    const tables = document.querySelectorAll('.session-group');
+    tables.forEach(table => {
+        const sessionIdElement = table.querySelector('.session-id');
+        if (sessionIdElement && sessionIdElement.textContent === sessionId) {
+            const buttons = table.querySelectorAll('button[onclick^="deleteSingleSubscription"]');
+            buttons.forEach(button => {
+                const match = button.getAttribute('onclick').match(/deleteSingleSubscription\('([^']+)'\)/);
+                if (match && match[1]) {
+                    subscriptionIds.push(match[1]);
+                }
+            });
+        }
+    });
+    if (subscriptionIds.length === 0) {
+        showNotification('No subscriptions found to delete', 'error');
+        button.disabled = false;
+        button.innerHTML = originalText;
+        isDeleting = false;
+        return;
+    }
+    try {
+        const formData = new FormData();
+        formData.append('action', 'delete_session');
+        formData.append('subscription_ids', JSON.stringify(subscriptionIds));
+        const response = await fetch('notifications_api.php', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success) {
+            showNotification(result.message || 'Successfully deleted subscriptions', 'success');
+            await refreshSubscriptions();
+        } else {
+            throw new Error(result.error || 'Failed to delete subscriptions');
+        }
+    } catch (error) {
+        console.error('Delete session error:', error);
+        showNotification('Error: ' + error.message, 'error');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    } finally {
+        isDeleting = false;
+    }
+}
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initialize auto-refresh on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Start auto-refresh every 10 seconds
+    autoRefreshInterval = setInterval(refreshSubscriptions, 10000);
+    console.log('Auto-refresh initialized (10 seconds)');
+});
+
+// Clean up interval on page unload
+window.addEventListener('beforeunload', function() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+});
+</script>
 <?php
 $content = ob_get_clean();
 include "layout.php";
