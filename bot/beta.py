@@ -1412,7 +1412,7 @@ async def process_twitch_eventsub_message(message):
                         source_broadcaster = event_data.get("source_broadcaster_user_name", "Unknown Channel")
                         event_logger.info(f"Message deleted from user {user_name} in shared chat by {moderator_user_name} from {source_broadcaster} (Message ID: {message_id})")
                     # Handle mode changes (actions without specific user data)
-                    elif action in ["emoteonly", "emoteonlyoff", "followers", "followersoff", "slow", "slowoff", "subscribers", "subscribersoff", "uniquechat", "uniquechatoff"]:
+                    elif action in ["emoteonly", "emoteonlyoff", "followers", "followersoff", "slow", "slowoff", "subscribers", "subscribersoff", "uniquechat", "uniquechatoff", "clear"]:
                         event_logger.info(f"Chat mode '{action}' activated by {moderator_user_name}")
                     else:
                         # Log unknown actions for debugging
