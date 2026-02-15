@@ -919,8 +919,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             function clearPlaceholderOnly() {
                 const overlay = document.getElementById('chat-overlay');
                 if (!overlay) return;
-                // Logging for debugging unexpected clears
-                try { console.debug('clearPlaceholderOnly called - removing any placeholders'); } catch (e) { }
                 // Remove explicit chat placeholder paragraphs and connected placeholder
                 const placeholders = overlay.querySelectorAll('.chat-placeholder, .connected-placeholder');
                 placeholders.forEach(p => {
@@ -992,7 +990,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             badgeCache[set.set_id][version.id] = version.image_url_1x;
                         });
                     });
-                    console.debug('Fetched badges — sets:', Object.keys(badgeCache).length, badgeCache);
                 } catch (error) {
                     console.error('Error fetching badges:', error);
                 }
@@ -1748,7 +1745,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     tokenValidatedAt = Math.floor(Date.now() / 1000);
                     tokenScopes = data.scopes || [];
                     console.log(`Token validated: expires in ${tokenExpiresIn}s (${Math.floor(tokenExpiresIn / 3600)}h ${Math.floor((tokenExpiresIn % 3600) / 60)}m)`);
-                    console.log('Token scopes:', tokenScopes.join(', '));
                     // Check for required IRC scopes
                     const hasIRCRead = tokenScopes.includes('chat:read');
                     const hasIRCEdit = tokenScopes.includes('chat:edit');
@@ -2080,7 +2076,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     updateStatus(false, 'Error: No access token');
                     return;
                 }
-                console.log('Using access token:', CONFIG.ACCESS_TOKEN ? `${CONFIG.ACCESS_TOKEN.substring(0, 10)}...` : 'null');
                 // Send IRC CAP REQ for capabilities
                 socket.send('CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership');
                 // Send PASS (OAuth token)
@@ -2397,9 +2392,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     break;
                 case 'CAP':
                     // Capability acknowledgment
-                    if (message.params[1] === 'ACK') {
-                        console.log('IRC capabilities acknowledged:', message.params[2]);
-                    }
+                    if (message.params[1] === 'ACK') {}
                     break;
                 case 'JOIN': {
                     // Successfully joined channel
