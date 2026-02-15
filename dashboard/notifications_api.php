@@ -60,6 +60,11 @@ try {
             }
             deleteSession($_POST['subscription_ids'], $accessToken, $clientID);
             break;
+
+        case 'cleanup_sessions':
+            // Remove session rows from the user's DB that no longer exist in Twitch subscriptions
+            cleanupSessions($accessToken, $clientID, $db);
+            break;
         
         default:
             http_response_code(400);
@@ -242,4 +247,78 @@ function deleteSession($subscriptionIdsJson, $accessToken, $clientID) {
             'error' => "Failed to delete subscriptions from session."
         ]);
     }
+}
+
+/**
+ * Cleanup function - removes eventsub_sessions rows that are not present in Twitch subscriptions
+ */
+function cleanupSessions($accessToken, $clientID, $db) {
+    // Fetch current Twitch EventSub subscriptions
+    $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $accessToken,
+        'Client-Id: ' . $clientID
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => "cURL error: $curlError"]);
+        return;
+    }
+
+    if ($httpCode !== 200) {
+        http_response_code($httpCode);
+        echo json_encode(['success' => false, 'error' => "Failed to fetch subscriptions. HTTP Code: $httpCode"]);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $subscriptions = $data['data'] ?? [];
+
+    // Gather live websocket session IDs
+    $liveSessionIds = [];
+    foreach ($subscriptions as $sub) {
+        if (isset($sub['transport']['method']) && $sub['transport']['method'] === 'websocket') {
+            $sid = $sub['transport']['session_id'] ?? null;
+            if ($sid) {
+                $liveSessionIds[$sid] = true;
+            }
+        }
+    }
+
+    // Iterate user's stored sessions and delete ones not present in liveSessionIds
+    $stmt = $db->prepare("SELECT session_id FROM eventsub_sessions");
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $deleted = 0;
+    $deletedSessions = [];
+
+    while ($row = $result->fetch_assoc()) {
+        $sid = $row['session_id'];
+        if (!isset($liveSessionIds[$sid])) {
+            $del = $db->prepare("DELETE FROM eventsub_sessions WHERE session_id = ?");
+            $del->bind_param('s', $sid);
+            $del->execute();
+            if ($del->affected_rows > 0) {
+                $deleted++;
+                $deletedSessions[] = $sid;
+            }
+            $del->close();
+        }
+    }
+
+    $stmt->close();
+
+    echo json_encode([
+        'success' => true,
+        'deleted' => $deleted,
+        'deleted_sessions' => $deletedSessions
+    ]);
 }

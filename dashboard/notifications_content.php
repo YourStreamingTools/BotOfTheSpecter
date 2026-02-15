@@ -93,6 +93,9 @@ if ($sessionCount >= 3) {
             <button onclick="refreshSubscriptions()" class="refresh-btn" style="margin-left: auto; float: right; border: none; background: none; cursor: pointer; color: inherit;">
                 <i class="fas fa-sync-alt"></i> Refresh
             </button>
+            <button onclick="cleanDatabaseSessions()" class="custom-btn" style="margin-right: 8px; float: right;">
+                <i class="fas fa-broom"></i> Clean stale DB
+            </button>
         </h2>
         <div class="info-box">
             <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
