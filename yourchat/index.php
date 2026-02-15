@@ -352,6 +352,83 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_chat_history' && $_SERV
     exit;
 }
 
+// Handle activity feed load
+if (isset($_GET['action']) && $_GET['action'] === 'load_activity_feed') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/activity-logs';
+    $activityFile = $logsDir . '/' . $userId . '_activity_feed.json';
+    if (file_exists($activityFile)) {
+        $activities = json_decode(file_get_contents($activityFile), true);
+        echo json_encode(['success' => true, 'activities' => $activities ?? []]);
+    } else {
+        echo json_encode(['success' => true, 'activities' => []]);
+    }
+    exit;
+}
+
+// Handle activity feed save
+if (isset($_GET['action']) && $_GET['action'] === 'save_activity_feed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/activity-logs';
+    $activityFile = $logsDir . '/' . $userId . '_activity_feed.json';
+    // Create directory if it doesn't exist
+    if (!is_dir($logsDir)) {
+        if (!mkdir($logsDir, 0755, true)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to create directory']);
+            exit;
+        }
+    }
+    // Get JSON data from request body
+    $jsonData = file_get_contents('php://input');
+    if (empty($jsonData)) {
+        echo json_encode(['success' => false, 'error' => 'No data received']);
+        exit;
+    }
+    $activities = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
+        exit;
+    }
+    // Save to file
+    if (file_put_contents($activityFile, json_encode($activities, JSON_UNESCAPED_UNICODE)) === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to write to file']);
+        exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+// Handle activity feed clear
+if (isset($_GET['action']) && $_GET['action'] === 'clear_activity_feed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/activity-logs';
+    $activityFile = $logsDir . '/' . $userId . '_activity_feed.json';
+    // Delete the file if it exists
+    if (file_exists($activityFile)) {
+        if (!unlink($activityFile)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to delete activity file']);
+            exit;
+        }
+    }
+    echo json_encode(['success' => true, 'message' => 'Activity feed cleared']);
+    exit;
+}
+
 // Handle EventSub session ID save
 if (isset($_GET['action']) && $_GET['action'] === 'save_session_id' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -592,6 +669,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 maxlength="500">
             <button class="send-message-btn" id="send-message-btn" onclick="sendChatMessage()"
                 title="Send Message">Send</button>
+        </div>
+        <div class="activity-feed-container" id="activity-feed-container">
+            <div class="activity-feed-header">
+                <h3>✨ Activity Feed</h3>
+                <div class="activity-feed-controls">
+                    <button class="activity-feed-toggle-btn" id="activity-feed-toggle" onclick="toggleActivityFeed()" title="Collapse Activity Feed">−</button>
+                    <button class="activity-feed-clear-btn" id="activity-feed-clear" onclick="clearActivityFeed()" title="Clear Activity Feed">🗑️</button>
+                </div>
+            </div>
+            <div class="activity-feed-scroll" id="activity-feed-scroll">
+                <div class="activity-feed-content" id="activity-feed">
+                    <p class="activity-placeholder">No recent activity</p>
+                </div>
+            </div>
         </div>
         <script>
             // Configuration
@@ -1408,6 +1499,210 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     console.error('Error loading chat history:', error);
                 }
             }
+            // Activity Feed Management
+            let activityFeed = [];
+            const MAX_ACTIVITY_ITEMS = 100;
+            let activityFeedCollapsed = false;
+            // Add activity to feed
+            function addActivity(type, user, details) {
+                const activity = {
+                    type: type,
+                    user: user,
+                    details: details,
+                    timestamp: new Date().toISOString(),
+                    id: Date.now() + Math.random()
+                };
+                activityFeed.push(activity);
+                // Trim to max items
+                if (activityFeed.length > MAX_ACTIVITY_ITEMS) {
+                    activityFeed = activityFeed.slice(-MAX_ACTIVITY_ITEMS);
+                }
+                renderActivity(activity);
+                saveActivityFeed();
+            }
+            // Render a single activity item
+            function renderActivity(activity) {
+                const feedContainer = document.getElementById('activity-feed');
+                const placeholder = feedContainer.querySelector('.activity-placeholder');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+                const activityCard = document.createElement('div');
+                activityCard.className = `activity-card activity-${activity.type}`;
+                activityCard.dataset.id = activity.id;
+                // Build activity card HTML
+                let icon = '';
+                let title = '';
+                let description = '';
+                switch(activity.type) {
+                    case 'raid':
+                        icon = '🎯';
+                        title = 'Raid';
+                        description = `<strong>${activity.user.name}</strong> raided with <strong>${activity.details.viewers}</strong> viewers!`;
+                        break;
+                    case 'cheer':
+                        icon = '💎';
+                        title = 'Cheer';
+                        description = `<strong>${activity.user.name}</strong> cheered <strong>${activity.details.bits}</strong> bits!`;
+                        if (activity.details.message) {
+                            description += `<br><span class="activity-message">${escapeHtml(activity.details.message)}</span>`;
+                        }
+                        break;
+                    case 'subscription':
+                        icon = '⭐';
+                        title = activity.details.is_gift ? 'Gift Sub' : 'Subscription';
+                        if (activity.details.is_gift) {
+                            description = `<strong>${activity.user.name}</strong> gifted a Tier ${activity.details.tier} sub!`;
+                        } else {
+                            description = `<strong>${activity.user.name}</strong> subscribed (Tier ${activity.details.tier})!`;
+                            if (activity.details.cumulative_months > 1) {
+                                description += ` ${activity.details.cumulative_months} months total!`;
+                            }
+                        }
+                        break;
+                    case 'follow':
+                        icon = '❤️';
+                        title = 'Follow';
+                        description = `<strong>${activity.user.name}</strong> followed!`;
+                        break;
+                    case 'redemption':
+                        icon = '🎁';
+                        title = 'Channel Points';
+                        description = `<strong>${activity.user.name}</strong> redeemed <strong>${activity.details.reward_title}</strong>`;
+                        if (activity.details.cost) {
+                            description += ` (${activity.details.cost} pts)`;
+                        }
+                        break;
+                    case 'hypetrain':
+                        icon = '🔥';
+                        title = 'Hype Train';
+                        description = `Hype Train Level <strong>${activity.details.level}</strong>! Progress: ${activity.details.progress}/${activity.details.goal}`;
+                        break;
+                }
+                activityCard.innerHTML = `
+                    <div class="activity-icon">${icon}</div>
+                    <div class="activity-content">
+                        ${activity.user.avatar ? `<img src="${activity.user.avatar}" class="activity-avatar" alt="${activity.user.name}">` : ''}
+                        <div class="activity-details">
+                            <div class="activity-description">${description}</div>
+                            <div class="activity-timestamp">${getRelativeTime(activity.timestamp)}</div>
+                        </div>
+                    </div>
+                `;
+                feedContainer.appendChild(activityCard);
+                // Scroll to the right (latest activity)
+                const scrollContainer = document.getElementById('activity-feed-scroll');
+                if (scrollContainer) {
+                    scrollContainer.scrollLeft = scrollContainer.scrollWidth;
+                }
+                // Animate card entrance
+                setTimeout(() => {
+                    activityCard.classList.add('activity-entered');
+                }, 10);
+            }
+            // Get relative time string
+            function getRelativeTime(timestamp) {
+                const now = new Date();
+                const then = new Date(timestamp);
+                const seconds = Math.floor((now - then) / 1000);
+                
+                if (seconds < 60) return 'just now';
+                if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+                if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+                return `${Math.floor(seconds / 86400)}d ago`;
+            }
+            // Escape HTML to prevent XSS
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+            // Toggle activity feed visibility
+            function toggleActivityFeed() {
+                const container = document.getElementById('activity-feed-container');
+                const toggleBtn = document.getElementById('activity-feed-toggle');
+                activityFeedCollapsed = !activityFeedCollapsed;
+                if (activityFeedCollapsed) {
+                    container.classList.add('collapsed');
+                    toggleBtn.textContent = '+';
+                    toggleBtn.title = 'Expand Activity Feed';
+                } else {
+                    container.classList.remove('collapsed');
+                    toggleBtn.textContent = '−';
+                    toggleBtn.title = 'Collapse Activity Feed';
+                }
+            }
+            // Clear activity feed
+            async function clearActivityFeed() {
+                if (!confirm('Clear all activity feed items?')) return;
+                try {
+                    activityFeed = [];
+                    const feedContainer = document.getElementById('activity-feed');
+                    feedContainer.innerHTML = '<p class="activity-placeholder">No recent activity</p>';
+                    const response = await fetch('?action=clear_activity_feed', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to clear activity feed:', result.error);
+                    }
+                } catch (error) {
+                    console.error('Error clearing activity feed:', error);
+                }
+            }
+            // Save activity feed to server
+            async function saveActivityFeed() {
+                try {
+                    const response = await fetch('?action=save_activity_feed', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(activityFeed)
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Failed to save activity feed:', result.error);
+                    }
+                } catch (error) {
+                    console.error('Error saving activity feed:', error);
+                }
+            }
+            // Load activity feed from server
+            async function loadActivityFeed() {
+                try {
+                    const response = await fetch('?action=load_activity_feed');
+                    const result = await response.json();
+                    if (result.success && result.activities && result.activities.length > 0) {
+                        activityFeed = result.activities;
+                        const feedContainer = document.getElementById('activity-feed');
+                        feedContainer.innerHTML = '';
+                        activityFeed.forEach(activity => {
+                            renderActivity(activity);
+                        });
+                        // Update timestamps periodically
+                        updateActivityTimestamps();
+                    }
+                } catch (error) {
+                    console.error('Error loading activity feed:', error);
+                }
+            }
+            // Update timestamps in activity feed
+            function updateActivityTimestamps() {
+                const feedContainer = document.getElementById('activity-feed');
+                const activityCards = feedContainer.querySelectorAll('.activity-card');
+                activityCards.forEach(card => {
+                    const id = card.dataset.id;
+                    const activity = activityFeed.find(a => a.id == id);
+                    if (activity) {
+                        const timestampEl = card.querySelector('.activity-timestamp');
+                        if (timestampEl) {
+                            timestampEl.textContent = getRelativeTime(activity.timestamp);
+                        }
+                    }
+                });
+            }
+            // Update timestamps every minute
+            setInterval(updateActivityTimestamps, 60000);
             // Filter management
             function renderFilters() {
                 // usernames
@@ -2628,6 +2923,20 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
+            // Add to activity feed for subscriptions
+            if (['sub', 'resub', 'sub_gift'].includes(event.notice_type)) {
+                const isGift = event.notice_type === 'sub_gift';
+                const tier = event.sub_tier ? event.sub_tier.replace('tier_', '') : '1';
+                const months = event.cumulative_months || 1;
+                addActivity('subscription', {
+                    name: event.chatter_user_name || event.chatter_user_login || 'Anonymous',
+                    avatar: null
+                }, {
+                    is_gift: isGift,
+                    tier: tier,
+                    cumulative_months: months
+                });
+            }
         }
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -2795,6 +3104,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
+            // Add to activity feed
+            const rewardTitle = rewardTypeNames[event.reward.type] || event.reward.type?.replace(/_/g, ' ') || 'Unknown Reward';
+            addActivity('redemption', {
+                name: event.user_name || event.user_login,
+                avatar: null
+            }, {
+                reward_title: rewardTitle,
+                cost: event.reward.cost
+            });
         }
         // Channel Points Custom Reward handling
         function handleCustomReward(event) {
@@ -2867,6 +3185,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
+            // Add to activity feed
+            addActivity('redemption', {
+                name: event.user_name || event.user_login,
+                avatar: null
+            }, {
+                reward_title: event.reward?.title || 'Custom Reward',
+                cost: event.reward?.cost
+            });
         }
         // Raid event handling
         function handleRaidEvent(event) {
@@ -2889,6 +3215,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
+            // Add to activity feed
+            addActivity('raid', {
+                name: event.from_broadcaster_user_name,
+                avatar: null
+            }, {
+                viewers: event.viewers
+            });
         }
         // Bits event handling
         function handleBitsEvent(event) {
@@ -2943,6 +3276,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
+            // Add to activity feed
+            const message = (event.type === 'cheer' && event.message && event.message.text) ? event.message.text : '';
+            addActivity('cheer', {
+                name: event.user_name,
+                avatar: null
+            }, {
+                bits: event.bits,
+                message: message || null
+            });
         }
         // Send chat message function
         async function sendChatMessage() {
@@ -3027,6 +3369,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             await loadSettingsFromServer();
             // Load chat history (only once, and only if overlay is empty)
             await loadChatHistory();
+            // Load activity feed
+            await loadActivityFeed();
             // Initialize UI with server settings
             migrateOldFilters();
             renderFilters();
