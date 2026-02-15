@@ -1346,12 +1346,21 @@ input[type="range"].modern-volume::-ms-tooltip {
 }
 
 .warning-card {
-    background: rgba(255, 68, 68, 0.1);
-    border: 1px solid rgba(255, 68, 68, 0.3);
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
 }
 
 .warning-card .stat-value {
-    color: #ff4444;
+    color: #ff9800;
+}
+
+.danger-card {
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.danger-card .stat-value {
+    color: #f44336;
 }
 
 .session-group {
