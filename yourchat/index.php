@@ -2141,9 +2141,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     </p>
                     <p style="margin-top: 15px; font-size: 14px;">
                         <strong>Solutions:</strong><br>
-                        • <a href="debug_connections.php" style="color: #9147ff;">View and manage active connections</a><br>
                         • Restart your Twitch bot to free up a session<br>
-                        • Delete old/disconnected sessions from the debug page<br>
                         • Wait a few minutes and try again
                     </p>
                 `;
@@ -3075,11 +3073,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         <p>&copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
             (ABN 20 447 022 747).</p>
-        <?php if ($isLoggedIn): ?>
-        <p style="margin-top: 10px; font-size: 12px; opacity: 0.5;">
-            <a href="debug_connections.php" style="color: #9147ff; text-decoration: none;" title="Debug EventSub Connections">🔍 Debug Connections</a>
-        </p>
-        <?php endif; ?>
     </footer>
 </body>
 
