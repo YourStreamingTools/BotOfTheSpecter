@@ -562,6 +562,21 @@ async def refresh_twitch_token(current_refresh_token):
         twitch_logger.error(f"Twitch token refresh error: {e}")
     return time.time() + 3600  # Default retry time of 1 hour
 
+# Save EventSub session ID to database
+async def save_eventsub_session_id(session_id):
+    try:
+        session_name = f"{SYSTEM} Bot"
+        async with await mysql_handler.get_connection() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "INSERT INTO eventsub_sessions (session_id, session_name) VALUES (%s, %s) "
+                    "ON DUPLICATE KEY UPDATE session_name = %s, last_updated = CURRENT_TIMESTAMP",
+                    (session_id, session_name, session_name)
+                )
+        event_logger.info(f"Saved EventSub session ID to database: {session_id} as '{session_name}'")
+    except Exception as e:
+        event_logger.error(f"Failed to save EventSub session ID to database: {e}")
+
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
@@ -577,6 +592,8 @@ async def twitch_eventsub():
                     keepalive_timeout = eventsub_welcome_data['payload']['session']['keepalive_timeout_seconds']
                     event_logger.info(f"Twitch WS Connected with session ID: {session_id}")
                     event_logger.info(f"Twitch WS Keepalive timeout: {keepalive_timeout} seconds")
+                    # Save session ID to database
+                    await save_eventsub_session_id(session_id)
                     # Subscribe to the events using the session ID and auth token
                     await subscribe_to_events(session_id)
                     # Manage keepalive and listen for messages concurrently
