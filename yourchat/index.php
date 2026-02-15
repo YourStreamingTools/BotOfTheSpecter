@@ -2923,7 +2923,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Check if this user needs to be marked as joined first
             const userLogin = event.chatter_user_login;
-            const userKey = userId || (userLogin ? userLogin.toLowerCase() : null);
+            const userKey = event.chatter_user_id || (userLogin ? userLogin.toLowerCase() : null);
             if (presenceEnabled && userKey && !activeChatters.has(userKey) && !messageBasedChatters.has(userKey)) {
                 // User hasn't been detected by presence system, mark them as joined via message
                 messageBasedChatters.add(userKey);
