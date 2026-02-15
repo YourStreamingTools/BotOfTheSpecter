@@ -53,6 +53,44 @@ if (isset($_POST['delete_subscription']) && isset($_POST['subscription_id'])) {
     exit;
 }
 
+// Handle bulk session deletion
+if (isset($_POST['delete_session']) && isset($_POST['subscription_ids'])) {
+    $subIds = json_decode($_POST['subscription_ids'], true);
+    if (is_array($subIds) && count($subIds) > 0) {
+        $deletedCount = 0;
+        $failedCount = 0;
+        foreach ($subIds as $subId) {
+            $ch = curl_init("https://api.twitch.tv/helix/eventsub/subscriptions?id=" . urlencode($subId));
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Client-Id: ' . $clientID
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($httpCode === 204) {
+                $deletedCount++;
+            } else {
+                $failedCount++;
+            }
+            // Small delay to avoid rate limiting
+            usleep(100000); // 0.1 seconds
+        }
+        if ($deletedCount > 0 && $failedCount === 0) {
+            $deleteSuccess = "Successfully deleted {$deletedCount} subscription(s) from session.";
+        } elseif ($deletedCount > 0 && $failedCount > 0) {
+            $deleteSuccess = "Deleted {$deletedCount} subscription(s), but {$failedCount} failed.";
+        } else {
+            $deleteError = "Failed to delete subscriptions from session.";
+        }
+    }
+    // Redirect to prevent form resubmission
+    header("Location: notifications.php");
+    exit;
+}
+
 // Fetch all EventSub subscriptions (including stale/disabled)
 $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -83,19 +121,33 @@ if ($httpCode === 200) {
     $error = "Failed to fetch subscriptions. HTTP Code: $httpCode";
 }
 
-// Group subscriptions by transport type and session
+// Group subscriptions by transport type, session, and status
 $websocketSubs = [];
+$websocketSubsEnabled = [];
+$websocketSubsDisabled = [];
 $webhookSubs = [];
 $sessionGroups = [];
+$sessionGroupsDisabled = [];
 
 foreach ($subscriptions as $sub) {
     if ($sub['transport']['method'] === 'websocket') {
         $websocketSubs[] = $sub;
         $sessionId = $sub['transport']['session_id'] ?? 'unknown';
-        if (!isset($sessionGroups[$sessionId])) {
-            $sessionGroups[$sessionId] = [];
+        $isEnabled = ($sub['status'] === 'enabled');
+        
+        if ($isEnabled) {
+            $websocketSubsEnabled[] = $sub;
+            if (!isset($sessionGroups[$sessionId])) {
+                $sessionGroups[$sessionId] = [];
+            }
+            $sessionGroups[$sessionId][] = $sub;
+        } else {
+            $websocketSubsDisabled[] = $sub;
+            if (!isset($sessionGroupsDisabled[$sessionId])) {
+                $sessionGroupsDisabled[$sessionId] = [];
+            }
+            $sessionGroupsDisabled[$sessionId][] = $sub;
         }
-        $sessionGroups[$sessionId][] = $sub;
     } else {
         $webhookSubs[] = $sub;
     }
@@ -146,10 +198,15 @@ ob_start();
                 <div class="stat-value"><?php echo $totalCount; ?></div>
                 <div class="stat-secondary">across all transports</div>
             </div>
-            <div class="stat-card <?php echo (count($websocketSubs) > 250 || count($sessionGroups) >= 3) ? 'warning-card' : ''; ?>">
-                <div class="stat-label">WebSocket Subscriptions</div>
-                <div class="stat-value"><?php echo count($websocketSubs); ?></div>
+            <div class="stat-card <?php echo (count($websocketSubsEnabled) > 250 || count($sessionGroups) >= 3) ? 'warning-card' : ''; ?>">
+                <div class="stat-label">Active WebSocket Subscriptions</div>
+                <div class="stat-value"><?php echo count($websocketSubsEnabled); ?></div>
                 <div class="stat-secondary"><?php echo count($sessionGroups); ?> active sessions (limit: 3)</div>
+                <?php if (count($websocketSubsDisabled) > 0): ?>
+                    <div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">
+                        <?php echo count($websocketSubsDisabled); ?> disabled/stale
+                    </div>
+                <?php endif; ?>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Webhook Subscriptions</div>
@@ -165,7 +222,7 @@ ob_start();
         <?php if (count($sessionGroups) > 0): ?>
             <div class="box">
                 <h2 class="title is-4">
-                    <i class="fas fa-network-wired"></i> WebSocket Sessions
+                    <i class="fas fa-network-wired"></i> Active WebSocket Sessions
                     <a href="notifications.php" class="refresh-btn" style="margin-left: auto; float: right;">
                         <i class="fas fa-sync-alt"></i> Refresh
                     </a>
@@ -173,7 +230,7 @@ ob_start();
                 <div class="info-box">
                     <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
                     Each session below counts toward that limit. Your bot and YourChat each need their own session. 
-                    If you hit the limit, delete old/unused sessions. Stale or disabled subscriptions are shown with color-coded status badges.
+                    If you hit the limit, delete old/unused sessions.
                 </div>
                 <?php 
                 $sessionNumber = 0;
@@ -210,6 +267,99 @@ ob_start();
                             <tbody>
                                 <?php foreach ($subs as $sub): ?>
                                     <tr>
+                                        <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
+                                        <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
+                                        <td style="font-size: 12px; color: #aaa;">
+                                            <?php 
+                                            $conditions = [];
+                                            foreach ($sub['condition'] as $key => $value) {
+                                                if ($value === $userId) {
+                                                    $conditions[] = "$key: <strong style='color: #00ff00;'>YOU</strong>";
+                                                } else {
+                                                    $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
+                                                }
+                                            }
+                                            echo implode('<br>', $conditions);
+                                            ?>
+                                        </td>
+                                        <td>
+                                            <?php 
+                                            $status = $sub['status'];
+                                            $statusClass = 'status-' . strtolower($status);
+                                            ?>
+                                            <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
+                                        </td>
+                                        <td style="font-size: 12px; color: #aaa;">
+                                            <?php 
+                                            $created = new DateTime($sub['created_at']);
+                                            echo $created->format('M d, H:i:s');
+                                            ?>
+                                        </td>
+                                        <td>
+                                            <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this subscription?');">
+                                                <input type="hidden" name="subscription_id" value="<?php echo htmlspecialchars($sub['id']); ?>">
+                                                <button type="submit" name="delete_subscription" class="delete-btn">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+        <?php if (count($sessionGroupsDisabled) > 0): ?>
+            <div class="box" style="border-left: 3px solid #e74c3c;">
+                <h2 class="title is-4">
+                    <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
+                </h2>
+                <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
+                    <strong><i class="fas fa-info-circle"></i> Note:</strong> These subscriptions are no longer active and can be safely deleted. 
+                    They do not count toward your connection or subscription limits.
+                </div>
+                <?php 
+                $sessionNumber = 0;
+                foreach ($sessionGroupsDisabled as $sessionId => $subs): 
+                    $sessionNumber++;
+                    // Check if we have a name for this session in the database
+                    if (isset($sessionNames[$sessionId]) && !empty($sessionNames[$sessionId])) {
+                        $sessionName = $sessionNames[$sessionId];
+                    } else {
+                        // Fall back to numbered format if no name found
+                        $sessionName = "WebSocket Session " . $sessionNumber;
+                    }
+                ?>
+                    <div class="session-group">
+                        <div class="session-header">
+                            <div>
+                                <strong>Session Name:</strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
+                                <br>
+                                <strong>Session ID:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
+                            </div>
+                            <div class="sub-count">
+                                <?php echo count($subs); ?> subscriptions
+                                <button class="custom-btn" onclick="deleteAllInSession('<?php echo htmlspecialchars($sessionId, ENT_QUOTES, 'UTF-8'); ?>', <?php echo count($subs); ?>, '<?php echo htmlspecialchars($sessionName, ENT_QUOTES, 'UTF-8'); ?>')" style="margin-left: 10px;">
+                                    <i class="fas fa-trash-alt"></i> Delete All in Session
+                                </button>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Version</th>
+                                    <th>Condition</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($subs as $sub): ?>
+                                    <tr style="opacity: 0.7;">
                                         <td><span class="sub-type"><?php echo htmlspecialchars($sub['type']); ?></span></td>
                                         <td><span class="sub-version">v<?php echo htmlspecialchars($sub['version']); ?></span></td>
                                         <td style="font-size: 12px; color: #aaa;">
@@ -308,6 +458,65 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+function deleteAllInSession(sessionId, count, sessionName) {
+    if (!confirm(`Are you sure you want to delete all ${count} subscriptions from "${sessionName}"?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    // Collect all subscription IDs from this session
+    const subscriptionIds = [];
+    const tables = document.querySelectorAll('.session-group');
+    
+    tables.forEach(table => {
+        const sessionIdElement = table.querySelector('.session-id');
+        if (sessionIdElement && sessionIdElement.textContent === sessionId) {
+            const forms = table.querySelectorAll('form[method="POST"]');
+            forms.forEach(form => {
+                const subIdInput = form.querySelector('input[name="subscription_id"]');
+                if (subIdInput) {
+                    subscriptionIds.push(subIdInput.value);
+                }
+            });
+        }
+    });
+    
+    if (subscriptionIds.length === 0) {
+        alert('No subscriptions found to delete.');
+        return;
+    }
+    
+    // Show loading state
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    
+    // Send POST request
+    const formData = new FormData();
+    formData.append('delete_session', '1');
+    formData.append('subscription_ids', JSON.stringify(subscriptionIds));
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            throw new Error('Failed to delete subscriptions');
+        }
+    })
+    .catch(error => {
+        alert('Error deleting subscriptions: ' + error.message);
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+</script>
+
 <?php
 $content = ob_get_clean();
 include "layout.php";
