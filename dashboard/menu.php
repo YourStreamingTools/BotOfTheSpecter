@@ -21,6 +21,7 @@ function getMenuItems()
         ]],
         [ 'label' => t('navbar_analytics'), 'icon' => 'fas fa-chart-line', 'submenu' => [
             [ 'label' => t('navbar_bot_logs'), 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],
+            [ 'label' => 'EventSub Notifications', 'icon' => 'fas fa-bell', 'href' => 'notifications.php' ],
             [ 'label' => t('navbar_counters'), 'icon' => 'fas fa-calculator', 'href' => 'counters.php' ],
             [ 'label' => 'Schedule', 'icon' => 'fas fa-calendar-days', 'href' => 'schedule.php' ],
             [ 'label' => t('navbar_followers'), 'icon' => 'fas fa-user-plus', 'href' => 'followers.php' ],
