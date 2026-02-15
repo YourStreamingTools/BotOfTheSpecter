@@ -532,6 +532,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // State management
             let ws = null;
             let sessionId = null;
+            let connectionErrorToast = null; // Track connection error toast to dismiss on success
             let accessToken = CONFIG.ACCESS_TOKEN;
             let tokenCreatedAt = CONFIG.TOKEN_CREATED_AT;
             let tokenExpiresIn = null; // Actual expires_in from Twitch validation API
@@ -1865,8 +1866,209 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             }, timeoutDuration);
         }
+        // Track YourChat session IDs to safely cleanup only our own subscriptions
+        function storeYourChatSessionId(sid) {
+            try {
+                const stored = JSON.parse(localStorage.getItem('yourchat_session_ids') || '[]');
+                if (!stored.includes(sid)) {
+                    stored.push(sid);
+                    // Keep only last 5 session IDs to prevent unbounded growth
+                    if (stored.length > 5) stored.shift();
+                    localStorage.setItem('yourchat_session_ids', JSON.stringify(stored));
+                    console.log(`📝 YourChat session ${sid} tracked for future cleanup (${stored.length} sessions tracked)`);
+                }
+            } catch (e) {
+                console.warn('Failed to store session ID:', e);
+            }
+        }
+        function getYourChatSessionIds() {
+            try {
+                return JSON.parse(localStorage.getItem('yourchat_session_ids') || '[]');
+            } catch (e) {
+                return [];
+            }
+        }
+        function removeYourChatSessionId(sid) {
+            try {
+                const stored = JSON.parse(localStorage.getItem('yourchat_session_ids') || '[]');
+                const filtered = stored.filter(id => id !== sid);
+                if (filtered.length < stored.length) {
+                    localStorage.setItem('yourchat_session_ids', JSON.stringify(filtered));
+                    console.log(`🗑️ YourChat session ${sid} removed from tracking (${filtered.length} sessions remaining)`);
+                }
+            } catch (e) {
+                console.warn('Failed to remove session ID:', e);
+            }
+        }
+        // Safely cleanup ONLY old YourChat subscriptions, leave bot subscriptions untouched
+        async function cleanupOldYourChatSubscriptions() {
+            try {
+                const ourOldSessionIds = getYourChatSessionIds();
+                if (ourOldSessionIds.length === 0) {
+                    console.log('✓ No old YourChat sessions to cleanup');
+                    return;
+                }
+                console.log(`🔍 Checking for old YourChat subscriptions (${ourOldSessionIds.length} old sessions tracked)`);
+                console.log(`   Old sessions: ${ourOldSessionIds.join(', ')}`);
+                console.log(`   ⚠️ Bot subscriptions will NOT be touched`);
+                const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions?status=enabled', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Client-Id': CONFIG.CLIENT_ID
+                    }
+                });
+                if (!response.ok) {
+                    console.warn('Failed to fetch existing subscriptions:', response.status);
+                    return;
+                }
+                const data = await response.json();
+                const subscriptions = data.data || [];
+                // Only delete subscriptions that match OUR old session IDs
+                // This ensures we don't touch the bot's subscriptions
+                const toDelete = subscriptions.filter(sub => {
+                    if (sub.transport?.method !== 'websocket') return false;
+                    const sessionId = sub.transport?.session_id;
+                    return sessionId && ourOldSessionIds.includes(sessionId);
+                });
+                if (toDelete.length === 0) {
+                    console.log('✓ No old YourChat subscriptions found (bot subscriptions safe)');
+                    return;
+                }
+                console.log(`🧹 Cleaning up ${toDelete.length} old YourChat subscriptions...`);
+                // Delete old subscriptions with delay to avoid rate limits
+                for (const sub of toDelete) {
+                    try {
+                        const delResponse = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${sub.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Client-Id': CONFIG.CLIENT_ID
+                            }
+                        });
+                        if (delResponse.ok) {
+                            console.log(`  ✓ Deleted old YourChat subscription: ${sub.type}`);
+                            // Remove this session ID from storage once its subscriptions are cleaned
+                            removeYourChatSessionId(sub.transport?.session_id);
+                        } else {
+                            console.warn(`  ⚠ Failed to delete subscription ${sub.id}:`, delResponse.status);
+                        }
+                        // Small delay to avoid rate limits
+                        await new Promise(resolve => setTimeout(resolve, 150));
+                    } catch (error) {
+                        console.error(`  ✗ Error deleting subscription ${sub.id}:`, error);
+                    }
+                }
+                console.log('✅ YourChat cleanup complete - bot subscriptions remain intact');
+            } catch (error) {
+                console.error('Error in cleanupOldYourChatSubscriptions:', error);
+            }
+        }
+        // Check current EventSub subscription counts before attempting to subscribe
+        async function checkSubscriptionLimits() {
+            try {
+                const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions?status=enabled', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Client-Id': CONFIG.CLIENT_ID
+                    }
+                });
+                if (!response.ok) {
+                    console.warn('Failed to check subscription limits:', response.status);
+                    return { canSubscribe: true, reason: null }; // Proceed if we can't check
+                }
+                const data = await response.json();
+                const allSubs = data.data || [];
+                // Count WebSocket subscriptions
+                const websocketSubs = allSubs.filter(sub => sub.transport?.method === 'websocket');
+                const websocketCount = websocketSubs.length;
+                // Count unique WebSocket sessions
+                const sessions = new Set();
+                websocketSubs.forEach(sub => {
+                    if (sub.transport?.session_id) {
+                        sessions.add(sub.transport.session_id);
+                    }
+                });
+                const sessionCount = sessions.size;
+                console.log(`📊 Current state: ${websocketCount} WebSocket subs across ${sessionCount} sessions (limit: 3 sessions)`);
+                // Twitch limits: Maximum 3 WebSocket connections per user token
+                // Each connection can have up to 300 subscriptions
+                if (sessionCount >= 3) {
+                    return {
+                        canSubscribe: false,
+                        reason: 'websocket_session_limit',
+                        count: websocketCount,
+                        sessions: sessionCount,
+                        limit: 3,
+                        message: `You currently have ${sessionCount} active WebSocket sessions (limit: 3). Twitch allows a maximum of 3 WebSocket connections per account. Your bot is likely using ${sessionCount} sessions. You need to close an existing connection before creating a new one.`
+                    };
+                }
+                // Warn if we're at 2 sessions (one more would hit the limit)
+                if (sessionCount === 2) {
+                    console.warn(`⚠️ You have ${sessionCount}/3 WebSocket sessions active. You can create 1 more connection.`);
+                }
+                return { canSubscribe: true, reason: null, sessions: sessionCount };
+            } catch (error) {
+                console.error('Error checking subscription limits:', error);
+                return { canSubscribe: true, reason: null }; // Proceed if check fails
+            }
+        }
         async function subscribeToEvents(sessionIdOverride) {
             const sid = sessionIdOverride || sessionId;
+            // Check if we're already at subscription limits
+            const limitCheck = await checkSubscriptionLimits();
+            if (!limitCheck.canSubscribe) {
+                console.error('❌ Cannot create subscriptions:', limitCheck.message);
+                // Show error to user
+                updateStatus(false, 'Connection Limit Reached');
+                const overlay = document.getElementById('chat-overlay');
+                const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                clearPlaceholderOnly();
+                if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = 'color: #ff4444; text-align: center; padding: 20px; max-width: 600px; margin: 0 auto;';
+                errorDiv.innerHTML = `
+                    <h3>⚠️ WebSocket Session Limit Reached</h3>
+                    <p style="margin: 15px 0; line-height: 1.6;">${limitCheck.message}</p>
+                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <strong>Current Status:</strong><br>
+                        ${limitCheck.sessions}/${limitCheck.limit} WebSocket sessions (LIMIT REACHED)<br>
+                        ${limitCheck.count} total subscriptions
+                    </div>
+                    <p style="margin-top: 15px; font-size: 14px;">
+                        <strong>📘 Twitch Limits:</strong> Maximum 3 WebSocket connections per account<br>
+                        <strong>🤖 Your Bot:</strong> Using ${limitCheck.sessions - 1} session(s)<br>
+                        <strong>💬 YourChat:</strong> Needs 1 session
+                    </p>
+                    <p style="margin-top: 15px; font-size: 14px;">
+                        <strong>Solutions:</strong><br>
+                        • <a href="debug_connections.php" style="color: #9147ff;">View and manage active connections</a><br>
+                        • Restart your Twitch bot to free up a session<br>
+                        • Delete old/disconnected sessions from the debug page<br>
+                        • Wait a few minutes and try again
+                    </p>
+                `;
+                overlay.appendChild(errorDiv);
+                // Show toast notification
+                Toastify({
+                    text: `WebSocket limit: ${limitCheck.sessions}/${limitCheck.limit} sessions active`,
+                    duration: 8000,
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: '#ff4444',
+                    style: { fontSize: '14px' }
+                }).showToast();
+                
+                return 0; // Return 0 subscriptions created
+            }
+            
+            // Log success status if we can proceed
+            if (limitCheck.sessions !== undefined) {
+                console.log(`✅ WebSocket session check passed: ${limitCheck.sessions}/3 sessions in use`);
+            }
+            
+            console.log(`🔌 Creating subscriptions for session ${sid}`);
             const subscriptions = [
                 {
                     type: 'channel.chat.message',
@@ -1922,7 +2124,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             ];
             let successCount = 0;
+            let transportLimitExceeded = false;
             for (const sub of subscriptions) {
+                // If we hit the transport limit, stop trying more subscriptions
+                if (transportLimitExceeded) {
+                    console.warn(`⏭️ Skipping ${sub.type} (transport limit reached)`);
+                    continue;
+                }
                 const subscriptionData = {
                     ...sub,
                     transport: {
@@ -1942,16 +2150,68 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     });
                     const result = await response.json().catch(() => ({}));
                     if (response.ok) {
-                        console.log(`Successfully subscribed to ${sub.type} on session ${sid}`);
+                        console.log(`✓ Subscribed to ${sub.type}`);
+                        successCount++;
+                    } else if (response.status === 429) {
+                        // Check if it's the transport limit error specifically
+                        if (result.message && result.message.includes('websocket transports limit exceeded')) {
+                            console.error(`❌ WebSocket transport limit exceeded - your bot is likely using the available connections`);
+                            console.error(`💡 Solution: Close other WebSocket connections or restart your bot to free up slots`);
+                            transportLimitExceeded = true;
+                            // Show user-friendly error message and store reference
+                            connectionErrorToast = Toastify({
+                                text: 'Connection limit reached. Your bot may be using available slots. Try restarting the bot.',
+                                duration: 8000,
+                                gravity: 'top',
+                                position: 'right',
+                                backgroundColor: '#ff4444',
+                                style: { fontSize: '14px' }
+                            }).showToast();
+                            break; // Stop trying more subscriptions
+                        }
+                        // Regular rate limit - retry
+                        console.warn(`⚠ Rate limited on ${sub.type}, waiting...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        // Retry once
+                        const retryResponse = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Client-Id': CONFIG.CLIENT_ID,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(subscriptionData)
+                        });
+                        const retryResult = await retryResponse.json().catch(() => ({}));
+                        if (retryResponse.ok) {
+                            console.log(`✓ Subscribed to ${sub.type} (retry)`);
+                            successCount++;
+                        } else if (retryResponse.status === 429 && retryResult.message?.includes('websocket transports limit exceeded')) {
+                            console.error(`❌ WebSocket transport limit exceeded on retry`);
+                            transportLimitExceeded = true;
+                            break;
+                        } else {
+                            console.error(`✗ Subscription failed for ${sub.type}:`, retryResult);
+                        }
+                    } else if (response.status === 409) {
+                        // Subscription already exists - this is OK
+                        console.log(`✓ ${sub.type} (already subscribed)`);
                         successCount++;
                     } else {
-                        console.error(`Subscription failed for ${sub.type} on session ${sid}:`, result);
+                        console.error(`✗ Subscription failed for ${sub.type}:`, result);
                     }
+                    // Add delay between subscriptions to avoid rate limits
+                    await new Promise(resolve => setTimeout(resolve, 200));
                 } catch (error) {
-                    console.error(`Subscription error for ${sub.type} on session ${sid}:`, error);
+                    console.error(`✗ Subscription error for ${sub.type}:`, error);
                 }
             }
             if (successCount > 0) {
+                // Dismiss connection error toast if it was shown previously
+                if (connectionErrorToast) {
+                    connectionErrorToast.hideToast();
+                    connectionErrorToast = null;
+                }
                 const overlay = document.getElementById('chat-overlay');
                 // Only show "Connected to chat" if there are no messages loaded (including system messages)
                 const hasMessages = overlay.querySelector('.chat-message, .reward-message, .system-message');
@@ -1968,7 +2228,28 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     overlay.appendChild(p);
                 }
             } else {
-                updateStatus(false, 'Subscription Failed');
+                updateStatus(false, transportLimitExceeded ? 'Connection Limit Reached' : 'Subscription Failed');
+                if (transportLimitExceeded) {
+                    // Show error message in overlay
+                    const overlay = document.getElementById('chat-overlay');
+                    const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
+                    clearPlaceholderOnly();
+                    if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = 'color: #ff4444; text-align: center; padding: 20px;';
+                    errorDiv.innerHTML = `
+                        <h3>⚠️ Connection Limit Reached</h3>
+                        <p>Twitch limits the number of active WebSocket connections.</p>
+                        <p>Your bot is likely using the available slots.</p>
+                        <p style="margin-top: 15px; font-size: 14px;">
+                            <strong>Solutions:</strong><br>
+                            • Restart your Twitch bot to free up connections<br>
+                            • Wait a few minutes and refresh this page<br>
+                            • Check that you don't have multiple YourChat tabs open
+                        </p>
+                    `;
+                    overlay.appendChild(errorDiv);
+                }
             }
             return successCount;
         }
@@ -2696,6 +2977,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         <p>&copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
             (ABN 20 447 022 747).</p>
+        <?php if ($isLoggedIn): ?>
+        <p style="margin-top: 10px; font-size: 12px; opacity: 0.5;">
+            <a href="debug_connections.php" style="color: #9147ff; text-decoration: none;" title="Debug EventSub Connections">🔍 Debug Connections</a>
+        </p>
+        <?php endif; ?>
     </footer>
 </body>
 
