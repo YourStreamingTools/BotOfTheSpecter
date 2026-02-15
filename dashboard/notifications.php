@@ -53,8 +53,8 @@ if (isset($_POST['delete_subscription']) && isset($_POST['subscription_id'])) {
     exit;
 }
 
-// Fetch all EventSub subscriptions
-$ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions?status=enabled');
+// Fetch all EventSub subscriptions (including stale/disabled)
+$ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Authorization: Bearer ' . $accessToken,
@@ -173,7 +173,7 @@ ob_start();
                 <div class="info-box">
                     <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
                     Each session below counts toward that limit. Your bot and YourChat each need their own session. 
-                    If you hit the limit, delete old/unused sessions.
+                    If you hit the limit, delete old/unused sessions. Stale or disabled subscriptions are shown with color-coded status badges.
                 </div>
                 <?php 
                 $sessionNumber = 0;
@@ -226,7 +226,11 @@ ob_start();
                                             ?>
                                         </td>
                                         <td>
-                                            <span class="status-badge status-enabled"><?php echo htmlspecialchars($sub['status']); ?></span>
+                                            <?php 
+                                            $status = $sub['status'];
+                                            $statusClass = 'status-' . strtolower($status);
+                                            ?>
+                                            <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
                                         </td>
                                         <td style="font-size: 12px; color: #aaa;">
                                             <?php 
@@ -274,7 +278,11 @@ ob_start();
                                     <?php echo htmlspecialchars($sub['transport']['callback'] ?? 'N/A'); ?>
                                 </td>
                                 <td>
-                                    <span class="status-badge status-enabled"><?php echo htmlspecialchars($sub['status']); ?></span>
+                                    <?php 
+                                    $status = $sub['status'];
+                                    $statusClass = 'status-' . strtolower($status);
+                                    ?>
+                                    <span class="status-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
                                 </td>
                                 <td>
                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this subscription?');">
