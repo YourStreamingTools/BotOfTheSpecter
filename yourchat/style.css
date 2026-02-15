@@ -723,6 +723,17 @@ body {
     vertical-align: middle;
 }
 
+/* Placeholder for missing badges (keeps layout stable and aids debugging) */
+.chat-badge.placeholder-badge {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.06));
+    border: 1px solid rgba(255,255,255,0.03);
+    box-shadow: inset 0 0 1px rgba(0,0,0,0.25);
+}
+
 .chat-username {
     font-weight: bold;
     margin-right: 6px;
