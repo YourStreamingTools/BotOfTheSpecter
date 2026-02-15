@@ -992,182 +992,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             badgeCache[set.set_id][version.id] = version.image_url_1x;
                         });
                     });
+                    console.debug('Fetched badges — sets:', Object.keys(badgeCache).length, badgeCache);
                 } catch (error) {
                     console.error('Error fetching badges:', error);
                 }
             }
-            /*
-            // DEPRECATED: API polling removed - now using IRC JOIN/PART for presence tracking
-            // Fetch current chatters using Helix API with rate limit monitoring
-            async function fetchChattersFromAPI() {
-                try {
-                    const url = `https://api.twitch.tv/helix/chat/chatters?broadcaster_id=${CONFIG.USER_ID}&moderator_id=${CONFIG.USER_ID}`;
-                    const resp = await fetch(url, {
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Client-Id': CONFIG.CLIENT_ID
-                        }
-                    });
-                    // Track rate limit headers
-                    const rateLimitHeaderRemaining = resp.headers.get('Ratelimit-Remaining');
-                    const rateLimitHeaderReset = resp.headers.get('Ratelimit-Reset');
-                    if (rateLimitHeaderRemaining) {
-                        rateLimitRemaining = parseInt(rateLimitHeaderRemaining, 10) || rateLimitRemaining;
-                    }
-                    if (rateLimitHeaderReset) {
-                        rateLimitReset = parseInt(rateLimitHeaderReset, 10) || rateLimitReset;
-                    }
-                    const status = resp.status;
-                    const data = await resp.json().catch(() => null);
-                    if (!resp.ok) {
-                        console.warn('Chatters API returned error:', data || status);
-                        // If the token is missing the moderator scope stop polling and inform the user
-                        if (data && (data.status === 401 || data.status === 403) && typeof data.message === 'string' && data.message.toLowerCase().includes('missing scope')) {
-                            try { showSystemMessage('Presence API requires the moderator:read:chatters scope. Please re-authorize with that scope.', 'error'); } catch (e) { console.warn('Unable to show system message', e); }
-                            stopPresenceAPI();
-                            return { ok: false, status };
-                        }
-                        if (status === 429) {
-                            return { ok: false, status, rateLimitReset };
-                        }
-                        return { ok: false, status, data };
-                    }
-                    const set = new Set();
-                    if (data && Array.isArray(data.data)) {
-                        data.data.forEach(u => {
-                            const login = (u.user_login || u.user_name || u.user_id || '').toString().toLowerCase();
-                            if (login) set.add(login);
-                        });
-                    }
-                    return { ok: true, set, rateLimitRemaining, rateLimitReset };
-                } catch (err) {
-                    console.error('Error fetching chatters from API:', err);
-                    return { ok: false, status: 0, error: err };
-                }
-            }
-            function startPresenceAPI() {
-                if (presencePollHandle) return;
-                // Initial fetch to establish baseline
-                (async () => {
-                    const initialResp = await fetchChattersFromAPI();
-                    if (initialResp && initialResp.ok && initialResp.set) {
-                        lastChatters = initialResp.set;
-                        try {
-                            const arr = Array.from(initialResp.set || []);
-                            if (arr.length === 0) {
-                                setPresenceMessage('No chatters present right now');
-                            } else {
-                                const preview = arr.slice(0, 20);
-                                const more = arr.length > preview.length ? ` and ${arr.length - preview.length} more` : '';
-                                setPresenceMessage(`Currently in chat: ${preview.join(', ')}${more}`);
-                            }
-                        } catch (e) {
-                            console.warn('Unable to display initial chatters list', e);
-                        }
-                    } else {
-                        lastChatters = new Set();
-                    }
-                })();
-                // Poll loop with dynamic interval adjustment
-                const pollOnce = async () => {
-                    if (!presenceEnabled) return;
-                    // Check rate limit and delay if needed
-                    const now = Math.floor(Date.now() / 1000);
-                    if (rateLimitRemaining < 50 && rateLimitReset > now) {
-                        const delayUntilReset = (rateLimitReset - now + 5) * 1000;
-                        console.log(`Rate limit low (${rateLimitRemaining} remaining), waiting ${Math.round(delayUntilReset / 1000)}s for reset`);
-                        presencePollHandle = setTimeout(pollOnce, delayUntilReset);
-                        return;
-                    }
-                    const resp = await fetchChattersFromAPI();
-                    if (!resp) {
-                        presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
-                        return;
-                    }
-                    if (!resp.ok) {
-                        if (resp.status === 429) {
-                            let backoffMs;
-                            if (resp.rateLimitReset && resp.rateLimitReset > now) {
-                                backoffMs = (resp.rateLimitReset - now + 2) * 1000;
-                                console.log(`Rate limited, waiting ${Math.round(backoffMs / 1000)}s until reset`);
-                            } else {
-                                presenceBackoffAttempts++;
-                                backoffMs = Math.min(presenceBaseInterval * Math.pow(2, presenceBackoffAttempts), PRESENCE_MAX_BACKOFF_MS);
-                                backoffMs += Math.floor(Math.random() * 1000);
-                            }
-                            presenceCurrentInterval = backoffMs;
-                            showSystemMessage('Presence API rate-limited — backing off', 'error');
-                            presencePollHandle = setTimeout(pollOnce, backoffMs);
-                            return;
-                        }
-                        presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
-                        return;
-                    }
-                    // Success: reset backoff and adjust interval based on rate limit
-                    presenceBackoffAttempts = 0;
-                    if (rateLimitRemaining > 400) {
-                        presenceCurrentInterval = Math.max(2 * 1000, presenceBaseInterval * 0.7);
-                    } else if (rateLimitRemaining > 200) {
-                        presenceCurrentInterval = presenceBaseInterval;
-                    } else {
-                        presenceCurrentInterval = presenceBaseInterval * 1.7;
-                    }
-                    const current = resp.set;
-                    // Determine joins and leaves
-                    const joins = [];
-                    current.forEach(login => {
-                        if (!lastChatters.has(login)) joins.push(login);
-                    });
-                    const leavesCandidates = [];
-                    lastChatters.forEach(login => {
-                        if (!current.has(login)) leavesCandidates.push(login);
-                    });
-                    // Announce joins immediately and reset miss counts
-                    joins.forEach(login => {
-                        // Only announce if they weren't already detected via message
-                        if (!messageBasedChatters.has(login)) {
-                            showSystemMessage(`${login} joined the chat`, 'join');
-                        } else {
-                            // Move from message-based to API-confirmed tracking
-                            messageBasedChatters.delete(login);
-                        }
-                        presenceMissCounts[login] = 0;
-                        lastChatters.add(login);
-                    });
-                    // Track leave candidates (require 2 consecutive misses to announce)
-                    // Only track leaves for API-confirmed users, not message-based joins
-                    leavesCandidates.forEach(login => {
-                        // Skip users who were only detected via message and never confirmed by API
-                        if (messageBasedChatters.has(login)) {
-                            return; // Don't track leaves for message-only users
-                        }
-                        presenceMissCounts[login] = (presenceMissCounts[login] || 0) + 1;
-                        if (presenceMissCounts[login] >= 2) {
-                            showSystemMessage(`${login} left the chat`, 'leave');
-                            lastChatters.delete(login);
-                            delete presenceMissCounts[login];
-                        }
-                    });
-                    // Reset miss counts for users still present
-                    current.forEach(login => {
-                        presenceMissCounts[login] = 0;
-                    });
-                    presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
-                };
-                // Start polling
-                presencePollHandle = setTimeout(pollOnce, presenceCurrentInterval);
-            }
-            function stopPresenceAPI() {
-                if (presencePollHandle) {
-                    clearTimeout(presencePollHandle);
-                    presencePollHandle = null;
-                }
-                lastChatters = new Set();
-                messageBasedChatters = new Set();
-                presenceBackoffAttempts = 0;
-                presenceCurrentInterval = presenceBaseInterval;
-            }
-            */
             // Server-side settings management
             let userSettings = {
                 filters_usernames: [],
@@ -3038,6 +2867,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     if (badgeUrl) {
                         const badgeTitle = badge.info || badge.set_id;
                         badgesHtml += `<img class="chat-badge" src="${badgeUrl}" alt="${badge.set_id}" title="${badgeTitle}">`;
+                    } else {
+                        // Diagnostic to help track down missing badge sets/versions
+                        console.debug('Badge image missing in badgeCache', badge.set_id, badge.id);
+                        // Show a small placeholder so the UI layout isn't affected
+                        badgesHtml += `<span class="chat-badge placeholder-badge" title="${badge.set_id}/${badge.id}"></span>`;
                     }
                 });
                 badgesHtml += '</span>';
@@ -3646,7 +3480,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             renderNicknames();
             initFilterCollapse();
             initImportExportUI();
-            fetchBadges(); // Fetch badge data
+            await fetchBadges(); // Fetch badge data (wait so badges are available before connecting)
             // Validate token on startup to get accurate expires_in
             await validateToken();
             // Connect both IRC and EventSub WebSockets
