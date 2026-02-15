@@ -155,11 +155,18 @@ ob_start();
                     Each session below counts toward that limit. Your bot and YourChat each need their own session. 
                     If you hit the limit, delete old/unused sessions.
                 </div>
-                <?php foreach ($sessionGroups as $sessionId => $subs): ?>
+                <?php 
+                $sessionNumber = 0;
+                foreach ($sessionGroups as $sessionId => $subs): 
+                    $sessionNumber++;
+                    $sessionName = "WebSocket Session " . $sessionNumber;
+                ?>
                     <div class="session-group">
                         <div class="session-header">
                             <div>
-                                <strong>Session:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
+                                <strong>Session Name:</strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
+                                <br>
+                                <strong>Session ID:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
                             </div>
                             <div class="sub-count"><?php echo count($subs); ?> subscriptions</div>
                         </div>
