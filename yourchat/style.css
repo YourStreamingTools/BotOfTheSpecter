@@ -564,6 +564,20 @@ body {
     box-shadow: 0 2px 6px rgba(147, 51, 234, 0.4);
 }
 
+/* Action message (/me) styling */
+.chat-message.action-message {
+    background: rgba(100, 100, 100, 0.08);
+    border-left: 3px solid rgba(150, 150, 150, 0.5);
+}
+
+.action-text {
+    font-style: italic;
+}
+
+.action-text em {
+    font-style: italic;
+}
+
 /* Highlighted message (channel points) */
 .chat-message.highlighted-message {
     background: rgba(255, 215, 0, 0.15);
