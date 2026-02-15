@@ -594,6 +594,12 @@ try {
             CREATE TABLE IF NOT EXISTS stream_session_stats (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 ad_break_count INT DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'eventsub_sessions' => "
+            CREATE TABLE IF NOT EXISTS eventsub_sessions (
+                session_id VARCHAR(255) PRIMARY KEY,
+                session_name VARCHAR(255) NOT NULL,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
