@@ -293,12 +293,6 @@ function buildActiveSessionsSection(data) {
         <div class="box">
             <h2 class="title is-4">
                 <i class="fas fa-network-wired"></i> Active WebSocket Sessions
-                <button onclick="refreshSubscriptions()" class="refresh-btn" style="margin-left: auto; float: right; border: none; background: none; cursor: pointer; color: inherit;">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
-                <button onclick="cleanDatabaseSessions()" class="custom-btn" style="margin-right: 8px; float: right;">
-                    <i class="fas fa-broom"></i> Clean stale DB
-                </button>
             </h2>
             <div class="info-box">
                 <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
@@ -545,35 +539,33 @@ async function deleteAllInSession(sessionId, count, sessionName) {
     }
 }
 
-// Clean up stale session entries from user's DB
-async function cleanDatabaseSessions() {
-    if (!confirm('Remove session entries from your DB that are not present in Twitch subscriptions?')) return;
-    isDeleting = true;
-    const button = (typeof event !== 'undefined' && event && event.target) ? event.target.closest('button') : null;
-    const originalHTML = button ? button.innerHTML : null;
-    if (button) {
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cleaning...';
+// Background cleanup of stale session entries from user's DB (no UI confirmation)
+async function autoCleanupSessions() {
+    if (isDeleting) {
+        console.log('Skipping cleanup while another operation is running');
+        return;
     }
+    isDeleting = true;
+
     try {
         const formData = new FormData();
         formData.append('action', 'cleanup_sessions');
         const response = await fetch('notifications_api.php', { method: 'POST', body: formData });
         const result = await response.json();
         if (result.success) {
-            showNotification((result.deleted || 0) + ' stale session(s) removed', 'success');
-            await refreshSubscriptions();
+            if (result.deleted && result.deleted > 0) {
+                console.log('Auto-cleanup removed', result.deleted, 'stale sessions');
+                showNotification((result.deleted || 0) + ' stale session(s) removed', 'success');
+                await refreshSubscriptions();
+            } else {
+                console.log('Auto-cleanup: no stale sessions to remove');
+            }
         } else {
-            throw new Error(result.error || 'Cleanup failed');
+            console.warn('Auto-cleanup failed:', result.error || 'unknown');
         }
     } catch (err) {
-        console.error('Cleanup error:', err);
-        showNotification('Error: ' + err.message, 'error');
+        console.error('Auto-cleanup error:', err);
     } finally {
-        if (button && originalHTML) {
-            button.disabled = false;
-            button.innerHTML = originalHTML;
-        }
         isDeleting = false;
     }
 }
@@ -590,6 +582,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start auto-refresh every 10 seconds
     autoRefreshInterval = setInterval(refreshSubscriptions, 10000);
     console.log('Auto-refresh initialized (10 seconds)');
+
+    // Run an immediate cleanup shortly after load, then every 5 minutes
+    setTimeout(() => {
+        autoCleanupSessions();
+    }, 2000);
+    setInterval(autoCleanupSessions, 5 * 60 * 1000); // 5 minutes
+    console.log('Auto-cleanup scheduled (every 5 minutes)');
 });
 
 // Clean up interval on page unload
