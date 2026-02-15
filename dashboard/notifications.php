@@ -198,15 +198,40 @@ ob_start();
                 <div class="stat-value"><?php echo $totalCount; ?></div>
                 <div class="stat-secondary">across all transports</div>
             </div>
-            <div class="stat-card <?php echo (count($websocketSubsEnabled) > 250 || count($sessionGroups) >= 3) ? 'warning-card' : ''; ?>">
+            <?php
+            // Determine color class for Active WebSocket Subscriptions
+            $subCount = count($websocketSubsEnabled);
+            $subColorClass = '';
+            if ($subCount >= 251) {
+                $subColorClass = 'danger-card';
+            } elseif ($subCount >= 151) {
+                $subColorClass = 'warning-card';
+            }
+            ?>
+            <div class="stat-card <?php echo $subColorClass; ?>">
                 <div class="stat-label">Active WebSocket Subscriptions</div>
-                <div class="stat-value"><?php echo count($websocketSubsEnabled); ?></div>
-                <div class="stat-secondary"><?php echo count($sessionGroups); ?> active sessions (limit: 3)</div>
+                <div class="stat-value"><?php echo $subCount; ?></div>
+                <div class="stat-secondary">limit: 300 per connection</div>
                 <?php if (count($websocketSubsDisabled) > 0): ?>
                     <div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">
                         <?php echo count($websocketSubsDisabled); ?> disabled/stale
                     </div>
                 <?php endif; ?>
+            </div>
+            <?php
+            // Determine color class for Active Sessions
+            $sessionCount = count($sessionGroups);
+            $sessionColorClass = '';
+            if ($sessionCount >= 3) {
+                $sessionColorClass = 'danger-card';
+            } elseif ($sessionCount >= 2) {
+                $sessionColorClass = 'warning-card';
+            }
+            ?>
+            <div class="stat-card <?php echo $sessionColorClass; ?>">
+                <div class="stat-label">Active Connections</div>
+                <div class="stat-value"><?php echo $sessionCount; ?></div>
+                <div class="stat-secondary">limit: 3 connections</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Webhook Subscriptions</div>
