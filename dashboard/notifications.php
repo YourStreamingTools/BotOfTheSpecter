@@ -199,19 +199,33 @@ ob_start();
                 <div class="stat-secondary">across all transports</div>
             </div>
             <?php
-            // Determine color class for Active WebSocket Subscriptions
-            $subCount = count($websocketSubsEnabled);
-            $subColorClass = '';
-            if ($subCount >= 251) {
-                $subColorClass = 'danger-card';
-            } elseif ($subCount >= 151) {
-                $subColorClass = 'warning-card';
+            // Calculate per-connection subscription counts for Active WebSocket Subscriptions
+            $connectionCounts = [];
+            foreach ($sessionGroups as $sessionId => $subs) {
+                $connectionCounts[$sessionId] = count($subs);
             }
+            $subCount = count($websocketSubsEnabled);
             ?>
-            <div class="stat-card <?php echo $subColorClass; ?>">
+            <div class="stat-card">
                 <div class="stat-label">Active WebSocket Subscriptions</div>
                 <div class="stat-value"><?php echo $subCount; ?></div>
                 <div class="stat-secondary">limit: 300 per connection</div>
+                <?php 
+                $connectionNumber = 0;
+                foreach ($connectionCounts as $sessionId => $count): 
+                    $connectionNumber++;
+                    // Determine text color based on subscription count
+                    $textColor = '#e6e6e6'; // default/normal
+                    if ($count >= 250) {
+                        $textColor = '#e74c3c'; // danger (red)
+                    } elseif ($count >= 150) {
+                        $textColor = '#f39c12'; // warning (orange)
+                    }
+                ?>
+                    <div class="stat-secondary" style="color: <?php echo $textColor; ?>; margin-top: 4px;">
+                        Connection <?php echo $connectionNumber; ?>: <?php echo $count; ?> subscriptions
+                    </div>
+                <?php endforeach; ?>
                 <?php if (count($websocketSubsDisabled) > 0): ?>
                     <div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">
                         <?php echo count($websocketSubsDisabled); ?> disabled/stale
