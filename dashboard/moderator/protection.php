@@ -331,5 +331,6 @@ ob_start();
 $content = ob_get_clean();
 // No scripts for this file in original
 $scripts = '';
-require 'mod_layout.php';
+// layout mode inferred by dashboard/layout.php
+include_once __DIR__ . '/../layout.php';
 ?>

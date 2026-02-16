@@ -148,7 +148,6 @@ ob_start();
 ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bulma@1.0.0/js/bulma.min.js"></script>
-<script src="../js/about.js" defer></script>
 <script src="../js/search.js"></script>
 <script>
   function formatTimestamp(timestamp) {
@@ -183,5 +182,6 @@ ob_start();
 </script>
 <?php
 $scripts = ob_get_clean();
-include 'layout_todolist.php';
+// layout mode inferred by dashboard/layout.php
+include_once __DIR__ . '/../layout.php';
 ?>

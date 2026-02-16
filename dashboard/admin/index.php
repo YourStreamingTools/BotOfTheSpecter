@@ -2608,5 +2608,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php
-include "admin_layout.php";
+// layout mode inferred by dashboard/layout.php
+include_once __DIR__ . '/../layout.php';
 ?>
