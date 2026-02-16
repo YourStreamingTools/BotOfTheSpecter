@@ -29,7 +29,7 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-// Fetch the files from the local music directory
+// Fetch the files from the local music directory with metadata
 function getLocalMusicFiles() {
     $musicDir = '/var/www/cdn/music';
     $files = [];
@@ -37,10 +37,19 @@ function getLocalMusicFiles() {
         $musicFiles = scandir($musicDir);
         foreach ($musicFiles as $file) {
             if (str_ends_with($file, '.mp3')) {
-                $files[] = $file;
+                $fullPath = $musicDir . '/' . $file;
+                $files[] = [
+                    'filename' => $file,
+                    'title' => pathinfo($file, PATHINFO_FILENAME),
+                    'size' => file_exists($fullPath) ? filesize($fullPath) : 0,
+                ];
             }
         }
     }
+    // Sort alphabetically by title
+    usort($files, function($a, $b) {
+        return strcasecmp($a['title'], $b['title']);
+    });
     return $files;
 }
 
@@ -183,28 +192,42 @@ ob_start();
             </div>
         </div>
         <div class="table-container playlist-container has-text-white">
-            <table class="table is-fullwidth has-text-white" id="commandsTable">
+            <table class="table is-fullwidth has-text-white" id="playlistTable">
                 <thead class="has-text-white">
                     <tr>
                         <th class="has-text-centered has-text-weight-bold is-narrow has-text-white">#</th>
                         <th class="has-text-white">
-                            <span class="icon-text" style="display: flex; align-items: center;">
-                                <span class="icon is-small" style="display: flex; align-items: center;">
+                            <span class="icon-text">
+                                <span class="icon is-small">
                                     <i class="fas fa-music"></i>
                                 </span>
-                                <span style="margin-left: 0.5em;"><?php echo t('music_title'); ?></span>
+                                <span><?php echo t('music_title'); ?></span>
                             </span>
                         </th>
+                        <th class="has-text-right is-narrow has-text-white"><?php echo t('music_actions'); ?></th>
                     </tr>
                 </thead>
-                <tbody class="has-text-white">
-                    <?php foreach ($musicFiles as $index => $file): ?>
-                        <tr data-file="<?php echo htmlspecialchars($file); ?>" class="playlist-row is-clickable has-text-white">
+                <tbody class="has-text-white" id="playlistBody">
+                    <?php foreach ($musicFiles as $index => $fileData): ?>
+                        <tr data-index="<?php echo $index; ?>" 
+                            data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" 
+                            data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
+                            class="playlist-row is-clickable has-text-white">
                             <td class="has-text-centered has-text-weight-semibold has-text-grey is-narrow has-text-white">
-                                <?php echo $index + 1; ?>
+                                <span class="row-number"><?php echo $index + 1; ?></span>
+                                <span class="now-playing-icon" style="display: none;">
+                                    <i class="fas fa-play-circle has-text-success"></i>
+                                </span>
                             </td>
-                            <td class="is-family-secondary has-text-white">
-                                <?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>
+                            <td class="is-family-secondary has-text-white song-title">
+                                <?php echo htmlspecialchars($fileData['title']); ?>
+                            </td>
+                            <td class="has-text-right is-narrow">
+                                <button class="button is-small is-ghost play-song-btn" data-index="<?php echo $index; ?>" title="Play">
+                                    <span class="icon is-small">
+                                        <i class="fas fa-play"></i>
+                                    </span>
+                                </button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -213,7 +236,6 @@ ob_start();
         </div>
     </div>
 </div>
-
 <!-- Hidden audio element for local playback -->
 <audio id="audio-player" class="is-hidden"></audio>
 <?php
@@ -223,384 +245,501 @@ ob_start();
 ?>
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
-    let socket;
-    const retryInterval = 5000;
-    let reconnectAttempts = 0;
-    let isPlaying = false;
-    let volumeInitialized = false;
-    let settingsTimeout;
-    let repeat = false;
-    let shuffle = false;
-    let localPlayback = false;
-    let playlist = <?php echo json_encode($musicFiles); ?>;
-    let currentIndex = 0;
-    let lastEmittedVolume = null;
-    function getNextIndex() {
-        if (shuffle) {
-            let next;
-            do {
-                next = Math.floor(Math.random() * playlist.length);
-            } while (playlist.length > 1 && next === currentIndex);
-            return next;
-        } else {
+    // ===== STATE MANAGEMENT =====
+    const MusicPlayer = {
+        socket: null,
+        reconnectAttempts: 0,
+        retryInterval: 5000,
+        maxRetryDelay: 30000,
+        // Player state
+        state: {
+            isPlaying: false,
+            volume: 10,
+            volumeInitialized: false,
+            repeat: false,
+            shuffle: false,
+            localPlayback: false,
+            currentIndex: -1,
+            playlist: <?php echo json_encode(array_column($musicFiles, 'filename')); ?>,
+            currentSong: null,
+        },
+        // DOM elements cache
+        elements: {},
+        // Timeouts
+        timeouts: {
+            settings: null,
+            volumeDebounce: null,
+        },
+        // Event listeners tracker
+        listenersInitialized: false,
+    };
+    // ===== UTILITY FUNCTIONS =====
+    const Utils = {
+        debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        },
+        formatTitle(filename) {
+            return filename.replace('.mp3', '').replace(/_/g, ' ');
+        },
+        getNextIndex(currentIndex, playlist, shuffle) {
+            if (shuffle) {
+                let next;
+                do {
+                    next = Math.floor(Math.random() * playlist.length);
+                } while (playlist.length > 1 && next === currentIndex);
+                return next;
+            }
             return (currentIndex + 1) % playlist.length;
-        }
-    }
-
-    function playSongLocal(index) {
-        currentIndex = index;
-        const nowPlayingElement = document.getElementById('now-playing');
-        const song = playlist[currentIndex];
-        const formattedTitle = song.replace('.mp3', '').replace(/_/g, ' ');
-        nowPlayingElement.textContent = `🎵 ${formattedTitle}`;
-        const audioPlayer = document.getElementById('audio-player');
-        audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
-        audioPlayer.volume = document.getElementById('volume-range').value / 100;
-        audioPlayer.play();
-        isPlaying = true;
-        // Update play/pause icon
-        const icon = document.getElementById('play-pause-icon');
-        icon.classList.remove('fa-play');
-        icon.classList.add('fa-pause');
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const audioPlayer = document.getElementById('audio-player');
-        audioPlayer.addEventListener('ended', function() {
-            if (repeat) {
-                playSongLocal(currentIndex);
-            } else {
-                const nextIndex = getNextIndex();
-                if (!shuffle && nextIndex === 0 && currentIndex === playlist.length - 1) {
-                    // End of playlist, do not repeat unless repeat is enabled
-                    isPlaying = false;
-                    const icon = document.getElementById('play-pause-icon');
-                    icon.classList.remove('fa-pause');
-                    icon.classList.add('fa-play');
-                } else {
-                    playSongLocal(nextIndex);
-                }
-            }
-        });
-    });
-
-    function applyMusicSettings(settings) {
-        // Update volume if present
-        if (settings && typeof settings.volume !== 'undefined') {
-            const volumeRange = document.getElementById('volume-range');
-            const volumePercentage = document.getElementById('volume-percentage');
-            volumeRange.value = settings.volume;
-            volumePercentage.value = settings.volume;
-            volumeInitialized = true;
-        }
-        // Update now playing if present
-        if (settings && settings.now_playing) {
-            const nowPlayingElement = document.getElementById('now-playing');
-            nowPlayingElement.textContent = `🎵 ${settings.now_playing.title || settings.now_playing}`;
-            const icon = document.getElementById('play-pause-icon');
-            icon.classList.remove('fa-play');
-            icon.classList.add('fa-pause');
-            isPlaying = true;
-        }
-        if (settings && typeof settings.repeat !== 'undefined') {
-            repeat = !!settings.repeat;
-            const repeatBtn = document.getElementById('repeat-btn');
-            repeatBtn.classList.toggle('is-primary', repeat);
-            repeatBtn.classList.toggle('is-white', !repeat);
-            repeatBtn.classList.remove('has-text-white');
-            repeatBtn.classList.toggle('has-text-black', true);
-        }
-        if (settings && typeof settings.shuffle !== 'undefined') {
-            shuffle = !!settings.shuffle;
-            const shuffleBtn = document.getElementById('shuffle-btn');
-            shuffleBtn.classList.toggle('is-primary', shuffle);
-            shuffleBtn.classList.toggle('is-white', !shuffle);
-            shuffleBtn.classList.remove('has-text-white');
-            shuffleBtn.classList.toggle('has-text-black', true);
-        }
-    }
-
-    function initializeSocketListeners() {
-        // Add click event listener to playlist rows
-        document.querySelectorAll('.playlist-row').forEach((row, index) => {
-            row.addEventListener('click', () => {
-                if (localPlayback) {
-                    playSongLocal(index);
-                    const icon = document.getElementById('play-pause-icon');
-                    icon.classList.remove('fa-play');
-                    icon.classList.add('fa-pause');
-                    isPlaying = true;
-                } else {
-                    // Get the song title for the selected index
-                    const song = playlist[index];
-                    const songTitle = song.replace('.mp3', '').replace(/_/g, ' ');
-                    // Emit event to play the selected file by index and update now playing
-                    socket.emit('MUSIC_COMMAND', { command: 'play_index', index: index });
-                    socket.emit('NOW_PLAYING', { song: { title: songTitle, file: song } });
-                    console.log('Sent MUSIC_COMMAND play_index:', index, 'and NOW_PLAYING:', songTitle);
-                    // Immediately update the UI for Now Playing
-                    const nowPlayingElement = document.getElementById('now-playing');
-                    nowPlayingElement.textContent = `🎵 ${songTitle}`;
-                    const icon = document.getElementById('play-pause-icon');
-                    icon.classList.remove('fa-play');
-                    icon.classList.add('fa-pause');
-                    isPlaying = true;
-                }
-            });
-        });
-
-        // Only declare refreshBtn once at the top of this function
-        const refreshBtn = document.getElementById('refresh-now-playing');
-        // Local playback toggle
-        const localPlaybackToggle = document.getElementById('local-playback-toggle');
-        const audioPlayer = document.getElementById('audio-player');
-        let localPlayback = false;
-        let playlist = <?php echo json_encode($musicFiles); ?>;
-        let currentIndex = 0;
-        localPlaybackToggle.addEventListener('change', function() {
-            localPlayback = this.checked;
-            if (!localPlayback && socket) {
-                socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
-            }
-        });
-
-        // Play/Pause
-        document.getElementById('play-pause-btn').addEventListener('click', function() {
-            const icon = document.getElementById('play-pause-icon');
-            if (localPlayback) {
-                if (audioPlayer.paused) {
-                    audioPlayer.play();
-                    icon.classList.remove('fa-play');
-                    icon.classList.add('fa-pause');
-                    isPlaying = true;
-                } else {
-                    audioPlayer.pause();
-                    icon.classList.remove('fa-pause');
-                    icon.classList.add('fa-play');
-                    isPlaying = false;
-                }
-            } else {
-                if (isPlaying) {
-                    socket.emit('MUSIC_COMMAND', { command: 'pause' });
-                    icon.classList.remove('fa-pause');
-                    icon.classList.add('fa-play');
-                } else {
-                    socket.emit('MUSIC_COMMAND', { command: 'play' });
-                    icon.classList.remove('fa-play');
-                    icon.classList.add('fa-pause');
-                }
-                isPlaying = !isPlaying;
-            }
-        });
-
-        // Previous
-        document.getElementById('prev-btn').addEventListener('click', function() {
-            if (localPlayback) {
-                currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-                playSongLocal(currentIndex);
-            } else {
-                socket.emit('MUSIC_COMMAND', { command: 'prev' });
-            }
-        });
-
-        // Next
-        document.getElementById('next-btn').addEventListener('click', function() {
-            if (localPlayback) {
-                currentIndex = (currentIndex + 1) % playlist.length;
-                playSongLocal(currentIndex);
-            } else {
-                socket.emit('MUSIC_COMMAND', { command: 'next' });
-            }
-        });
-
-        // Repeat
-        document.getElementById('repeat-btn').addEventListener('click', function() {
-            repeat = !repeat;
-            this.classList.toggle('is-primary', repeat);
-            this.classList.toggle('is-white', !repeat);
-            this.classList.remove('has-text-white');
-            this.classList.add('has-text-black');
-            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
-        });
-
-        // Shuffle
-        document.getElementById('shuffle-btn').addEventListener('click', function() {
-            shuffle = !shuffle;
-            this.classList.toggle('is-primary', shuffle);
-            this.classList.toggle('is-white', !shuffle);
-            this.classList.remove('has-text-white');
-            this.classList.add('has-text-black');
-            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS', repeat: repeat, shuffle: shuffle, volume: document.getElementById('volume-range').value });
-        });
-
-        // Volume
-        document.getElementById('volume-range').addEventListener('input', function() {
-            const volumePercentage = document.getElementById('volume-percentage');
-            volumePercentage.value = this.value;
-            if (localPlayback) {
-                audioPlayer.volume = this.value / 100;
-            } else {
-                const newVolume = this.value / 100;
-                if (lastEmittedVolume !== newVolume) {
-                    lastEmittedVolume = newVolume;
-                    socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
-                }
-            }
-        });
-
-        // Volume input field
-        document.getElementById('volume-percentage').addEventListener('input', function() {
-            const volumeRange = document.getElementById('volume-range');
-            volumeRange.value = this.value;
-            if (localPlayback) {
-                audioPlayer.volume = this.value / 100;
-            } else {
-                const newVolume = this.value / 100;
-                if (lastEmittedVolume !== newVolume) {
-                    lastEmittedVolume = newVolume;
-                    socket.emit('MUSIC_COMMAND', { command: 'volume', value: this.value });
-                }
-            }
-        });
-
-        // Refresh Now Playing button
-        refreshBtn.addEventListener('click', function() {
-            refreshBtn.classList.add('is-loading');
-            socket.emit('MUSIC_COMMAND', { command: 'WHAT_IS_PLAYING' });
-        });
-
-        // Local audio ended event
-        audioPlayer.addEventListener('ended', function() {
-            if (repeat) {
-                playSongLocal(currentIndex);
-            } else if (shuffle) {
-                currentIndex = Math.floor(Math.random() * playlist.length);
-                playSongLocal(currentIndex);
-            } else {
-                currentIndex = (currentIndex + 1) % playlist.length;
-                playSongLocal(currentIndex);
-            }
-        });
-    }
-
-    function playSongLocal(index) {
-        currentIndex = index;
-        const nowPlayingElement = document.getElementById('now-playing');
-        const song = playlist[currentIndex];
-        const formattedTitle = song.replace('.mp3', '').replace(/_/g, ' ');
-        nowPlayingElement.textContent = `🎵 ${formattedTitle}`;
-        const audioPlayer = document.getElementById('audio-player');
-        audioPlayer.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
-        audioPlayer.volume = document.getElementById('volume-range').value / 100;
-        audioPlayer.play();
-        isPlaying = true;
-        // Update play/pause icon
-        const icon = document.getElementById('play-pause-icon');
-        icon.classList.remove('fa-play');
-        icon.classList.add('fa-pause');
-    }
-
-    function connectWebSocket() {
-        socket = io('wss://websocket.botofthespecter.com', {
-            reconnection: false
-        });
-
-        socket.on('connect', () => {
-            console.log('Connected to WebSocket server');
-            reconnectAttempts = 0;
-            socket.emit('REGISTER', {
-                code: '<?php echo $api_key; ?>',
-                channel: 'Dashboard', 
-                name: 'Music Controller' 
-            });
-
-            // Only initialize event listeners after connection
-            initializeSocketListeners();
-
-            // Set a timeout to fallback to default volume if no settings received
-            settingsTimeout = setTimeout(() => {
-                if (!volumeInitialized) {
-                    const volumeRange = document.getElementById('volume-range');
-                    const volumePercentage = document.getElementById('volume-percentage');
-                    volumeRange.value = 10;
-                    volumePercentage.value = 10;
-                    socket.emit('MUSIC_COMMAND', { command: 'volume', value: 10 });
-                    console.log('No MUSIC_SETTINGS received, defaulting volume to 10% and emitting to server.');
-                    volumeInitialized = true;
-                }
-            }, 3000); // 3 seconds
-        });
-
-        // Log all events and their data to the browser console
-        socket.onAny((event, ...args) => {
-            console.log('Event:', event, ...args);
-        });
-
-        // Handle disconnection event
-        socket.on('disconnect', () => {
-            console.log('Disconnected from WebSocket server');
-            attemptReconnect();
-        });
-
-        // Handle connection error event
-        socket.on('connect_error', (error) => {
-            console.error('Connection error:', error);
-            attemptReconnect();
-        });
-
-        // Handle server WELCOME event
-        socket.on('WELCOME', (data) => {
-            console.log('Server says:', data.message);
-        });
-
-        // Handle MUSIC_SETTINGS event
-        socket.on('MUSIC_SETTINGS', (settings) => {
-            applyMusicSettings(settings);
-            if (settingsTimeout) clearTimeout(settingsTimeout);
-        });
-
-        // Handle NOW_PLAYING event
-        socket.on('NOW_PLAYING', (data) => {
-            const nowPlayingElement = document.getElementById('now-playing');
-            const refreshBtn = document.getElementById('refresh-now-playing');
-            if (data && data.song) {
-                nowPlayingElement.textContent = `🎵 ${data.song.title || data.song.file || data.song}`;
-                const icon = document.getElementById('play-pause-icon');
+        },
+        getPrevIndex(currentIndex, playlist) {
+            return (currentIndex - 1 + playlist.length) % playlist.length;
+        },
+    };
+    // ===== DOM FUNCTIONS =====
+    const DOM = {
+        cacheElements() {
+            MusicPlayer.elements = {
+                audioPlayer: document.getElementById('audio-player'),
+                nowPlaying: document.getElementById('now-playing'),
+                playPauseBtn: document.getElementById('play-pause-btn'),
+                playPauseIcon: document.getElementById('play-pause-icon'),
+                prevBtn: document.getElementById('prev-btn'),
+                nextBtn: document.getElementById('next-btn'),
+                repeatBtn: document.getElementById('repeat-btn'),
+                shuffleBtn: document.getElementById('shuffle-btn'),
+                volumeRange: document.getElementById('volume-range'),
+                volumePercentage: document.getElementById('volume-percentage'),
+                localPlaybackToggle: document.getElementById('local-playback-toggle'),
+                refreshBtn: document.getElementById('refresh-now-playing'),
+                searchInput: document.getElementById('searchInput'),
+                playlistBody: document.getElementById('playlistBody'),
+            };
+        },
+        updateNowPlaying(title, isPlaying = true) {
+            MusicPlayer.elements.nowPlaying.textContent = title ? `🎵 ${title}` : '<?php echo t('music_no_song_playing'); ?>';
+            MusicPlayer.state.isPlaying = isPlaying;
+            this.updatePlayPauseIcon(isPlaying);
+        },
+        updatePlayPauseIcon(isPlaying) {
+            const icon = MusicPlayer.elements.playPauseIcon;
+            if (isPlaying) {
                 icon.classList.remove('fa-play');
                 icon.classList.add('fa-pause');
-                isPlaying = true;
-            } else if (data && data.error) {
-                nowPlayingElement.textContent = data.error;
-                isPlaying = false;
             } else {
-                nowPlayingElement.textContent = '<?php echo t('music_no_song_playing'); ?>';
-                const icon = document.getElementById('play-pause-icon');
                 icon.classList.remove('fa-pause');
                 icon.classList.add('fa-play');
-                isPlaying = false;
             }
-            if (refreshBtn) refreshBtn.classList.remove('is-loading');
-        });
-
-        // On SUCCESS, request music settings
-        socket.on('SUCCESS', () => {
-            // Only call settings after SUCCESS event
-            socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
-        });
-    }
-
-    // Handle reconnection attempts
-    function attemptReconnect() {
-        reconnectAttempts++;
-        const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
-        console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
-        setTimeout(() => {
-            connectWebSocket();
-        }, delay);
-    }
-
-    // Start initial connection
-    connectWebSocket();
+        },
+        updateVolume(value) {
+            MusicPlayer.elements.volumeRange.value = value;
+            MusicPlayer.elements.volumePercentage.value = value;
+            MusicPlayer.state.volume = value;
+            // Update range slider gradient
+            const percent = (value / 100) * 100;
+            MusicPlayer.elements.volumeRange.style.background = 
+                `linear-gradient(to right, #3273dc 0%, #3273dc ${percent}%, #dbdbdb ${percent}%, #dbdbdb 100%)`;
+        },
+        updateButtonState(button, isActive) {
+            button.classList.toggle('is-primary', isActive);
+            button.classList.toggle('is-white', !isActive);
+            button.classList.remove('has-text-white');
+            button.classList.add('has-text-black');
+        },
+        highlightCurrentSong(index) {
+            // Remove previous highlight
+            document.querySelectorAll('.playlist-row').forEach(row => {
+                row.classList.remove('is-active');
+            });
+            // Add highlight to current song
+            if (index >= 0) {
+                const row = document.querySelector(`.playlist-row[data-index="${index}"]`);
+                if (row) {
+                    row.classList.add('is-active');
+                    // Scroll into view if needed
+                    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+            MusicPlayer.state.currentIndex = index;
+        },
+        filterPlaylist(searchTerm) {
+            const term = searchTerm.toLowerCase().trim();
+            const rows = document.querySelectorAll('.playlist-row');
+            rows.forEach(row => {
+                const title = row.getAttribute('data-title');
+                if (title.includes(term)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        },
+    };
+    // ===== AUDIO PLAYER FUNCTIONS =====
+    const AudioPlayer = {
+        play(index) {
+            if (index < 0 || index >= MusicPlayer.state.playlist.length) return;
+            const song = MusicPlayer.state.playlist[index];
+            const title = Utils.formatTitle(song);
+            MusicPlayer.state.currentIndex = index;
+            MusicPlayer.state.currentSong = song;
+            DOM.updateNowPlaying(title, true);
+            DOM.highlightCurrentSong(index);
+            const audio = MusicPlayer.elements.audioPlayer;
+            audio.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
+            audio.volume = MusicPlayer.state.volume / 100;
+            audio.play().catch(err => console.error('Playback error:', err));
+        },
+        pause() {
+            MusicPlayer.elements.audioPlayer.pause();
+            MusicPlayer.state.isPlaying = false;
+            DOM.updatePlayPauseIcon(false);
+        },
+        resume() {
+            MusicPlayer.elements.audioPlayer.play();
+            MusicPlayer.state.isPlaying = true;
+            DOM.updatePlayPauseIcon(true);
+        },
+        togglePlayPause() {
+            const audio = MusicPlayer.elements.audioPlayer;
+            if (audio.paused || !MusicPlayer.state.isPlaying) {
+                if (MusicPlayer.state.currentIndex === -1 && MusicPlayer.state.playlist.length > 0) {
+                    // No song playing, start with first song
+                    this.play(0);
+                } else {
+                    this.resume();
+                }
+            } else {
+                this.pause();
+            }
+        },
+        next() {
+            const nextIndex = Utils.getNextIndex(
+                MusicPlayer.state.currentIndex,
+                MusicPlayer.state.playlist,
+                MusicPlayer.state.shuffle
+            );
+            this.play(nextIndex);
+        },
+        previous() {
+            const prevIndex = Utils.getPrevIndex(
+                MusicPlayer.state.currentIndex,
+                MusicPlayer.state.playlist
+            );
+            this.play(prevIndex);
+        },
+        handleEnded() {
+            if (MusicPlayer.state.repeat) {
+                this.play(MusicPlayer.state.currentIndex);
+            } else {
+                const nextIndex = Utils.getNextIndex(
+                    MusicPlayer.state.currentIndex,
+                    MusicPlayer.state.playlist,
+                    MusicPlayer.state.shuffle
+                );
+                // Check if we've reached the end of the playlist in non-shuffle mode
+                if (!MusicPlayer.state.shuffle && nextIndex === 0 && MusicPlayer.state.currentIndex === MusicPlayer.state.playlist.length - 1) {
+                    MusicPlayer.state.isPlaying = false;
+                    DOM.updatePlayPauseIcon(false);
+                    DOM.highlightCurrentSong(-1);
+                } else {
+                    this.play(nextIndex);
+                }
+            }
+        },
+    };
+    // ===== WEBSOCKET FUNCTIONS =====
+    const WebSocket = {
+        connect() {
+            MusicPlayer.socket = io('wss://websocket.botofthespecter.com', {
+                reconnection: false
+            });
+            MusicPlayer.socket.on('connect', () => {
+                console.log('Connected to WebSocket server');
+                MusicPlayer.reconnectAttempts = 0;
+                
+                MusicPlayer.socket.emit('REGISTER', {
+                    code: '<?php echo $api_key; ?>',
+                    channel: 'Dashboard',
+                    name: 'Music Controller'
+                });
+                // Set timeout for default volume
+                MusicPlayer.timeouts.settings = setTimeout(() => {
+                    if (!MusicPlayer.state.volumeInitialized) {
+                        DOM.updateVolume(10);
+                        MusicPlayer.socket.emit('MUSIC_COMMAND', { command: 'volume', value: 10 });
+                        console.log('No MUSIC_SETTINGS received, defaulting volume to 10%');
+                        MusicPlayer.state.volumeInitialized = true;
+                    }
+                }, 3000);
+            });
+            // Log all events for debugging
+            MusicPlayer.socket.onAny((event, ...args) => {
+                console.log('WebSocket Event:', event, ...args);
+            });
+            MusicPlayer.socket.on('disconnect', () => {
+                console.log('Disconnected from WebSocket server');
+                this.attemptReconnect();
+            });
+            MusicPlayer.socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                this.attemptReconnect();
+            });
+            MusicPlayer.socket.on('WELCOME', (data) => {
+                console.log('Server says:', data.message);
+            });
+            MusicPlayer.socket.on('MUSIC_SETTINGS', (settings) => {
+                this.applySettings(settings);
+                if (MusicPlayer.timeouts.settings) {
+                    clearTimeout(MusicPlayer.timeouts.settings);
+                }
+            });
+            MusicPlayer.socket.on('NOW_PLAYING', (data) => {
+                this.handleNowPlaying(data);
+            });
+            MusicPlayer.socket.on('SUCCESS', () => {
+                MusicPlayer.socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
+            });
+        },
+        attemptReconnect() {
+            MusicPlayer.reconnectAttempts++;
+            const delay = Math.min(MusicPlayer.retryInterval * MusicPlayer.reconnectAttempts, MusicPlayer.maxRetryDelay);
+            console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
+            setTimeout(() => this.connect(), delay);
+        },
+        applySettings(settings) {
+            if (!settings) return;
+            if (typeof settings.volume !== 'undefined') {
+                DOM.updateVolume(settings.volume);
+                MusicPlayer.state.volumeInitialized = true;
+            }
+            if (settings.now_playing) {
+                DOM.updateNowPlaying(settings.now_playing.title || settings.now_playing, true);
+            }
+            if (typeof settings.repeat !== 'undefined') {
+                MusicPlayer.state.repeat = !!settings.repeat;
+                DOM.updateButtonState(MusicPlayer.elements.repeatBtn, MusicPlayer.state.repeat);
+            }
+            if (typeof settings.shuffle !== 'undefined') {
+                MusicPlayer.state.shuffle = !!settings.shuffle;
+                DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, MusicPlayer.state.shuffle);
+            }
+        },
+        handleNowPlaying(data) {
+            MusicPlayer.elements.refreshBtn.classList.remove('is-loading');
+            if (data && data.song) {
+                const title = data.song.title || data.song.file || data.song;
+                DOM.updateNowPlaying(title, true);
+                
+                // Try to find and highlight the song in playlist
+                const songFile = data.song.file || data.song;
+                const index = MusicPlayer.state.playlist.findIndex(f => f === songFile);
+                if (index >= 0) {
+                    DOM.highlightCurrentSong(index);
+                }
+            } else if (data && data.error) {
+                DOM.updateNowPlaying(data.error, false);
+            } else {
+                DOM.updateNowPlaying(null, false);
+                DOM.highlightCurrentSong(-1);
+            }
+        },
+        sendCommand(command, params = {}) {
+            if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                MusicPlayer.socket.emit('MUSIC_COMMAND', { command, ...params });
+            }
+        },
+    };
+    // ===== EVENT HANDLERS =====
+    const Events = {
+        initializeAll() {
+            if (MusicPlayer.listenersInitialized) return;
+            this.initPlaylistEvents();
+            this.initControlEvents();
+            this.initVolumeEvents();
+            this.initKeyboardShortcuts();
+            this.initAudioEvents();
+            this.initSearchEvents();
+            MusicPlayer.listenersInitialized = true;
+        },
+        initPlaylistEvents() {
+            // Click on playlist rows
+            document.querySelectorAll('.playlist-row').forEach((row) => {
+                row.addEventListener('click', (e) => {
+                    // Don't trigger if clicking the play button
+                    if (e.target.closest('.play-song-btn')) return;
+                    
+                    const index = parseInt(row.getAttribute('data-index'));
+                    this.playSongAtIndex(index);
+                });
+            });
+            // Play buttons
+            document.querySelectorAll('.play-song-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const index = parseInt(btn.getAttribute('data-index'));
+                    this.playSongAtIndex(index);
+                });
+            });
+        },
+        playSongAtIndex(index) {
+            if (MusicPlayer.state.localPlayback) {
+                AudioPlayer.play(index);
+            } else {
+                const song = MusicPlayer.state.playlist[index];
+                const title = Utils.formatTitle(song);
+                WebSocket.sendCommand('play_index', { index });
+                DOM.updateNowPlaying(title, true);
+                DOM.highlightCurrentSong(index);
+            }
+        },
+        initControlEvents() {
+            // Local playback toggle
+            MusicPlayer.elements.localPlaybackToggle.addEventListener('change', (e) => {
+                MusicPlayer.state.localPlayback = e.target.checked;
+                if (!MusicPlayer.state.localPlayback && MusicPlayer.socket) {
+                    WebSocket.sendCommand('MUSIC_SETTINGS');
+                }
+            });
+            // Play/Pause
+            MusicPlayer.elements.playPauseBtn.addEventListener('click', () => {
+                if (MusicPlayer.state.localPlayback) {
+                    AudioPlayer.togglePlayPause();
+                } else {
+                    const command = MusicPlayer.state.isPlaying ? 'pause' : 'play';
+                    WebSocket.sendCommand(command);
+                    MusicPlayer.state.isPlaying = !MusicPlayer.state.isPlaying;
+                    DOM.updatePlayPauseIcon(MusicPlayer.state.isPlaying);
+                }
+            });
+            // Previous
+            MusicPlayer.elements.prevBtn.addEventListener('click', () => {
+                if (MusicPlayer.state.localPlayback) {
+                    AudioPlayer.previous();
+                } else {
+                    WebSocket.sendCommand('prev');
+                }
+            });
+            // Next
+            MusicPlayer.elements.nextBtn.addEventListener('click', () => {
+                if (MusicPlayer.state.localPlayback) {
+                    AudioPlayer.next();
+                } else {
+                    WebSocket.sendCommand('next');
+                }
+            });
+            // Repeat
+            MusicPlayer.elements.repeatBtn.addEventListener('click', () => {
+                MusicPlayer.state.repeat = !MusicPlayer.state.repeat;
+                DOM.updateButtonState(MusicPlayer.elements.repeatBtn, MusicPlayer.state.repeat);
+                WebSocket.sendCommand('MUSIC_SETTINGS', {
+                    repeat: MusicPlayer.state.repeat,
+                    shuffle: MusicPlayer.state.shuffle,
+                    volume: MusicPlayer.state.volume
+                });
+            });
+            // Shuffle
+            MusicPlayer.elements.shuffleBtn.addEventListener('click', () => {
+                MusicPlayer.state.shuffle = !MusicPlayer.state.shuffle;
+                DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, MusicPlayer.state.shuffle);
+                WebSocket.sendCommand('MUSIC_SETTINGS', {
+                    repeat: MusicPlayer.state.repeat,
+                    shuffle: MusicPlayer.state.shuffle,
+                    volume: MusicPlayer.state.volume
+                });
+            });
+            // Refresh now playing
+            MusicPlayer.elements.refreshBtn.addEventListener('click', () => {
+                MusicPlayer.elements.refreshBtn.classList.add('is-loading');
+                WebSocket.sendCommand('WHAT_IS_PLAYING');
+            });
+        },
+        initVolumeEvents() {
+            const debouncedVolumeUpdate = Utils.debounce((value) => {
+                if (MusicPlayer.state.localPlayback) {
+                    MusicPlayer.elements.audioPlayer.volume = value / 100;
+                } else if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                    WebSocket.sendCommand('volume', { value });
+                }
+            }, 100);
+            const handleVolumeChange = (value) => {
+                DOM.updateVolume(value);
+                debouncedVolumeUpdate(value);
+            };
+            MusicPlayer.elements.volumeRange.addEventListener('input', (e) => {
+                handleVolumeChange(parseInt(e.target.value));
+            });
+            MusicPlayer.elements.volumePercentage.addEventListener('input', (e) => {
+                let value = parseInt(e.target.value);
+                if (isNaN(value)) value = 0;
+                if (value < 0) value = 0;
+                if (value > 100) value = 100;
+                handleVolumeChange(value);
+            });
+        },
+        initKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Ignore if typing in an input field
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                switch(e.code) {
+                    case 'Space':
+                        e.preventDefault();
+                        MusicPlayer.elements.playPauseBtn.click();
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        MusicPlayer.elements.prevBtn.click();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        MusicPlayer.elements.nextBtn.click();
+                        break;
+                    case 'KeyR':
+                        if (e.ctrlKey || e.metaKey) return; // Don't interfere with browser refresh
+                        e.preventDefault();
+                        MusicPlayer.elements.repeatBtn.click();
+                        break;
+                    case 'KeyS':
+                        if (e.ctrlKey || e.metaKey) return; // Don't interfere with browser save
+                        e.preventDefault();
+                        MusicPlayer.elements.shuffleBtn.click();
+                        break;
+                }
+            });
+        },
+        initAudioEvents() {
+            MusicPlayer.elements.audioPlayer.addEventListener('ended', () => {
+                AudioPlayer.handleEnded();
+            });
+            MusicPlayer.elements.audioPlayer.addEventListener('error', (e) => {
+                console.error('Audio playback error:', e);
+                DOM.updateNowPlaying('Error loading song', false);
+            });
+        },
+        initSearchEvents() {
+            MusicPlayer.elements.searchInput.addEventListener('input', (e) => {
+                DOM.filterPlaylist(e.target.value);
+            });
+        },
+    };
+    // ===== INITIALIZATION =====
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('Initializing Music Player...');
+        DOM.cacheElements();
+        Events.initializeAll();
+        WebSocket.connect();
+        // Initialize button states
+        DOM.updateButtonState(MusicPlayer.elements.repeatBtn, false);
+        DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, false);
+        console.log('Music Player initialized successfully');
+    });
 </script>
 <?php
 // Get the buffered content
