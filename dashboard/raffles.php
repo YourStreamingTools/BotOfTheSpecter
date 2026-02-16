@@ -115,6 +115,9 @@ ob_start();
 <div class="columns" style="flex: 1 0 auto;">
     <div class="column is-10 is-offset-1 main-content">
         <section class="section">
+            <div class="notification is-warning">
+                <strong>⚠️ Beta Feature:</strong> This is a beta 5.8 version feature currently in testing. Functionality may change or have unexpected behavior.
+            </div>
             <?php if ($message): ?>
                 <div class="notification is-info"><?php echo htmlspecialchars($message); ?></div>
             <?php endif; ?>
