@@ -33,8 +33,10 @@ date_default_timezone_set($timezone);
 $music_source = 'system';
 try {
     $prefRes = $db->query("SELECT music_source FROM streamer_preferences WHERE id = 1");
-    if ($prefRes && $row = $prefRes->fetch_assoc() && isset($row['music_source'])) {
+    if ($prefRes && ($row = $prefRes->fetch_assoc()) && isset($row['music_source'])) {
         $music_source = $row['music_source'];
+        // enforce allowed values
+        if (!in_array($music_source, ['system', 'user'])) $music_source = 'system';
     }
 } catch (Exception $e) {
     // keep default if column missing or query fails
@@ -204,6 +206,10 @@ $playlistForJs = [];
 foreach ($userMusicFiles as $f) { $playlistForJs[] = 'USER:' . $f['filename']; }
 foreach ($musicFiles as $f) { $playlistForJs[] = $f['filename']; }
 
+// Server-side visible counts & initial visibility (so page load matches DB preference)
+$serverVisibleCount = ($music_source === 'user') ? count($userMusicFiles) : count($musicFiles);
+$visibleIndex = 0;
+
 ob_start();
 ?>
 <div class="has-text-centered mb-6 has-text-white">
@@ -316,36 +322,14 @@ ob_start();
         </div>
     </div>
 </div>
-<div class="card has-text-white">
-    <header class="card-header has-text-white">
-        <h2 class="card-header-title is-size-4 has-text-white">
-            <span class="icon-text" style="display: flex; align-items: center;">
-                <span class="icon" style="display: flex; align-items: center;">
-                    <i class="fas fa-list-music"></i>
-                </span>
-                <span style="margin-left: 0.5em;"><?php echo t('music_playlist'); ?></span>
-            </span>
-        </h2>
-        <div class="card-header-icon">
-            <span class="tag is-info is-rounded"><?php echo count($playlistForJs); ?> <?php echo t('music_songs'); ?></span>
-        </div>
-    </header>
+<div class="card mb-4 has-text-white">
     <div class="card-content p-0 has-text-white">
-        <div class="field" style="padding: 1rem 1rem 0.5rem 1rem;">
-            <div class="control has-icons-left">
-                <input id="searchInput" class="input is-rounded" type="text" placeholder="<?php echo t('music_search_playlist'); ?>">
-                <span class="icon is-left">
-                    <i class="fas fa-search"></i>
-                </span>
-            </div>
-        </div>
-        <!-- User Uploads / Upload UI (now contained) -->
-        <div class="box user-uploads-box mb-4 has-text-white" style="background-color: #25262a; border: 1px solid #35363a; padding: 0.75rem;">
+        <div class="user-uploads mb-0 has-text-white" style="padding: 0.75rem;">
             <div class="columns is-vcentered is-mobile" style="margin-bottom: 0.5rem;">
                 <div class="column">
                     <strong>Your uploads</strong>
                     <div class="is-size-7 has-text-light" style="margin-top:4px;">
-                        files you upload are your responsibility. We do NOT guarantee rights clearance or DMCA-safety for user uploads and are not liable for content you upload.
+                        You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.
                     </div>
                 </div>
                 <div class="column is-narrow has-text-right">
@@ -384,6 +368,37 @@ ob_start();
                     <?php endif; ?>
                 </div>
             </form>
+            <!-- AJAX upload progress and response (shown when JS uploads files) -->
+            <div id="userUploadProgressContainer" style="display:none; margin-top:0.5rem; align-items:center; gap:0.5rem;">
+                <progress id="userUploadProgress" class="progress is-small" value="0" max="100" style="width:70%;"></progress>
+                <span id="userUploadProgressPercent" class="is-size-7" style="margin-left:0.5rem;">0%</span>
+            </div>
+            <div id="userUploadResponse" class="has-text-info" style="display:none; margin-top:0.5rem;"></div>
+        </div>
+    </div>
+</div>
+<div class="card has-text-white">
+    <header class="card-header has-text-white">
+        <h2 class="card-header-title is-size-4 has-text-white">
+            <span class="icon-text" style="display: flex; align-items: center;">
+                <span class="icon" style="display: flex; align-items: center;">
+                    <i class="fas fa-list-music"></i>
+                </span>
+                <span style="margin-left: 0.5em;"><?php echo t('music_playlist'); ?></span>
+            </span>
+        </h2>
+        <div class="card-header-icon">
+            <span id="playlistCountTag" class="tag is-info is-rounded" data-label="<?php echo t('music_songs'); ?>"><?php echo $serverVisibleCount; ?> <?php echo t('music_songs'); ?></span>
+        </div>
+    </header>
+    <div class="card-content p-0 has-text-white">
+        <div class="field" style="padding: 1rem 1rem 0.5rem 1rem;">
+            <div class="control has-icons-left">
+                <input id="searchInput" class="input is-rounded" type="text" placeholder="<?php echo t('music_search_playlist'); ?>">
+                <span class="icon is-left">
+                    <i class="fas fa-search"></i>
+                </span>
+            </div>
         </div>
         <div class="table-container playlist-container has-text-white">
             <table class="table is-fullwidth has-text-white" id="playlistTable">
@@ -404,13 +419,17 @@ ob_start();
                 <tbody class="has-text-white" id="playlistBody">
                     <?php /* Render user uploads first (private to uploader) */ ?>
                     <?php foreach ($userMusicFiles as $uIndex => $fileData):
-                        $index = $uIndex; ?>
+                        $index = $uIndex;
+                        $isVisible = ($music_source === 'user');
+                        if ($isVisible) { $visibleIndex++; }
+                        $displayNumber = $isVisible ? $visibleIndex : '';
+                        $rowStyle = $isVisible ? '' : 'style="display:none;"'; ?>
                         <tr data-index="<?php echo $index; ?>"
                             data-file="<?php echo htmlspecialchars('USER:' . $fileData['filename']); ?>"
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row is-clickable user-upload has-text-white">
+                            class="playlist-row is-clickable user-upload has-text-white" <?php echo $rowStyle; ?> >
                             <td class="has-text-centered has-text-weight-semibold has-text-grey is-narrow has-text-white">
-                                <span class="row-number"><?php echo $index + 1; ?></span>
+                                <span class="row-number"><?php echo $displayNumber; ?></span>
                                 <span class="now-playing-icon" style="display: none;">
                                     <i class="fas fa-play-circle has-text-success"></i>
                                 </span>
@@ -430,13 +449,17 @@ ob_start();
                     <?php endforeach; ?>
                     <?php /* Now render global DMCA-free tracks */ ?>
                     <?php foreach ($musicFiles as $gIndex => $fileData):
-                        $index = count($userMusicFiles) + $gIndex; ?>
+                        $index = count($userMusicFiles) + $gIndex;
+                        $isVisible = ($music_source !== 'user');
+                        if ($isVisible) { $visibleIndex++; }
+                        $displayNumber = $isVisible ? $visibleIndex : '';
+                        $rowStyle = $isVisible ? '' : 'style="display:none;"'; ?>
                         <tr data-index="<?php echo $index; ?>" 
                             data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" 
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row is-clickable has-text-white">
+                            class="playlist-row is-clickable has-text-white" <?php echo $rowStyle; ?>>
                             <td class="has-text-centered has-text-weight-semibold has-text-grey is-narrow has-text-white">
-                                <span class="row-number"><?php echo $index + 1; ?></span>
+                                <span class="row-number"><?php echo $displayNumber; ?></span>
                                 <span class="now-playing-icon" style="display: none;">
                                     <i class="fas fa-play-circle has-text-success"></i>
                                 </span>
@@ -548,6 +571,7 @@ ob_start();
                 refreshBtn: document.getElementById('refresh-now-playing'),
                 searchInput: document.getElementById('searchInput'),
                 playlistBody: document.getElementById('playlistBody'),
+                musicSourceSelect: document.getElementById('music-source-select'),
             };
         },
         updateNowPlaying(title, isPlaying = true) {
@@ -608,6 +632,45 @@ ob_start();
                 }
             });
         },
+        /* Show/hide playlist rows depending on selected music source and renumber visible rows. */
+        updatePlaylistForSource(source) {
+            const rows = Array.from(document.querySelectorAll('.playlist-row'));
+            let visibleCount = 0;
+            rows.forEach(row => {
+                const isUser = row.classList.contains('user-upload');
+                let shouldShow = true;
+                if (source === 'user') {
+                    shouldShow = isUser;
+                } else {
+                    // 'system' => hide user uploads
+                    shouldShow = !isUser;
+                }
+                row.style.display = shouldShow ? '' : 'none';
+                if (shouldShow) {
+                    visibleCount++;
+                    // update visible numbering (do NOT change data-index)
+                    const numEl = row.querySelector('.row-number');
+                    if (numEl) numEl.textContent = visibleCount;
+                }
+            });
+            // If nothing is visible, show a placeholder row
+            const tbody = document.getElementById('playlistBody');
+            const existingPlaceholder = document.querySelector('.playlist-row.placeholder');
+            if (visibleCount === 0) {
+                if (!existingPlaceholder) {
+                    const tr = document.createElement('tr');
+                    tr.className = 'playlist-row placeholder has-text-grey';
+                    tr.innerHTML = `<td colspan="3" style="padding:1.25rem; text-align:center;">No tracks for the selected music source.</td>`;
+                    tbody.prepend(tr);
+                }
+            } else if (existingPlaceholder) {
+                existingPlaceholder.remove();
+            }
+        },
+        rebuildPlaylistStateFromDOM() {
+            const rows = Array.from(document.querySelectorAll('.playlist-row'));
+            MusicPlayer.state.playlist = rows.map(r => r.getAttribute('data-file'));
+        }
     };
     // ===== AUDIO PLAYER FUNCTIONS =====
     const AudioPlayer = {
@@ -782,6 +845,9 @@ ob_start();
             if (typeof settings.music_source !== 'undefined') {
                 const sel = document.getElementById('music-source-select');
                 if (sel) sel.value = settings.music_source;
+                if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
+                    DOM.updatePlaylistForSource(settings.music_source);
+                }
             }
         },
         handleNowPlaying(data) {
@@ -819,6 +885,7 @@ ob_start();
             this.initKeyboardShortcuts();
             this.initAudioEvents();
             this.initSearchEvents();
+            this.initUploadEvents();
 
             // File input preview for user uploads
             const userFileInput = document.getElementById('userMusicFiles');
@@ -938,6 +1005,11 @@ ob_start();
                             toast.innerText = 'Music source saved';
                             document.body.appendChild(toast);
                             setTimeout(() => toast.remove(), 2200);
+
+                            // Update the playlist display immediately for the new source
+                            if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
+                                DOM.updatePlaylistForSource(val);
+                            }
                         } else {
                             alert('Failed to save music source');
                         }
@@ -1067,6 +1139,90 @@ ob_start();
                 DOM.filterPlaylist(e.target.value);
             });
         },
+        initUploadEvents() {
+            const form = document.getElementById('userMusicUploadForm');
+            const fileInput = document.getElementById('userMusicFiles');
+            const fileListLabel = document.getElementById('user-music-file-list');
+            const progressContainer = document.getElementById('userUploadProgressContainer');
+            const progressBar = document.getElementById('userUploadProgress');
+            const progressPercent = document.getElementById('userUploadProgressPercent');
+            const responseEl = document.getElementById('userUploadResponse');
+            if (!form || !fileInput) return;
+
+            form.addEventListener('submit', (ev) => {
+                ev.preventDefault();
+                const files = fileInput.files;
+                if (!files || files.length === 0) {
+                    alert('Please select one or more MP3 files to upload.');
+                    return;
+                }
+
+                const fd = new FormData();
+                for (let i = 0; i < files.length; i++) {
+                    fd.append('userMusicFiles[]', files[i]);
+                }
+
+                // UI: disable submit, show progress
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.remove('is-primary'); submitBtn.classList.add('is-loading'); }
+                progressContainer.style.display = 'flex';
+                progressBar.value = 0; progressPercent.textContent = '0%';
+                responseEl.style.display = 'none'; responseEl.innerHTML = '';
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', window.location.pathname, true);
+
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        progressBar.value = percentComplete;
+                        progressPercent.textContent = percentComplete + '%';
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); submitBtn.classList.add('is-primary'); }
+                    progressContainer.style.display = 'none';
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // Replace playlist tbody with server-rendered version from response
+                        try {
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(xhr.responseText, 'text/html');
+                            const newTbody = doc.getElementById('playlistBody');
+                            if (newTbody) {
+                                document.getElementById('playlistBody').innerHTML = newTbody.innerHTML;
+                                // rebind playlist event handlers and rebuild client playlist state
+                                Events.initPlaylistEvents();
+                                DOM.rebuildPlaylistStateFromDOM();
+                                const ms = (document.getElementById('music-source-select') || {}).value || 'system';
+                                DOM.updatePlaylistForSource(ms);
+                            }
+                            // show any server messages for uploads
+                            const serverMsg = doc.querySelector('.box.user-uploads-box .notification.is-info');
+                            if (serverMsg) {
+                                responseEl.innerHTML = serverMsg.innerHTML;
+                                responseEl.style.display = 'block';
+                            }
+                        } catch (err) {
+                            console.warn('Failed to parse upload response', err);
+                        }
+                        // reset input
+                        fileInput.value = '';
+                        if (fileListLabel) fileListLabel.textContent = 'No files selected';
+                    } else {
+                        responseEl.innerHTML = 'Upload failed';
+                        responseEl.style.display = 'block';
+                    }
+                };
+                xhr.onerror = function() {
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); submitBtn.classList.add('is-primary'); }
+                    progressContainer.style.display = 'none';
+                    responseEl.innerHTML = 'Upload failed (network error)';
+                    responseEl.style.display = 'block';
+                };
+                xhr.send(fd);
+            });
+        },
     };
     // ===== INITIALIZATION =====
     document.addEventListener('DOMContentLoaded', () => {
@@ -1074,6 +1230,17 @@ ob_start();
         DOM.cacheElements();
         Events.initializeAll();
         WebSocket.connect();
+        // Ensure playlist reflects persisted music source on load
+        const initialSource = (document.getElementById('music-source-select') || {}).value || 'system';
+        if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
+            DOM.updatePlaylistForSource(initialSource);
+        }
+        // Update the visible playlist count tag to match server-side initial value
+        const countTag = document.getElementById('playlistCountTag');
+        if (countTag) {
+            const visible = document.querySelectorAll('.playlist-row:not([style*="display:none"])').length;
+            countTag.textContent = visible + ' ' + (countTag.getAttribute('data-label') || 'songs');
+        }
         // Initialize button states
         DOM.updateButtonState(MusicPlayer.elements.repeatBtn, false);
         DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, false);

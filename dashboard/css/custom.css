@@ -194,19 +194,7 @@ button.is-link {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
-/* Make the user uploads box slightly narrower and centered so it doesn't span the full card width */
-.user-uploads-box {
-    max-width: 92%;
-    margin-left: auto;
-    margin-right: auto;
-}
 
-/* Keep full-width on small screens for responsiveness */
-@media (max-width: 768px) {
-    .user-uploads-box {
-        max-width: 100%;
-    }
-}
 
 .has-background-darker {
     background-color: #212121 !important;
