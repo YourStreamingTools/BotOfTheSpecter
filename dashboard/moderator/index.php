@@ -618,6 +618,7 @@ ob_start();
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 <?php
 $content = ob_get_clean();
-include 'mod_layout.php';
+// layout mode inferred by dashboard/layout.php
+include_once __DIR__ . '/../layout.php';
 exit;
 ?>

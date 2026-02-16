@@ -1826,5 +1826,6 @@ ob_start();
 $scripts = ob_get_clean();
 
 // Use layout.php to render the page
-include 'mod_layout.php';
+// layout mode inferred by dashboard/layout.php
+include_once __DIR__ . '/../layout.php';
 ?>

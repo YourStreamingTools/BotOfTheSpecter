@@ -192,5 +192,6 @@ document.querySelectorAll('.remove-task-btn').forEach(function(btn) {
 </script>
 <?php
 $scripts = ob_get_clean();
-include 'layout_todolist.php';
+// layout mode inferred by dashboard/layout.php
+include_once __DIR__ . '/../layout.php';
 ?>

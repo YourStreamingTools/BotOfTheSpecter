@@ -722,5 +722,6 @@ ob_start();
             </script>
             <?php
             $scripts = ob_get_clean();
-            require 'mod_layout.php';
+            // layout mode inferred by dashboard/layout.php
+            include_once __DIR__ . '/../layout.php';
             ?>

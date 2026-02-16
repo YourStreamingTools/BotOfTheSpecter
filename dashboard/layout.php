@@ -1,6 +1,6 @@
 <?php
 // This file serves as a template for all dashboard pages
-include "mod_access.php";
+include_once __DIR__ . '/mod_access.php';
 
 if (!isset($pageTitle))
     $pageTitle = "BotOfTheSpecter";
@@ -16,6 +16,44 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 $profileUsername = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8') : (isset($user['username']) ? htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') : '');
 $profileNavLabel = t('navbar_profile') . ' | ' . $profileUsername;
+// default layout mode (pages may override by setting $layoutMode before including layout.php)
+// If not set, infer from the request URI path segments: /admin, /moderator, /todolist -> respective modes; otherwise 'default'
+if (!isset($layoutMode)) {
+    $layoutMode = 'default';
+    if (isset($_SERVER['REQUEST_URI'])) {
+        $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $path = strtolower($path);
+        $norm = rtrim($path, '/');
+        // Detect role by path segment anywhere in the request path (robust for nested locations)
+        if ($norm !== '') {
+            if (strpos($norm, '/admin') !== false) {
+                $layoutMode = 'admin';
+            } elseif (strpos($norm, '/moderator') !== false) {
+                $layoutMode = 'moderator';
+            } elseif (strpos($norm, '/todolist') !== false) {
+                $layoutMode = 'todolist';
+            }
+        }
+    }
+}
+// brand text/href vary by layout mode
+switch ($layoutMode) {
+    case 'admin':
+        $brandText = 'Admin Panel';
+        $brandHref = 'index.php';
+        break;
+    case 'moderator':
+        $brandText = 'Moderator Panel';
+        $brandHref = 'index.php';
+        break;
+    case 'todolist':
+        $brandText = 'To Do List';
+        $brandHref = 'index.php';
+        break;
+    default:
+        $brandText = 'BotOfTheSpecter';
+        $brandHref = 'dashboard.php';
+}
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
@@ -63,13 +101,17 @@ function uuidv4()
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/bulma-responsive-tables.css">
-    <link rel="stylesheet" href="css/custom.css?v=<?php echo uuidv4(); ?>">
+    <link rel="stylesheet" href="/css/bulma-responsive-tables.css">
+    <link rel="stylesheet" href="/css/custom.css?v=<?php echo uuidv4(); ?>">
+    <?php if (isset($layoutMode) && $layoutMode === 'admin'): ?>
+        <link rel="stylesheet" href="/css/admin.css?v=<?php echo uuidv4(); ?>">
+    <?php endif; ?>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 </head>
-<body class="page-wrapper">
+<body class="page-wrapper<?php echo (isset($layoutMode) && $layoutMode === 'admin') ? ' admin-mode' : ''; ?>">
+    <!-- LAYOUT DEBUG: layoutMode=<?php echo htmlspecialchars($layoutMode, ENT_QUOTES); ?> request_uri=<?php echo isset($_SERVER['REQUEST_URI']) ? htmlspecialchars($_SERVER['REQUEST_URI'], ENT_QUOTES) : 'N/A'; ?> -->
     <div id="cookieConsentBox" class="box has-background-dark has-text-white"
         style="display:none; position:fixed; z-index:9999; right:24px; bottom:24px; max-width:360px; width:90vw; box-shadow:0 2px 16px #000a;">
         <div class="mb-3">
@@ -98,7 +140,7 @@ function uuidv4()
                 <span class="icon"><i class="fas fa-bars"></i></span>
             </button>
             <div style="flex:1; display:flex; align-items:center; justify-content:center;">
-                <a href="dashboard.php" style="color:#fff; font-weight:700; text-decoration:none;">BotOfTheSpecter</a>
+                <a href="<?php echo $brandHref; ?>" style="color:#fff; font-weight:700; text-decoration:none;"><?php echo $brandText; ?></a>
             </div>
             <div style="width:44px; height:44px;"></div>
         </div>
@@ -109,14 +151,14 @@ function uuidv4()
             style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; background:#141414;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="logo" style="width:28px; height:28px;">
-                <span style="color:#fff; font-weight:700;">BotOfTheSpecter</span>
+                <span style="color:#fff; font-weight:700;"><?php echo $brandText; ?></span>
             </div>
             <button id="mobileMenuClose" class="button is-dark" aria-label="Close navigation">
                 <span class="icon"><i class="fas fa-times"></i></span>
             </button>
         </div>
         <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
-            <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile'); ?>
+            <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile', $layoutMode); ?>
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
                 <a href="mod_channels.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
@@ -148,14 +190,14 @@ function uuidv4()
         <div class="sidebar-header">
             <div class="sidebar-brand">
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
-                <span class="sidebar-brand-text">BotOfTheSpecter</span>
+                <span class="sidebar-brand-text"><?php echo $brandText; ?></span>
             </div>
             <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
                 <span class="icon"><i class="fas fa-bars"></i></span>
             </button>
         </div>
         <div class="sidebar-content-wrapper">
-            <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop'); ?>
+            <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop', $layoutMode); ?>
             <div class="sidebar-user-section">
                 <a href="mod_channels.php" class="sidebar-user-item">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
@@ -182,15 +224,25 @@ function uuidv4()
             </div>
         </div>
     </aside>
-    <?php if ($devStreamOnline): ?>
-        <!-- Dev Stream Online Banner -->
-        <div
-            style="background:rgb(138, 43, 226); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            <span>
-                <i class="fas fa-video"></i> Dev Stream Online - Watch live at <a href="https://twitch.tv/gfaundead"
-                    target="_blank" style="color: #fff; text-decoration: underline;">twitch.tv/gfaundead</a>
-            </span>
+    <?php if ($layoutMode === 'admin'): ?>
+        <!-- Admin Banner -->
+        <div style="background:rgb(0, 0, 0); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;"><span><strong>ADMIN DASHBOARD</strong> &mdash; Restricted Access</span></div>
+    <?php elseif ($layoutMode === 'moderator'):
+        $modDisplay = isset($_SESSION['editing_display_name']) ? htmlspecialchars($_SESSION['editing_display_name'], ENT_QUOTES, 'UTF-8') : null;
+        $modUsername = isset($_SESSION['editing_username']) ? htmlspecialchars($_SESSION['editing_username'], ENT_QUOTES, 'UTF-8') : null; ?>
+        <!-- Moderator Banner -->
+        <div style="background:rgb(0, 123, 255); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
+            <?php if ($modDisplay || $modUsername): ?>
+                <span>You are moderating: <strong><?php echo $modDisplay ? $modDisplay : $modUsername; ?></strong><?php echo ($modDisplay && $modUsername) ? ' (@' . $modUsername . ')' : ''; ?></span>
+            <?php else: ?>
+                <span>You are using the <strong>MODERATOR</strong> dashboard. No channel selected — <a href="mod_channels.php" style="color:#fff; text-decoration:underline;">select a channel to moderate</a>.</span>
+            <?php endif; ?>
         </div>
+    <?php else: ?>
+        <?php if ($layoutMode === 'default' && $devStreamOnline): ?>
+            <!-- Dev Stream Online Banner -->
+            <div style="background:rgb(138, 43, 226); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><span><i class="fas fa-video"></i> Dev Stream Online - Watch live at <a href="https://twitch.tv/gfaundead" target="_blank" style="color: #fff; text-decoration: underline;">twitch.tv/gfaundead</a></span></div>
+        <?php endif; ?>
     <?php endif; ?>
     <?php if ($maintenanceMode):
         $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>
@@ -269,7 +321,7 @@ function uuidv4()
         </div>
         <div style="max-width: 1500px;" class="is-hidden-tablet">
             &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-            <span class="tag is-info is-light mt-2">Dashboard Version: <?php echo $dashboardVersion; ?></span><br>
+            <span class="tag is-info is-light mt-2"><?php echo ($layoutMode==='admin')? 'Admin Dashboard Version: ' . $dashboardVersion : (($layoutMode==='moderator')? 'Mod Dashboard Version: ' . $dashboardVersion : ($layoutMode==='todolist' ? 'To Do List Version: ' . $dashboardVersion : 'Dashboard Version: ' . $dashboardVersion)); ?></span><br>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
             (ABN 20 447 022 747).<br>
             This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live
@@ -285,7 +337,7 @@ function uuidv4()
     <!-- Custom Uptime Script -->
     <script src="https://uptime.botofthespecter.com/en/cca64861/widget/script.js"></script>
     <!-- Custom JS -->
-    <script src="js/dashboard.js?v=<?php echo uuidv4(); ?>"></script>
+    <script src="/js/dashboard.js?v=<?php echo uuidv4(); ?>"></script>
     <script src="/js/search.js?v=<?php echo uuidv4(); ?>"></script>
     <script src="/js/bulmaModals.js?v=<?php echo uuidv4(); ?>"></script>
     <script src="/js/sidebar-mobile.js?v=<?php echo uuidv4(); ?>"></script>
@@ -355,6 +407,40 @@ function uuidv4()
                 setCookie('cookie_consent', 'declined', 14);
                 hideCookieConsentBox();
             };
+        });
+        // Generic client-side active-menu helper (works for default, moderator and admin menus)
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                const path = window.location.pathname || '';
+                const file = path.substring(path.lastIndexOf('/') + 1) || '';
+                document.querySelectorAll('.sidebar-menu-link').forEach(link => {
+                    const href = (link.getAttribute('href') || '').trim();
+                    if (!href || href === '#') return;
+                    // Normalize and match by full path, by filename, or by trailing match
+                    if (href === path || href === file || path.endsWith(href) || (href.startsWith('/') && path.endsWith(href.replace(/^\//, '')))) {
+                        link.classList.add('active');
+                        const parent = link.closest('.sidebar-menu-item.has-submenu');
+                        if (parent) parent.classList.add('open');
+                        const submenu = link.closest('.sidebar-submenu');
+                        if (submenu) submenu.style.display = 'block';
+                    } else if (href.startsWith('/')) {
+                        // also match by path segment for leading-slash links (e.g. '/admin' should match '/admin/index.php' or '/dashboard/admin/xyz')
+                        try {
+                            const segment = href.replace(/^\//, '').replace(/\/$/, '');
+                            const parts = path.split('/').filter(Boolean);
+                            if (segment && parts.includes(segment)) {
+                                link.classList.add('active');
+                                const parent = link.closest('.sidebar-menu-item.has-submenu');
+                                if (parent) parent.classList.add('open');
+                                const submenu = link.closest('.sidebar-submenu');
+                                if (submenu) submenu.style.display = 'block';
+                            }
+                        } catch (e) { /* no-op */ }
+                    }
+                });
+            } catch (e) {
+                // no-op on error
+            }
         });
     </script>
 </body>
