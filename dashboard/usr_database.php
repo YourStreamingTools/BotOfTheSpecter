@@ -430,7 +430,8 @@ try {
                 default_vip_welcome_message TEXT,
                 new_default_vip_welcome_message TEXT,
                 default_mod_welcome_message TEXT,
-                new_default_mod_welcome_message TEXT
+                new_default_mod_welcome_message TEXT,
+                music_source VARCHAR(20) DEFAULT 'system'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'stream_lotto' => "
             CREATE TABLE IF NOT EXISTS stream_lotto (
@@ -795,8 +796,8 @@ try {
     }
     // Ensure default options for streamer_preferences exist
     if (
-        $usrDBconn->query("INSERT INTO streamer_preferences (send_welcome_messages, default_welcome_message, new_default_welcome_message, default_vip_welcome_message, new_default_vip_welcome_message, default_mod_welcome_message, new_default_mod_welcome_message) 
-    SELECT 1, 'Welcome back, (user)! It''s great to see you again!', '(user) is new to the community, let''s give them a warm welcome!', 'ATTENTION! A very important person has entered the chat, welcome back (user)', 'ATTENTION! A very important person has entered the chat, welcome (user)', 'MOD ON DUTY! Welcome back (user), the power of the sword has increased!', 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!' 
+        $usrDBconn->query("INSERT INTO streamer_preferences (send_welcome_messages, default_welcome_message, new_default_welcome_message, default_vip_welcome_message, new_default_vip_welcome_message, default_mod_welcome_message, new_default_mod_welcome_message, music_source) 
+    SELECT 1, 'Welcome back, (user)! It''s great to see you again!', '(user) is new to the community, let''s give them a warm welcome!', 'ATTENTION! A very important person has entered the chat, welcome back (user)', 'ATTENTION! A very important person has entered the chat, welcome (user)', 'MOD ON DUTY! Welcome back (user), the power of the sword has increased!', 'MOD ON DUTY! Welcome in (user), the power of the sword has increased!', 'system' 
     WHERE NOT EXISTS (SELECT 1 FROM streamer_preferences)") === TRUE && $usrDBconn->affected_rows > 0
     ) {
         async_log('Default streamer_preferences options ensured.');

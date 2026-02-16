@@ -443,6 +443,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $db_local->close();
             echo json_encode(['success' => true, 'section' => $section]);
             exit();
+        } elseif ($section === 'music') {
+            // Handle music-related streamer preferences (persisted music source)
+            $db_name_local = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+            $db_local = new mysqli($db_servername, $db_username, $db_password, $db_name_local);
+            if ($db_local->connect_error) {
+                echo json_encode(['success' => false, 'error' => 'Database connection failed']);
+                exit();
+            }
+            if (isset($_POST['music_source'])) {
+                $music_source = in_array($_POST['music_source'], ['system','user']) ? $_POST['music_source'] : 'system';
+                $update_stmt = $db_local->prepare("UPDATE streamer_preferences SET music_source = ? WHERE id = 1");
+                $update_stmt->bind_param('s', $music_source);
+                $update_stmt->execute();
+                $update_stmt->close();
+            }
+            $db_local->close();
+            echo json_encode(['success' => true, 'section' => $section, 'music_source' => $music_source ?? 'system']);
+            exit();
         }
         // Update or insert each field
         foreach ($fieldsToUpdate as $alertType => $alertMessage) {

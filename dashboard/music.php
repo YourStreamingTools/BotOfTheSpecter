@@ -29,6 +29,17 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Read persisted music source preference (defaults to 'system')
+$music_source = 'system';
+try {
+    $prefRes = $db->query("SELECT music_source FROM streamer_preferences WHERE id = 1");
+    if ($prefRes && $row = $prefRes->fetch_assoc() && isset($row['music_source'])) {
+        $music_source = $row['music_source'];
+    }
+} catch (Exception $e) {
+    // keep default if column missing or query fails
+}
+
 // Fetch the files from the local music directory with metadata
 function getLocalMusicFiles() {
     $musicDir = '/var/www/cdn/music';
@@ -55,6 +66,143 @@ function getLocalMusicFiles() {
 
 // Fetch music files from local directory
 $musicFiles = getLocalMusicFiles();
+
+// ---------------------------
+// User-uploaded music handling
+// ---------------------------
+// $user_music_path is provided by storage_used.php (e.g. /var/www/private/music_user/<username>)
+$userMusicStatus = '';
+// Handle uploads
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['userMusicFiles'])) {
+    foreach ($_FILES['userMusicFiles']['tmp_name'] as $key => $tmp_name) {
+        if (empty($tmp_name)) continue;
+        $origName = $_FILES['userMusicFiles']['name'][$key];
+        $fileSize = $_FILES['userMusicFiles']['size'][$key];
+        $fileError = $_FILES['userMusicFiles']['error'][$key];
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if ($ext !== 'mp3') {
+            $userMusicStatus .= "Failed to upload " . htmlspecialchars($origName) . ". Only MP3 files are allowed.<br>";
+            continue;
+        }
+        // Check storage limits
+        if ($current_storage_used + $fileSize > $max_storage_size) {
+            $userMusicStatus .= "Failed to upload " . htmlspecialchars($origName) . ". Storage limit exceeded.<br>";
+            continue;
+        }
+        if ($fileError !== 0) {
+            $userMusicStatus .= "Error uploading " . htmlspecialchars($origName) . ". Error code: $fileError<br>";
+            continue;
+        }
+        // Ensure user music path exists (storage_used.php creates it but double-check)
+        if (!is_dir($user_music_path)) {
+            mkdir($user_music_path, 0755, true);
+        }
+        // Prevent overwrites: append timestamp when filename exists
+        $safeName = preg_replace('/[^A-Za-z0-9_\-\. ]/', '_', basename($origName));
+        $target = $user_music_path . '/' . $safeName;
+        if (is_file($target)) {
+            $base = pathinfo($safeName, PATHINFO_FILENAME);
+            $target = $user_music_path . '/' . $base . '-' . time() . '.mp3';
+        }
+        if (move_uploaded_file($tmp_name, $target)) {
+            $current_storage_used += filesize($target);
+            $userMusicStatus .= "Uploaded: " . htmlspecialchars(basename($target)) . "<br>";
+            // Ensure a public copy/symlink exists under /var/www/usermusic/<username> so
+            // overlays and external players can fetch the file via music.botspecter.com
+            if (isset($public_user_music_path)) {
+                $publicTarget = $public_user_music_path . '/' . basename($target);
+                // Create or replace existing public entry
+                if (is_link($publicTarget) || is_file($publicTarget)) {
+                    @unlink($publicTarget);
+                }
+                // Prefer a symlink to avoid duplicating storage; fall back to copy if symlink not allowed
+                if (!@symlink($target, $publicTarget)) {
+                    // Copy file to public dir as fallback
+                    @copy($target, $publicTarget);
+                }
+                @chmod($publicTarget, 0644);
+            }
+        } else {
+            $userMusicStatus .= "Failed to move uploaded file " . htmlspecialchars($origName) . ".<br>";
+        }
+    }
+    // Recalculate storage percentage
+    if ($max_storage_size > 0) {
+        $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+    }
+}
+
+// Handle deletion of user-uploaded music
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_music'])) {
+    $toDelete = (array) $_POST['delete_user_music'];
+    foreach ($toDelete as $d) {
+        $file = basename($d);
+        $full = $user_music_path . '/' . $file;
+        $fileSizeBefore = is_file($full) ? filesize($full) : 0;
+        if (is_file($full) && unlink($full)) {
+            $userMusicStatus .= "Deleted: " . htmlspecialchars($file) . "<br>";
+            $current_storage_used -= $fileSizeBefore;
+            if ($current_storage_used < 0) $current_storage_used = 0;
+            // Also remove public copy/symlink if present
+            if (isset($public_user_music_path)) {
+                $publicFile = $public_user_music_path . '/' . $file;
+                if (is_link($publicFile) || is_file($publicFile)) {
+                    @unlink($publicFile);
+                }
+            }
+        } else {
+            $userMusicStatus .= "Failed to delete " . htmlspecialchars($file) . ".<br>";
+        }
+    }
+    if ($max_storage_size > 0) {
+        $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+    }
+}
+
+// Fetch user-uploaded music files (private to uploader)
+function getUserMusicFiles($dir) {
+    $files = [];
+    if (!is_dir($dir)) return $files;
+    $entries = scandir($dir);
+    foreach ($entries as $f) {
+        if (str_ends_with($f, '.mp3')) {
+            $full = $dir . '/' . $f;
+            $files[] = [
+                'filename' => $f,
+                'title' => pathinfo($f, PATHINFO_FILENAME),
+                'size' => file_exists($full) ? filesize($full) : 0,
+            ];
+        }
+    }
+    usort($files, function($a, $b) { return strcasecmp($a['title'], $b['title']); });
+    return $files;
+}
+
+$userMusicFiles = [];
+if (isset($user_music_path)) {
+    $userMusicFiles = getUserMusicFiles($user_music_path);
+
+    // Reconcile public user music directory so existing uploads are reachable at
+    // https://music.botspecter.com/<username>/<file.mp3>
+    if (isset($public_user_music_path) && is_dir($public_user_music_path)) {
+        foreach ($userMusicFiles as $f) {
+            $privateFile = $user_music_path . '/' . $f['filename'];
+            $publicFile = $public_user_music_path . '/' . $f['filename'];
+            if (!file_exists($publicFile) && file_exists($privateFile)) {
+                // Prefer symlink, fall back to copy
+                if (!@symlink($privateFile, $publicFile)) {
+                    @copy($privateFile, $publicFile);
+                }
+                @chmod($publicFile, 0644);
+            }
+        }
+    }
+}
+
+// Build playlist for client: prefix user files with "USER:" so JS serves them via secure endpoint
+$playlistForJs = [];
+foreach ($userMusicFiles as $f) { $playlistForJs[] = 'USER:' . $f['filename']; }
+foreach ($musicFiles as $f) { $playlistForJs[] = $f['filename']; }
 
 ob_start();
 ?>
@@ -179,7 +327,7 @@ ob_start();
             </span>
         </h2>
         <div class="card-header-icon">
-            <span class="tag is-info is-rounded"><?php echo count($musicFiles); ?> <?php echo t('music_songs'); ?></span>
+            <span class="tag is-info is-rounded"><?php echo count($playlistForJs); ?> <?php echo t('music_songs'); ?></span>
         </div>
     </header>
     <div class="card-content p-0 has-text-white">
@@ -191,6 +339,49 @@ ob_start();
                 </span>
             </div>
         </div>
+        <!-- User Uploads / Upload UI -->
+        <div class="notification is-warning mb-3" style="background-color: #2b2f3a; border: 1px solid #6b2b2b; color: #ffdede;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+                <div style="flex:1;">
+                    <strong>Your uploads</strong> — files you upload are your responsibility. We do NOT guarantee rights clearance or DMCA-safety for user uploads and are not liable for content you upload.
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem;">
+                    <div style="text-align:right;">
+                        <small><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB</small>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <label class="label is-small has-text-white mb-0" style="margin-right:0.5rem;">Music source</label>
+                        <div class="select is-small">
+                            <select id="music-source-select">
+                                <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>>Built-in (DMCA-free)</option>
+                                <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>>Use my uploads</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data" class="mb-4">
+            <div class="file has-name is-fullwidth is-boxed mb-2">
+                <label class="file-label" style="width: 100%;">
+                    <input class="file-input" type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3">
+                    <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                        <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.0em;">
+                            <?php echo t('music_upload_file'); ?>
+                        </span>
+                    </span>
+                    <span class="file-name" id="user-music-file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                        No files selected
+                    </span>
+                </label>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="button is-primary" type="submit">Upload</button>
+                <?php if (!empty($userMusicStatus)): ?>
+                    <div class="notification is-info" style="background-color:#2b2f3a; border:1px solid #4a8ef5; color:#dceefe;"><?php echo $userMusicStatus; ?></div>
+                <?php endif; ?>
+            </div>
+        </form>
         <div class="table-container playlist-container has-text-white">
             <table class="table is-fullwidth has-text-white" id="playlistTable">
                 <thead class="has-text-white">
@@ -208,7 +399,35 @@ ob_start();
                     </tr>
                 </thead>
                 <tbody class="has-text-white" id="playlistBody">
-                    <?php foreach ($musicFiles as $index => $fileData): ?>
+                    <?php /* Render user uploads first (private to uploader) */ ?>
+                    <?php foreach ($userMusicFiles as $uIndex => $fileData):
+                        $index = $uIndex; ?>
+                        <tr data-index="<?php echo $index; ?>"
+                            data-file="<?php echo htmlspecialchars('USER:' . $fileData['filename']); ?>"
+                            data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
+                            class="playlist-row is-clickable user-upload has-text-white">
+                            <td class="has-text-centered has-text-weight-semibold has-text-grey is-narrow has-text-white">
+                                <span class="row-number"><?php echo $index + 1; ?></span>
+                                <span class="now-playing-icon" style="display: none;">
+                                    <i class="fas fa-play-circle has-text-success"></i>
+                                </span>
+                            </td>
+                            <td class="is-family-secondary has-text-white song-title">
+                                <?php echo htmlspecialchars($fileData['title']); ?> <span class="tag is-light is-small" style="margin-left:0.5rem;">Your upload</span>
+                            </td>
+                            <td class="has-text-right is-narrow">
+                                <button class="button is-small is-ghost play-song-btn" data-index="<?php echo $index; ?>" title="Play">
+                                    <span class="icon is-small"><i class="fas fa-play"></i></span>
+                                </button>
+                                <button class="button is-small is-danger delete-user-music" data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" title="Delete">
+                                    <span class="icon is-small"><i class="fas fa-trash"></i></span>
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php /* Now render global DMCA-free tracks */ ?>
+                    <?php foreach ($musicFiles as $gIndex => $fileData):
+                        $index = count($userMusicFiles) + $gIndex; ?>
                         <tr data-index="<?php echo $index; ?>" 
                             data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" 
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
@@ -246,6 +465,8 @@ ob_start();
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
     // ===== STATE MANAGEMENT =====
+    // Current uploader name (used to build public user-music URLs)
+    const uploaderName = '<?php echo addslashes($_SESSION['username'] ?? ''); ?>';
     const MusicPlayer = {
         socket: null,
         reconnectAttempts: 0,
@@ -260,7 +481,7 @@ ob_start();
             shuffle: false,
             localPlayback: false,
             currentIndex: -1,
-            playlist: <?php echo json_encode(array_column($musicFiles, 'filename')); ?>,
+            playlist: <?php echo json_encode($playlistForJs); ?>,
             currentSong: null,
         },
         // DOM elements cache
@@ -287,6 +508,9 @@ ob_start();
             };
         },
         formatTitle(filename) {
+            if (typeof filename === 'string' && filename.startsWith('USER:')) {
+                filename = filename.replace(/^USER:/, '');
+            }
             return filename.replace('.mp3', '').replace(/_/g, ' ');
         },
         getNextIndex(currentIndex, playlist, shuffle) {
@@ -393,7 +617,28 @@ ob_start();
             DOM.updateNowPlaying(title, true);
             DOM.highlightCurrentSong(index);
             const audio = MusicPlayer.elements.audioPlayer;
-            audio.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
+
+            // Build songData to broadcast to overlays (include public URL for user uploads)
+            let songData = { title };
+            if (typeof song === 'string' && song.startsWith('USER:')) {
+                const userFile = song.replace(/^USER:/, '');
+                audio.src = `serve_user_music.php?file=${encodeURIComponent(userFile)}`;
+                songData.file = userFile;
+                if (uploaderName) {
+                    songData.url = `https://music.botspecter.com/${encodeURIComponent(uploaderName)}/${encodeURIComponent(userFile)}`;
+                }
+            } else {
+                audio.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
+                songData.file = song;
+            }
+
+            // Emit NOW_PLAYING so overlays/controllers receive the full song info (including .url for user songs)
+            try {
+                if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                    MusicPlayer.socket.emit('NOW_PLAYING', { song: songData });
+                }
+            } catch (e) { console.warn('Failed to emit NOW_PLAYING', e); }
+
             audio.volume = MusicPlayer.state.volume / 100;
             audio.play().catch(err => console.error('Playback error:', err));
         },
@@ -531,6 +776,10 @@ ob_start();
                 MusicPlayer.state.shuffle = !!settings.shuffle;
                 DOM.updateButtonState(MusicPlayer.elements.shuffleBtn, MusicPlayer.state.shuffle);
             }
+            if (typeof settings.music_source !== 'undefined') {
+                const sel = document.getElementById('music-source-select');
+                if (sel) sel.value = settings.music_source;
+            }
         },
         handleNowPlaying(data) {
             MusicPlayer.elements.refreshBtn.classList.remove('is-loading');
@@ -567,6 +816,17 @@ ob_start();
             this.initKeyboardShortcuts();
             this.initAudioEvents();
             this.initSearchEvents();
+
+            // File input preview for user uploads
+            const userFileInput = document.getElementById('userMusicFiles');
+            const userFileList = document.getElementById('user-music-file-list');
+            if (userFileInput && userFileList) {
+                userFileInput.addEventListener('change', (e) => {
+                    const files = Array.from(e.target.files).map(f => f.name).join(', ');
+                    userFileList.textContent = files || 'No files selected';
+                });
+            }
+
             MusicPlayer.listenersInitialized = true;
         },
         initPlaylistEvents() {
@@ -588,6 +848,28 @@ ob_start();
                     this.playSongAtIndex(index);
                 });
             });
+
+            // Delete user-uploaded music (only visible to uploader)
+            document.querySelectorAll('.delete-user-music').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const file = btn.getAttribute('data-file');
+                    if (!confirm(`Delete ${file}? This cannot be undone.`)) return;
+                    const form = new FormData();
+                    form.append('delete_user_music[]', file);
+                    try {
+                        const resp = await fetch(window.location.pathname, { method: 'POST', body: form });
+                        if (resp.ok) {
+                            location.reload();
+                        } else {
+                            alert('Failed to delete file');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Delete failed');
+                    }
+                });
+            });
         },
         playSongAtIndex(index) {
             if (MusicPlayer.state.localPlayback) {
@@ -595,7 +877,24 @@ ob_start();
             } else {
                 const song = MusicPlayer.state.playlist[index];
                 const title = Utils.formatTitle(song);
-                WebSocket.sendCommand('play_index', { index });
+
+                // If this is a user-uploaded track, send a NOW_PLAYING with a public URL so overlays can fetch it directly.
+                if (typeof song === 'string' && song.startsWith('USER:')) {
+                    const userFile = song.replace(/^USER:/, '');
+                    const songPayload = {
+                        title: title,
+                        file: userFile
+                    };
+                    if (uploaderName) {
+                        songPayload.url = `https://music.botspecter.com/${encodeURIComponent(uploaderName)}/${encodeURIComponent(userFile)}`;
+                    }
+                    if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                        MusicPlayer.socket.emit('NOW_PLAYING', { song: songPayload });
+                    }
+                } else {
+                    WebSocket.sendCommand('play_index', { index });
+                }
+
                 DOM.updateNowPlaying(title, true);
                 DOM.highlightCurrentSong(index);
             }
@@ -608,6 +907,43 @@ ob_start();
                     WebSocket.sendCommand('MUSIC_SETTINGS');
                 }
             });
+
+            // Persisted music source selector (built-in vs user uploads)
+            const musicSourceSelect = document.getElementById('music-source-select');
+            if (musicSourceSelect) {
+                musicSourceSelect.addEventListener('change', async (ev) => {
+                    const val = ev.target.value;
+                    const form = new FormData();
+                    form.append('section_save', 'music');
+                    form.append('music_source', val);
+                    try {
+                        const resp = await fetch('module_data_post.php', { method: 'POST', body: form });
+                        const json = await resp.json();
+                        if (json.success) {
+                            // Persisted to DB OK — propagate live via websocket so overlays/controllers pick it up immediately
+                            WebSocket.sendCommand('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume });
+                            // Also emit explicit MUSIC_SETTINGS event so the websocket relayer forwards music_source right away
+                            if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                                MusicPlayer.socket.emit('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume });
+                            }
+                            const toast = document.createElement('div');
+                            toast.className = 'notification is-success';
+                            toast.style.position = 'fixed';
+                            toast.style.bottom = '1rem';
+                            toast.style.right = '1rem';
+                            toast.style.zIndex = 10000;
+                            toast.innerText = 'Music source saved';
+                            document.body.appendChild(toast);
+                            setTimeout(() => toast.remove(), 2200);
+                        } else {
+                            alert('Failed to save music source');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Error saving music source');
+                    }
+                });
+            }
             // Play/Pause
             MusicPlayer.elements.playPauseBtn.addEventListener('click', () => {
                 if (MusicPlayer.state.localPlayback) {
