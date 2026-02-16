@@ -2417,13 +2417,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         fetchBadges();
                         // Setup ping timeout
                         setupPingTimeout();
-                        Toastify({
-                            text: 'Connected to IRC chat',
-                            duration: 3000,
-                            gravity: 'top',
-                            position: 'right',
-                            style: { background: 'linear-gradient(to right, #00b09b, #96c93d)' }
-                        }).showToast();
                     } else {
                         // Another user joined
                         const userId = message.tags && message.tags['user-id'];
@@ -2956,17 +2949,19 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const isSharedChat = event.source_broadcaster_user_id !== null && event.source_broadcaster_user_login && event.source_broadcaster_user_login.toLowerCase() !== CONFIG.USER_LOGIN.toLowerCase();
             const sharedChatIndicator = isSharedChat ?
                 `<span class="shared-chat-indicator">[from ${escapeHtml(event.source_broadcaster_user_name || event.source_broadcaster_user_login)}]</span>` : '';
+            // Adjust color for better readability against purple background
+            const readableColor = adjustColorForReadability(event.color);
             // Handle action messages (/me) differently
             if (event.message_type === 'action') {
                 messageHtml += `
                         ${badgesHtml}
                         ${sharedChatIndicator}
-                        <span class="action-text" style="color: ${event.color || '#ffffff'}"><em>${escapeHtml(displayName)} ${messageTextHtml}</em></span>
+                        <span class="action-text" style="color: ${readableColor}"><em>${escapeHtml(displayName)} ${messageTextHtml}</em></span>
                     `;
             } else {
                 messageHtml += `
                         ${badgesHtml}
-                        <span class="chat-username" style="color: ${event.color || '#ffffff'}">${escapeHtml(displayName)}:</span>
+                        <span class="chat-username" style="color: ${readableColor}">${escapeHtml(displayName)}:</span>
                         ${sharedChatIndicator}
                         <span class="chat-text">${messageTextHtml}</span>
                     `;
@@ -2979,6 +2974,52 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap(50);
             // Save chat history
             saveChatHistory();
+        }
+        // Adjust color for better readability against purple background
+        function adjustColorForReadability(color) {
+            // Default to white if no color provided
+            if (!color || color === '' || color === '#000000') {
+                return '#ffffff';
+            }
+            // Parse hex color to RGB
+            let r, g, b;
+            const hex = color.replace('#', '');
+            if (hex.length === 3) {
+                r = parseInt(hex[0] + hex[0], 16);
+                g = parseInt(hex[1] + hex[1], 16);
+                b = parseInt(hex[2] + hex[2], 16);
+            } else if (hex.length === 6) {
+                r = parseInt(hex.substring(0, 2), 16);
+                g = parseInt(hex.substring(2, 4), 16);
+                b = parseInt(hex.substring(4, 6), 16);
+            } else {
+                return '#ffffff'; // Invalid format, return white
+            }
+            // Calculate relative luminance (perceived brightness)
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            // If color is too dark (luminance < 0.4), lighten it significantly
+            if (luminance < 0.4) {
+                // Increase brightness by scaling up RGB values
+                const factor = 0.5 / luminance; // Scale to at least 50% luminance
+                r = Math.min(255, Math.floor(r * factor));
+                g = Math.min(255, Math.floor(g * factor));
+                b = Math.min(255, Math.floor(b * factor));
+            }
+            // Check if color is too similar to purple (RGB: ~80, 50, 120 for purple-ish)
+            // If it's purplish and dark, shift it towards cyan/white
+            const isPurplish = (r < 130 && b > 80 && b > g && Math.abs(b - r) < 80);
+            if (isPurplish && luminance < 0.5) {
+                // Shift towards cyan/white for better contrast
+                r = Math.min(255, r + 100);
+                g = Math.min(255, g + 100);
+                b = Math.min(255, b + 50);
+            }
+            // Convert back to hex
+            const toHex = (n) => {
+                const hex = Math.round(n).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            };
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
         }
         // Get cheermote color based on tier
         function getCheermoteColor(tier) {
