@@ -568,21 +568,73 @@ input[type="range"].modern-volume::-webkit-slider-runnable-track {
     background: transparent;
 }
 
-.playlist-container {
-    max-height: none;
-    overflow-y: visible;
+/* Playlist Table Styling */
+#playlistTable tbody tr {
+    background-color: transparent !important;
 }
 
-.playlist-container::-webkit-scrollbar,
-.playlist-container::-webkit-scrollbar-track,
-.playlist-container::-webkit-scrollbar-thumb {
-    display: none !important;
-    background: transparent !important;
+/* Override Bulma's is-hoverable striping */
+#playlistTable.is-hoverable tbody tr:not(.is-selected):hover,
+#playlistTable tbody tr:not(.is-selected):nth-child(even) {
+    background-color: transparent !important;
+}
+
+/* Force all table states to be transparent */
+#playlistTable.table tbody tr,
+#playlistTable.table.is-hoverable tbody tr,
+#playlistTable tbody tr:nth-child(odd),
+#playlistTable tbody tr:nth-child(even),
+#playlistTable.is-hoverable tbody tr:nth-child(odd),
+#playlistTable.is-hoverable tbody tr:nth-child(even) {
+    background-color: transparent !important;
+}
+
+.playlist-row {
+    background-color: transparent !important;
 }
 
 .playlist-row:hover {
-    transform: translateX(2px);
-    transition: transform 0.2s ease;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    transition: background-color 0.2s ease;
+}
+
+.playlist-row.is-active {
+    background-color: rgba(50, 115, 220, 0.2) !important;
+    border-left: 3px solid #3273dc;
+}
+
+.playlist-row.is-active .row-number {
+    display: none;
+}
+
+.playlist-row.is-active .now-playing-icon {
+    display: inline-block !important;
+}
+
+.playlist-container {
+    scrollbar-width: thin;
+    scrollbar-color: #3273dc #2a2a2a;
+    overflow-x: hidden !important;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.playlist-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.playlist-container::-webkit-scrollbar-track {
+    background: #2a2a2a;
+    border-radius: 10px;
+}
+
+.playlist-container::-webkit-scrollbar-thumb {
+    background: #3273dc;
+    border-radius: 10px;
+}
+
+.playlist-container::-webkit-scrollbar-thumb:hover {
+    background: #2366d1;
 }
 
 .slider {
@@ -615,24 +667,6 @@ input[type="range"].modern-volume::-webkit-slider-runnable-track {
     cursor: pointer;
     border: 2px solid white;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.playlist-container::-webkit-scrollbar {
-    width: 8px;
-}
-
-.playlist-container::-webkit-scrollbar-track {
-    background: hsl(0, 0%, 96%);
-    border-radius: 4px;
-}
-
-.playlist-container::-webkit-scrollbar-thumb {
-    background: hsl(0, 0%, 71%);
-    border-radius: 4px;
-}
-
-.playlist-container::-webkit-scrollbar-thumb:hover {
-    background: hsl(0, 0%, 48%);
 }
 
 input[type="range"].modern-volume {
