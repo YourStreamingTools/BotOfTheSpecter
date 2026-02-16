@@ -589,6 +589,19 @@ input[type="range"].modern-volume::-webkit-slider-runnable-track {
     background-color: transparent !important;
 }
 
+/* Ensure the table element itself doesn't draw a separate box */
+#playlistTable,
+#playlistTable.table,
+.table-container #playlistTable {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Make table header match the surrounding card */
+#playlistTable thead th {
+    background-color: transparent !important;
+}
+
 .playlist-row {
     background-color: transparent !important;
 }
