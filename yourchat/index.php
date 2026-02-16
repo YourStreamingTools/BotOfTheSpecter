@@ -2627,7 +2627,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         // Handle IRC PRIVMSG (chat messages)
         function handleIRCChatMessage(message) {
             const tags = message.tags;
-            const text = message.params[message.params.length - 1] || '';
+            let text = message.params[message.params.length - 1] || '';
+            // Handle ACTION messages (/me command)
+            // IRC sends these as: \u0001ACTION message text\u0001
+            if (text.startsWith('\u0001ACTION ')) {
+                text = text.slice(8); // Remove '\u0001ACTION '
+                if (text.endsWith('\u0001')) {
+                    text = text.slice(0, -1); // Remove trailing '\u0001'
+                }
+            }
             // Extract user info from tags
             const userId = tags['user-id'];
             const username = message.prefix.split('!')[0];
