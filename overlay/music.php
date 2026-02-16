@@ -1,6 +1,19 @@
 <?php
-// Fetch music files from the local music directory
-function getLocalMusicFiles() {
+include '/var/www/config/database.php';
+$primary_db_name = 'website';
+
+$conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
+$api_key = $_GET['code'] ?? '';
+
+$stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
+$stmt->bind_param("s", $api_key);
+$stmt->execute();
+$result = $stmt->get_result();
+$user = $result->fetch_assoc();
+$username = $user['username'] ?? '';
+
+// System music directory
+function getSystemMusicFiles() {
     $musicDir = '/var/www/cdn/music';
     $files = [];
     if (is_dir($musicDir)) {
@@ -13,8 +26,24 @@ function getLocalMusicFiles() {
     return $files;
 }
 
-// Fetch music files from local directory
-$musicFiles = getLocalMusicFiles();
+// Public user music directory (used when streamer preference = 'user')
+function getUserMusicFiles($username) {
+    $files = [];
+    if (!$username) return $files;
+    $musicDir = '/var/www/usermusic/' . $username;
+    if (is_dir($musicDir)) {
+        foreach (scandir($musicDir) as $file) {
+            if (is_file("$musicDir/$file") && str_ends_with($file, '.mp3')) {
+                $files[] = $file;
+            }
+        }
+    }
+    return $files;
+}
+
+$systemMusicFiles = getSystemMusicFiles();
+$userMusicFiles = getUserMusicFiles($username);
+$userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -33,14 +62,27 @@ $musicFiles = getLocalMusicFiles();
         let currentSongData = null; // Store song data for replay
         let volume = 10;
         let musicSource = 'system'; // 'system' (CDN) or 'user' (uploader files)
-        let playlist = <?php
+        // systemPlaylist: tracks served from CDN
+        let systemPlaylist = <?php
             echo json_encode(array_map(function($f) {
                 return [
                     'file' => $f,
                     'title' => preg_replace('/_/', ' ', preg_replace('/\.mp3$/', '', $f))
                 ];
-            }, $musicFiles));
+            }, $systemMusicFiles));
         ?>;
+        // userPlaylist: public URLs under music.botspecter.com/{username}/
+        let userPlaylist = <?php
+            echo json_encode(array_map(function($f) use ($userBaseUrl) {
+                return [
+                    'file' => $f,
+                    'title' => preg_replace('/_/', ' ', preg_replace('/\.mp3$/', '', $f)),
+                    'url' => $userBaseUrl ? $userBaseUrl . rawurlencode($f) : null
+                ];
+            }, $userMusicFiles));
+        ?>;
+        // active playlist (defaults to system)
+        let playlist = systemPlaylist;
         let currentIndex = 0;
         let repeat = false;
         let shuffle = false;
@@ -114,13 +156,12 @@ $musicFiles = getLocalMusicFiles();
             if (!playlist.length) return;
             currentIndex = idx;
             const song = playlist[currentIndex];
-            playSong(`https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`, song);
+            const url = song.url ? song.url : `https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`;
+            playSong(url, song);
         }
 
         function playNextSong() {
-            // When server-set music source is 'user' overlays should not autoplay their local CDN playlist.
-            if (musicSource === 'user') return;
-
+            // Use the active playlist (system or user). overlays will play user uploads when music_source === 'user'.
             if (repeat) {
                 audioPlayer.currentTime = 0;
                 audioPlayer.play();
@@ -142,11 +183,22 @@ $musicFiles = getLocalMusicFiles();
             }
         }
 
+        function updateActivePlaylist() {
+            if (musicSource === 'user' && userPlaylist && userPlaylist.length > 0) {
+                playlist = userPlaylist;
+                console.log('[Overlay] using user playlist', userPlaylist.length, 'tracks');
+            } else {
+                playlist = systemPlaylist;
+                console.log('[Overlay] using system playlist', systemPlaylist.length, 'tracks');
+            }
+        }
         function autoStartFirstSong() {
-            // If music source is 'user' the overlay should wait for NOW_PLAYING events from the controller
-            if (musicSource === 'user') return;
+            updateActivePlaylist();
             if (playlist.length > 0) {
                 playSongByIndex(0);
+            } else {
+                // no tracks available for the selected source — wait for NOW_PLAYING from controller
+                console.log('[Overlay] no tracks available for current music source; waiting for NOW_PLAYING events');
             }
         }
 
@@ -232,6 +284,7 @@ $musicFiles = getLocalMusicFiles();
                 if (typeof settings.music_source !== 'undefined') {
                     musicSource = settings.music_source || 'system';
                     console.log('[Overlay] music_source set to', musicSource);
+                    updateActivePlaylist();
                 }
             });
 
