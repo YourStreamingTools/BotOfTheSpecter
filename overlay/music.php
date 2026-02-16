@@ -32,6 +32,7 @@ $musicFiles = getLocalMusicFiles();
         let currentSong = null;
         let currentSongData = null; // Store song data for replay
         let volume = 10;
+        let musicSource = 'system'; // 'system' (CDN) or 'user' (uploader files)
         let playlist = <?php
             echo json_encode(array_map(function($f) {
                 return [
@@ -117,6 +118,9 @@ $musicFiles = getLocalMusicFiles();
         }
 
         function playNextSong() {
+            // When server-set music source is 'user' overlays should not autoplay their local CDN playlist.
+            if (musicSource === 'user') return;
+
             if (repeat) {
                 audioPlayer.currentTime = 0;
                 audioPlayer.play();
@@ -139,6 +143,8 @@ $musicFiles = getLocalMusicFiles();
         }
 
         function autoStartFirstSong() {
+            // If music source is 'user' the overlay should wait for NOW_PLAYING events from the controller
+            if (musicSource === 'user') return;
             if (playlist.length > 0) {
                 playSongByIndex(0);
             }
@@ -223,10 +229,17 @@ $musicFiles = getLocalMusicFiles();
                 if (typeof settings.shuffle !== 'undefined') {
                     shuffle = !!settings.shuffle;
                 }
+                if (typeof settings.music_source !== 'undefined') {
+                    musicSource = settings.music_source || 'system';
+                    console.log('[Overlay] music_source set to', musicSource);
+                }
             });
 
             socket.on('NOW_PLAYING', (data) => {
-                if (data?.song?.file) {
+                if (data?.song?.url) {
+                    // Server provided a direct URL (recommended for private/user uploads)
+                    playSong(data.song.url, data.song);
+                } else if (data?.song?.file) {
                     const idx = playlist.findIndex(song => song.file === data.song.file);
                     if (idx >= 0) playSongByIndex(idx);
                 } else {

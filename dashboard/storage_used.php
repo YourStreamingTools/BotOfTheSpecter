@@ -6,7 +6,8 @@ $walkon_path = "/var/www/walkons/" . $username;
 $soundalert_path = "/var/www/soundalerts/" . $username;
 $videoalert_path = "/var/www/videoalerts/" . $username;
 $twitch_sound_alert_path = $soundalert_path . "/twitch";
-
+// Per-user uploaded music (private to uploader) - store outside public CDN to prevent direct access
+$user_music_path = "/var/www/private/music_user/" . $username;
 // Define user-specific storage limits
 $base_storage_size = 20 * 1024 * 1024; // 20MB in bytes (FREE)
 
@@ -93,6 +94,12 @@ ensureDirectoryWritable($walkon_path);
 ensureDirectoryWritable($soundalert_path);
 ensureDirectoryWritable($videoalert_path);
 ensureDirectoryWritable($twitch_sound_alert_path);
+// Ensure per-user music folder exists and is writable
+ensureDirectoryWritable($user_music_path);
+
+// Public user-music folder served by music.botspecter.com — mirror/symlink target for uploaded files
+$public_user_music_path = "/var/www/usermusic/" . $username;
+ensureDirectoryWritable($public_user_music_path);
 
 // Function to calculate the total size of files in specified directories
 function calculateStorageUsed($directories) {
@@ -123,8 +130,8 @@ function calculateStorageUsed($directories) {
     return $totalSize;
 }
 
-// Calculate the current storage used directly from directories
-$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path]);
+// Calculate the current storage used directly from directories (includes user uploads)
+$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path, $user_music_path]);
 
 // Calculate percentage for progress bar
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
