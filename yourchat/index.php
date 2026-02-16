@@ -55,7 +55,6 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
     if (!$authData && isset($_GET['auth_data'])) {
         $authData = json_decode(base64_decode($_GET['auth_data']), true);
     }
-
     if (isset($authData['success']) && $authData['success'] && $authData['service'] === 'twitch') {
         $_SESSION['access_token'] = $authData['access_token'];
         $_SESSION['refresh_token'] = $authData['refresh_token'];
@@ -510,7 +509,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -525,7 +523,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
-
 <body>
     <div class="container">
         <?php if (!$isLoggedIn): ?>
@@ -721,6 +718,28 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let badgeCache = {};
             let messageBuffer = [];
             let isReconnecting = false;
+            // Process buffered messages after reconnection
+            function processMessageBuffer() {
+                if (messageBuffer.length === 0) {
+                    return;
+                }
+                console.log(`Processing ${messageBuffer.length} buffered messages...`);
+                const buffer = [...messageBuffer];
+                messageBuffer = [];
+                buffer.forEach(msg => {
+                    try {
+                        // Re-process the buffered messages
+                        if (msg.type === 'chat') {
+                            handleChatMessage(msg.data);
+                        } else if (msg.type === 'irc') {
+                            handleIRCMessage(msg.data);
+                        }
+                    } catch (e) {
+                        console.error('Error processing buffered message:', e);
+                    }
+                });
+                console.log(`✓ Processed ${buffer.length} buffered messages`);
+            }
             // Recent redemptions cache to deduplicate matching chat messages
             let recentRedemptions = [];
             // Recent chat messages cache for bidirectional deduplication
@@ -1744,32 +1763,49 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     tokenExpiresIn = data.expires_in;
                     tokenValidatedAt = Math.floor(Date.now() / 1000);
                     tokenScopes = data.scopes || [];
-                    console.log(`Token validated: expires in ${tokenExpiresIn}s (${Math.floor(tokenExpiresIn / 3600)}h ${Math.floor((tokenExpiresIn % 3600) / 60)}m)`);
+                    const hoursRemaining = Math.floor(tokenExpiresIn / 3600);
+                    const minutesRemaining = Math.floor((tokenExpiresIn % 3600) / 60);
+                    console.log(`✓ Token validated: expires in ${tokenExpiresIn}s (${hoursRemaining}h ${minutesRemaining}m)`);
+                    console.log('Token scopes:', tokenScopes.join(', '));
                     // Check for required IRC scopes
                     const hasIRCRead = tokenScopes.includes('chat:read');
                     const hasIRCEdit = tokenScopes.includes('chat:edit');
                     if (!hasIRCRead || !hasIRCEdit) {
                         console.warn('⚠️ Token missing IRC chat scopes. Required: chat:read, chat:edit');
-                        console.warn('⚠️ IRC chat connection will fail. Please re-authenticate with correct scopes.');
+                        console.warn('⚠️ Current scopes:', tokenScopes.join(', '));
+                        console.warn('⚠️ IRC chat connection will fail. Please log out and re-authenticate.');
                         Toastify({
-                            text: '⚠️ Your token is missing required chat scopes. IRC connection will fail.',
-                            duration: 10000,
+                            text: '⚠️ Your token is missing required chat scopes (chat:read, chat:edit). IRC connection will fail. Please log out and re-authenticate.',
+                            duration: -1,
                             gravity: 'top',
                             position: 'right',
-                            style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                            style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' },
+                            onClick: function() {
+                                if (confirm('Log out now and re-authenticate with correct scopes?')) {
+                                    logoutUser();
+                                }
+                            }
                         }).showToast();
                     }
                     return true;
                 } else if (response.status === 401) {
-                    console.error('Token validation failed: invalid token');
-                    handleSessionExpiry();
+                    console.error('❌ Token validation failed: invalid or expired token (401)');
+                    // Only treat as session expiry if we're NOT currently refreshing
+                    // (to avoid race condition during token refresh)
+                    if (!isRefreshing) {
+                        handleSessionExpiry();
+                    } else {
+                        console.warn('Token invalid during refresh - will be resolved by refresh completion');
+                    }
                     return false;
                 } else {
-                    console.warn('Token validation returned unexpected status:', response.status);
+                    console.warn('Token validation returned unexpected status:', response.status, response.statusText);
+                    // Don't treat non-401 errors as session expiry
                     return false;
                 }
             } catch (error) {
-                console.error('Error validating token:', error);
+                console.error('Error validating token (likely network issue):', error);
+                // Network errors during validation shouldn't expire the session
                 return false;
             }
         }
@@ -1785,18 +1821,21 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // Fallback to calculated time if validation hasn't happened yet
                 const now = Math.floor(Date.now() / 1000);
                 const elapsed = now - tokenCreatedAt;
-                remaining = (4 * 60 * 60) - elapsed; // 4 hours in seconds
+                // Twitch tokens typically last 4 hours, but use conservative estimate
+                remaining = Math.max(0, (4 * 60 * 60) - elapsed);
             }
-            // Refresh token 5 minutes (300 seconds) before expiry to prevent message loss
-            if (remaining <= 300 && remaining > 0 && !isRefreshing) {
+            // Refresh token 2 minutes (120 seconds) before expiry - less disruptive than 5 minutes
+            // This gives enough buffer while minimizing connection interruptions
+            if (remaining <= 120 && remaining > 0 && !isRefreshing) {
                 console.log(`Token refresh triggered with ${remaining}s remaining`);
                 refreshToken();
                 return;
             }
             if (remaining <= 0) {
                 // Token expired without successful refresh
-                document.getElementById('token-timer').textContent = 'Refreshing...';
+                document.getElementById('token-timer').textContent = 'Expired - Refreshing...';
                 if (!isRefreshing) {
+                    console.warn('Token expired, attempting emergency refresh');
                     refreshToken();
                 }
                 return;
@@ -1808,73 +1847,173 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 `${hours}h ${minutes}m ${seconds}s`;
         }
         let isRefreshing = false;
+        let tokenRefreshToast = null;
         async function refreshToken() {
-            if (isRefreshing) return;
+            if (isRefreshing) {
+                console.log('Token refresh already in progress, skipping duplicate request');
+                return;
+            }
             isRefreshing = true;
             isReconnecting = true;
             console.log('Refreshing access token...');
-            updateStatus(false, 'Refreshing Token...');
-            Toastify({
-                text: 'Refreshing connection...',
+            // Don't update status to disconnected - keep it connected during refresh
+            // updateStatus(false, 'Refreshing Token...');
+            // Show subtle notification
+            if (tokenRefreshToast) {
+                try { tokenRefreshToast.hideToast(); } catch (e) {}
+            }
+            tokenRefreshToast = Toastify({
+                text: 'Refreshing session...',
                 duration: 3000,
-                gravity: 'top',
+                gravity: 'bottom',
                 position: 'right',
-                backgroundColor: '#9147ff'
-            }).showToast();
+                backgroundColor: '#9147ff',
+                style: { fontSize: '14px', padding: '10px' }
+            });
+            tokenRefreshToast.showToast();
             try {
                 const response = await fetch('?action=refresh_token');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 const data = await response.json();
-                if (data.success) {
+                if (data.success && data.access_token) {
+                    const oldToken = accessToken;
                     accessToken = data.access_token;
                     CONFIG.ACCESS_TOKEN = data.access_token; // Update CONFIG as well
                     tokenCreatedAt = data.created_at;
                     CONFIG.TOKEN_CREATED_AT = data.created_at;
-                    console.log('Token refreshed successfully');
+                    console.log('✓ Token refreshed successfully');
                     // Validate new token to get accurate expires_in
-                    await validateToken();
-                    // Seamless WebSocket handover: connect new before closing old
-                    await seamlessWebSocketReconnect();
+                    const validationSuccess = await validateToken();
+                    if (validationSuccess) {
+                        // Only reconnect if token actually changed
+                        if (oldToken !== accessToken) {
+                            console.log('Token changed, performing seamless reconnection...');
+                            await seamlessWebSocketReconnect();
+                        } else {
+                            console.log('Token unchanged, no reconnection needed');
+                        }
+                        
+                        // Show success notification
+                        if (tokenRefreshToast) {
+                            try { tokenRefreshToast.hideToast(); } catch (e) {}
+                        }
+                        Toastify({
+                            text: '✓ Session refreshed',
+                            duration: 2000,
+                            gravity: 'bottom',
+                            position: 'right',
+                            backgroundColor: '#00b09b',
+                            style: { fontSize: '14px', padding: '10px' }
+                        }).showToast();
+                    } else {
+                        console.warn('Token validation failed after refresh, but continuing with new token');
+                    }
                 } else {
-                    console.error('Token refresh failed:', data.error);
-                    handleSessionExpiry();
+                    const errorMsg = data.error || 'Unknown error';
+                    console.error('Token refresh failed:', errorMsg);
+                    // Only handle as session expiry if it's a critical auth failure
+                    if (errorMsg.includes('refresh token') || errorMsg.includes('invalid') || errorMsg.includes('expired')) {
+                        handleSessionExpiry();
+                    } else {
+                        // Non-critical error, just log it
+                        console.warn('Token refresh issue (non-critical):', errorMsg);
+                        Toastify({
+                            text: 'Session refresh issue: ' + errorMsg,
+                            duration: 5000,
+                            gravity: 'top',
+                            position: 'right',
+                            backgroundColor: '#ff9800'
+                        }).showToast();
+                    }
                 }
             } catch (error) {
                 console.error('Error refreshing token:', error);
-                handleSessionExpiry();
+                // Network errors shouldn't immediately expire session
+                Toastify({
+                    text: 'Network error during refresh. Will retry automatically.',
+                    duration: 5000,
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: '#ff9800'
+                }).showToast();
+                // Don't call handleSessionExpiry for network errors
             } finally {
                 isRefreshing = false;
                 isReconnecting = false;
                 // Process any buffered messages
-                processMessageBuffer();
+                if (typeof processMessageBuffer === 'function') {
+                    try {
+                        processMessageBuffer();
+                    } catch (e) {
+                        console.warn('Error processing message buffer:', e);
+                    }
+                }
             }
         }
         async function seamlessWebSocketReconnect() {
-            console.log('Reconnecting WebSockets with new token...');
-            // Close existing connections
-            if (ircWs && ircWs.readyState === WebSocket.OPEN) {
-                ircWs.close();
-            }
-            if (eventSubWs && eventSubWs.readyState === WebSocket.OPEN) {
-                eventSubWs.close();
-            }
-            // Reset reconnection attempts
+            console.log('Performing seamless WebSocket reconnection with new token...');
+            // Store references to old connections
+            const oldIrcWs = ircWs;
+            const oldEventSubWs = eventSubWs;
+            // Reset state flags
+            ircAuthenticated = false;
+            ircJoined = false;
+            eventSubConnected = false;
+            eventSubSessionId = null;
+            // Reset reconnection attempts for fresh start
             ircReconnectAttempts = 0;
             eventSubReconnectAttempts = 0;
-            // Wait a moment for clean disconnect
-            await new Promise(resolve => setTimeout(resolve, 500));
-            // Reconnect both WebSockets
+            // Create new connections FIRST (before closing old ones)
+            console.log('Creating new IRC connection...');
             connectIRCWebSocket();
+            console.log('Creating new EventSub connection...');
             connectEventSubWebSocket();
+            // Wait for new connections to establish
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Now close old connections gracefully
+            if (oldIrcWs && oldIrcWs.readyState === WebSocket.OPEN) {
+                console.log('Closing old IRC connection...');
+                try {
+                    oldIrcWs.close();
+                } catch (e) {
+                    console.warn('Error closing old IRC connection:', e);
+                }
+            }
+            if (oldEventSubWs && oldEventSubWs.readyState === WebSocket.OPEN) {
+                console.log('Closing old EventSub connection...');
+                try {
+                    oldEventSubWs.close();
+                } catch (e) {
+                    console.warn('Error closing old EventSub connection:', e);
+                }
+            }
+            console.log('✓ Seamless reconnection completed');
         }
         async function handleSessionExpiry() {
-            console.log('Token refresh failed - ending session...');
+            // Prevent duplicate expiry handling
+            if (window.__sessionExpired) {
+                console.log('Session expiry already handled, skipping duplicate call');
+                return;
+            }
+            window.__sessionExpired = true;
+            console.error('❌ Session expired - token is invalid and cannot be refreshed');
             // Disconnect both WebSockets
             if (ircWs) {
-                ircWs.close();
+                try {
+                    ircWs.close();
+                } catch (e) {
+                    console.warn('Error closing IRC connection:', e);
+                }
                 ircWs = null;
             }
             if (eventSubWs) {
-                eventSubWs.close();
+                try {
+                    eventSubWs.close();
+                } catch (e) {
+                    console.warn('Error closing EventSub connection:', e);
+                }
                 eventSubWs = null;
             }
             updateStatus(false, 'Session Expired');
@@ -1883,15 +2022,22 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             try {
                 await fetch('?action=expire_session');
             } catch (error) {
-                console.error('Error expiring session:', error);
+                console.error('Error expiring session on server:', error);
             }
-            // Display expiry message
+            // Display expiry message with reload button
             const overlay = document.getElementById('chat-overlay');
             overlay.innerHTML = `
                 <div class="expired-message">
-                    <h3>Session Expired</h3>
-                    <p>Unable to refresh your session. Please refresh the page to log in again.</p>
-                    <p style="margin-top: 10px; font-size: 14px;">Refresh the page to start a new session.</p>
+                    <h3>⚠️ Session Expired</h3>
+                    <p>Your authentication session has expired and could not be automatically renewed.</p>
+                    <p style="margin-top: 15px; font-size: 14px;">
+                        <button onclick="window.location.reload()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #9147ff; color: white; border: none; border-radius: 5px;">
+                            Refresh Page & Re-authenticate
+                        </button>
+                    </p>
+                    <p style="margin-top: 10px; font-size: 12px; color: #ccc;">
+                        If issues persist, please log out completely and sign in again.
+                    </p>
                 </div>
             `;
         }
@@ -2087,7 +2233,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             socket.onmessage = (event) => {
                 // IRC messages are delimited by CRLF
                 const messages = event.data.split('\r\n').filter(msg => msg.length > 0);
-                
                 for (const rawMessage of messages) {
                     const message = parseIRCMessage(rawMessage);
                     handleIRCMessage(message);
@@ -2130,29 +2275,37 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             };
         }
         function connectIRCWebSocket() {
-            if (ircWs && ircWs.readyState === WebSocket.OPEN) {
-                ircWs.close();
+            // Don't create duplicate connections
+            if (ircWs && (ircWs.readyState === WebSocket.CONNECTING || ircWs.readyState === WebSocket.OPEN)) {
+                console.log('IRC WebSocket already connecting or connected, skipping duplicate connection');
+                return;
             }
-            
-            // Check for required IRC scopes
+            // Close existing connection if it's in a bad state
+            if (ircWs && (ircWs.readyState === WebSocket.CLOSING || ircWs.readyState === WebSocket.CLOSED)) {
+                console.log('Cleaning up old IRC connection');
+                ircWs = null;
+            }
+            // Check for required IRC scopes before attempting connection
             const hasIRCRead = tokenScopes.includes('chat:read');
             const hasIRCEdit = tokenScopes.includes('chat:edit');
-            
             if (!hasIRCRead || !hasIRCEdit) {
                 console.error('❌ Cannot connect to IRC: Missing required scopes (chat:read, chat:edit)');
-                updateStatus(false, 'IRC: Missing Scopes');
-                
+                console.error('Current scopes:', tokenScopes.join(', '));
+                updateStatus(false, 'IRC: Missing Scopes - Re-authenticate Required');
                 Toastify({
-                    text: 'Cannot connect to IRC chat: Your token is missing required scopes. Please log out and re-authenticate.',
+                    text: '❌ Cannot connect to IRC chat: Your token is missing required scopes. Please log out and re-authenticate with the correct permissions.',
                     duration: -1,
                     gravity: 'top',
                     position: 'right',
-                    style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)' }
+                    style: { background: 'linear-gradient(to right, #ff5f6d, #ffc371)', fontSize: '14px' },
+                    onClick: function() {
+                        if (confirm('Log out now and re-authenticate?')) {
+                            logoutUser();
+                        }
+                    }
                 }).showToast();
-                
                 return;
             }
-            
             console.log('Connecting to IRC WebSocket...');
             ircWs = new WebSocket(CONFIG.IRC_WS_URL);
             setupWebSocketHandlers(ircWs);
@@ -2207,8 +2360,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             };
         }
         function connectEventSubWebSocket() {
-            if (eventSubWs && eventSubWs.readyState === WebSocket.OPEN) {
-                eventSubWs.close();
+            // Don't create duplicate connections
+            if (eventSubWs && (eventSubWs.readyState === WebSocket.CONNECTING || eventSubWs.readyState === WebSocket.OPEN)) {
+                console.log('EventSub WebSocket already connecting or connected, skipping duplicate connection');
+                return;
+            }
+            // Close existing connection if it's in a bad state
+            if (eventSubWs && (eventSubWs.readyState === WebSocket.CLOSING || eventSubWs.readyState === WebSocket.CLOSED)) {
+                console.log('Cleaning up old EventSub connection');
+                eventSubWs = null;
             }
             console.log('Connecting to EventSub WebSocket...');
             eventSubWs = new WebSocket(CONFIG.EVENTSUB_WS_URL);
@@ -2220,9 +2380,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Cannot subscribe: No EventSub session ID');
                 return;
             }
-            
             const broadcasterUserId = CONFIG.USER_ID;
-            
             // List of activity event subscriptions (excluding chat messages)
             const subscriptions = [
                 {
@@ -2254,7 +2412,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                 }
             ];
-            
             // Subscribe to each event type
             for (const subscription of subscriptions) {
                 try {
@@ -2275,7 +2432,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             }
                         })
                     });
-                    
                     if (response.ok) {
                         console.log(`✓ Subscribed to ${subscription.type}`);
                     } else {
@@ -2287,7 +2443,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             }
         }
-        
         // Setup keepalive timeout for EventSub
         function setupKeepaliveTimeout(seconds) {
             if (keepaliveTimeoutHandle) {
@@ -2440,10 +2595,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const partUser = message.prefix.split('!')[0];
                     const partDisplayName = (message.tags && message.tags['display-name']) || partUser;
                     const partUserKey = partUserId || partUser.toLowerCase(); // Use userId if available, otherwise login name
-                    
                     activeChatters.delete(partUserKey);
                     messageBasedChatters.delete(partUserKey);
-                    
                     // Show leave message if presence notifications enabled
                     if (presenceEnabled) {
                         showSystemMessage(`${partDisplayName} left the chat`, 'leave');
@@ -2540,7 +2693,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const noticeMsg = message.params[message.params.length - 1] || '';
                     const msgId = message.tags['msg-id'];
                     console.warn('🔔 IRC NOTICE:', msgId, noticeMsg);
-                    
                     // Handle authentication failure specifically
                     if (noticeMsg.includes('Login unsuccessful') || noticeMsg.includes('Login authentication failed')) {
                         console.error('❌ IRC authentication failed');
@@ -2668,7 +2820,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const userKey = userId || username.toLowerCase(); // Use userId if available, otherwise login name
             activeChatters.add(userKey);
             messageBasedChatters.add(userKey);
-            
             // Apply filters
             if (isMessageFiltered(event)) {
                 return;
@@ -2873,11 +3024,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const replyUsername = (userSettings?.nicknames && userSettings.nicknames[event.reply.parent_user_login?.toLowerCase()]) || event.reply.parent_user_name || event.reply.parent_user_login;
                 const replyBody = escapeHtml(event.reply.parent_message_body || '(message)');
                 messageHtml += `
-                                    <div class="reply-context">
-                                        <span class="reply-icon">↩️</span>
-                                        <span class="reply-text">Replying to ${escapeHtml(replyUsername)}: ${replyBody}</span>
-                                    </div>
-                                `;
+                        <div class="reply-context">
+                            <span class="reply-icon">↩️</span>
+                            <span class="reply-text">Replying to ${escapeHtml(replyUsername)}: ${replyBody}</span>
+                        </div>
+                    `;
             }
             // First-time chatter indicator
             if (event.message_type === 'user_intro') {
@@ -3084,11 +3235,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 userMessage = `<div class="sub-user-message">${escapeHtml(event.message.text)}</div>`;
             }
             notificationDiv.innerHTML = `
-                                            <span class="chat-timestamp">${timestamp}</span>
-                                            <span class="sub-icon">⭐</span>
-                                            ${escapeHtml(systemMessage)}
-                                            ${userMessage}
-                                        `;
+                    <span class="chat-timestamp">${timestamp}</span>
+                    <span class="sub-icon">⭐</span>
+                    ${escapeHtml(systemMessage)}
+                    ${userMessage}
+                `;
             overlay.appendChild(notificationDiv);
             // Auto-scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
@@ -3189,7 +3340,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         // Channel Points Automatic Reward handling
         function handleAutomaticReward(event) {
             const overlay = document.getElementById('chat-overlay');
-
             // Clear placeholder text
             if (overlay.children.length === 1 && overlay.children[0].tagName === 'P') {
                 clearPlaceholderOnly();
@@ -3262,15 +3412,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Error adding redemption to cache', e);
             }
             rewardDiv.innerHTML = `
-                                    <div class="reward-header">
-                                        <span class="reward-icon">⭐</span>
-                                        <span class="reward-user">${escapeHtml(event.user_name)}</span>
-                                        <span class="reward-text">redeemed</span>
-                                        <span class="reward-name">${escapeHtml(rewardName)}</span>
-                                        <span class="reward-cost">(${event.reward.channel_points} pts)</span>
-                                    </div>
-                                    ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
-                                `;
+                    <div class="reward-header">
+                        <span class="reward-icon">⭐</span>
+                        <span class="reward-user">${escapeHtml(event.user_name)}</span>
+                        <span class="reward-text">redeemed</span>
+                        <span class="reward-name">${escapeHtml(rewardName)}</span>
+                        <span class="reward-cost">(${event.reward.channel_points} pts)</span>
+                    </div>
+                    ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
+                `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Enforce cap (remove oldest messages if needed)
@@ -3341,17 +3491,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.error('Error adding custom redemption to cache', e);
             }
             rewardDiv.innerHTML = `
-                                    <div class="reward-header">
-                                        ${imageHtml}
-                                        <span class="reward-icon">🎁</span>
-                                        <span class="reward-user">${escapeHtml(event.user_name)}</span>
-                                        <span class="reward-text">redeemed</span>
-                                        <span class="reward-name">${escapeHtml(event.reward.title)}</span>
-                                        <span class="reward-cost">(${event.reward.cost} pts)</span>
-                                    </div>
-                                    ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
-                                    ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
-                                `;
+                    <div class="reward-header">
+                        ${imageHtml}
+                        <span class="reward-icon">🎁</span>
+                        <span class="reward-user">${escapeHtml(event.user_name)}</span>
+                        <span class="reward-text">redeemed</span>
+                        <span class="reward-name">${escapeHtml(event.reward.title)}</span>
+                        <span class="reward-cost">(${event.reward.cost} pts)</span>
+                    </div>
+                    ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
+                    ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
+                `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Enforce cap (remove oldest messages if needed)
@@ -3378,10 +3528,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             raidDiv.className = 'system-message raid';
             const viewerText = event.viewers === 1 ? 'viewer' : 'viewers';
             raidDiv.innerHTML = `
-                                    <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
-                                    <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
-                                    is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
-                                `;
+                    <span style="font-weight: bold; color: #ff6b6b;">🎯 RAID!</span>
+                    <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.from_broadcaster_user_name)}</span>
+                    is raiding with <span style="font-weight: bold; color: #ffd700;">${event.viewers.toLocaleString()}</span> ${viewerText}!
+                `;
             overlay.appendChild(raidDiv);
             overlay.scrollTop = overlay.scrollHeight;
             // Enforce cap using helper (default 50 messages)
@@ -3434,10 +3584,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     break;
             }
             let messageHtml = `
-                                <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
-                                <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
-                                ${bitsText}
-                            `;
+                    <span style="font-weight: bold; color: #9146ff;">${emoji} BITS!</span>
+                    <span style="font-weight: bold; color: #ffd700;">${escapeHtml(event.user_name)}</span>
+                    ${bitsText}
+                `;
             // Add the message content if it's a cheer
             if (event.type === 'cheer' && event.message && event.message.text) {
                 messageHtml += `<div style="margin-top: 4px; font-style: italic; color: #e6e6e6;">${escapeHtml(event.message.text)}</div>`;
@@ -3576,12 +3726,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         initializeApp();
         // Update token timer every second
         setInterval(updateTokenTimer, 1000);
-        // Re-validate token every 30 minutes to keep expires_in accurate
+        // Re-validate token every 15 minutes to keep expires_in accurate and detect issues early
+        // This is separate from the refresh logic - just validation to keep timer accurate
         setInterval(async () => {
             if (!isRefreshing) {
+                console.log('Periodic token validation check...');
                 await validateToken();
             }
-        }, 30 * 60 * 1000); // 30 minutes
+        }, 15 * 60 * 1000); // 15 minutes
     </script>
     <?php endif; ?>
     </div>
@@ -3591,5 +3743,4 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             (ABN 20 447 022 747).</p>
     </footer>
 </body>
-
 </html>
