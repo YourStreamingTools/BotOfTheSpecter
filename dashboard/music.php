@@ -339,17 +339,18 @@ ob_start();
                 </span>
             </div>
         </div>
-        <!-- User Uploads / Upload UI -->
-        <div class="notification is-warning mb-3" style="background-color: #2b2f3a; border: 1px solid #6b2b2b; color: #ffdede;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-                <div style="flex:1;">
-                    <strong>Your uploads</strong> — files you upload are your responsibility. We do NOT guarantee rights clearance or DMCA-safety for user uploads and are not liable for content you upload.
-                </div>
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem;">
-                    <div style="text-align:right;">
-                        <small><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB</small>
+        <!-- User Uploads / Upload UI (now contained) -->
+        <div class="box user-uploads-box mb-4 has-text-white" style="background-color: #25262a; border: 1px solid #35363a; padding: 0.75rem;">
+            <div class="columns is-vcentered is-mobile" style="margin-bottom: 0.5rem;">
+                <div class="column">
+                    <strong>Your uploads</strong>
+                    <div class="is-size-7 has-text-light" style="margin-top:4px;">
+                        files you upload are your responsibility. We do NOT guarantee rights clearance or DMCA-safety for user uploads and are not liable for content you upload.
                     </div>
-                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                </div>
+                <div class="column is-narrow has-text-right">
+                    <div><small class="has-text-light"><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB</small></div>
+                    <div style="display:flex; align-items:center; gap:0.5rem; margin-top:6px; justify-content:flex-end;">
                         <label class="label is-small has-text-white mb-0" style="margin-right:0.5rem;">Music source</label>
                         <div class="select is-small">
                             <select id="music-source-select">
@@ -360,28 +361,30 @@ ob_start();
                     </div>
                 </div>
             </div>
-        </div>
-        <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data" class="mb-4">
-            <div class="file has-name is-fullwidth is-boxed mb-2">
-                <label class="file-label" style="width: 100%;">
-                    <input class="file-input" type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3">
-                    <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                        <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.0em;">
-                            <?php echo t('music_upload_file'); ?>
+            <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data" class="mb-3">
+                <div class="file has-name is-fullwidth is-boxed mb-2">
+                    <label class="file-label" style="width: 100%;">
+                        <input class="file-input" type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3">
+                        <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                            <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.0em;">
+                                <?php echo t('music_upload_file'); ?>
+                            </span>
                         </span>
-                    </span>
-                    <span class="file-name" id="user-music-file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                        No files selected
-                    </span>
-                </label>
-            </div>
-            <div style="display:flex; gap:0.5rem;">
-                <button class="button is-primary" type="submit">Upload</button>
-                <?php if (!empty($userMusicStatus)): ?>
-                    <div class="notification is-info" style="background-color:#2b2f3a; border:1px solid #4a8ef5; color:#dceefe;"><?php echo $userMusicStatus; ?></div>
-                <?php endif; ?>
-            </div>
-        </form>
+                        <span class="file-name" id="user-music-file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
+                            No files selected
+                        </span>
+                    </label>
+                </div>
+                <div style="display:flex; gap:0.5rem; align-items:flex-start;">
+                    <button class="button is-primary" type="submit">Upload</button>
+                    <?php if (!empty($userMusicStatus)): ?>
+                        <div class="notification is-info" style="background-color:#2b2f3a; border:1px solid #4a8ef5; color:#dceefe; margin:0; padding:0.5rem 0.75rem;">
+                            <?php echo $userMusicStatus; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
         <div class="table-container playlist-container has-text-white">
             <table class="table is-fullwidth has-text-white" id="playlistTable">
                 <thead class="has-text-white">
