@@ -366,8 +366,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     title="BotOfTheSpecter",
-    description="API Endpoints for BotOfTheSpecter\n\n[View v2 docs](https://api.botofthespecter.com/v2/docs)",
+    description="API Endpoints for BotOfTheSpecter",
     version="1.0.0",
+    docs_url=None,
+    redoc_url=None,
     terms_of_service="https://botofthespecter.com/terms-of-service.php",
     contact={
         "name": "BotOfTheSpecter",
@@ -648,9 +650,30 @@ def build_v2_openapi_schema():
             paths.pop(path_to_remove, None)
     return _ensure_standard_openapi_responses(openapi_schema)
 
+@app.get("/docs", include_in_schema=False)
 @app.get("/v1/docs", include_in_schema=False)
 async def docs_v1_redirect():
-    return RedirectResponse(url="/docs")
+    resp = get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title=f"{app.title} - v1 Docs",
+        swagger_ui_parameters={"defaultModelsExpandDepth": -1},
+    )
+    try:
+        body = resp.body.decode("utf-8")
+    except Exception:
+        return resp
+    insert_html = (
+        '<div style="padding:8px 16px;text-align:right;background:#fafafa;border-bottom:1px solid #eee;">'
+        '<a href="/v2/docs" style="display:inline-block;padding:6px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#111;text-decoration:none;font-weight:600;">Switch to V2</a>'
+        '</div>'
+    )
+    if "<body" in body:
+        body = body.replace("<body>", "<body>" + insert_html, 1)
+    else:
+        body = insert_html + body
+    resp.body = body.encode("utf-8")
+    resp.headers["content-length"] = str(len(resp.body))
+    return resp
 
 @app.get("/v1/openapi.json", include_in_schema=False)
 async def openapi_v1_redirect():
@@ -666,18 +689,50 @@ async def openapi_v2():
 
 @app.get("/v2/docs", include_in_schema=False)
 async def docs_v2():
-    return get_swagger_ui_html(
+    resp = get_swagger_ui_html(
         openapi_url="/v2/openapi.json",
         title=f"{app.title} - v2 Docs",
         swagger_ui_parameters={"defaultModelsExpandDepth": -1},
     )
+    try:
+        body = resp.body.decode("utf-8")
+    except Exception:
+        return resp
+    insert_html = (
+        '<div style="padding:8px 16px;text-align:right;background:#fafafa;border-bottom:1px solid #eee;">'
+        '<a href="/v1/docs" style="display:inline-block;padding:6px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#111;text-decoration:none;font-weight:600;">Switch back to V1</a>'
+        '</div>'
+    )
+    if "<body" in body:
+        body = body.replace("<body>", "<body>" + insert_html, 1)
+    else:
+        body = insert_html + body
+    resp.body = body.encode("utf-8")
+    resp.headers["content-length"] = str(len(resp.body))
+    return resp
 
 @app.get("/v2/redoc", include_in_schema=False)
 async def redoc_v2():
-    return get_redoc_html(
+    resp = get_redoc_html(
         openapi_url="/v2/openapi.json",
         title=f"{app.title} - v2 ReDoc",
     )
+    try:
+        body = resp.body.decode("utf-8")
+    except Exception:
+        return resp
+    insert_html = (
+        '<div style="padding:8px 16px;text-align:right;background:#fafafa;border-bottom:1px solid #eee;">'
+        '<a href="/v1/docs" style="display:inline-block;padding:6px 10px;border-radius:4px;border:1px solid #ddd;background:#fff;color:#111;text-decoration:none;font-weight:600;">Switch back to V1</a>'
+        '</div>'
+    )
+    if "<body" in body:
+        body = body.replace("<body>", "<body>" + insert_html, 1)
+    else:
+        body = insert_html + body
+    resp.body = body.encode("utf-8")
+    resp.headers["content-length"] = str(len(resp.body))
+    return resp
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
