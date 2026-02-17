@@ -7654,12 +7654,11 @@ class TwitchBot(commands.Bot):
                 username = ctx.author.name
                 user_id = str(ctx.author.id)
                 is_mod = ctx.author.is_mod
-                
+                subscription_tier = None  # Cache subscription tier to avoid multiple API calls
                 # Check if mods are excluded
                 if exclude_mods and is_mod:
                     await send_chat_message(f"@{username}, moderators are excluded from this raffle.")
                     return
-                
                 # Check if subscribers only
                 if subscribers_only:
                     subscription_tier = await is_user_subscribed(user_id)
@@ -7672,13 +7671,13 @@ class TwitchBot(commands.Bot):
                 if exists:
                     await send_chat_message(f"@{username}, you are already entered in raffle '{raffle_name}'.")
                     return
-                
                 # Calculate weight (multiply by 100 to store as int to avoid floating point issues)
                 weight = 100  # Base weight (1.00 * 100)
                 if is_weighted:
                     try:
-                        # Check subscription tier
-                        subscription_tier = await is_user_subscribed(user_id)
+                        # Check subscription tier (fetch only if not already checked above)
+                        if subscription_tier is None:
+                            subscription_tier = await is_user_subscribed(user_id)
                         if subscription_tier == "Tier 1":
                             weight = int(weight_sub_t1 * 100)
                         elif subscription_tier == "Tier 2":
@@ -7691,7 +7690,6 @@ class TwitchBot(commands.Bot):
                     except Exception as e:
                         bot_logger.error(f"Error calculating raffle weight for {username}: {e}")
                         weight = 100  # Default weight on error
-                
                 await cursor.execute("INSERT INTO raffle_entries (raffle_id, user_id, username, weight) VALUES (%s, %s, %s, %s)", (raffle_id, user_id, username, weight))
                 await connection.commit()
                 await send_chat_message(f"@{username} has been entered into raffle '{raffle_name}'. Good luck!")

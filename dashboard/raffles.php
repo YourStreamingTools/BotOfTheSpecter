@@ -251,7 +251,7 @@ ob_start();
                             settings.style.display = checkbox.checked ? 'block' : 'none';
                         }
                     </script>
-                    <div class="field">
+                    <div class="field" style="margin-top: 1.5rem;">
                         <div class="control"><button class="button is-primary" type="submit">Start Raffle</button></div>
                     </div>
                 </form>
