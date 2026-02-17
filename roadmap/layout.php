@@ -295,6 +295,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                                 <div style="flex: 1;">
                                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Subcategory</label>
                                     <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"></div>
+                                    <p class="help" style="font-size:0.7rem;">Click a tag to add — custom tags are not allowed.</p>
                                 </div>
                                 <div id="edit-website-type-field" style="flex: 1;">
                                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Website Type</label>
@@ -611,7 +612,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 // elements
                 container.classList.add('tms-container');
                 const chipsEl = document.createElement('div'); chipsEl.className = 'tms-chips';
-                const inputEl = document.createElement('input'); inputEl.type = 'text'; inputEl.className = 'tms-input'; inputEl.placeholder = 'Add subcategory...';
+                const inputEl = document.createElement('input'); inputEl.type = 'text'; inputEl.className = 'tms-input'; inputEl.placeholder = 'Select subcategory...'; inputEl.autocomplete = 'off';
                 const suggEl = document.createElement('div'); suggEl.className = 'tms-suggestions'; suggEl.style.display = 'none';
                 const hiddenWrap = document.createElement('div'); hiddenWrap.className = 'tms-hidden-wrap'; hiddenWrap.style.display = 'none';
                 container.appendChild(chipsEl); container.appendChild(inputEl); container.appendChild(suggEl); container.appendChild(hiddenWrap);
@@ -675,13 +676,19 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 function hideSuggestions() { suggEl.style.display = 'none'; }
 
                 inputEl.addEventListener('input', (e) => { showSuggestions(e.target.value); });
+                inputEl.addEventListener('focus', () => { showSuggestions(inputEl.value); });
                 inputEl.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         const q = inputEl.value.trim().toUpperCase();
                         const match = TMS_ALLOWED.find(x => x.toUpperCase() === q);
-                        if (match) add(match);
-                        inputEl.value = '';
+                        if (match) {
+                            add(match);
+                        } else {
+                            // do not allow freeform entries — show full list to choose from
+                            inputEl.value = '';
+                            showSuggestions('');
+                        }
                         hideSuggestions();
                         return;
                     }
@@ -691,6 +698,9 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     }
                 });
                 document.addEventListener('click', (ev) => { if (!container.contains(ev.target)) hideSuggestions(); });
+
+                // show suggestions initially so admin sees the list (no typing required)
+                showSuggestions('');
 
                 // initialize from data-initial if provided
                 if (container.dataset.initial) {
@@ -992,8 +1002,9 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             });
             if (editItemForm) {
                 editItemForm.addEventListener('submit', function (e) {
-                    const checked = document.querySelectorAll('#editItemModal input[name="subcategory[]"]').length;
-                    if (checked === 0) {
+                    const editTagEl = document.getElementById('editItemSubcategory');
+                    const values = (editTagEl && editTagEl._tms) ? editTagEl._tms.getValues() : Array.from(document.querySelectorAll('#editItemModal input[name="subcategory[]"]')).map(i => i.value);
+                    if (!values || values.length === 0) {
                         alert('Please select at least one Subcategory');
                         e.preventDefault();
                         return;
