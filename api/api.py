@@ -8,6 +8,7 @@ from logging.handlers import RotatingFileHandler
 import asyncio
 import datetime
 import urllib
+import socket
 from datetime import datetime, timedelta, timezone
 import traceback
 
@@ -25,7 +26,7 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from starlette.responses import Response
 from pydantic import BaseModel, Field
-from typing import Dict, List
+from typing import Dict, List, Any
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlencode, parse_qsl
@@ -39,14 +40,12 @@ SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 SQL_PORT = int(os.getenv('SQL_PORT'))
 # SSH credentials for bot status checking
-# SSH credentials for bot status checking — use canonical .env keys only
 BOTS_SSH_HOST = os.getenv('BOT-SRV-HOST')
-BOTS_SSH_USERNAME = os.getenv('SSH_USERNAME')
-BOTS_SSH_PASSWORD = os.getenv('SSH_PASSWORD')
-# Websocket SSH host (explicit .env key: WEBSOCKET-HOST)
+WEB1_SSH_HOST = os.getenv('WEB-HOST')
+SQL_SSH_HOST = os.getenv('SQL-HOST')
 WEBSOCKET_SSH_HOST = os.getenv('WEBSOCKET-HOST')
-WEBSOCKET_SSH_USERNAME = os.getenv('SSH_USERNAME')
-WEBSOCKET_SSH_PASSWORD = os.getenv('SSH_PASSWORD')
+SSH_USERNAME = os.getenv('SSH_USERNAME')
+SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 
 # Validate required database environment variables
 if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
@@ -119,7 +118,6 @@ def _is_ip_allowed(ip: str) -> bool:
         pass
     return False
 
-
 def _format_duration(seconds: int) -> str:
     if seconds < 0:
         seconds = 0
@@ -136,12 +134,66 @@ def _format_duration(seconds: int) -> str:
     parts.append(f"{secs} second{'s' if secs != 1 else ''}")
     return ", ".join(parts)
 
+def _read_uptime_marker_via_ssh(host: str, username: str, password: str, marker_path: str, server_label: str) -> dict | None:
+    if not all([host, username, password]):
+        return None
+    timeout_seconds = int(os.getenv('SSH_CONNECT_TIMEOUT', '8'))
+    candidates = []
+    try:
+        addr_info = socket.getaddrinfo(host, 22, socket.AF_INET, socket.SOCK_STREAM)
+        candidates = [item[4][0] for item in addr_info if item and len(item) >= 5 and item[4]]
+        # preserve order while removing duplicates
+        candidates = list(dict.fromkeys(candidates))
+        if candidates:
+            logging.info(f"Resolved {host} to IPv4 candidates for {server_label}: {candidates}")
+    except Exception as exc:
+        logging.warning(f"Could not resolve IPv4 addresses for {host} ({server_label}): {exc}")
+    # fall back to hostname attempt if resolution didn't yield candidates
+    if not candidates:
+        candidates = [host]
+    last_error = None
+    for target in candidates:
+        ssh = None
+        sftp = None
+        try:
+            ssh = SSHClient()
+            ssh.set_missing_host_key_policy(AutoAddPolicy())
+            logging.info(f"Attempting SSH to {target} (host={host}) as {username} to stat {marker_path} ({server_label})")
+            ssh.connect(hostname=target, username=username, password=password, timeout=timeout_seconds)
+            sftp = ssh.open_sftp()
+            st = sftp.stat(marker_path)
+            started_at_dt = datetime.fromtimestamp(st.st_mtime)
+            uptime_seconds = int((datetime.now() - started_at_dt).total_seconds())
+            result = {
+                "uptime": _format_duration(uptime_seconds),
+                "started_at": started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            logging.info(f"Successfully read {server_label} uptime marker via SSH on {target} (started_at={result['started_at']})")
+            return result
+        except Exception as exc:
+            last_error = exc
+            logging.warning(f"SSH attempt failed for {server_label} target {target}: {exc}")
+        finally:
+            try:
+                if sftp:
+                    sftp.close()
+            except Exception:
+                pass
+            try:
+                if ssh:
+                    ssh.close()
+            except Exception:
+                pass
+    logging.exception(f"Error fetching {server_label} uptime via SSH ({host}): {last_error}")
+    return None
+
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
 
 # In-memory per-IP timestamp store for /system/uptime rate limiting
 _uptime_requests = {}  # ip -> last_request_epoch_seconds
 _uptime_lock = asyncio.Lock()  # protect access to _uptime_requests
+_uptime_rate_limit_seconds = max(1, int(os.getenv('SYSTEM_UPTIME_RATE_LIMIT_SECONDS', '300')))
 
 # Define the tags metadata
 tags_metadata = [
@@ -859,6 +911,56 @@ class HeartbeatControlResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "status": "OK",
+            }
+        }
+
+class StatusResponse(BaseModel):
+    status: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "success",
+            }
+        }
+
+class UptimeLocalReadResponse(BaseModel):
+    uptime: str
+    started_at: str
+
+class UptimeSectionResponse(BaseModel):
+    local_read: UptimeLocalReadResponse = Field(..., alias="Local Read")
+    local_metrics_script: Dict[str, Any] | None = Field(None, alias="Local Metrics Script")
+    external_api_metrics: Dict[str, Any] | None = Field(None, alias="External API Metrics")
+    class Config:
+        allow_population_by_field_name = True
+        extra = "allow"
+
+class SystemUptimeResponse(BaseModel):
+    API: UptimeSectionResponse
+    WEBSOCKET: UptimeSectionResponse
+    WEB1: UptimeSectionResponse | None = None
+    SQL: UptimeSectionResponse | None = None
+    BOTS: UptimeSectionResponse | None = None
+    class Config:
+        extra = "allow"
+        json_schema_extra = {
+            "example": {
+                "API": {
+                    "Local Read": {
+                        "uptime": "4 minutes, 48 seconds",
+                        "started_at": "2026-02-17 22:09:19"
+                    },
+                    "Local Metrics Script": {
+                        "cpu_percent": 35.0,
+                        "ram_percent": 49.7
+                    }
+                },
+                "WEBSOCKET": {
+                    "Local Read": {
+                        "uptime": "15 hours, 45 minutes, 14 seconds",
+                        "started_at": "2026-02-17 06:28:55"
+                    }
+                }
             }
         }
 
@@ -1638,9 +1740,9 @@ async def database_heartbeat():
 
 @app.get(
     "/system/uptime",
-    response_model=dict,
+    response_model=SystemUptimeResponse,
     summary="Get API process uptime",
-    description="Return the API process uptime. Public endpoint with per-IP rate limit (10s). Whitelisted IPs are exempt.",
+    description="Return the API process uptime. Public endpoint with per-IP rate limit (default 5 minutes). Whitelisted IPs are exempt.",
     tags=["Public"],
     operation_id="get_system_uptime"
 )
@@ -1660,15 +1762,15 @@ async def system_uptime(request: Request):
     except Exception:
         logging.exception("Error checking IP whitelist")
         whitelisted = False
-    # If not whitelisted, enforce per-IP 10 second throttle (in-memory)
+    # If not whitelisted, enforce per-IP throttle (in-memory)
     if not whitelisted:
         now_ts = datetime.now().timestamp()
         async with _uptime_lock:
             last_ts = _uptime_requests.get(client_ip)
             if last_ts:
                 elapsed = now_ts - last_ts
-                if elapsed < 10:
-                    retry_after = int(10 - elapsed)
+                if elapsed < _uptime_rate_limit_seconds:
+                    retry_after = max(1, int(_uptime_rate_limit_seconds - elapsed))
                     raise HTTPException(status_code=429, detail={"error": "rate_limited", "retry_after": retry_after})
             # Update last call timestamp
             _uptime_requests[client_ip] = now_ts
@@ -1677,35 +1779,38 @@ async def system_uptime(request: Request):
     api_section = {"Local Read": {"uptime": _format_duration(uptime_seconds), "started_at": _process_start_time.strftime('%Y-%m-%d %H:%M:%S')}}
     websocket_section = {"Local Read": {"uptime": "Unknown", "started_at": "Unknown"}}
     other_sections = {}
-    ssh_ok = False
-    # Attempt to fetch websocket uptime via SSH marker file on the websocket host
-    ws_uptime_path = "/home/botofthespecter/websocket_uptime"
-    if all([WEBSOCKET_SSH_HOST, WEBSOCKET_SSH_USERNAME, WEBSOCKET_SSH_PASSWORD]):
-        try:
-            ssh = SSHClient()
-            ssh.set_missing_host_key_policy(AutoAddPolicy())
-            logging.info(f"Attempting SSH to {WEBSOCKET_SSH_HOST} as {WEBSOCKET_SSH_USERNAME} to stat {ws_uptime_path}")
-            ssh.connect(hostname=WEBSOCKET_SSH_HOST, username=WEBSOCKET_SSH_USERNAME, password=WEBSOCKET_SSH_PASSWORD, timeout=8)
-            sftp = ssh.open_sftp()
-            try:
-                st = sftp.stat(ws_uptime_path)
-                started_at_dt = datetime.fromtimestamp(st.st_mtime)
-                ws_seconds = int((datetime.now() - started_at_dt).total_seconds())
-                websocket_section.setdefault('Local Read', {})['uptime'] = _format_duration(ws_seconds)
-                websocket_section['Local Read']['started_at'] = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
-                ssh_ok = True
-                logging.info(f"Successfully read websocket uptime marker via SSH on {WEBSOCKET_SSH_HOST} (started_at={websocket_section['Local Read']['started_at']})")
-            finally:
-                try:
-                    sftp.close()
-                except Exception:
-                    pass
-                try:
-                    ssh.close()
-                except Exception:
-                    pass
-        except Exception as exc:
-            logging.exception(f"Error fetching websocket uptime via SSH ({WEBSOCKET_SSH_HOST}): {exc}")
+    # Attempt to fetch uptime markers via SSH from remote hosts
+    ws_marker_path = os.getenv('WEBSOCKET_UPTIME_MARKER_PATH', '/home/botofthespecter/websocket_uptime')
+    server_marker_paths = {
+        'WEB1': os.getenv('WEB1_UPTIME_MARKER_PATH', '/home/botofthespecter/web1_uptime'),
+        'SQL': os.getenv('SQL_UPTIME_MARKER_PATH', '/home/botofthespecter/sql_uptime'),
+        'BOTS': os.getenv('BOTS_UPTIME_MARKER_PATH', '/home/botofthespecter/bots_uptime'),
+    }
+    websocket_uptime = _read_uptime_marker_via_ssh(
+        host=WEBSOCKET_SSH_HOST,
+        username=SSH_USERNAME,
+        password=SSH_PASSWORD,
+        marker_path=ws_marker_path,
+        server_label='websocket'
+    )
+    if websocket_uptime:
+        websocket_section['Local Read'] = websocket_uptime
+    remote_servers = {
+        'WEB1': WEB1_SSH_HOST,
+        'SQL': SQL_SSH_HOST,
+        'BOTS': BOTS_SSH_HOST,
+    }
+    for section_name, host in remote_servers.items():
+        section = other_sections.setdefault(section_name, {'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'}})
+        uptime_info = _read_uptime_marker_via_ssh(
+            host=host,
+            username=SSH_USERNAME,
+            password=SSH_PASSWORD,
+            marker_path=server_marker_paths[section_name],
+            server_label=section_name.lower()
+        )
+        if uptime_info:
+            section['Local Read'] = uptime_info
     # Database fallback: include system_metrics rows for websocket, api, and others
     db_ok = False
     db_rows_count = 0
@@ -1719,7 +1824,8 @@ async def system_uptime(request: Request):
                 db_rows_count = len(rows) if rows else 0
                 for row in rows or []:
                     server = row.get('server_name')
-                    last_updated = row.get('last_updated')
+                    if not server:
+                        continue
                     metrics = {
                         'cpu_percent': row.get('cpu_percent'),
                         'ram_percent': row.get('ram_percent'),
@@ -1737,10 +1843,12 @@ async def system_uptime(request: Request):
                     elif server == 'websocket':
                         websocket_section['Local Metrics Script'] = metrics
                     else:
-                        other_sections[server.upper()] = {
-                            'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'},
-                            'Local Metrics Script': metrics
-                        }
+                        server_key = server.upper()
+                        section = other_sections.setdefault(
+                            server_key,
+                            {'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'}}
+                        )
+                        section['Local Metrics Script'] = metrics
         finally:
             conn.close()
     except Exception:
@@ -2225,7 +2333,7 @@ def get_wind_direction(deg):
     summary="Trigger TTS via API",
     description="Send a text-to-speech (TTS) event to the WebSocket server, allowing TTS to be triggered via API.",
     tags=["WebSocket Triggers"],
-    response_model=dict,
+    response_model=StatusResponse,
     operation_id="trigger_websocket_tts"
 )
 async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
@@ -2783,7 +2891,7 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             latest_versions = json.load(versions_file)
     except Exception as e:
         logging.error(f"Error loading versions.json: {e}")
-    if not all([BOTS_SSH_HOST, BOTS_SSH_USERNAME, BOTS_SSH_PASSWORD]):
+    if not all([BOTS_SSH_HOST, SSH_USERNAME, SSH_PASSWORD]):
         return {
             "running": False,
             "pid": None,
@@ -2803,8 +2911,8 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             await asyncio.to_thread(
                 ssh.connect,
                 hostname=BOTS_SSH_HOST,
-                username=BOTS_SSH_USERNAME,
-                password=BOTS_SSH_PASSWORD,
+                username=SSH_USERNAME,
+                password=SSH_PASSWORD,
                 timeout=connect_timeout,
                 auth_timeout=connect_timeout,
                 banner_timeout=connect_timeout,
