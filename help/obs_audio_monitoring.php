@@ -55,7 +55,6 @@ ob_start();
     </ul>
     <h2 class="title is-4 has-text-light">Additional Resources</h2>
     <ul>
-        <li><a href="https://obsproject.com/wiki/Audio-Monitoring" class="has-text-link" target="_blank">OBS Audio Monitoring Documentation</a></li>
         <li><a href="troubleshooting.php" class="has-text-link">Back to Troubleshooting Guide</a></li>
     </ul>
 </div>
