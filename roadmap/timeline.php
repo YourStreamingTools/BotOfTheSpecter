@@ -109,13 +109,13 @@ if (is_dir($docsPath)) {
             $filePath = $docsPath . '/' . $file;
             $versionNum = $matches[1];
             $date = extractVersionDate($filePath);
-            $versionFiles[] = [
+            $versionFiles[] = array(
                 'file' => $file,
                 'path' => $filePath,
                 'version' => $versionNum,
                 'date' => $date,
                 'timestamp' => $date->getTimestamp()
-            ];
+            );
         }
     }
 }
