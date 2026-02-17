@@ -46,7 +46,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             // primary/legacy column will hold the first selected value
             $primary_subcategory = $selected_subcategories[0];
             $priority = $_POST['priority'] ?? 'MEDIUM';
-            $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
+            // website_type: accept single or array, validate against allowed set
+            $allowed_website_types = array('DASHBOARD', 'OVERLAYS');
+            $rawWeb = $_POST['website_type'] ?? null;
+            $selected_website_types = [];
+            if (is_array($rawWeb)) {
+                $selected_website_types = array_values(array_unique(array_filter(array_map('trim', $rawWeb))));
+            } elseif (!empty($rawWeb) && is_string($rawWeb)) {
+                $selected_website_types = [trim($rawWeb)];
+            }
+            $selected_website_types = array_filter($selected_website_types, function($v) use ($allowed_website_types){ return in_array($v, $allowed_website_types); });
+            $primary_website_type = !empty($selected_website_types) ? $selected_website_types[0] : null;
             $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
             if ($stmt) {
                 $stmt->bind_param("sssssss", $title, $description, $category, $primary_subcategory, $priority, $website_type, $_SESSION['username']);
@@ -60,6 +70,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $insertSubStmt->execute();
                         }
                         $insertSubStmt->close();
+                    }
+
+                    // store selected website types in the junction table (if any)
+                    if (!empty($selected_website_types)) {
+                        $insertWebStmt = $conn->prepare("INSERT INTO roadmap_item_website_types (item_id, website_type) VALUES (?, ?)");
+                        if ($insertWebStmt) {
+                            foreach ($selected_website_types as $wt) {
+                                $insertWebStmt->bind_param("is", $newItemId, $wt);
+                                $insertWebStmt->execute();
+                            }
+                            $insertWebStmt->close();
+                        }
                     }
 
                     $message = 'Roadmap item added successfully!';
@@ -212,10 +234,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (empty($selected_subcategories)) $selected_subcategories = array('TWITCH BOT');
             $primary_subcategory = $selected_subcategories[0];
             $priority = $_POST['priority'] ?? 'MEDIUM';
-            $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
+            // website_type: accept single or array
+            $allowed_website_types = array('DASHBOARD', 'OVERLAYS');
+            $rawWeb = $_POST['website_type'] ?? null;
+            $selected_website_types = [];
+            if (is_array($rawWeb)) {
+                $selected_website_types = array_values(array_unique(array_filter(array_map('trim', $rawWeb))));
+            } elseif (!empty($rawWeb) && is_string($rawWeb)) {
+                $selected_website_types = [trim($rawWeb)];
+            }
+            $selected_website_types = array_filter($selected_website_types, function($v) use ($allowed_website_types){ return in_array($v, $allowed_website_types); });
+            $primary_website_type = !empty($selected_website_types) ? $selected_website_types[0] : null;
+
             $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ?, updated_at = NOW() WHERE id = ?");
             if ($stmt) {
-                $stmt->bind_param("ssssssi", $title, $description, $category, $primary_subcategory, $priority, $website_type, $id);
+                $stmt->bind_param("ssssssi", $title, $description, $category, $primary_subcategory, $priority, $primary_website_type, $id);
                 if ($stmt->execute()) {
                     // update junction table: delete existing and insert new selections
                     $del = $conn->prepare("DELETE FROM roadmap_item_subcategories WHERE item_id = ?");
@@ -231,6 +264,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $insertSubStmt->execute();
                         }
                         $insertSubStmt->close();
+                    }
+
+                    // update website types junction table
+                    $delWeb = $conn->prepare("DELETE FROM roadmap_item_website_types WHERE item_id = ?");
+                    if ($delWeb) {
+                        $delWeb->bind_param("i", $id);
+                        $delWeb->execute();
+                        $delWeb->close();
+                    }
+                    if (!empty($selected_website_types)) {
+                        $insWeb = $conn->prepare("INSERT INTO roadmap_item_website_types (item_id, website_type) VALUES (?, ?)");
+                        if ($insWeb) {
+                            foreach ($selected_website_types as $wt) {
+                                $insWeb->bind_param("is", $id, $wt);
+                                $insWeb->execute();
+                            }
+                            $insWeb->close();
+                        }
                     }
 
                     $message = 'Item edited successfully!';
@@ -339,16 +390,31 @@ if (!empty($allItems)) {
         }
         $subRes->free();
     }
-    // attach arrays back to items; keep legacy single 'subcategory' field as first value if present
+
+    // fetch website types for items
+    $webRes = $conn->query("SELECT item_id, website_type FROM roadmap_item_website_types WHERE item_id IN ($idList)");
+    $webMap = [];
+    if ($webRes) {
+        while ($wrow = $webRes->fetch_assoc()) {
+            $webMap[(int)$wrow['item_id']][] = $wrow['website_type'];
+        }
+        $webRes->free();
+    }
+
+    // attach arrays back to items; keep legacy single columns as primary values for compatibility
     foreach ($allItems as &$it) {
         $itId = (int)$it['id'];
         if (!empty($subMap[$itId])) {
             $it['subcategories'] = $subMap[$itId];
-            // ensure legacy column remains set to the primary (first) subcategory for compatibility
             $it['subcategory'] = $it['subcategory'] ?: $subMap[$itId][0];
         } else {
-            // fallback to existing single subcategory value
             $it['subcategories'] = [$it['subcategory']];
+        }
+        if (!empty($webMap[$itId])) {
+            $it['website_types'] = $webMap[$itId];
+            $it['website_type'] = $it['website_type'] ?: $webMap[$itId][0];
+        } else {
+            $it['website_types'] = $it['website_type'] ? [$it['website_type']] : [];
         }
     }
     unset($it);
@@ -494,13 +560,7 @@ ob_start();
                 <div class="field" id="website-type-field" style="display: none;">
                     <label class="label">Website Type</label>
                     <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="website_type" id="website-type-select">
-                                <option value="">None</option>
-                                <option value="DASHBOARD">Dashboard</option>
-                                <option value="OVERLAYS">Overlays</option>
-                            </select>
-                        </div>
+                        <div class="tag-multiselect" id="addItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
                     </div>
                 </div>
                 <div class="field">
@@ -573,10 +633,12 @@ ob_start();
                                             <?php echo htmlspecialchars($item['subcategory']); ?>
                                         </span>
                                     <?php endif; ?>
-                                    <?php if (!empty($item['website_type'])): ?>
-                                        <span class="tag is-small is-info">
-                                            <?php echo htmlspecialchars($item['website_type']); ?>
-                                        </span>
+                                    <?php if (!empty($item['website_types']) && is_array($item['website_types'])): ?>
+                                        <?php foreach ($item['website_types'] as $wt): ?>
+                                            <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($wt); ?></span>
+                                        <?php endforeach; ?>
+                                    <?php elseif (!empty($item['website_type'])): ?>
+                                        <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($item['website_type']); ?></span>
                                     <?php endif; ?>
                                 </div>
                                 <div class="mb-3">
@@ -676,10 +738,12 @@ ob_start();
                                             <?php echo htmlspecialchars($item['subcategory']); ?>
                                         </span>
                                     <?php endif; ?>
-                                    <?php if (!empty($item['website_type'])): ?>
-                                        <span class="tag is-small is-info">
-                                            <?php echo htmlspecialchars($item['website_type']); ?>
-                                        </span>
+                                    <?php if (!empty($item['website_types']) && is_array($item['website_types'])): ?>
+                                        <?php foreach ($item['website_types'] as $wt): ?>
+                                            <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($wt); ?></span>
+                                        <?php endforeach; ?>
+                                    <?php elseif (!empty($item['website_type'])): ?>
+                                        <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($item['website_type']); ?></span>
                                     <?php endif; ?>
                                 </div>
                                 <div class="roadmap-card-tags mb-3">

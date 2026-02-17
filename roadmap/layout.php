@@ -14,7 +14,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark" class="theme-dark">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +32,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
 </head>
-
 <body>
     <!-- Navigation -->
     <nav class="navbar is-dark is-fixed-top">
@@ -299,12 +297,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                                 </div>
                                 <div id="edit-website-type-field" style="flex: 1;">
                                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Website Type</label>
-                                    <select name="website_type" id="editItemWebsiteType"
-                                        style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
-                                        <option value="">None</option>
-                                        <option value="DASHBOARD">Dashboard</option>
-                                        <option value="OVERLAYS">Overlays</option>
-                                    </select>
+                                    <div class="tag-multiselect" id="editItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
                                 </div>
                             </div>
                         </form>
@@ -419,9 +412,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             <script src="<?php echo htmlspecialchars($js); ?>"></script>
         <?php endforeach; ?>
     <?php endif; ?>
-
-
-
     <script>
         // Helper function to convert URLs in text to clickable links
         function linkifyText(text) {
@@ -466,7 +456,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                         data.attachments.forEach(att => {
                             const fileIcon = getFileIcon(att.file_type);
                             const isImageFile = isImage(att.file_type);
-
                             if (isImageFile) {
                                 // Display image inline
                                 html += `
@@ -529,12 +518,10 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                                 if (confirm('Delete this attachment?')) {
                                     const attachmentId = this.getAttribute('data-attachment-id');
                                     const itemId = this.getAttribute('data-item-id');
-
                                     const formData = new FormData();
                                     formData.append('attachment_id', attachmentId);
                                     const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).getAttribute ? (document.querySelector('meta[name="csrf-token"]').getAttribute('content') || '') : '';
                                     formData.append('csrf_token', csrfToken);
-
                                     fetch('../admin/delete-attachment.php', {
                                         method: 'POST',
                                         body: formData
@@ -595,11 +582,21 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             } catch (e) {
                 console.warn('CSRF injection error', e);
             }
-
             /* --- Lightweight tag-style multi-select (typeahead + chips) --- */
             const TMS_ALLOWED = ['TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER'];
             function createTagMultiSelect(container) {
                 if (!container) return null;
+                // allow per-container allowed-list via data-allowed (JSON array or comma-separated string)
+                let allowedList = TMS_ALLOWED;
+                if (container.dataset.allowed) {
+                    try {
+                        const parsed = JSON.parse(container.dataset.allowed);
+                        if (Array.isArray(parsed)) allowedList = parsed.map(x => String(x).trim());
+                    } catch (e) {
+                        // fallback to comma-separated
+                        allowedList = String(container.dataset.allowed).split(',').map(s => s.trim()).filter(Boolean);
+                    }
+                }
                 const name = container.dataset.name || 'subcategory[]';
                 // elements
                 container.classList.add('tms-container');
@@ -608,9 +605,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 const suggEl = document.createElement('div'); suggEl.className = 'tms-suggestions'; suggEl.style.display = 'none';
                 const hiddenWrap = document.createElement('div'); hiddenWrap.className = 'tms-hidden-wrap'; hiddenWrap.style.display = 'none';
                 container.appendChild(chipsEl); container.appendChild(inputEl); container.appendChild(suggEl); container.appendChild(hiddenWrap);
-
                 let selected = [];
-
                 function render() {
                     chipsEl.innerHTML = '';
                     hiddenWrap.innerHTML = '';
@@ -620,7 +615,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                         del.addEventListener('click', () => remove(val));
                         tag.appendChild(del);
                         chipsEl.appendChild(tag);
-
                         const hid = document.createElement('input'); hid.type = 'hidden'; hid.name = name; hid.value = val; hiddenWrap.appendChild(hid);
                     });
                 }
@@ -631,7 +625,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 function add(val) {
                     if (!val) return;
                     val = val.toString().trim();
-                    if (!TMS_ALLOWED.includes(val)) return; // only allow predefined tags
+                    if (!allowedList.includes(val)) return; // only allow predefined tags for this component
                     if (selected.includes(val)) return;
                     selected.push(val);
                     render();
@@ -646,19 +640,18 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     selected = [];
                     (arr || []).forEach(v => {
                         const s = String(v).trim();
-                        if (TMS_ALLOWED.includes(s) && !selected.includes(s)) selected.push(s);
+                        if (allowedList.includes(s) && !selected.includes(s)) selected.push(s);
                     });
                     render();
                     dispatchChange();
                 }
                 function getValues() { return selected.slice(); }
-
                 function showSuggestions(q) {
                     const ql = (q || '').toLowerCase();
-                    const list = TMS_ALLOWED.filter(x => !selected.includes(x) && x.toLowerCase().includes(ql));
+                    const list = allowedList.filter(x => !selected.includes(x) && x.toLowerCase().includes(ql));
                     suggEl.innerHTML = '';
                     if (!list.length) { suggEl.style.display = 'none'; return; }
-                    list.slice(0, 6).forEach(x => {
+                    list.slice(0, 12).forEach(x => {
                         const it = document.createElement('div'); it.className = 'tms-suggestion'; it.textContent = x;
                         it.addEventListener('click', () => { add(x); inputEl.value = ''; hideSuggestions(); });
                         suggEl.appendChild(it);
@@ -666,7 +659,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     suggEl.style.display = 'block';
                 }
                 function hideSuggestions() { suggEl.style.display = 'none'; }
-
                 inputEl.addEventListener('input', (e) => { showSuggestions(e.target.value); });
                 inputEl.addEventListener('focus', () => { showSuggestions(inputEl.value); });
                 inputEl.addEventListener('keydown', (e) => {
@@ -690,23 +682,18 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     }
                 });
                 document.addEventListener('click', (ev) => { if (!container.contains(ev.target)) hideSuggestions(); });
-
                 // show suggestions initially so admin sees the list (no typing required)
                 showSuggestions('');
-
                 // initialize from data-initial if provided
                 if (container.dataset.initial) {
                     try { const arr = JSON.parse(container.dataset.initial); setValues(Array.isArray(arr) ? arr : [arr]); } catch (err) { setValues([container.dataset.initial]); }
                 }
-
                 // expose simple API on the DOM element
                 container._tms = { setValues, getValues, add, remove };
                 return container._tms;
             }
-
             // initialize all tag-multiselects on the page
             document.querySelectorAll('.tag-multiselect').forEach(el => createTagMultiSelect(el));
-
             // wire website-type display for edit modal tag-select
             const editTagEl = document.getElementById('editItemSubcategory');
             const editWebsiteWrapper = document.getElementById('edit-website-type-field');
@@ -715,7 +702,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     editWebsiteWrapper.style.display = (e.detail.values || []).includes('WEBSITE') ? '' : 'none';
                 });
             }
-
             const detailsBtns = document.querySelectorAll('.details-btn');
             const detailsModal = document.getElementById('detailsModal');
             const addCommentModal = document.getElementById('addCommentModal');
@@ -986,7 +972,31 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                         editWebsiteWrapper.style.display = anyWebsite ? '' : 'none';
                     }
                     document.getElementById('editItemPriority').value = this.getAttribute('data-priority');
-                    document.getElementById('editItemWebsiteType').value = this.getAttribute('data-website-type');
+                    // populate website-type tag-multiselect (accept JSON array or fallback to reading DOM tags)
+                    const webData = this.getAttribute('data-website-type');
+                    const editWebEl = document.getElementById('editItemWebsiteType');
+                    let webValues = [];
+                    if (webData) {
+                        try {
+                            const arr = JSON.parse(webData);
+                            webValues = Array.isArray(arr) ? arr : [arr];
+                        } catch (err) {
+                            if (webData.length) webValues = [webData];
+                        }
+                    }
+                    // fallback: read existing website-type tags from the card DOM
+                    if ((!webValues || webValues.length === 0) && this.closest) {
+                        const card = this.closest('.roadmap-card');
+                        if (card) {
+                            webValues = Array.from(card.querySelectorAll('.website-type-tag')).map(el => el.textContent.trim()).filter(Boolean);
+                        }
+                    }
+                    if (editWebEl && editWebEl._tms) {
+                        editWebEl._tms.setValues(webValues);
+                    } else {
+                        // legacy fallback for plain input
+                        document.getElementById('editItemWebsiteType').value = webValues.join(',');
+                    }
                     if (editItemModal) {
                         editItemModal.classList.add('is-active');
                         // focus the tag input so the suggestions list is visible immediately
@@ -1109,5 +1119,4 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         });
     </script>
 </body>
-
 </html>
