@@ -2793,21 +2793,33 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             "latest_version": None
         }
     try:
+        connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
+        command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
         # Create SSH client
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
-        # Connect to SSH server
-        ssh.connect(
-            hostname=BOTS_SSH_HOST,
-            username=BOTS_SSH_USERNAME,
-            password=BOTS_SSH_PASSWORD,
-            timeout=10
-        )
-        # Execute the running_bots.py script
-        stdin, stdout, stderr = ssh.exec_command("python3 /home/botofthespecter/running_bots.py 2>&1")
-        output = stdout.read().decode('utf-8')
-        # Close SSH connection
-        ssh.close()
+        try:
+            # Connect to SSH server in a worker thread to avoid blocking the event loop
+            await asyncio.to_thread(
+                ssh.connect,
+                hostname=BOTS_SSH_HOST,
+                username=BOTS_SSH_USERNAME,
+                password=BOTS_SSH_PASSWORD,
+                timeout=connect_timeout,
+                auth_timeout=connect_timeout,
+                banner_timeout=connect_timeout,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+            # Execute the running_bots.py script with a command timeout
+            stdin, stdout, stderr = await asyncio.to_thread(
+                ssh.exec_command,
+                "python3 /home/botofthespecter/running_bots.py 2>&1",
+                timeout=command_timeout,
+            )
+            output = (await asyncio.to_thread(stdout.read)).decode('utf-8')
+        finally:
+            ssh.close()
         # Parse the output to find the specific user's bot
         lines = output.split('\n')
         section = ''
