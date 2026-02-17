@@ -294,17 +294,9 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                             <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
                                 <div style="flex: 1;">
                                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Subcategory</label>
-                                    <select name="subcategory[]" id="editItemSubcategory" multiple
-                                        style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0; height: 6rem;">
-                                        <option value="TWITCH BOT">TWITCH BOT</option>
-                                        <option value="DISCORD BOT">DISCORD BOT</option>
-                                        <option value="WEBSOCKET SERVER">WEBSOCKET SERVER</option>
-                                        <option value="API SERVER">API SERVER</option>
-                                        <option value="WEBSITE">WEBSITE</option>
-                                        <option value="OTHER">OTHER</option>
-                                    </select>
+                                    <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"></div>
                                 </div>
-                                <div style="flex: 1;">
+                                <div id="edit-website-type-field" style="flex: 1;">
                                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Website Type</label>
                                     <select name="website_type" id="editItemWebsiteType"
                                         style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
@@ -426,6 +418,17 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             <script src="<?php echo htmlspecialchars($js); ?>"></script>
         <?php endforeach; ?>
     <?php endif; ?>
+
+    <style>
+    /* Tag multiselect styles */
+    .tag-multiselect.tms-container { display:flex; align-items:center; flex-wrap:wrap; gap:0.375rem; padding:0.35rem; border:1px solid #444; border-radius:6px; min-height:2.4rem; background:transparent; position:relative; }
+    .tag-multiselect .tms-chips { display:flex; gap:0.25rem; flex-wrap:wrap; align-items:center; }
+    .tag-multiselect .tms-input { flex:1; min-width:140px; border:none; background:transparent; color:inherit; outline:none; padding:0.25rem; font-size:0.95rem; }
+    .tag-multiselect .tms-suggestions { position:absolute; top:100%; left:0; z-index:60; background:#fff; color:#111; border:1px solid #ddd; box-shadow:0 6px 20px rgba(0,0,0,0.12); width:calc(100% - 2px); max-height:200px; overflow:auto; border-radius:4px; margin-top:6px; }
+    .tag-multiselect .tms-suggestion { padding:0.4rem 0.6rem; cursor:pointer; }
+    .tag-multiselect .tms-suggestion:hover { background:#f5f5f5; }
+    </style>
+
     <script>
         // Helper function to convert URLs in text to clickable links
         function linkifyText(text) {
@@ -599,6 +602,118 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             } catch (e) {
                 console.warn('CSRF injection error', e);
             }
+
+            /* --- Lightweight tag-style multi-select (typeahead + chips) --- */
+            const TMS_ALLOWED = ['TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER'];
+            function createTagMultiSelect(container) {
+                if (!container) return null;
+                const name = container.dataset.name || 'subcategory[]';
+                // elements
+                container.classList.add('tms-container');
+                const chipsEl = document.createElement('div'); chipsEl.className = 'tms-chips';
+                const inputEl = document.createElement('input'); inputEl.type = 'text'; inputEl.className = 'tms-input'; inputEl.placeholder = 'Add subcategory...';
+                const suggEl = document.createElement('div'); suggEl.className = 'tms-suggestions'; suggEl.style.display = 'none';
+                const hiddenWrap = document.createElement('div'); hiddenWrap.className = 'tms-hidden-wrap'; hiddenWrap.style.display = 'none';
+                container.appendChild(chipsEl); container.appendChild(inputEl); container.appendChild(suggEl); container.appendChild(hiddenWrap);
+
+                let selected = [];
+
+                function render() {
+                    chipsEl.innerHTML = '';
+                    hiddenWrap.innerHTML = '';
+                    selected.forEach(val => {
+                        const tag = document.createElement('span'); tag.className = 'tag is-light'; tag.style.display = 'inline-flex'; tag.style.alignItems = 'center'; tag.textContent = val;
+                        const del = document.createElement('button'); del.type = 'button'; del.className = 'delete is-small'; del.style.marginLeft = '0.5rem';
+                        del.addEventListener('click', () => remove(val));
+                        tag.appendChild(del);
+                        chipsEl.appendChild(tag);
+
+                        const hid = document.createElement('input'); hid.type = 'hidden'; hid.name = name; hid.value = val; hiddenWrap.appendChild(hid);
+                    });
+                }
+                function dispatchChange() {
+                    const ev = new CustomEvent('tms:change', { detail: { values: selected.slice() } });
+                    container.dispatchEvent(ev);
+                }
+                function add(val) {
+                    if (!val) return;
+                    val = val.toString().trim();
+                    if (!TMS_ALLOWED.includes(val)) return; // only allow predefined tags
+                    if (selected.includes(val)) return;
+                    selected.push(val);
+                    render();
+                    dispatchChange();
+                }
+                function remove(val) {
+                    selected = selected.filter(x => x !== val);
+                    render();
+                    dispatchChange();
+                }
+                function setValues(arr) {
+                    selected = [];
+                    (arr || []).forEach(v => {
+                        const s = String(v).trim();
+                        if (TMS_ALLOWED.includes(s) && !selected.includes(s)) selected.push(s);
+                    });
+                    render();
+                    dispatchChange();
+                }
+                function getValues() { return selected.slice(); }
+
+                function showSuggestions(q) {
+                    const ql = (q || '').toLowerCase();
+                    const list = TMS_ALLOWED.filter(x => !selected.includes(x) && x.toLowerCase().includes(ql));
+                    suggEl.innerHTML = '';
+                    if (!list.length) { suggEl.style.display = 'none'; return; }
+                    list.slice(0, 6).forEach(x => {
+                        const it = document.createElement('div'); it.className = 'tms-suggestion'; it.textContent = x;
+                        it.addEventListener('click', () => { add(x); inputEl.value = ''; hideSuggestions(); });
+                        suggEl.appendChild(it);
+                    });
+                    suggEl.style.display = 'block';
+                }
+                function hideSuggestions() { suggEl.style.display = 'none'; }
+
+                inputEl.addEventListener('input', (e) => { showSuggestions(e.target.value); });
+                inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const q = inputEl.value.trim().toUpperCase();
+                        const match = TMS_ALLOWED.find(x => x.toUpperCase() === q);
+                        if (match) add(match);
+                        inputEl.value = '';
+                        hideSuggestions();
+                        return;
+                    }
+                    if (e.key === 'Backspace' && inputEl.value === '') {
+                        if (selected.length) { remove(selected[selected.length - 1]); }
+                        return;
+                    }
+                });
+                document.addEventListener('click', (ev) => { if (!container.contains(ev.target)) hideSuggestions(); });
+
+                // initialize from data-initial if provided
+                if (container.dataset.initial) {
+                    try { const arr = JSON.parse(container.dataset.initial); setValues(Array.isArray(arr) ? arr : [arr]); } catch (err) { setValues([container.dataset.initial]); }
+                }
+
+                // expose simple API on the DOM element
+                container._tms = { setValues, getValues, add, remove };
+                return container._tms;
+            }
+
+            // initialize all tag-multiselects on the page
+            document.querySelectorAll('.tag-multiselect').forEach(el => createTagMultiSelect(el));
+
+            // wire website-type display for edit modal tag-select
+            const editTagEl = document.getElementById('editItemSubcategory');
+            const editWebsiteWrapper = document.getElementById('edit-website-type-field');
+            if (editTagEl && editWebsiteWrapper) {
+                editTagEl.addEventListener('tms:change', (e) => {
+                    editWebsiteWrapper.style.display = (e.detail.values || []).includes('WEBSITE') ? '' : 'none';
+                });
+            }
+
             const detailsBtns = document.querySelectorAll('.details-btn');
             const detailsModal = document.getElementById('detailsModal');
             const addCommentModal = document.getElementById('addCommentModal');
@@ -852,19 +967,21 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     const encodedDesc = this.getAttribute('data-description') || '';
                     document.getElementById('editItemDescription').value = encodedDesc ? atob(encodedDesc) : ''; 
                     document.getElementById('editItemCategory').value = this.getAttribute('data-category');
-                    // subcategory may be a JSON-encoded array (multiple selections) or a single string
-                    const subSelect = document.getElementById('editItemSubcategory');
                     const subData = this.getAttribute('data-subcategory');
-                    if (subData) {
+                    const editTagEl = document.getElementById('editItemSubcategory');
+                    if (editTagEl && editTagEl._tms) {
                         try {
-                            const arr = JSON.parse(subData);
-                            Array.from(subSelect.options).forEach(o => { o.selected = arr.includes(o.value); });
+                            const arr = subData ? JSON.parse(subData) : [];
+                            editTagEl._tms.setValues(Array.isArray(arr) ? arr : [arr]);
                         } catch (err) {
-                            // fallback for legacy single-value
-                            subSelect.value = subData;
+                            editTagEl._tms.setValues(subData ? [subData] : []);
                         }
-                    } else {
-                        Array.from(subSelect.options).forEach(o => o.selected = false);
+                    }
+                    // show website-type field in modal when WEBSITE is among selected subcategories
+                    const editWebsiteWrapper = document.getElementById('edit-website-type-field');
+                    if (editWebsiteWrapper) {
+                        const anyWebsite = (editTagEl && editTagEl._tms) ? editTagEl._tms.getValues().includes('WEBSITE') : false;
+                        editWebsiteWrapper.style.display = anyWebsite ? '' : 'none';
                     }
                     document.getElementById('editItemPriority').value = this.getAttribute('data-priority');
                     document.getElementById('editItemWebsiteType').value = this.getAttribute('data-website-type');
@@ -875,6 +992,12 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             });
             if (editItemForm) {
                 editItemForm.addEventListener('submit', function (e) {
+                    const checked = document.querySelectorAll('#editItemModal input[name="subcategory[]"]').length;
+                    if (checked === 0) {
+                        alert('Please select at least one Subcategory');
+                        e.preventDefault();
+                        return;
+                    }
                     e.preventDefault();
                     this.submit();
                 });
