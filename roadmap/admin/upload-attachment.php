@@ -31,8 +31,8 @@ if (!is_writable($uploadDir)) {
     die(json_encode(['success' => false, 'message' => 'Upload directory is not writable. Path: ' . realpath($uploadDir)]));
 }
 
-// Allowed file types (disallow SVG to avoid inline-SVG XSS vectors)
-$allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+// Allowed file types (SVG accepted but sanitized)
+$allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 $allowedDocTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
 $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
 
@@ -40,6 +40,12 @@ $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
 $maxFileSize = 10 * 1024 * 1024;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
+    // CSRF validation
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+        http_response_code(400);
+        die(json_encode(['success' => false, 'message' => 'Invalid CSRF token']));
+    }
+
     $itemId = $_POST['item_id'] ?? 0;
     $file = $_FILES['file'];
     // Validate item ID
@@ -82,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     finfo_close($finfo);
     if (!in_array($mimeType, $allowedFileTypes)) {
         http_response_code(400);
-        die(json_encode(['success' => false, 'message' => 'File type not allowed. Allowed types: Images (JPG, PNG, GIF, WebP, SVG) and Documents (PDF, Word, Excel, TXT)']));
+        die(json_encode(['success' => false, 'message' => 'File type not allowed. Allowed types: Images (JPG, PNG, GIF, WebP, SVG - sanitized) and Documents (PDF, Word, Excel, TXT)']));
     }
     // Determine if it's an image
     $isImage = in_array($mimeType, $allowedImageTypes) ? 1 : 0;
@@ -90,17 +96,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
     $uniqueName = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $file['name']);
     $filePath = $uploadDir . $uniqueName;
-    // Move uploaded file
-    if (!move_uploaded_file($file['tmp_name'], $filePath)) {
-        $error = 'Failed to save file to: ' . $filePath;
-        if (is_file($filePath)) {
-            $error .= ' (file already exists)';
+    // If SVG, sanitize content; otherwise move file
+    if ($mimeType === 'image/svg+xml') {
+        $svg = file_get_contents($file['tmp_name']);
+        // Basic SVG sanitization
+        $svg = preg_replace('/<\?xml.*?\?>/s', '', $svg);
+        $svg = preg_replace('/<!DOCTYPE.*?>/is', '', $svg);
+        $svg = preg_replace('/<script.*?>.*?<\/script>/is', '', $svg);
+        $svg = preg_replace('/<\/?(foreignObject|iframe|object|embed|link)[^>]*>/is', '', $svg);
+        $svg = preg_replace('/\s(on[a-z]+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $svg);
+        $svg = preg_replace('/(href|xlink:href)\s*=\s*("|\')?javascript:[^"\'\s>]+("|\')?/i', '$1="#"', $svg);
+        $svg = preg_replace('/(href|xlink:href)\s*=\s*("|\')?(https?:|file:)[^"\'\s>]+("|\')?/i', '$1="#"', $svg);
+        if (trim($svg) === '') {
+            http_response_code(400);
+            die(json_encode(['success' => false, 'message' => 'SVG failed sanitization']));
         }
-        if (!is_writable(dirname($filePath))) {
-            $error .= ' (directory not writable)';
+        if (file_put_contents($filePath, $svg) === false) {
+            http_response_code(500);
+            die(json_encode(['success' => false, 'message' => 'Failed to save sanitized SVG']));
         }
-        http_response_code(500);
-        die(json_encode(['success' => false, 'message' => $error]));
+    } else {
+        if (!move_uploaded_file($file['tmp_name'], $filePath)) {
+            $error = 'Failed to save file to: ' . $filePath;
+            if (is_file($filePath)) {
+                $error .= ' (file already exists)';
+            }
+            if (!is_writable(dirname($filePath))) {
+                $error .= ' (directory not writable)';
+            }
+            http_response_code(500);
+            die(json_encode(['success' => false, 'message' => $error]));
+        }
     }
     // Store in database
     $conn = getRoadmapConnection();

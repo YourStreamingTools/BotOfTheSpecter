@@ -27,56 +27,91 @@ $message_type = '';
 // Add new item
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
-        $title = $_POST['title'] ?? '';
-        $description = $_POST['description'] ?? '';
-        $category = $_POST['category'] ?? 'REQUESTS';
-        $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
-        $priority = $_POST['priority'] ?? 'MEDIUM';
-        $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
-        $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        if ($stmt) {
-            $stmt->bind_param("sssssss", $title, $description, $category, $subcategory, $priority, $website_type, $_SESSION['username']);
-            if ($stmt->execute()) {
-                $newItemId = $conn->insert_id;
-                $message = 'Roadmap item added successfully!';
-                $message_type = 'success';
-                // Handle file uploads if any
-                if (isset($_FILES['initial_attachments']) && !empty($_FILES['initial_attachments']['name'][0])) {
-                    $uploadDir = '../uploads/attachments/';
-                    if (!is_dir($uploadDir)) {
-                        mkdir($uploadDir, 0755, true);
-                    }
-                    $allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                    $allowedDocTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-                    $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
-                    $maxFileSize = 10 * 1024 * 1024;
-                    $uploadedCount = 0;
-                    $uploadErrors = [];
-                    for ($i = 0; $i < count($_FILES['initial_attachments']['name']); $i++) {
-                        if ($_FILES['initial_attachments']['error'][$i] === UPLOAD_ERR_OK) {
-                            $fileName = $_FILES['initial_attachments']['name'][$i];
-                            $fileTmp = $_FILES['initial_attachments']['tmp_name'][$i];
-                            $fileSize = $_FILES['initial_attachments']['size'][$i];
-                            // Validate file size
-                            if ($fileSize > $maxFileSize) {
-                                $uploadErrors[] = "$fileName exceeds 10MB limit";
-                                continue;
-                            }
-                            // Validate file type
-                            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                            $mimeType = finfo_file($finfo, $fileTmp);
-                            finfo_close($finfo);
-                            if (!in_array($mimeType, $allowedFileTypes)) {
-                                $uploadErrors[] = "$fileName has unsupported file type";
-                                continue;
-                            }
-                            // Determine if it's an image
-                            $isImage = in_array($mimeType, $allowedImageTypes) ? 1 : 0;
-                            // Generate unique filename
-                            $uniqueName = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $fileName);
-                            $filePath = $uploadDir . $uniqueName;
-                            // Move uploaded file
-                            if (move_uploaded_file($fileTmp, $filePath)) {
+        // CSRF check for add
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $title = $_POST['title'] ?? '';
+            $description = $_POST['description'] ?? '';
+            $category = $_POST['category'] ?? 'REQUESTS';
+            $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
+            $priority = $_POST['priority'] ?? 'MEDIUM';
+            $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
+            $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            if ($stmt) {
+                $stmt->bind_param("sssssss", $title, $description, $category, $subcategory, $priority, $website_type, $_SESSION['username']);
+                if ($stmt->execute()) {
+                    $newItemId = $conn->insert_id;
+                    $message = 'Roadmap item added successfully!';
+                    $message_type = 'success';
+                    // Handle file uploads if any
+                    if (isset($_FILES['initial_attachments']) && !empty($_FILES['initial_attachments']['name'][0])) {
+                        $uploadDir = '../uploads/attachments/';
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
+                        }
+                        $allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+                        $allowedDocTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+                        $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
+                        $maxFileSize = 10 * 1024 * 1024;
+                        $uploadedCount = 0;
+                        $uploadErrors = [];
+
+                        // SVG sanitizer helper (top-level alternative recommended)
+                        function sanitize_svg_content($svg) {
+                            if (!is_string($svg) || trim($svg) === '') return '';
+                            $svg = preg_replace('/<\?xml.*?\?>/s', '', $svg);
+                            $svg = preg_replace('/<!DOCTYPE.*?>/is', '', $svg);
+                            $svg = preg_replace('/<script.*?>.*?<\/script>/is', '', $svg);
+                            $svg = preg_replace('/<\/?(foreignObject|iframe|object|embed|link)[^>]*>/is', '', $svg);
+                            $svg = preg_replace('/\s(on[a-z]+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $svg);
+                            $svg = preg_replace('/(href|xlink:href)\s*=\s*("|\')?javascript:[^"\'\s>]+("|\')?/i', '$1="#"', $svg);
+                            $svg = preg_replace('/(href|xlink:href)\s*=\s*("|\')?(https?:|file:)[^"\'\s>]+("|\')?/i', '$1="#"', $svg);
+                            return trim($svg);
+                        }
+
+                        for ($i = 0; $i < count($_FILES['initial_attachments']['name']); $i++) {
+                            if ($_FILES['initial_attachments']['error'][$i] === UPLOAD_ERR_OK) {
+                                $fileName = $_FILES['initial_attachments']['name'][$i];
+                                $fileTmp = $_FILES['initial_attachments']['tmp_name'][$i];
+                                $fileSize = $_FILES['initial_attachments']['size'][$i];
+                                // Validate file size
+                                if ($fileSize > $maxFileSize) {
+                                    $uploadErrors[] = "$fileName exceeds 10MB limit";
+                                    continue;
+                                }
+                                // Validate file type
+                                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                                $mimeType = finfo_file($finfo, $fileTmp);
+                                finfo_close($finfo);
+                                if (!in_array($mimeType, $allowedFileTypes)) {
+                                    $uploadErrors[] = "$fileName has unsupported file type";
+                                    continue;
+                                }
+                                // Determine if it's an image
+                                $isImage = in_array($mimeType, $allowedImageTypes) ? 1 : 0;
+                                // Generate unique filename
+                                $uniqueName = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $fileName);
+                                $filePath = $uploadDir . $uniqueName;
+                                // Handle SVG sanitization or move uploaded file
+                                if ($mimeType === 'image/svg+xml') {
+                                    $svgContent = file_get_contents($fileTmp);
+                                    $sanitized = sanitize_svg_content($svgContent);
+                                    if (empty($sanitized)) {
+                                        $uploadErrors[] = "$fileName failed SVG sanitization";
+                                        continue;
+                                    }
+                                    if (file_put_contents($filePath, $sanitized) === false) {
+                                        $uploadErrors[] = "Failed to save sanitized $fileName";
+                                        continue;
+                                    }
+                                } else {
+                                    if (!move_uploaded_file($fileTmp, $filePath)) {
+                                        $uploadErrors[] = "Failed to save $fileName";
+                                        continue;
+                                    }
+                                }
                                 // Store in database
                                 $stmt2 = $conn->prepare("INSERT INTO roadmap_attachments (item_id, file_name, file_path, file_type, file_size, is_image, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
                                 if ($stmt2) {
@@ -92,104 +127,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 } else {
                                     $uploadErrors[] = "Error saving $fileName to database";
                                 }
-                            } else {
-                                $uploadErrors[] = "Failed to save $fileName";
                             }
                         }
+                        if ($uploadedCount > 0) {
+                            $message .= " ($uploadedCount file(s) uploaded)";
+                        }
+                        if (!empty($uploadErrors)) {
+                            $message .= " - Some files failed: " . implode(", ", $uploadErrors);
+                            $message_type = 'warning';
+                        }
                     }
-                    if ($uploadedCount > 0) {
-                        $message .= " ($uploadedCount file(s) uploaded)";
-                    }
-                    if (!empty($uploadErrors)) {
-                        $message .= " - Some files failed: " . implode(", ", $uploadErrors);
-                        $message_type = 'warning';
-                    }
-                }
-            } else {
-                $message = 'Error adding item: ' . $stmt->error;
-                $message_type = 'danger';
-            }
-            $stmt->close();
-        } else {
-            $message = 'Error preparing statement: ' . $conn->error;
-            $message_type = 'danger';
-        }
-    } elseif ($_POST['action'] === 'update') {
-        $id = $_POST['id'] ?? 0;
-        $category = $_POST['category'] ?? 'REQUESTS';
-        $status = $_POST['status'] ?? '';
-        if ($status === 'completed') {
-            $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW() WHERE id = ?");
-            if ($stmt) {
-                $stmt->bind_param("i", $id);
-                $stmt->execute();
-                $stmt->close();
-            }
-        } else {
-            $stmt = $conn->prepare("UPDATE roadmap_items SET category = ? WHERE id = ?");
-            if ($stmt) {
-                $stmt->bind_param("si", $category, $id);
-                $stmt->execute();
-                $stmt->close();
-            }
-        }
-        $message = 'Item updated successfully!';
-        $message_type = 'success';
-    } elseif ($_POST['action'] === 'edit_item') {
-        $id = $_POST['id'] ?? 0;
-        $title = $_POST['title'] ?? '';
-        $description = $_POST['description'] ?? '';
-        $category = $_POST['category'] ?? 'REQUESTS';
-        $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
-        $priority = $_POST['priority'] ?? 'MEDIUM';
-        $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
-        $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ? WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param("ssssssi", $title, $description, $category, $subcategory, $priority, $website_type, $id);
-            if ($stmt->execute()) {
-                $message = 'Item edited successfully!';
-                $message_type = 'success';
-            } else {
-                $message = 'Error editing item: ' . $stmt->error;
-                $message_type = 'danger';
-            }
-            $stmt->close();
-        } else {
-            $message = 'Error preparing statement: ' . $conn->error;
-            $message_type = 'danger';
-        }
-    } elseif ($_POST['action'] === 'delete') {
-        $id = $_POST['id'] ?? 0;
-        $stmt = $conn->prepare("DELETE FROM roadmap_items WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param("i", $id);
-            if ($stmt->execute()) {
-                $message = 'Item deleted successfully!';
-                $message_type = 'success';
-            } else {
-                $message = 'Error deleting item: ' . $stmt->error;
-                $message_type = 'danger';
-            }
-            $stmt->close();
-        } else {
-            $message = 'Error preparing statement: ' . $conn->error;
-            $message_type = 'danger';
-        }
-    } elseif ($_POST['action'] === 'add_comment') {
-        $item_id = $_POST['item_id'] ?? 0;
-        $comment_text = $_POST['comment_text'] ?? '';
-        if (!empty($comment_text) && $item_id > 0) {
-            $stmt = $conn->prepare("INSERT INTO roadmap_comments (item_id, username, comment) VALUES (?, ?, ?)");
-            if ($stmt) {
-                $stmt->bind_param("iss", $item_id, $_SESSION['username'], $comment_text);
-                if ($stmt->execute()) {
-                    $message = 'Comment added successfully!';
-                    $message_type = 'success';
                 } else {
-                    $message = 'Error adding comment: ' . $stmt->error;
+                    $message = 'Error adding item: ' . $stmt->error;
                     $message_type = 'danger';
                 }
                 $stmt->close();
+            } else {
+                $message = 'Error preparing statement: ' . $conn->error;
+                $message_type = 'danger';
+            }
+        }
+    } elseif ($_POST['action'] === 'update') {
+        // CSRF check for update
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $id = $_POST['id'] ?? 0;
+            $category = $_POST['category'] ?? 'REQUESTS';
+            $status = $_POST['status'] ?? '';
+            if ($status === 'completed') {
+                $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW() WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param("i", $id);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            } else {
+                $stmt = $conn->prepare("UPDATE roadmap_items SET category = ? WHERE id = ?");
+                if ($stmt) {
+                    $stmt->bind_param("si", $category, $id);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+            $message = 'Item updated successfully!';
+            $message_type = 'success';
+        }
+    } elseif ($_POST['action'] === 'edit_item') {
+        // CSRF check for edit
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $id = $_POST['id'] ?? 0;
+            $title = $_POST['title'] ?? '';
+            $description = $_POST['description'] ?? '';
+            $category = $_POST['category'] ?? 'REQUESTS';
+            $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
+            $priority = $_POST['priority'] ?? 'MEDIUM';
+            $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
+            $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ? WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param("ssssssi", $title, $description, $category, $subcategory, $priority, $website_type, $id);
+                if ($stmt->execute()) {
+                    $message = 'Item edited successfully!';
+                    $message_type = 'success';
+                } else {
+                    $message = 'Error editing item: ' . $stmt->error;
+                    $message_type = 'danger';
+                }
+                $stmt->close();
+            } else {
+                $message = 'Error preparing statement: ' . $conn->error;
+                $message_type = 'danger';
+            }
+        }
+    } elseif ($_POST['action'] === 'delete') {
+        // CSRF check for delete
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $id = $_POST['id'] ?? 0;
+            $stmt = $conn->prepare("DELETE FROM roadmap_items WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param("i", $id);
+                if ($stmt->execute()) {
+                    $message = 'Item deleted successfully!';
+                    $message_type = 'success';
+                } else {
+                    $message = 'Error deleting item: ' . $stmt->error;
+                    $message_type = 'danger';
+                }
+                $stmt->close();
+            } else {
+                $message = 'Error preparing statement: ' . $conn->error;
+                $message_type = 'danger';
+            }
+        }
+    } elseif ($_POST['action'] === 'add_comment') {
+        // CSRF check for comments
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $item_id = $_POST['item_id'] ?? 0;
+            $comment_text = $_POST['comment_text'] ?? '';
+            if (!empty($comment_text) && $item_id > 0) {
+                $stmt = $conn->prepare("INSERT INTO roadmap_comments (item_id, username, comment) VALUES (?, ?, ?)");
+                if ($stmt) {
+                    $stmt->bind_param("iss", $item_id, $_SESSION['username'], $comment_text);
+                    if ($stmt->execute()) {
+                        $message = 'Comment added successfully!';
+                        $message_type = 'success';
+                    } else {
+                        $message = 'Error adding comment: ' . $stmt->error;
+                        $message_type = 'danger';
+                    }
+                    $stmt->close();
+                }
             }
         }
     }

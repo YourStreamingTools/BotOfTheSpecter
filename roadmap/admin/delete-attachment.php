@@ -14,6 +14,13 @@ if (!isset($_SESSION['username']) || !($_SESSION['admin'] ?? false)) {
 
 require_once 'database.php';
 
+// CSRF protection for delete requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+        http_response_code(400);
+        die(json_encode(['success' => false, 'message' => 'Invalid CSRF token']));
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attachment_id'])) {
     $attachmentId = $_POST['attachment_id'] ?? 0;
     

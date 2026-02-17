@@ -5,6 +5,12 @@ function uuidv4()
 {
     return bin2hex(random_bytes(2));
 }
+// Ensure a per-session CSRF token exists for admin actions
+if (session_status() === PHP_SESSION_ACTIVE) {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark" class="theme-dark">
@@ -12,6 +18,7 @@ function uuidv4()
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
     <title>
         <?php echo isset($pageTitle) ? htmlspecialchars($pageTitle) . ' - BotOfTheSpecter Roadmap' : 'BotOfTheSpecter Roadmap'; ?>
     </title>
@@ -24,6 +31,7 @@ function uuidv4()
     <link rel="stylesheet" href="../css/custom.css?v=<?php echo uuidv4(); ?>">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
 </head>
 
 <body>
@@ -217,6 +225,7 @@ function uuidv4()
                 <section class="modal-card-body">
                     <form id="addCommentForm" method="POST">
                         <input type="hidden" name="action" value="add_comment">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="item_id" id="commentItemId" value="">
                         <div class="field">
                             <label class="label">Comment</label>
@@ -249,6 +258,7 @@ function uuidv4()
                     <section class="modal-card-body" style="max-height: 60vh; overflow-y: auto; padding: 0.25rem;">
                         <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 0.125rem;">
                             <input type="hidden" name="action" value="edit_item">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="id" id="editItemId" value="">
                             <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Title</label>
                             <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required
@@ -326,6 +336,7 @@ function uuidv4()
                     <section class="modal-card-body">
                         <form id="uploadAttachmentForm" enctype="multipart/form-data">
                             <input type="hidden" name="item_id" id="uploadItemId" value="">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <div class="field">
                                 <label class="label">Select File</label>
                                 <div class="file is-boxed is-centered">
@@ -345,7 +356,7 @@ function uuidv4()
                                         </span>
                                     </label>
                                 </div>
-                                <p class="help">Allowed: Images (JPG, PNG, GIF, WebP, SVG), PDF, Word, Excel, TXT. Max 10MB</p>
+                                <p class="help">Allowed: Images (JPG, PNG, GIF, WebP, SVG — SVGs are sanitized), PDF, Word, Excel, TXT. Max 10MB</p>
                             </div>
                             <div id="uploadProgress" style="display: none;">
                                 <progress class="progress is-primary" value="0" max="100" id="uploadProgressBar"></progress>
@@ -524,6 +535,8 @@ function uuidv4()
 
                                     const formData = new FormData();
                                     formData.append('attachment_id', attachmentId);
+                                    const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).getAttribute ? (document.querySelector('meta[name="csrf-token"]').getAttribute('content') || '') : '';
+                                    formData.append('csrf_token', csrfToken);
 
                                     fetch('../admin/delete-attachment.php', {
                                         method: 'POST',
@@ -567,6 +580,24 @@ function uuidv4()
                 });
         }
         document.addEventListener('DOMContentLoaded', function () {
+            // Inject CSRF token into all POST forms (ensures server-side CSRF check has the token)
+            try {
+                const csrfMetaEl = document.querySelector('meta[name="csrf-token"]');
+                const csrfVal = csrfMetaEl ? csrfMetaEl.getAttribute('content') : '';
+                if (csrfVal) {
+                    document.querySelectorAll('form[method="POST"]').forEach(f => {
+                        if (!f.querySelector('input[name="csrf_token"]')) {
+                            const inp = document.createElement('input');
+                            inp.type = 'hidden';
+                            inp.name = 'csrf_token';
+                            inp.value = csrfVal;
+                            f.prepend(inp);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('CSRF injection error', e);
+            }
             const detailsBtns = document.querySelectorAll('.details-btn');
             const detailsModal = document.getElementById('detailsModal');
             const addCommentModal = document.getElementById('addCommentModal');
@@ -726,9 +757,10 @@ function uuidv4()
                     currentItemId = this.getAttribute('data-item-id');
                     document.getElementById('detailsTitle').textContent = title;
                     // Parse markdown and linkify the description
-                    const markdownHtml = marked.parse(description || '');
+                    const dirtyHtml = marked.parse(description || '');
+                    const cleanHtml = (window.DOMPurify) ? DOMPurify.sanitize(dirtyHtml) : dirtyHtml;
                     const detailsContent = document.getElementById('detailsContent');
-                    detailsContent.innerHTML = markdownHtml;
+                    detailsContent.innerHTML = cleanHtml;
                     // Highlight code blocks
                     detailsContent.querySelectorAll('pre code').forEach(block => {
                         hljs.highlightElement(block);
