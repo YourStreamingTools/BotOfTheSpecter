@@ -18,7 +18,12 @@ ob_start();
 			<h2 class="title is-4 has-text-light">API Overview</h2>
 			<p>The BotOfTheSpecter API enables programmatic access to various bot features, allowing developers to build custom integrations, extensions, and applications that interact with the bot's functionality.</p>
 			<h2 class="title is-4 has-text-light">Authentication</h2>
-			<p>All API requests require authentication using your unique API key.<br>This key is essential for all BotOfTheSpecter integrations, including API access, WebSocket server connections, and third-party platform integrations.</p>
+			<p>All authenticated API requests require your unique API key.<br>This key is essential for BotOfTheSpecter integrations, including API access, WebSocket server connections, and third-party platform integrations.</p>
+			<div class="notification is-info has-background-dark has-text-light">
+				<strong>v2 Authentication Update:</strong> Authenticated <code>/v2/</code> endpoints support sending your key in the <code>X-API-KEY</code> request header.<br>
+				This is the recommended approach for better security. Legacy endpoints still support <code>?api_key=YOUR_API_KEY</code> where applicable.<br>
+				See the v2 reference: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" class="has-text-link">https://api.botofthespecter.com/v2/docs</a>
+			</div>
 			<h3 class="title is-5 has-text-light">Obtaining Your API Key</h3>
 			<ol>
 				<li>Log in to the <a href="https://dashboard.botofthespecter.com/" target="_blank" class="has-text-link">BotOfTheSpecter Dashboard</a></li>
@@ -38,7 +43,7 @@ ob_start();
 			<h2 class="title is-4 has-text-light">Webhook Integrations</h2>
 			<p>The API supports webhook integrations with various third-party services.<br>These integrations allow BotOfTheSpecter to receive real-time notifications from external platforms and trigger appropriate actions in your Twitch chat or stream overlays.</p>
 			<h2 class="title is-4 has-text-light">API Endpoints</h2>
-			<p>BotOfTheSpecter's API provides several endpoint groups for different use cases.<br>Some endpoints are public, while others require a user API key (or admin key) using a query parameter such as <code>?api_key=YOUR_API_KEY</code>.</p>
+			<p>BotOfTheSpecter's API provides several endpoint groups for different use cases.<br>Some endpoints are public, while others require a user API key (or admin key). For <code>/v2/</code> endpoints, prefer the <code>X-API-KEY</code> header. Legacy routes may still use <code>?api_key=YOUR_API_KEY</code>.</p>
 			<div class="notification is-dark" style="display:flex; flex-direction:column; gap:0.75rem;">
 				<p><strong>Authenticated endpoint highlights</strong></p>
 				<div class="tags" style="flex-wrap:wrap; gap:0.35rem;">
@@ -137,9 +142,14 @@ ob_start();
 				<li><code>GET /discord/linked</code> — Check if Discord user is linked</li>
 			</ul>
 			<h2 class="title is-4 has-text-light">Using the API</h2>
-			<p>To use the BotOfTheSpecter API include your API key as a URL query parameter on every request.<br>Example: <code>https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY</code>.<br>Do not expose the key in public client-side code; treat it like a secret and rotate it if you suspect compromise.</p>
+			<p>For authenticated <code>/v2/</code> endpoints, send your API key in the <code>X-API-KEY</code> header.<br>Legacy endpoints can still use a URL query parameter where supported, for example: <code>https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY</code>.<br>Do not expose the key in public client-side code; treat it like a secret and rotate it if you suspect compromise.</p>
+			<p>Full v2 endpoint docs: <a href="https://api.botofthespecter.com/v2/docs" target="_blank" class="has-text-link">https://api.botofthespecter.com/v2/docs</a></p>
+			<div class="notification is-info has-background-dark has-text-light" style="margin-bottom: 1rem;">
+				<strong>Recommended for /v2/:</strong>
+				<code>X-API-KEY: YOUR_API_KEY</code>
+			</div>
 			<div class="box has-background-dark" style="border-radius:8px; border:1px solid #363636;">
-				<p class="has-text-light"><strong>Examples</strong> — choose a language to view example requests. Authentication is done by appending <code>?api_key=YOUR_API_KEY</code> to the request URL.</p>
+				<p class="has-text-light"><strong>Examples</strong> — choose a language to view example requests. These examples use <code>/v2/</code> endpoints with the recommended <code>X-API-KEY</code> header authentication.</p>
 				<div style="display:flex; gap:12px; align-items:center; margin-top:0.5rem;">
 					<label class="has-text-light">Example language:</label>
 					<select id="exampleLang" style="border-radius:6px; background:#222; color:#fff; border:1px solid #444; padding:6px;">
@@ -151,17 +161,26 @@ ob_start();
 					</select>
 				</div>
 				<div style="margin-top:1rem;">
-					<pre class="code-sample" data-lang="curl" style="background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>curl "https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY"</code></pre>
-					<pre class="code-sample" data-lang="javascript" style="display:none; background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>fetch('https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY')
-.then(r =&gt; r.json()).then(console.log);
+					<pre class="code-sample" data-lang="curl" style="background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>curl -H "X-API-KEY: YOUR_API_KEY" "https://api.botofthespecter.com/v2/account"</code></pre>
+					<pre class="code-sample" data-lang="javascript" style="display:none; background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>fetch('https://api.botofthespecter.com/v2/account', {
+  headers: {
+    'X-API-KEY': 'YOUR_API_KEY'
+  }
+})
+.then(r =&gt; r.json())
+.then(console.log);
 </code></pre>
 					<pre class="code-sample" data-lang="python" style="display:none; background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>import requests
 
-resp = requests.get('https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY')
+resp = requests.get(
+    'https://api.botofthespecter.com/v2/account',
+    headers={'X-API-KEY': 'YOUR_API_KEY'}
+)
 print(resp.json())
 </code></pre>
 					<pre class="code-sample" data-lang="php" style="display:none; background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, 'https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY');
+curl_setopt($ch, CURLOPT_URL, 'https://api.botofthespecter.com/v2/account');
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: YOUR_API_KEY']);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 $response = curl_exec($ch);
 curl_close($ch);
@@ -170,7 +189,8 @@ echo $response;
 					<pre class="code-sample" data-lang="java" style="display:none; background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>// Java 11+ HttpClient
 HttpClient client = HttpClient.newHttpClient();
 HttpRequest request = HttpRequest.newBuilder()
-	.uri(URI.create("https://api.botofthespecter.com/quotes?api_key=YOUR_API_KEY"))
+	.uri(URI.create("https://api.botofthespecter.com/v2/account"))
+	.header("X-API-KEY", "YOUR_API_KEY")
 	.GET()
 	.build();
 HttpResponse&lt;String&gt; resp = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -186,7 +206,7 @@ System.out.println(resp.body());
 									show(sel.value);
 								})();
 								</script>
-				<p class="has-text-light" style="margin-top:0.75rem;">Replace <code>YOUR_API_KEY</code> with the API key from your dashboard. Keep keys secret and rotate them if you suspect a compromise.</p>
+				<p class="has-text-light" style="margin-top:0.75rem;">Replace <code>YOUR_API_KEY</code> with the API key from your dashboard. For <code>/v2/</code> routes, send it in the <code>X-API-KEY</code> header and avoid passing keys in URLs.</p>
 			</div>
 		</div>
 	</div>
