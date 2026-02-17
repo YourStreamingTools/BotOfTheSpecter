@@ -35,14 +35,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $title = $_POST['title'] ?? '';
             $description = $_POST['description'] ?? '';
             $category = $_POST['category'] ?? 'REQUESTS';
-            $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
+            // allow single value or an array for subcategory (treat as tags)
+            $allowed_subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
+            $rawSub = $_POST['subcategory'] ?? 'TWITCH BOT';
+            $selected_subcategories = is_array($rawSub) ? $rawSub : array($rawSub);
+            // normalize and validate
+            $selected_subcategories = array_values(array_unique(array_filter(array_map('trim', $selected_subcategories))));
+            $selected_subcategories = array_filter($selected_subcategories, function($v) use ($allowed_subcategories){ return in_array($v, $allowed_subcategories); });
+            if (empty($selected_subcategories)) $selected_subcategories = array('TWITCH BOT');
+            // primary/legacy column will hold the first selected value
+            $primary_subcategory = $selected_subcategories[0];
             $priority = $_POST['priority'] ?? 'MEDIUM';
             $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
             $stmt = $conn->prepare("INSERT INTO roadmap_items (title, description, category, subcategory, priority, website_type, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
             if ($stmt) {
-                $stmt->bind_param("sssssss", $title, $description, $category, $subcategory, $priority, $website_type, $_SESSION['username']);
+                $stmt->bind_param("sssssss", $title, $description, $category, $primary_subcategory, $priority, $website_type, $_SESSION['username']);
                 if ($stmt->execute()) {
                     $newItemId = $conn->insert_id;
+                    // store all selected subcategories in the junction table
+                    $insertSubStmt = $conn->prepare("INSERT INTO roadmap_item_subcategories (item_id, subcategory) VALUES (?, ?)");
+                    if ($insertSubStmt) {
+                        foreach ($selected_subcategories as $subVal) {
+                            $insertSubStmt->bind_param("is", $newItemId, $subVal);
+                            $insertSubStmt->execute();
+                        }
+                        $insertSubStmt->close();
+                    }
+
                     $message = 'Roadmap item added successfully!';
                     $message_type = 'success';
                     // Handle file uploads if any
@@ -180,17 +199,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = 'Invalid CSRF token';
             $message_type = 'danger';
         } else {
-            $id = $_POST['id'] ?? 0;
+            $id = (int)($_POST['id'] ?? 0);
             $title = $_POST['title'] ?? '';
             $description = $_POST['description'] ?? '';
             $category = $_POST['category'] ?? 'REQUESTS';
-            $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
+            // accept single or multiple subcategory values
+            $allowed_subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
+            $rawSub = $_POST['subcategory'] ?? 'TWITCH BOT';
+            $selected_subcategories = is_array($rawSub) ? $rawSub : array($rawSub);
+            $selected_subcategories = array_values(array_unique(array_filter(array_map('trim', $selected_subcategories))));
+            $selected_subcategories = array_filter($selected_subcategories, function($v) use ($allowed_subcategories){ return in_array($v, $allowed_subcategories); });
+            if (empty($selected_subcategories)) $selected_subcategories = array('TWITCH BOT');
+            $primary_subcategory = $selected_subcategories[0];
             $priority = $_POST['priority'] ?? 'MEDIUM';
             $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
             $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ?, updated_at = NOW() WHERE id = ?");
             if ($stmt) {
-                $stmt->bind_param("ssssssi", $title, $description, $category, $subcategory, $priority, $website_type, $id);
+                $stmt->bind_param("ssssssi", $title, $description, $category, $primary_subcategory, $priority, $website_type, $id);
                 if ($stmt->execute()) {
+                    // update junction table: delete existing and insert new selections
+                    $del = $conn->prepare("DELETE FROM roadmap_item_subcategories WHERE item_id = ?");
+                    if ($del) {
+                        $del->bind_param("i", $id);
+                        $del->execute();
+                        $del->close();
+                    }
+                    $insertSubStmt = $conn->prepare("INSERT INTO roadmap_item_subcategories (item_id, subcategory) VALUES (?, ?)");
+                    if ($insertSubStmt) {
+                        foreach ($selected_subcategories as $subVal) {
+                            $insertSubStmt->bind_param("is", $id, $subVal);
+                            $insertSubStmt->execute();
+                        }
+                        $insertSubStmt->close();
+                    }
+
                     $message = 'Item edited successfully!';
                     $message_type = 'success';
                 } else {
@@ -278,9 +320,38 @@ $query .= " ORDER BY updated_at DESC, created_at DESC, priority DESC";
 
 if ($result = $conn->query($query)) {
     while ($row = $result->fetch_assoc()) {
+        // prepare placeholder for multiple subcategories
+        $row['subcategories'] = [];
         $allItems[] = $row;
     }
     $result->free();
+}
+
+// If we have items, fetch their subcategories in one query and map them back
+if (!empty($allItems)) {
+    $ids = array_map(function($it){ return (int)$it['id']; }, $allItems);
+    $idList = implode(',', $ids);
+    $subRes = $conn->query("SELECT item_id, subcategory FROM roadmap_item_subcategories WHERE item_id IN ($idList)");
+    $subMap = [];
+    if ($subRes) {
+        while ($srow = $subRes->fetch_assoc()) {
+            $subMap[(int)$srow['item_id']][] = $srow['subcategory'];
+        }
+        $subRes->free();
+    }
+    // attach arrays back to items; keep legacy single 'subcategory' field as first value if present
+    foreach ($allItems as &$it) {
+        $itId = (int)$it['id'];
+        if (!empty($subMap[$itId])) {
+            $it['subcategories'] = $subMap[$itId];
+            // ensure legacy column remains set to the primary (first) subcategory for compatibility
+            $it['subcategory'] = $it['subcategory'] ?: $subMap[$itId][0];
+        } else {
+            // fallback to existing single subcategory value
+            $it['subcategories'] = [$it['subcategory']];
+        }
+    }
+    unset($it);
 }
 
 // Group items by category (only if no category filter is applied)
@@ -419,7 +490,7 @@ ob_start();
                     <label class="label">Subcategory</label>
                     <div class="control">
                         <div class="select is-fullwidth">
-                            <select name="subcategory" required>
+                            <select name="subcategory[]" multiple required style="height: 6rem;">
                                 <option value="TWITCH BOT">Twitch Bot</option>
                                 <option value="DISCORD BOT">Discord Bot</option>
                                 <option value="WEBSOCKET SERVER">WebSocket Server</option>
@@ -429,6 +500,7 @@ ob_start();
                             </select>
                         </div>
                     </div>
+                    <p class="help" style="font-size:0.7rem;">(You can select multiple subcategories)</p>
                 </div>
                 <div class="field" id="website-type-field" style="display: none;">
                     <label class="label">Website Type</label>
@@ -501,9 +573,17 @@ ob_start();
                                     <?php echo htmlspecialchars($item['title']); ?>
                                 </div>
                                 <div class="mb-2">
-                                    <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
-                                        <?php echo htmlspecialchars($item['subcategory']); ?>
-                                    </span>
+                                    <?php if (!empty($item['subcategories']) && is_array($item['subcategories'])): ?>
+                                        <?php foreach ($item['subcategories'] as $sub): ?>
+                                            <span class="tag is-small is-<?php echo getSubcategoryColor($sub); ?>">
+                                                <?php echo htmlspecialchars($sub); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
+                                            <?php echo htmlspecialchars($item['subcategory']); ?>
+                                        </span>
+                                    <?php endif; ?>
                                     <?php if (!empty($item['website_type'])): ?>
                                         <span class="tag is-small is-info">
                                             <?php echo htmlspecialchars($item['website_type']); ?>
@@ -531,7 +611,7 @@ ob_start();
                                     </button>
                                 </div>
                                 <div class="mb-3">
-                                    <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars($item['subcategory']); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
+                                        <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars(json_encode($item['subcategories']), ENT_QUOTES, 'UTF-8'); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
                                         <span class="icon is-small"><i class="fas fa-edit"></i></span>
                                         <span>Edit</span>
                                     </button>
@@ -596,9 +676,17 @@ ob_start();
                                     <?php echo htmlspecialchars($item['title']); ?>
                                 </div>
                                 <div class="mb-2">
-                                    <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
-                                        <?php echo htmlspecialchars($item['subcategory']); ?>
-                                    </span>
+                                    <?php if (!empty($item['subcategories']) && is_array($item['subcategories'])): ?>
+                                        <?php foreach ($item['subcategories'] as $sub): ?>
+                                            <span class="tag is-small is-<?php echo getSubcategoryColor($sub); ?>">
+                                                <?php echo htmlspecialchars($sub); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
+                                            <?php echo htmlspecialchars($item['subcategory']); ?>
+                                        </span>
+                                    <?php endif; ?>
                                     <?php if (!empty($item['website_type'])): ?>
                                         <span class="tag is-small is-info">
                                             <?php echo htmlspecialchars($item['website_type']); ?>
@@ -623,7 +711,7 @@ ob_start();
                                     </button>
                                 </div>
                                 <div class="mb-3">
-                                    <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars($item['subcategory']); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
+                                    <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars(json_encode($item['subcategories']), ENT_QUOTES, 'UTF-8'); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
                                         <span class="icon is-small"><i class="fas fa-edit"></i></span>
                                         <span>Edit</span>
                                     </button>
@@ -714,7 +802,7 @@ require_once '../layout.php';
 document.addEventListener('DOMContentLoaded', function() {
     const categorySelect = document.getElementById('category-select');
     const prioritySelect = document.getElementById('priority-select');
-    const subcategorySelect = document.querySelector('select[name="subcategory"]');
+    const subcategorySelect = document.querySelector('select[name="subcategory[]"]');
     const websiteTypeField = document.getElementById('website-type-field');
     const initialAttachments = document.getElementById('initialAttachments');
     const initialAttachmentFileName = document.getElementById('initialAttachmentFileName');
@@ -768,7 +856,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (subcategorySelect && websiteTypeField) {
         function toggleWebsiteType() {
-            if (subcategorySelect.value === 'WEBSITE') {
+            const selected = Array.from(subcategorySelect.selectedOptions).map(o => o.value);
+            if (selected.includes('WEBSITE')) {
                 websiteTypeField.style.display = 'block';
             } else {
                 websiteTypeField.style.display = 'none';

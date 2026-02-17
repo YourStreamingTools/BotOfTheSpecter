@@ -74,6 +74,28 @@ function initializeRoadmapDatabase() {
     if (!$conn->query($sql)) {
         return array('success' => false, 'message' => 'Error creating roadmap_attachments table: ' . $conn->error);
     }
+
+    // Create roadmap_item_subcategories table (supports multiple subcategories per item)
+    $sql = "CREATE TABLE IF NOT EXISTS roadmap_item_subcategories (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        item_id INT NOT NULL,
+        subcategory VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES roadmap_items(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_item_subcat (item_id, subcategory),
+        INDEX idx_subcategory (subcategory),
+        INDEX idx_item_id_subcat (item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    if (!$conn->query($sql)) {
+        return array('success' => false, 'message' => 'Error creating roadmap_item_subcategories table: ' . $conn->error);
+    }
+
+    // Backfill existing subcategory values into roadmap_item_subcategories (if missing)
+    $sql = "INSERT IGNORE INTO roadmap_item_subcategories (item_id, subcategory)
+            SELECT id, subcategory FROM roadmap_items WHERE subcategory IS NOT NULL";
+    if (!$conn->query($sql)) {
+        return array('success' => false, 'message' => 'Error backfilling roadmap_item_subcategories: ' . $conn->error);
+    }
     $conn->close();
     return array('success' => true, 'message' => 'Database initialized successfully');
 }
