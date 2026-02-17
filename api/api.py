@@ -612,6 +612,24 @@ class VersionControlResponse(BaseModel):
             }
         }
 
+# Define the response model for Builtin Commands Info
+class BuiltinCommandsResponse(BaseModel):
+    commands: Dict
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "commands": {
+                    "ping": {
+                        "description": "Check bot responsiveness",
+                        "aliases": ["pong"]
+                    },
+                    "version": {
+                        "description": "Display bot version"
+                    }
+                }
+            }
+        }
+
 # Define the response model for Websocket Heartbeat
 class HeartbeatControlResponse(BaseModel):
     status: str
@@ -1329,6 +1347,23 @@ async def versions():
     with open(versions_path, "r") as versions_file:
         versions = json.load(versions_file)
     return versions
+
+# Builtin Commands Info endpoint
+@app.get(
+    "/commands/info",
+    response_model=BuiltinCommandsResponse,
+    summary="Get builtin commands information",
+    description="Retrieve all builtin commands with their descriptions, aliases, and force levels.",
+    tags=["Public"],
+    operation_id="get_builtin_commands_info"
+)
+async def builtin_commands_info():
+    commands_path = "/home/botofthespecter/builtin_commands.json"
+    if not os.path.exists(commands_path):
+        raise HTTPException(status_code=404, detail="Builtin commands file not found")
+    with open(commands_path, "r") as commands_file:
+        commands_data = json.load(commands_file)
+    return commands_data
 
 # Websocket Heartbeat endpoint
 @app.get(
