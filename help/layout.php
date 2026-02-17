@@ -7,8 +7,10 @@ $dashboardVersion = $config['dashboardVersion'];
 $maintenanceMode = $config['maintenanceMode'];
 
 // Function to generate a UUID v4 for cache busting
-function uuidv4() {
-    return bin2hex(random_bytes(4));
+if (!function_exists('uuidv4')) {
+    function uuidv4() {
+        return bin2hex(random_bytes(4));
+    }
 }
 ?>
 <!DOCTYPE html>
