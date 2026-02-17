@@ -1058,48 +1058,59 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             });
         });
         // Version Modal Functions
-        function openVersionModal(version, filePath) {
-            const versionNum = version;
-            const changelogUrl = 'https://changelog.botofthespecter.com/' + versionNum + '.md';
-            // Fetch the markdown file
+        function openVersionModalFromButton(button) {
+            const version = (button && button.dataset && button.dataset.version) ? button.dataset.version : '';
+            const htmlB64 = (button && button.dataset && button.dataset.htmlB64) ? button.dataset.htmlB64 : '';
+            const markdownB64 = (button && button.dataset && button.dataset.markdownB64) ? button.dataset.markdownB64 : '';
+            let renderedHtml = '';
+            let markdownText = '';
+            if (htmlB64) {
+                try {
+                    renderedHtml = atob(htmlB64);
+                } catch (error) {
+                    console.error('Error decoding version HTML:', error);
+                }
+            }
+            if (markdownB64) {
+                try {
+                    markdownText = atob(markdownB64);
+                } catch (error) {
+                    console.error('Error decoding version markdown:', error);
+                }
+            }
+            openVersionModal(version, renderedHtml, markdownText);
+        }
+
+        function openVersionModal(version, renderedHtml, markdownText) {
+            document.getElementById('modalVersionNumber').textContent = version;
+            const hasHtmlTags = renderedHtml && /<\/?[a-z][\s\S]*>/i.test(renderedHtml);
+            if (hasHtmlTags) {
+                document.getElementById('modalContent').innerHTML = renderedHtml;
+                document.getElementById('versionModal').classList.add('is-active');
+                return;
+            }
+            if (markdownText && markdownText.trim() !== '' && typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+                const parsedHtml = marked.parse(markdownText);
+                const safeHtml = (window.DOMPurify) ? DOMPurify.sanitize(parsedHtml) : parsedHtml;
+                document.getElementById('modalContent').innerHTML = safeHtml;
+                document.getElementById('versionModal').classList.add('is-active');
+                return;
+            }
+            const changelogUrl = 'https://changelog.botofthespecter.com/' + version + '.md';
             fetch(changelogUrl)
                 .then(response => response.text())
                 .then(markdown => {
-                    // Better markdown to HTML conversion
-                    let html = markdown;
-                    // Headers (must be done in order from largest to smallest)
-                    html = html.replace(/^### (.*?)$/gm, '<h3 style="color: #667eea; margin-top: 1rem; margin-bottom: 0.5rem; font-weight: 600; font-size: 1.1rem;">$1</h3>');
-                    html = html.replace(/^## (.*?)$/gm, '<h2 style="color: #667eea; margin-top: 1.5rem; margin-bottom: 1rem; font-weight: 700; font-size: 1.3rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem;">$1</h2>');
-                    html = html.replace(/^# (.*?)$/gm, '<h1 style="color: #667eea; margin-bottom: 1.5rem; font-weight: 700; font-size: 1.5rem;">$1</h1>');
-                    // Inline formatting (bold before italic)
-                    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #8b9ff0; font-weight: 600;">$1</strong>');
-                    html = html.replace(/__(.*?)__/g, '<strong style="color: #8b9ff0; font-weight: 600;">$1</strong>');
-                    html = html.replace(/\*(.*?)\*/g, '<em style="color: #b0b0b0;">$1</em>');
-                    html = html.replace(/_(.*?)_/g, '<em style="color: #b0b0b0;">$1</em>');
-                    // Links
-                    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color: #667eea; text-decoration: underline;">$1</a>');
-                    // Code blocks (backtick wrapped)
-                    html = html.replace(/`(.*?)`/g, '<code style="background-color: rgba(0, 0, 0, 0.3); color: #66d9ef; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace;">$1</code>');
-                    // Lists - convert to proper HTML list items (accept optional leading whitespace)
-                    html = html.replace(/^\s*\*\s+(.*?)$/gm, '<li style="margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
-                    html = html.replace(/^\s*-\s+(.*?)$/gm, '<li style="margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
-                    // Wrap consecutive list items in <ul> — show bullets so "*"-style dot points are visible
-                    html = html.replace(/(<li.*?<\/li>)+/g, function (match) {
-                        return '<ul style="list-style: disc; margin-left: 1.25rem; margin-bottom: 0.75rem;">' + match + '</ul>';
-                    });
-                    // Paragraph breaks
-                    html = html.split('\n\n').map(para => {
-                        para = para.trim();
-                        // Don't wrap if it's already a tag
-                        if (para.match(/^</) || para.length === 0) {
-                            return para;
-                        }
-                        return '<p style="margin-bottom: 1rem; color: #b0b0b0; line-height: 1.6;">' + para + '</p>';
-                    }).join('');
-                    // Remove extra empty paragraphs
-                    html = html.replace(/<p[^>]*>\s*<\/p>/g, '');
-                    document.getElementById('modalVersionNumber').textContent = version;
-                    document.getElementById('modalContent').innerHTML = html;
+                    if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+                        const parsedHtml = marked.parse(markdown);
+                        const safeHtml = (window.DOMPurify) ? DOMPurify.sanitize(parsedHtml) : parsedHtml;
+                        document.getElementById('modalContent').innerHTML = safeHtml;
+                    } else {
+                        const escaped = markdown
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                        document.getElementById('modalContent').innerHTML = '<pre style="white-space: pre-wrap; color: #b0b0b0;">' + escaped + '</pre>';
+                    }
                     document.getElementById('versionModal').classList.add('is-active');
                 })
                 .catch(error => {
