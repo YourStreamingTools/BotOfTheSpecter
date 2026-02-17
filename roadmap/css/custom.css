@@ -184,6 +184,25 @@ body > main {
 }
 
 /* ============================================
+   Tag multiselect (typeahead + chips)
+   Moved from inline layout.php -> centralized stylesheet
+   ============================================ */
+.tag-multiselect.tms-container { display:flex; align-items:center; flex-wrap:wrap; gap:0.375rem; padding:0.35rem; border:1px solid #444; border-radius:6px; min-height:2.4rem; background:transparent; position:relative; }
+.tag-multiselect .tms-chips { display:flex; gap:0.25rem; flex-wrap:wrap; align-items:center; }
+.tag-multiselect .tms-input { flex:1; min-width:140px; border:none; background:transparent; color:inherit; outline:none; padding:0.25rem; font-size:0.95rem; }
+.tag-multiselect .tms-input::placeholder { color: rgba(255,255,255,0.4); }
+.tag-multiselect .tms-suggestions { position:absolute; top:100%; left:0; z-index:999; background: #1a1a2e; color: #e0e0e0; border:1px solid rgba(255,255,255,0.04); box-shadow:0 8px 30px rgba(2,6,23,0.6); width:100%; max-height:160px; overflow:auto; border-radius:6px; margin-top:6px; }
+.tag-multiselect .tms-suggestions::-webkit-scrollbar { width: 10px; }
+.tag-multiselect .tms-suggestions::-webkit-scrollbar-track { background: transparent; }
+.tag-multiselect .tms-suggestions::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 6px; }
+.tag-multiselect .tms-suggestion { padding:0.5rem 0.75rem; cursor:pointer; color: #e0e0e0; border-bottom: 1px solid rgba(255,255,255,0.02); }
+.tag-multiselect .tms-suggestion:last-child { border-bottom: none; }
+.tag-multiselect .tms-suggestion:hover { background: rgba(255,255,255,0.02); color: #ffffff; }
+/* ensure dropdown inside modal keeps dark styling and isn't clipped */
+.modal .tag-multiselect { overflow: visible !important; }
+.modal .tag-multiselect .tms-suggestions { z-index:1100; }
+
+/* ============================================
     Titles & Headings
 ============================================ */
 
