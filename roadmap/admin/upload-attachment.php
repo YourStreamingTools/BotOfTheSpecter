@@ -31,8 +31,8 @@ if (!is_writable($uploadDir)) {
     die(json_encode(['success' => false, 'message' => 'Upload directory is not writable. Path: ' . realpath($uploadDir)]));
 }
 
-// Allowed file types
-$allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+// Allowed file types (disallow SVG to avoid inline-SVG XSS vectors)
+$allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 $allowedDocTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
 $allowedFileTypes = array_merge($allowedImageTypes, $allowedDocTypes);
 
@@ -47,6 +47,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
         http_response_code(400);
         die(json_encode(['success' => false, 'message' => 'Invalid item ID']));
     }
+    // Ensure the referenced roadmap item exists
+    $checkConn = getRoadmapConnection();
+    $checkStmt = $checkConn->prepare("SELECT id FROM roadmap_items WHERE id = ?");
+    if (!$checkStmt) {
+        $checkConn->close();
+        http_response_code(500);
+        die(json_encode(['success' => false, 'message' => 'Database error']));
+    }
+    $checkStmt->bind_param("i", $itemId);
+    $checkStmt->execute();
+    $checkStmt->store_result();
+    if ($checkStmt->num_rows === 0) {
+        $checkStmt->close();
+        $checkConn->close();
+        http_response_code(404);
+        die(json_encode(['success' => false, 'message' => 'Roadmap item not found']));
+    }
+    $checkStmt->close();
+    $checkConn->close();
     // Validate file
     if ($file['error'] !== UPLOAD_ERR_OK) {
         http_response_code(400);
@@ -88,7 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     $stmt = $conn->prepare("INSERT INTO roadmap_attachments (item_id, file_name, file_path, file_type, file_size, is_image, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if ($stmt) {
         $relativeFilePath = str_replace('\\', '/', $filePath);
-        $stmt->bind_param("isssiss", $itemId, $file['name'], $relativeFilePath, $mimeType, $file['size'], $isImage, $_SESSION['username']);
+        // types: item_id (i), file_name (s), file_path (s), file_type (s), file_size (i), is_image (i), uploaded_by (s)
+        $stmt->bind_param("isssiis", $itemId, $file['name'], $relativeFilePath, $mimeType, $file['size'], $isImage, $_SESSION['username']);
         if ($stmt->execute()) {
             $attachmentId = $conn->insert_id;
             http_response_code(200);
