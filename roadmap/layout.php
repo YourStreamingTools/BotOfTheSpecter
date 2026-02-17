@@ -721,7 +721,8 @@ function uuidv4()
                 btn.addEventListener('click', function (e) {
                     e.preventDefault();
                     const title = this.dataset.title;
-                    const description = this.dataset.description;
+                    const encoded = this.dataset.description || '';
+                    const description = encoded ? atob(encoded) : '';
                     currentItemId = this.getAttribute('data-item-id');
                     document.getElementById('detailsTitle').textContent = title;
                     // Parse markdown and linkify the description
@@ -805,7 +806,8 @@ function uuidv4()
                     e.preventDefault();
                     document.getElementById('editItemId').value = this.getAttribute('data-item-id');
                     document.getElementById('editItemTitle').value = this.getAttribute('data-title');
-                    document.getElementById('editItemDescription').value = this.getAttribute('data-description');
+                    const encodedDesc = this.getAttribute('data-description') || '';
+                    document.getElementById('editItemDescription').value = encodedDesc ? atob(encodedDesc) : ''; 
                     document.getElementById('editItemCategory').value = this.getAttribute('data-category');
                     document.getElementById('editItemSubcategory').value = this.getAttribute('data-subcategory');
                     document.getElementById('editItemPriority').value = this.getAttribute('data-priority');

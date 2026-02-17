@@ -47,9 +47,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attachment_id'])) {
             $stmt->bind_param("i", $attachmentId);
             
             if ($stmt->execute()) {
-                // Delete file from filesystem
-                if (file_exists($filePath)) {
-                    unlink($filePath);
+                // Delete file from filesystem (ensure path is inside uploads directory)
+                $uploadsDir = realpath(__DIR__ . '/../uploads/attachments');
+                $resolved = realpath($filePath);
+                if ($resolved && $uploadsDir && strpos($resolved, $uploadsDir) === 0 && file_exists($resolved)) {
+                    unlink($resolved);
                 }
                 
                 http_response_code(200);
