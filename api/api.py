@@ -21,12 +21,14 @@ from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.openapi.utils import get_openapi
 from starlette.responses import Response
 from pydantic import BaseModel, Field
 from typing import Dict, List
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qsl
 from contextlib import asynccontextmanager
 import ipaddress
 
@@ -312,7 +314,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     title="BotOfTheSpecter",
-    description="API Endpoints for BotOfTheSpecter",
+    description="API Endpoints for BotOfTheSpecter\n\n[View v2 docs](https://api.botofthespecter.com/v2/docs)",
     version="1.0.0",
     terms_of_service="https://botofthespecter.com/terms-of-service.php",
     contact={
@@ -332,6 +334,226 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods, including OPTIONS
     allow_headers=["*"],  # Allow all headers
 )
+
+# v2 header-based API key auth compatibility layer.
+#
+# Existing endpoints continue to support v1 query parameter auth:
+#   /account?api_key=...
+#
+# v2 routes require X-API-KEY header and are mapped to existing handlers:
+#   /v2/account + header X-API-KEY: ...
+_V2_API_KEY_REQUIRED_PATHS = [
+    "/account",
+    "/quotes",
+    "/fortune",
+    "/kill",
+    "/joke",
+    "/sound-alerts",
+    "/custom-commands",
+    "/weather",
+    "/websocket/tts",
+    "/websocket/walkon",
+    "/websocket/deaths",
+    "/websocket/sound_alert",
+    "/websocket/custom_command",
+    "/websocket/stream_online",
+    "/websocket/raffle_winner",
+    "/websocket/stream_offline",
+    "/SEND_OBS_EVENT",
+    "/user-points",
+    "/user-points/credit",
+    "/user-points/debit",
+    "/weather/location",
+    "/games",
+    "/authorizedusers",
+    "/checkkey",
+    "/streamonline",
+    "/discord/linked",
+    "/bot/status",
+]
+_V2_API_KEY_REQUIRED_PATHS_SET = set(_V2_API_KEY_REQUIRED_PATHS)
+
+_V2_PUBLIC_PATHS = [
+    "/freestuff/games",
+    "/freestuff/latest",
+    "/versions",
+    "/commands/info",
+    "/heartbeat/websocket",
+    "/heartbeat/api",
+    "/heartbeat/database",
+    "/system/uptime",
+    "/chat-instructions",
+    "/api/song",
+    "/api/exchangerate",
+    "/api/weather",
+]
+_V2_PUBLIC_PATHS_SET = set(_V2_PUBLIC_PATHS)
+
+_V2_WEBHOOK_PATHS = [
+    "/fourthwall",
+    "/kofi",
+    "/patreon",
+]
+_V2_WEBHOOK_PATHS_SET = set(_V2_WEBHOOK_PATHS)
+
+_V2_DOCS_PATHS = {
+    "/v2/docs",
+    "/v2/openapi.json",
+    "/v2/redoc",
+}
+
+_V2_OPENAPI_VERSION = "2.0.0"
+_V2_OPENAPI_DESCRIPTION = (
+    "API Endpoints for BotOfTheSpecter \n\n"
+    "Authentication:\n"
+    "- Use header X-API-KEY for authenticated /v2 endpoints.\n"
+    "- Query api_key is rejected on /v2 endpoints.\n"
+    "- Webhooks remain on existing non-v2 paths and auth flow."
+)
+
+@app.middleware("http")
+async def v2_api_key_header_middleware(request: Request, call_next):
+    path = request.scope.get("path", "")
+    if path in _V2_DOCS_PATHS:
+        return await call_next(request)
+    if not path.startswith("/v2/"):
+        return await call_next(request)
+    legacy_path = path[3:]
+    if legacy_path in _V2_PUBLIC_PATHS_SET:
+        request.scope["path"] = legacy_path
+        return await call_next(request)
+    if legacy_path not in _V2_API_KEY_REQUIRED_PATHS_SET:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "v2 endpoint not found"},
+        )
+    header_api_key = request.headers.get("X-API-KEY")
+    if not header_api_key:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Missing X-API-KEY header"},
+        )
+    query_items = parse_qsl(
+        request.scope.get("query_string", b"").decode("latin-1"),
+        keep_blank_values=True,
+    )
+    if any(key.lower() == "api_key" for key, _ in query_items):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Use X-API-KEY header for v2 endpoints"},
+        )
+    query_items.append(("api_key", header_api_key))
+    request.scope["path"] = legacy_path
+    request.scope["query_string"] = urlencode(query_items, doseq=True).encode("latin-1")
+    return await call_next(request)
+
+def build_v2_openapi_schema():
+    openapi_schema = get_openapi(
+        title=f"{app.title} v2",
+        version=_V2_OPENAPI_VERSION,
+        description=_V2_OPENAPI_DESCRIPTION,
+        routes=app.routes,
+        tags=tags_metadata,
+    )
+    openapi_schema.setdefault("info", {})["termsOfService"] = "https://botofthespecter.com/terms-of-service.php"
+    openapi_schema["info"]["contact"] = {
+        "name": "BotOfTheSpecter",
+        "url": "https://botofthespecter.com/",
+        "email": "questions@botofthespecter.com",
+    }
+    paths = openapi_schema.setdefault("paths", {})
+
+    for legacy_path in _V2_WEBHOOK_PATHS:
+        if legacy_path not in paths:
+            continue
+        webhook_operations = {}
+        for method, operation in paths[legacy_path].items():
+            if method.startswith("x-"):
+                continue
+            v2_operation = copy.deepcopy(operation)
+            operation_id = v2_operation.get("operationId", f"{method}_{legacy_path.strip('/').replace('/', '_')}")
+            v2_operation["operationId"] = f"v2_{operation_id}"
+            webhook_operations[method] = v2_operation
+        paths[legacy_path] = webhook_operations
+
+    for legacy_path in _V2_PUBLIC_PATHS:
+        if legacy_path not in paths:
+            continue
+        public_operations = {}
+        for method, operation in paths[legacy_path].items():
+            if method.startswith("x-"):
+                continue
+            v2_operation = copy.deepcopy(operation)
+            operation_id = v2_operation.get("operationId", f"{method}_{legacy_path.strip('/').replace('/', '_')}")
+            v2_operation["operationId"] = f"v2_{operation_id}"
+            public_operations[method] = v2_operation
+        paths[legacy_path] = public_operations
+    for legacy_path in _V2_API_KEY_REQUIRED_PATHS:
+        if legacy_path not in paths:
+            continue
+        v2_path = f"/v2{legacy_path}"
+        v2_operations = {}
+        for method, operation in paths[legacy_path].items():
+            if method.startswith("x-"):
+                continue
+            v2_operation = copy.deepcopy(operation)
+            operation_id = v2_operation.get("operationId", f"{method}_{legacy_path.strip('/').replace('/', '_')}")
+            v2_operation["operationId"] = f"v2_{operation_id}"
+            params = v2_operation.get("parameters", [])
+            params = [
+                p for p in params
+                if not (p.get("in") == "query" and p.get("name") == "api_key")
+            ]
+            params.insert(0, {
+                "name": "X-API-KEY",
+                "in": "header",
+                "required": True,
+                "schema": {"type": "string"},
+                "description": "API key for v2 endpoint authentication",
+            })
+            v2_operation["parameters"] = params
+            v2_operations[method] = v2_operation
+        paths[v2_path] = v2_operations
+    for path_to_remove in list(paths.keys()):
+        if (
+            path_to_remove not in _V2_DOCS_PATHS
+            and not path_to_remove.startswith("/v2")
+            and path_to_remove not in _V2_PUBLIC_PATHS_SET
+            and path_to_remove not in _V2_WEBHOOK_PATHS_SET
+        ):
+            paths.pop(path_to_remove, None)
+    return openapi_schema
+
+@app.get("/v1/docs", include_in_schema=False)
+async def docs_v1_redirect():
+    return RedirectResponse(url="/docs")
+
+@app.get("/v1/openapi.json", include_in_schema=False)
+async def openapi_v1_redirect():
+    return RedirectResponse(url="/openapi.json")
+
+@app.get("/v1/redoc", include_in_schema=False)
+async def redoc_v1_redirect():
+    return RedirectResponse(url="/docs")
+
+@app.get("/v2/openapi.json", include_in_schema=False)
+async def openapi_v2():
+    return JSONResponse(content=build_v2_openapi_schema())
+
+@app.get("/v2/docs", include_in_schema=False)
+async def docs_v2():
+    return get_swagger_ui_html(
+        openapi_url="/v2/openapi.json",
+        title=f"{app.title} - v2 Docs",
+        swagger_ui_parameters={"defaultModelsExpandDepth": -1},
+    )
+
+@app.get("/v2/redoc", include_in_schema=False)
+async def redoc_v2():
+    return get_redoc_html(
+        openapi_url="/v2/openapi.json",
+        title=f"{app.title} - v2 ReDoc",
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
