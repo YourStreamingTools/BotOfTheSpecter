@@ -205,7 +205,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 <button class="delete" onclick="closeVersionModal()"></button>
             </header>
             <section class="modal-card-body" style="flex: 1; overflow-y: auto; padding: 1.5rem;">
-                <div id="modalContent"></div>
+                <div id="modalContent" class="content"></div>
             </section>
             <footer class="modal-card-foot">
                 <button class="button" onclick="closeVersionModal()">Close</button>
@@ -1058,29 +1058,25 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             });
         });
         // Version Modal Functions
+        function decodeBase64Utf8(value) {
+            if (!value) return '';
+            try {
+                return decodeURIComponent(Array.prototype.map.call(atob(value), function (ch) {
+                    return '%' + ('00' + ch.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+            } catch (error) {
+                console.error('Error decoding base64 payload:', error);
+                return '';
+            }
+        }
         function openVersionModalFromButton(button) {
             const version = (button && button.dataset && button.dataset.version) ? button.dataset.version : '';
             const htmlB64 = (button && button.dataset && button.dataset.htmlB64) ? button.dataset.htmlB64 : '';
             const markdownB64 = (button && button.dataset && button.dataset.markdownB64) ? button.dataset.markdownB64 : '';
-            let renderedHtml = '';
-            let markdownText = '';
-            if (htmlB64) {
-                try {
-                    renderedHtml = atob(htmlB64);
-                } catch (error) {
-                    console.error('Error decoding version HTML:', error);
-                }
-            }
-            if (markdownB64) {
-                try {
-                    markdownText = atob(markdownB64);
-                } catch (error) {
-                    console.error('Error decoding version markdown:', error);
-                }
-            }
+            const renderedHtml = decodeBase64Utf8(htmlB64);
+            const markdownText = decodeBase64Utf8(markdownB64);
             openVersionModal(version, renderedHtml, markdownText);
         }
-
         function openVersionModal(version, renderedHtml, markdownText) {
             document.getElementById('modalVersionNumber').textContent = version;
             const hasHtmlTags = renderedHtml && /<\/?[a-z][\s\S]*>/i.test(renderedHtml);
