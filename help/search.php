@@ -1,10 +1,10 @@
 <?php
 // search.php
-$query = isset($_GET['q']) ? strtolower(trim($_GET['q'])) : '';
 
+$query = isset($_GET['q']) ? trim((string) $_GET['q']) : '';
+$queryLower = mb_strtolower($query, 'UTF-8');
 $isAjax = isset($_GET['ajax']);
 
-// Rebuild search index on every search
 $pages = [
     'index.php',
     'command_reference.php',
@@ -22,29 +22,69 @@ $pages = [
     'custom_api.php'
 ];
 
-$index = [];
-
-foreach ($pages as $page) {
-    if (!file_exists($page)) continue;
-    ob_start();
-    include $page;
-    $full_html = ob_get_clean();
-    // Extract the main content
-    preg_match('/<main class="section">(.*?)<\/main>/s', $full_html, $matches);
-    $content_html = $matches[1] ?? '';
-    $text = strip_tags($content_html);
-    $index[$page] = $text;
+function buildSearchIndex(array $pages): array {
+    $index = [];
+    foreach ($pages as $page) {
+        $fullPath = __DIR__ . DIRECTORY_SEPARATOR . $page;
+        if (!is_file($fullPath)) {
+            continue;
+        }
+        $fullHtml = (function (string $includePath): string {
+            ob_start();
+            include $includePath;
+            return (string) ob_get_clean();
+        })($fullPath);
+        $contentHtml = '';
+        if (preg_match('/<main[^>]*class=["\'][^"\']*\bsection\b[^"\']*["\'][^>]*>(.*?)<\/main>/si', $fullHtml, $matches)) {
+            $contentHtml = $matches[1];
+        }
+        if ($contentHtml === '') {
+            $contentHtml = $fullHtml;
+        }
+        $text = html_entity_decode(strip_tags($contentHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/u', ' ', $text ?? '');
+        $index[$page] = trim((string) $text);
+    }
+    return $index;
 }
 
-file_put_contents('search_index.json', json_encode($index));
+function buildSnippet(string $text, string $queryLower, int $radius = 100): string {
+    if ($text === '') {
+        return '';
+    }
+    $textLower = mb_strtolower($text, 'UTF-8');
+    $pos = mb_strpos($textLower, $queryLower, 0, 'UTF-8');
+    if ($pos === false) {
+        $snippet = mb_substr($text, 0, $radius, 'UTF-8');
+        return mb_strlen($text, 'UTF-8') > $radius ? $snippet . '...' : $snippet;
+    }
+    $start = max(0, $pos - (int) floor($radius / 2));
+    $snippet = mb_substr($text, $start, $radius, 'UTF-8');
+    if ($start > 0) {
+        $snippet = '...' . $snippet;
+    }
+    if (mb_strlen($text, 'UTF-8') > ($start + $radius)) {
+        $snippet .= '...';
+    }
+    return $snippet;
+}
 
-$indexFile = 'search_index.json';
+$index = buildSearchIndex($pages);
+
+// Best-effort cache write for debugging/inspection without affecting search behavior.
+@file_put_contents(
+    __DIR__ . DIRECTORY_SEPARATOR . 'search_index.json',
+    json_encode($index, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRETTY_PRINT),
+    LOCK_EX
+);
+
 $results = [];
-
-if (file_exists($indexFile) && !empty($query)) {
-    $index = json_decode(file_get_contents($indexFile), true);
+if ($queryLower !== '') {
     foreach ($index as $page => $text) {
-        if (strpos(strtolower($text), $query) !== false) {
+        if ($text === '') {
+            continue;
+        }
+        if (mb_strpos(mb_strtolower($text, 'UTF-8'), $queryLower, 0, 'UTF-8') !== false) {
             $results[$page] = $text;
         }
     }
@@ -55,18 +95,14 @@ if ($isAjax) {
     header('Content-Type: application/json');
     $jsonResults = [];
     foreach ($results as $page => $text) {
-        $pos = stripos($text, $query);
-        $start = max(0, $pos - 50);
-        $snippet = substr($text, $start, 100);
-        if ($start > 0) $snippet = '...' . $snippet;
-        if (strlen($text) > $start + 100) $snippet .= '...';
+        $snippet = buildSnippet($text, $queryLower, 120);
         $jsonResults[] = [
             'page' => $page,
             'title' => ucfirst(str_replace('_', ' ', basename($page, '.php'))),
             'snippet' => htmlspecialchars($snippet)
         ];
     }
-    echo json_encode($jsonResults);
+    echo json_encode($jsonResults, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
 
@@ -85,7 +121,7 @@ ob_start();
     </ul>
 </nav>
 <h1 class="title has-text-light">Search Results</h1>
-<p class="subtitle has-text-light">Results for: "<?php echo htmlspecialchars($_GET['q']); ?>"</p>
+<p class="subtitle has-text-light">Results for: "<?php echo htmlspecialchars($query); ?>"</p>
 <?php if (empty($results)): ?>
     <p class="has-text-light">No results found.</p>
 <?php else: ?>
@@ -97,14 +133,7 @@ ob_start();
                         <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', basename($page, '.php')))); ?>
                     </a>
                 </h2>
-                <p><?php
-                    $pos = stripos($text, $query);
-                    $start = max(0, $pos - 100);
-                    $snippet = substr($text, $start, 200);
-                    if ($start > 0) $snippet = '...' . $snippet;
-                    if (strlen($text) > $start + 200) $snippet .= '...';
-                    echo htmlspecialchars($snippet);
-                ?></p>
+                <p><?php echo htmlspecialchars(buildSnippet($text, $queryLower, 220)); ?></p>
             </div>
         <?php endforeach; ?>
     </div>
