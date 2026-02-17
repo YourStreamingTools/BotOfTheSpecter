@@ -60,9 +60,29 @@ $permissionsMap = [
     "Broadcaster" => "broadcaster"
 ];
 
-// Load command descriptions from JSON file
-$jsonText = file_get_contents(__DIR__ . '../../api/builtin_commands.json');
-$cmdData = json_decode($jsonText, true)['commands'];
+// Load command descriptions from API
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, "https://api.botofthespecter.com/commands/info");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+$jsonText = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+if ($httpCode !== 200 || !$jsonText) {
+    die('Failed to load builtin commands information from API (HTTP ' . $httpCode . ')');
+}
+
+$jsonData = json_decode($jsonText, true);
+if (json_last_error() !== JSON_ERROR_NONE) {
+    die('Failed to parse builtin commands JSON: ' . json_last_error_msg());
+}
+
+if (!isset($jsonData['commands']) || !is_array($jsonData['commands'])) {
+    die('Invalid builtin commands data structure received from API');
+}
+
+$cmdData = $jsonData['commands'];
 
 // Parse command data for descriptions, force levels, and aliases
 $cmdDescriptions = [];
@@ -207,12 +227,12 @@ ob_start();
         </p>
     </header>
     <div class="card-content">
-        <div class="notification is-info is-light mb-4">
+        <!--<div class="notification is-info is-light mb-4">
             <span class="icon">
                 <i class="fas fa-info-circle"></i>
             </span>
             <strong>New in Version 5.5:</strong> You can now use the "Broadcaster" permission level to restrict commands so that only you (the broadcaster) can use them. This is perfect for commands you want to keep exclusive to yourself.
-        </div>
+        </div>-->
         <div class="columns is-vcentered is-mobile mb-3">
             <div class="column is-narrow">
                 <label class="checkbox mr-3">
