@@ -489,7 +489,7 @@ ob_start();
                 <div class="field">
                     <label class="label">Subcategory</label>
                     <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-initial='["TWITCH BOT"]'></div>
-                    <p class="help" style="font-size:0.7rem;">Start typing to filter — press Enter or choose a suggestion to add a tag.</p>
+                    <p class="help" style="font-size:0.7rem;">Click a tag to add — custom tags are not allowed.</p>
                 </div>
                 <div class="field" id="website-type-field" style="display: none;">
                     <label class="label">Website Type</label>
