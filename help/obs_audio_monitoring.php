@@ -48,6 +48,7 @@ ob_start();
     <h2 class="title is-4 has-text-light">Troubleshooting</h2>
     <ul>
         <li>If you don't hear audio, check that your monitoring device is selected correctly in OBS settings.</li>
+        <li>If you or your stream hears an echo on the sound alert, set Audio Monitoring to <strong>"Monitor Only (mute output)"</strong> and try again. Everyone's audio/sound setup is different, so please try changing that setting first.</li>
         <li>Ensure that the overlay URL has the correct API key from your Specter Profile page.</li>
         <li>Verify that your browser source is set to monitor audio.</li>
         <li>Check OBS's volume mixer for the browser source and ensure it's not muted.</li>
