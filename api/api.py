@@ -1025,6 +1025,26 @@ class UserPointsModificationResponse(BaseModel):
     class Config:
         json_schema_extra = {"example": {"username": "testuser", "previous_points": 1000, "amount": 100, "new_points": 1100, "point_name": "Points"}}
 
+class CheckKeyResponse(BaseModel):
+    status: str
+    username: str
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "Valid API Key",
+                "username": "testuser"
+            }
+        }
+
+class StreamOnlineResponse(BaseModel):
+    online: bool
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "online": True
+            }
+        }
+
 # Define the response model for Account information
 class AccountResponse(BaseModel):
     id: int
@@ -2806,9 +2826,11 @@ async def authorized_users(api_key: str = Query(...)):
 # Check API Key Given
 @app.get(
     "/checkkey",
+    response_model=CheckKeyResponse,
     summary="Check if the API key is valid",
+    description="Validate an API key and return whether it is valid, including the resolved username.",
     tags=["User Account"],
-    include_in_schema=False
+    operation_id="check_api_key"
 )
 async def check_key(api_key: str = Query(...)):
     key_info = await verify_key(api_key)
@@ -2821,9 +2843,11 @@ async def check_key(api_key: str = Query(...)):
 # Check if stream is online
 @app.get(
     "/streamonline",
+    response_model=StreamOnlineResponse,
     summary="Check if the stream is online",
+    description="Check the current stream online status for the authenticated user.",
     tags=["User Account"],
-    include_in_schema=False
+    operation_id="get_stream_online_status"
 )
 async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
     key_info = await verify_key(api_key)
