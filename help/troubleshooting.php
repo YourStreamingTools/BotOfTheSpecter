@@ -29,6 +29,7 @@ ob_start();
             <ul>
                 <li>Check audio device settings</li>
                 <li>Make sure your volume level on OBS is set to a hearable volume and that you've correctly setup overlay <a href="obs_audio_monitoring.php">audio monitoring in OBS</a></li>
+                <li>If you or your stream hears an echo on the sound alert, set Audio Monitoring to <strong>"Monitor Only (mute output)"</strong> and try again. Everyone's audio/sound setup is different, so please try changing that setting first.</li>
                 <li>Make sure that you have entered the correct API key. Your API key can be found on the Specter Profile page on the dashboard</li>
             </ul>
             <h2 class="title is-4 has-text-light">Getting Help</h2>
