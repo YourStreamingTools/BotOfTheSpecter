@@ -865,11 +865,11 @@ class HeartbeatControlResponse(BaseModel):
 # Define the response model for Bot Status
 class BotStatusResponse(BaseModel):
     running: bool
-    pid: int = None
-    version: str = None
-    bot_type: str = None
-    outdated: bool = None
-    latest_version: str = None
+    pid: int | None = None
+    version: str | None = None
+    bot_type: str | None = None
+    outdated: bool | None = None
+    latest_version: str | None = None
     class Config:
         json_schema_extra = {
             "example": {
