@@ -426,6 +426,9 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     .tag-multiselect .tms-chips { display:flex; gap:0.25rem; flex-wrap:wrap; align-items:center; }
     .tag-multiselect .tms-input { flex:1; min-width:140px; border:none; background:transparent; color:inherit; outline:none; padding:0.25rem; font-size:0.95rem; }
     .tag-multiselect .tms-suggestions { position:absolute; top:100%; left:0; z-index:999; background: #1a1a2e; color: #e0e0e0; border:1px solid rgba(255,255,255,0.04); box-shadow:0 8px 30px rgba(2,6,23,0.6); width:100%; max-height:160px; overflow:auto; border-radius:6px; margin-top:6px; }
+    /* ensure dropdown inside modal keeps dark styling and isn't clipped */
+    .modal .tag-multiselect { overflow: visible !important; }
+    .modal .tag-multiselect .tms-suggestions { z-index:1100; }
     .tag-multiselect .tms-suggestions::-webkit-scrollbar { width: 10px; }
     .tag-multiselect .tms-suggestions::-webkit-scrollbar-track { background: transparent; }
     .tag-multiselect .tms-suggestions::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 6px; }
@@ -1001,6 +1004,11 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     document.getElementById('editItemWebsiteType').value = this.getAttribute('data-website-type');
                     if (editItemModal) {
                         editItemModal.classList.add('is-active');
+                        // focus the tag input so the suggestions list is visible immediately
+                        try {
+                            const editInput = editTagEl ? editTagEl.querySelector('.tms-input') : null;
+                            if (editInput) setTimeout(() => editInput.focus(), 50);
+                        } catch (e) { /* ignore */ }
                     }
                 });
             });
