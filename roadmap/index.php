@@ -42,9 +42,34 @@ $query .= " ORDER BY updated_at DESC, created_at DESC, priority DESC";
 
 if ($result = $conn->query($query)) {
     while ($row = $result->fetch_assoc()) {
+        $row['subcategories'] = [];
         $allItems[] = $row;
     }
     $result->free();
+}
+
+// Attach subcategories for all items (single query)
+if (!empty($allItems)) {
+    $ids = array_map(function($it){ return (int)$it['id']; }, $allItems);
+    $idList = implode(',', $ids);
+    $subRes = $conn->query("SELECT item_id, subcategory FROM roadmap_item_subcategories WHERE item_id IN ($idList)");
+    $subMap = [];
+    if ($subRes) {
+        while ($srow = $subRes->fetch_assoc()) {
+            $subMap[(int)$srow['item_id']][] = $srow['subcategory'];
+        }
+        $subRes->free();
+    }
+    foreach ($allItems as &$it) {
+        $itId = (int)$it['id'];
+        if (!empty($subMap[$itId])) {
+            $it['subcategories'] = $subMap[$itId];
+            $it['subcategory'] = $it['subcategory'] ?: $subMap[$itId][0];
+        } else {
+            $it['subcategories'] = [$it['subcategory']];
+        }
+    }
+    unset($it);
 }
 
 // Group items by category (only if no category filter is applied)
@@ -166,9 +191,17 @@ ob_start();
                                     <small class="has-text-grey">Created: <?php $dtc = new DateTime($item['created_at']); echo htmlspecialchars($dtc->format('M d \a\t g:i A') . ' ' . $dtc->format('T')); ?><?php if (!empty($item['updated_at']) && $item['updated_at'] !== $item['created_at']): $dtu = new DateTime($item['updated_at']); echo ' • Updated: ' . htmlspecialchars($dtu->format('M d \a\t g:i A') . ' ' . $dtu->format('T')); endif; ?></small>
                                 </div>
                                 <div class="mb-2">
-                                    <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
-                                        <?php echo htmlspecialchars($item['subcategory']); ?>
-                                    </span>
+                                    <?php if (!empty($item['subcategories']) && is_array($item['subcategories'])): ?>
+                                        <?php foreach ($item['subcategories'] as $sub): ?>
+                                            <span class="tag is-small is-<?php echo getSubcategoryColor($sub); ?>">
+                                                <?php echo htmlspecialchars($sub); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
+                                            <?php echo htmlspecialchars($item['subcategory']); ?>
+                                        </span>
+                                    <?php endif; ?>
                                     <?php if (!empty($item['website_type'])): ?>
                                         <span class="tag is-small is-info">
                                             <?php echo htmlspecialchars($item['website_type']); ?>
@@ -227,9 +260,17 @@ ob_start();
                                     <small class="has-text-grey">Created: <?php $dtc = new DateTime($item['created_at']); echo htmlspecialchars($dtc->format('M d \a\t g:i A') . ' ' . $dtc->format('T')); ?><?php if (!empty($item['updated_at']) && $item['updated_at'] !== $item['created_at']): $dtu = new DateTime($item['updated_at']); echo ' • Updated: ' . htmlspecialchars($dtu->format('M d \a\t g:i A') . ' ' . $dtu->format('T')); endif; ?></small>
                                 </div>
                                 <div class="mb-2">
-                                    <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
-                                        <?php echo htmlspecialchars($item['subcategory']); ?>
-                                    </span>
+                                    <?php if (!empty($item['subcategories']) && is_array($item['subcategories'])): ?>
+                                        <?php foreach ($item['subcategories'] as $sub): ?>
+                                            <span class="tag is-small is-<?php echo getSubcategoryColor($sub); ?>">
+                                                <?php echo htmlspecialchars($sub); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
+                                            <?php echo htmlspecialchars($item['subcategory']); ?>
+                                        </span>
+                                    <?php endif; ?>
                                     <?php if (!empty($item['website_type'])): ?>
                                         <span class="tag is-small is-info">
                                             <?php echo htmlspecialchars($item['website_type']); ?>

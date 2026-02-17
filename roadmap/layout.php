@@ -294,8 +294,8 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                             <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
                                 <div style="flex: 1;">
                                     <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Subcategory</label>
-                                    <select name="subcategory" id="editItemSubcategory"
-                                        style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
+                                    <select name="subcategory[]" id="editItemSubcategory" multiple
+                                        style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0; height: 6rem;">
                                         <option value="TWITCH BOT">TWITCH BOT</option>
                                         <option value="DISCORD BOT">DISCORD BOT</option>
                                         <option value="WEBSOCKET SERVER">WEBSOCKET SERVER</option>
@@ -852,7 +852,20 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     const encodedDesc = this.getAttribute('data-description') || '';
                     document.getElementById('editItemDescription').value = encodedDesc ? atob(encodedDesc) : ''; 
                     document.getElementById('editItemCategory').value = this.getAttribute('data-category');
-                    document.getElementById('editItemSubcategory').value = this.getAttribute('data-subcategory');
+                    // subcategory may be a JSON-encoded array (multiple selections) or a single string
+                    const subSelect = document.getElementById('editItemSubcategory');
+                    const subData = this.getAttribute('data-subcategory');
+                    if (subData) {
+                        try {
+                            const arr = JSON.parse(subData);
+                            Array.from(subSelect.options).forEach(o => { o.selected = arr.includes(o.value); });
+                        } catch (err) {
+                            // fallback for legacy single-value
+                            subSelect.value = subData;
+                        }
+                    } else {
+                        Array.from(subSelect.options).forEach(o => o.selected = false);
+                    }
                     document.getElementById('editItemPriority').value = this.getAttribute('data-priority');
                     document.getElementById('editItemWebsiteType').value = this.getAttribute('data-website-type');
                     if (editItemModal) {
