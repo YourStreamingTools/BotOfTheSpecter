@@ -16,6 +16,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 $profileUsername = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8') : (isset($user['username']) ? htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') : '');
 $profileNavLabel = t('navbar_profile') . ' | ' . $profileUsername;
+$showAdminPanelLink = !empty($is_admin) || (!empty($_SESSION['is_admin']) && $_SESSION['is_admin']);
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /moderator, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {
@@ -165,7 +166,7 @@ function uuidv4()
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text">Mod Channels</span>
                 </a>
-                <?php if (!empty($is_admin)): ?>
+                <?php if ($showAdminPanelLink): ?>
                     <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>"
                         style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                         <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
@@ -203,7 +204,7 @@ function uuidv4()
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text">Mod Channels</span>
                 </a>
-                    <?php if (!empty($is_admin)): ?>
+                    <?php if ($showAdminPanelLink): ?>
                     <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
                         <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
                         <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>

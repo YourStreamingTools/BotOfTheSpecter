@@ -1,6 +1,8 @@
 <?php
 session_start();
 include_once __DIR__ . '/lang/i18n.php';
+require_once "/var/www/config/db_connect.php";
+include 'userdata.php';
 include 'mod_access.php';
 include_once 'usr_database.php';
 include 'user_db.php';
