@@ -7625,7 +7625,7 @@ class TwitchBot(commands.Bot):
                 if len(args) > 3 and args[3].lower() == 'weighted':
                     weighted = True
                 # Use default weight values
-                await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'running', 1 if weighted else 0, 2.00, 3.00, 4.00, 1.50, 0))
+                await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'running', 1 if weighted else 0, 2.00, 3.00, 4.00, 1.50, 0, 0))
                 await connection.commit()
                 await send_chat_message(f"Raffle '{name}' started! Prize: {prize}. Winners: {number_of_winners}. Use !joinraffle to enter.")
         except Exception as e:
@@ -7637,7 +7637,7 @@ class TwitchBot(commands.Bot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
                     await send_chat_message("There is no active raffle right now.")
@@ -7650,6 +7650,7 @@ class TwitchBot(commands.Bot):
                 weight_sub_t3 = raffle.get('weight_sub_t3', 4.00)
                 weight_vip = raffle.get('weight_vip', 1.50)
                 exclude_mods = raffle.get('exclude_mods', 0)
+                subscribers_only = raffle.get('subscribers_only', 0)
                 username = ctx.author.name
                 user_id = str(ctx.author.id)
                 is_mod = ctx.author.is_mod
@@ -7659,6 +7660,12 @@ class TwitchBot(commands.Bot):
                     await send_chat_message(f"@{username}, moderators are excluded from this raffle.")
                     return
                 
+                # Check if subscribers only
+                if subscribers_only:
+                    subscription_tier = await is_user_subscribed(user_id)
+                    if not subscription_tier:
+                        await send_chat_message(f"@{username}, this raffle is for subscribers only.")
+                        return
                 # Check existing entry
                 await cursor.execute("SELECT id FROM raffle_entries WHERE raffle_id=%s AND username=%s", (raffle_id, username))
                 exists = await cursor.fetchone()
