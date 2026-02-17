@@ -3,19 +3,6 @@
 date_default_timezone_set('Australia/Sydney');
 session_start();
 
-$markdownParsers = [
-    'https://cdn.botofthespecter.com/css/Markdown/php-markdown-2.0.0/Michelf/MarkdownExtra.inc.php',
-    'https://cdn.botofthespecter.com/css/Markdown/php-markdown-2.0.0/Michelf/Markdown.inc.php',
-    'https://cdn.botofthespecter.com/css/Markdown/php-markdown-2.0.0/Michelf/MarkdownInterface.inc.php',
-];
-
-foreach ($markdownParsers as $parserPath) {
-    if (class_exists('Michelf\\MarkdownExtra') || class_exists('Michelf\\Markdown')) {
-        break;
-    }
-    @include_once $parserPath;
-}
-
 // Set page metadata
 $pageTitle = 'Timeline';
 
@@ -101,20 +88,11 @@ function parseVersionFile($filePath) {
             $sections[$currentSection] = $sectionItems;
         }
     }
-    $renderedHtml = '';
-    if (class_exists('Michelf\\MarkdownExtra')) {
-        $renderedHtml = Michelf\MarkdownExtra::defaultTransform($content);
-    } elseif (class_exists('Michelf\\Markdown')) {
-        $renderedHtml = Michelf\Markdown::defaultTransform($content);
-    } else {
-        $renderedHtml = '';
-    }
     return [
         'version' => $versionNumber,
         'date' => $date,
         'summary' => $summary,
         'sections' => $sections,
-        'html' => $renderedHtml,
         'markdown' => $content
     ];
 }
@@ -212,7 +190,6 @@ ob_start();
                                     <?php endif; ?>
                                     <button class="button is-small is-info is-light"
                                         data-version="<?php echo htmlspecialchars((string) $version['version'], ENT_QUOTES, 'UTF-8'); ?>"
-                                        data-html-b64="<?php echo htmlspecialchars(base64_encode((string) ($version['html'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
                                         data-markdown-b64="<?php echo htmlspecialchars(base64_encode((string) ($version['markdown'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
                                         onclick="openVersionModalFromButton(this)"
                                         style="margin-top: 1rem;">

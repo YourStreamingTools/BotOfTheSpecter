@@ -52,7 +52,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                         <span>Roadmap</span>
                     </span>
                 </a>
-                <a class="navbar-item" href="timeline.php">
+                <a class="navbar-item" href="../timeline.php">
                     <span class="icon-text">
                         <span class="icon"><i class="fas fa-timeline"></i></span>
                         <span>Timeline</span>
@@ -1071,20 +1071,12 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         }
         function openVersionModalFromButton(button) {
             const version = (button && button.dataset && button.dataset.version) ? button.dataset.version : '';
-            const htmlB64 = (button && button.dataset && button.dataset.htmlB64) ? button.dataset.htmlB64 : '';
             const markdownB64 = (button && button.dataset && button.dataset.markdownB64) ? button.dataset.markdownB64 : '';
-            const renderedHtml = decodeBase64Utf8(htmlB64);
             const markdownText = decodeBase64Utf8(markdownB64);
-            openVersionModal(version, renderedHtml, markdownText);
+            openVersionModal(version, markdownText);
         }
-        function openVersionModal(version, renderedHtml, markdownText) {
+        function openVersionModal(version, markdownText) {
             document.getElementById('modalVersionNumber').textContent = version;
-            const hasHtmlTags = renderedHtml && /<\/?[a-z][\s\S]*>/i.test(renderedHtml);
-            if (hasHtmlTags) {
-                document.getElementById('modalContent').innerHTML = renderedHtml;
-                document.getElementById('versionModal').classList.add('is-active');
-                return;
-            }
             if (markdownText && markdownText.trim() !== '' && typeof marked !== 'undefined' && typeof marked.parse === 'function') {
                 const parsedHtml = marked.parse(markdownText);
                 const safeHtml = (window.DOMPurify) ? DOMPurify.sanitize(parsedHtml) : parsedHtml;
