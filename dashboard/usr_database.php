@@ -459,13 +459,12 @@ try {
             CREATE TABLE IF NOT EXISTS raffles (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 name VARCHAR(255) NOT NULL,
-                description TEXT,
-                start_time DATETIME DEFAULT NULL,
-                end_time DATETIME DEFAULT NULL,
-                status VARCHAR(20) DEFAULT 'scheduled',
+                prize TEXT,
+                number_of_winners INT DEFAULT 1,
+                status VARCHAR(20) DEFAULT 'running',
                 is_weighted TINYINT(1) DEFAULT 0,
-                winner_username VARCHAR(255) DEFAULT NULL,
-                winner_user_id VARCHAR(255) DEFAULT NULL,
+                winner_username TEXT,
+                winner_user_id TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'raffle_entries' => "
