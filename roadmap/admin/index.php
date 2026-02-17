@@ -488,19 +488,8 @@ ob_start();
                 </div>
                 <div class="field">
                     <label class="label">Subcategory</label>
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="subcategory[]" multiple required style="height: 6rem;">
-                                <option value="TWITCH BOT">Twitch Bot</option>
-                                <option value="DISCORD BOT">Discord Bot</option>
-                                <option value="WEBSOCKET SERVER">WebSocket Server</option>
-                                <option value="API SERVER">API Server</option>
-                                <option value="WEBSITE">Website</option>
-                                <option value="OTHER">Other</option>
-                            </select>
-                        </div>
-                    </div>
-                    <p class="help" style="font-size:0.7rem;">(You can select multiple subcategories)</p>
+                    <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-initial='["TWITCH BOT"]'></div>
+                    <p class="help" style="font-size:0.7rem;">Start typing to filter — press Enter or choose a suggestion to add a tag.</p>
                 </div>
                 <div class="field" id="website-type-field" style="display: none;">
                     <label class="label">Website Type</label>
@@ -802,7 +791,7 @@ require_once '../layout.php';
 document.addEventListener('DOMContentLoaded', function() {
     const categorySelect = document.getElementById('category-select');
     const prioritySelect = document.getElementById('priority-select');
-    const subcategorySelect = document.querySelector('select[name="subcategory[]"]');
+    const addTagEl = document.getElementById('addItemSubcategory');
     const websiteTypeField = document.getElementById('website-type-field');
     const initialAttachments = document.getElementById('initialAttachments');
     const initialAttachmentFileName = document.getElementById('initialAttachmentFileName');
@@ -847,6 +836,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Validate Add form has at least one subcategory selected
+    const addItemForm = document.getElementById('addItemForm');
+    if (addItemForm) {
+        addItemForm.addEventListener('submit', function(e) {
+            const count = document.querySelectorAll('#addItemForm input[name="subcategory[]"]').length;
+            if (count === 0) {
+                alert('Please select at least one Subcategory');
+                e.preventDefault();
+                return;
+            }
+        });
+    }
     if (categorySelect && prioritySelect) {
         categorySelect.addEventListener('change', function() {
             if (this.value === 'REQUESTS') {
@@ -854,17 +856,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    if (subcategorySelect && websiteTypeField) {
-        function toggleWebsiteType() {
-            const selected = Array.from(subcategorySelect.selectedOptions).map(o => o.value);
-            if (selected.includes('WEBSITE')) {
-                websiteTypeField.style.display = 'block';
-            } else {
-                websiteTypeField.style.display = 'none';
-            }
+    if (addTagEl && websiteTypeField) {
+        function toggleWebsiteTypeAdd() {
+            const values = (addTagEl._tms ? addTagEl._tms.getValues() : Array.from(document.querySelectorAll('#addItemForm input[name="subcategory[]"]')).map(i => i.value));
+            websiteTypeField.style.display = values.includes('WEBSITE') ? 'block' : 'none';
         }
-        subcategorySelect.addEventListener('change', toggleWebsiteType);
-        toggleWebsiteType(); // Run on page load
+        addTagEl.addEventListener('tms:change', toggleWebsiteTypeAdd);
+        // initial run (component may have prefilled values)
+        setTimeout(toggleWebsiteTypeAdd, 0);
     }
     // Close notification when delete button is clicked
     (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
