@@ -42,6 +42,8 @@ ob_start();
 			<div class="notification is-dark" style="display:flex; flex-direction:column; gap:0.75rem;">
 				<p><strong>Endpoints that require an API key</strong></p>
 				<div class="tags" style="flex-wrap:wrap; gap:0.35rem;">
+					<span class="tag is-link is-light">POST /user-points/credit</span>
+					<span class="tag is-link is-light">POST /user-points/debit</span>
 					<span class="tag is-link is-light">POST /SEND_OBS_EVENT</span>
 					<span class="tag is-link is-light">GET /websocket/stream_offline</span>
 					<span class="tag is-link is-light">GET /websocket/stream_online</span>
@@ -77,6 +79,24 @@ ob_start();
 				<li><code>GET /sound-alerts</code> — Retrieve a list of all sound alert files available for the authenticated user from the website server</li>
 				<li><code>GET /weather</code> — Retrieve current weather data for a given location and send it to the WebSocket server</li>
 			</ul>
+			<h3 class="title is-5 has-text-light">User Points Integrations</h3>
+			<p>You can use these POST endpoints for custom integrations that add or remove points from a user:</p>
+			<ul>
+				<li><code>POST /user-points/credit</code> — Adds points to the user.</li>
+				<li><code>POST /user-points/debit</code> — Removes points from the user.</li>
+			</ul>
+			<div class="box has-background-dark" style="border-radius:8px; border:1px solid #363636;">
+				<p class="has-text-light"><strong>Examples</strong></p>
+				<p class="has-text-light" style="margin-top:0.5rem; margin-bottom:0.5rem;"><strong>CREDIT</strong></p>
+				<pre style="background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>https://api.botofthespecter.com/user-points/credit?api_key=1234&username=test&amount=1</code></pre>
+				<p class="has-text-light" style="margin-top:0.75rem; margin-bottom:0.5rem;"><strong>DEBIT</strong></p>
+				<pre style="background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>https://api.botofthespecter.com/user-points/debit?api_key=1234&username=test&amount=1&allow_negative=false</code></pre>
+				<p class="has-text-light" style="margin-top:0.75rem; margin-bottom:0;">
+					Full endpoint docs:<br>
+					<a href="https://api.botofthespecter.com/docs#/Commands/credit_user_points" target="_blank" class="has-text-link">https://api.botofthespecter.com/docs#/Commands/credit_user_points</a><br>
+					<a href="https://api.botofthespecter.com/docs#/Commands/debit_user_points" target="_blank" class="has-text-link">https://api.botofthespecter.com/docs#/Commands/debit_user_points</a>
+				</p>
+			</div>
 			<h3 class="title is-5 has-text-light">Webhooks</h3>
 			<ul>
 				<li><code>POST /fourthwall</code> — This endpoint allows you to send webhook data from FOURTHWALL to be processed by the bot's WebSocket server</li>
