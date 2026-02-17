@@ -463,6 +463,11 @@ try {
                 number_of_winners INT DEFAULT 1,
                 status VARCHAR(20) DEFAULT 'running',
                 is_weighted TINYINT(1) DEFAULT 0,
+                weight_sub_t1 DECIMAL(5,2) DEFAULT 2.00,
+                weight_sub_t2 DECIMAL(5,2) DEFAULT 3.00,
+                weight_sub_t3 DECIMAL(5,2) DEFAULT 4.00,
+                weight_vip DECIMAL(5,2) DEFAULT 1.50,
+                exclude_mods TINYINT(1) DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'raffle_entries' => "

@@ -24,11 +24,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $prize = trim($_POST['prize'] ?? '');
         $number_of_winners = intval($_POST['number_of_winners'] ?? 1);
         $weighted = isset($_POST['weighted']) ? 1 : 0;
+        $weight_sub_t1 = floatval($_POST['weight_sub_t1'] ?? 2.00);
+        $weight_sub_t2 = floatval($_POST['weight_sub_t2'] ?? 3.00);
+        $weight_sub_t3 = floatval($_POST['weight_sub_t3'] ?? 4.00);
+        $weight_vip = floatval($_POST['weight_vip'] ?? 1.50);
+        $exclude_mods = isset($_POST['exclude_mods']) ? 1 : 0;
         if ($name === '' || $number_of_winners <= 0) {
             $message = 'Invalid name or number of winners.';
         } else {
-            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted) VALUES (?, ?, ?, 'running', ?)");
-            $stmt->bind_param('ssii', $name, $prize, $number_of_winners, $weighted);
+            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods) VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param('ssiiddddi', $name, $prize, $number_of_winners, $weighted, $weight_sub_t1, $weight_sub_t2, $weight_sub_t3, $weight_vip, $exclude_mods);
             if ($stmt->execute()) {
                 $message = "Raffle '$name' started.";
             } else {
@@ -145,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Fetch raffles list with winners
 $raffles = [];
-$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted FROM raffles ORDER BY created_at DESC LIMIT 50");
+$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods FROM raffles ORDER BY created_at DESC LIMIT 50");
 if ($res) {
     while ($row = $res->fetch_assoc()) {
         // Fetch winners for this raffle
@@ -192,8 +197,54 @@ ob_start();
                         <div class="control"><input class="input" type="number" name="number_of_winners" min="1" value="1" required></div>
                     </div>
                     <div class="field">
-                        <label class="checkbox"><input type="checkbox" name="weighted"> Weighted (subscribers get enhanced odds)</label>
+                        <label class="checkbox">
+                            <input type="checkbox" name="weighted" id="weighted-checkbox" onchange="toggleWeightSettings()"> 
+                            Enable Weighted Raffle (subscribers and VIPs get enhanced odds)
+                        </label>
                     </div>
+                    <div id="weight-settings" style="display: none; border-left: 3px solid #3273dc; padding-left: 1rem; margin-left: 1rem;">
+                        <h4 class="subtitle is-6">Weight Multipliers</h4>
+                        <div class="columns">
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label">Tier 1 Subscriber</label>
+                                    <div class="control"><input class="input" type="number" name="weight_sub_t1" step="0.01" min="1" value="2.00"></div>
+                                </div>
+                            </div>
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label">Tier 2 Subscriber</label>
+                                    <div class="control"><input class="input" type="number" name="weight_sub_t2" step="0.01" min="1" value="3.00"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="columns">
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label">Tier 3 Subscriber</label>
+                                    <div class="control"><input class="input" type="number" name="weight_sub_t3" step="0.01" min="1" value="4.00"></div>
+                                </div>
+                            </div>
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label">VIP</label>
+                                    <div class="control"><input class="input" type="number" name="weight_vip" step="0.01" min="1" value="1.50"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="checkbox">
+                                <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
+                            </label>
+                        </div>
+                    </div>
+                    <script>
+                        function toggleWeightSettings() {
+                            const checkbox = document.getElementById('weighted-checkbox');
+                            const settings = document.getElementById('weight-settings');
+                            settings.style.display = checkbox.checked ? 'block' : 'none';
+                        }
+                    </script>
                     <div class="field">
                         <div class="control"><button class="button is-primary" type="submit">Start Raffle</button></div>
                     </div>
@@ -208,7 +259,8 @@ ob_start();
                             <th>Prize</th>
                             <th># Winners</th>
                             <th>Status</th>
-                            <th>Weighted</th>
+                            <th>Weights</th>
+                            <th>Exclusions</th>
                             <th>Winner(s)</th>
                             <th>Action</th>
                         </tr>
@@ -221,7 +273,16 @@ ob_start();
                                 <td><?php echo htmlspecialchars($r['prize'] ?? ''); ?></td>
                                 <td><?php echo htmlspecialchars($r['number_of_winners']); ?></td>
                                 <td><?php echo htmlspecialchars($r['status']); ?></td>
-                                <td><?php echo $r['is_weighted'] ? 'Yes' : 'No'; ?></td>
+                                <td>
+                                    <?php if ($r['is_weighted']): ?>
+                                        <span title="T1: <?php echo $r['weight_sub_t1']; ?>x | T2: <?php echo $r['weight_sub_t2']; ?>x | T3: <?php echo $r['weight_sub_t3']; ?>x | VIP: <?php echo $r['weight_vip']; ?>x">
+                                            ✓ (hover for details)
+                                        </span>
+                                    <?php else: ?>
+                                        No
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo $r['exclude_mods'] ? 'Mods excluded' : 'None'; ?></td>
                                 <td>
                                     <?php 
                                     if (!empty($r['winners'])) {
