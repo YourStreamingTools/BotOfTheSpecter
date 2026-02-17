@@ -104,18 +104,6 @@ ob_start();
 				<li><code>POST /user-points/credit</code> — Adds points to the user.</li>
 				<li><code>POST /user-points/debit</code> — Removes points from the user.</li>
 			</ul>
-			<div class="box has-background-dark" style="border-radius:8px; border:1px solid #363636;">
-				<p class="has-text-light"><strong>Examples</strong></p>
-				<p class="has-text-light" style="margin-top:0.5rem; margin-bottom:0.5rem;"><strong>CREDIT</strong></p>
-				<pre style="background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>https://api.botofthespecter.com/user-points/credit?api_key=1234&username=test&amount=1</code></pre>
-				<p class="has-text-light" style="margin-top:0.75rem; margin-bottom:0.5rem;"><strong>DEBIT</strong></p>
-				<pre style="background:#111; color:#dcdcdc; padding:0.75rem; border-radius:6px;"><code>https://api.botofthespecter.com/user-points/debit?api_key=1234&username=test&amount=1&allow_negative=false</code></pre>
-				<p class="has-text-light" style="margin-top:0.75rem; margin-bottom:0;">
-					Full endpoint docs:<br>
-					<a href="https://api.botofthespecter.com/docs#/Commands/credit_user_points" target="_blank" class="has-text-link">https://api.botofthespecter.com/docs#/Commands/credit_user_points</a><br>
-					<a href="https://api.botofthespecter.com/docs#/Commands/debit_user_points" target="_blank" class="has-text-link">https://api.botofthespecter.com/docs#/Commands/debit_user_points</a>
-				</p>
-			</div>
 			<h3 class="title is-5 has-text-light">User Account</h3>
 			<p>Endpoints for managing user account data and bot status (requires user API key; admins can query any user's data with the <code>channel</code> parameter):</p>
 			<ul>
