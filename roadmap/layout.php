@@ -1080,12 +1080,12 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color: #667eea; text-decoration: underline;">$1</a>');
                     // Code blocks (backtick wrapped)
                     html = html.replace(/`(.*?)`/g, '<code style="background-color: rgba(0, 0, 0, 0.3); color: #66d9ef; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace;">$1</code>');
-                    // Lists - convert to proper HTML list items
-                    html = html.replace(/^\* (.*?)$/gm, '<li style="margin-left: 1.5rem; margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
-                    html = html.replace(/^- (.*?)$/gm, '<li style="margin-left: 1.5rem; margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
-                    // Wrap consecutive list items in <ul>
+                    // Lists - convert to proper HTML list items (accept optional leading whitespace)
+                    html = html.replace(/^\s*\*\s+(.*?)$/gm, '<li style="margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
+                    html = html.replace(/^\s*-\s+(.*?)$/gm, '<li style="margin-bottom: 0.25rem; color: #b0b0b0;">$1</li>');
+                    // Wrap consecutive list items in <ul> — show bullets so "*"-style dot points are visible
                     html = html.replace(/(<li.*?<\/li>)+/g, function (match) {
-                        return '<ul style="list-style: none; margin-bottom: 0.75rem;">' + match + '</ul>';
+                        return '<ul style="list-style: disc; margin-left: 1.25rem; margin-bottom: 0.75rem;">' + match + '</ul>';
                     });
                     // Paragraph breaks
                     html = html.split('\n\n').map(para => {
