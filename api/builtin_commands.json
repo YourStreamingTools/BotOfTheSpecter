@@ -228,6 +228,25 @@
 		"obs": {
 			"description": "This command is used to interact with the OBS Connector app for BotOfTheSpecter.",
 			"force_level": "mod"
+		},
+		"startraffle": {
+			"description": "This command will start a raffle with specified name, prize, and number of winners. Users can join using !joinraffle.",
+			"force_level": "mod"
+		},
+		"joinraffle": {
+			"description": "This command allows viewers to join an active raffle.",
+			"aliases": ["rafflejoin", "raffle"]
+		},
+		"leaveraffle": {
+			"description": "This command allows viewers to leave an active raffle they have joined."
+		},
+		"stopraffle": {
+			"description": "This command will stop and end an active raffle without drawing winners.",
+			"force_level": "mod"
+		},
+		"drawraffle": {
+			"description": "This command will draw and announce the raffle winner(s) according to the configured number of winners.",
+			"force_level": "mod"
 		}
 	}
 }

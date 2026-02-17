@@ -116,15 +116,16 @@ builtin_commands = {
     "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
-    "deaths", "heartrate", "gamble"
+    "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle"
 }
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs"
+    "skipsong", "wsstatus", "dbstatus", "obs", "startraffle", "stopraffle", "drawraffle"
 }
 builtin_aliases = {
-    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip"
+    "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
+    "rafflejoin", "raffle"
 }
 
 # Logs
@@ -7607,24 +7608,25 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-                # Parse args
-                if len(args) < 2:
-                    await send_chat_message("Usage: !startraffle <name> <duration_minutes> [weighted]")
+                # Parse args: !startraffle <name> <prize> <number_of_winners> [weighted]
+                if len(args) < 3:
+                    await send_chat_message("Usage: !startraffle <name> <prize> <number_of_winners> [weighted]")
                     return
                 name = args[0]
+                prize = args[1]
                 try:
-                    duration = int(args[1])
+                    number_of_winners = int(args[2])
+                    if number_of_winners <= 0:
+                        raise ValueError
                 except Exception:
-                    await send_chat_message("Invalid duration. Please specify duration in minutes.")
+                    await send_chat_message("Invalid number of winners. Please specify a positive number.")
                     return
                 weighted = False
-                if len(args) > 2 and args[2].lower() == 'weighted':
+                if len(args) > 3 and args[3].lower() == 'weighted':
                     weighted = True
-                start_time = datetime.now()
-                end_time = start_time + timedelta(minutes=duration)
-                await cursor.execute("INSERT INTO raffles (name, description, start_time, end_time, status, is_weighted) VALUES (%s, %s, %s, %s, %s, %s)", (name, '', start_time.strftime('%Y-%m-%d %H:%M:%S'), end_time.strftime('%Y-%m-%d %H:%M:%S'), 'running', 1 if weighted else 0))
+                await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted) VALUES (%s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'running', 1 if weighted else 0))
                 await connection.commit()
-                await send_chat_message(f"Raffle '{name}' started for {duration} minutes. Use !joinraffle to enter.")
+                await send_chat_message(f"Raffle '{name}' started! Prize: {prize}. Winners: {number_of_winners}. Use !joinraffle to enter.")
         except Exception as e:
             bot_logger.error(f"Error starting raffle: {e}")
             await send_chat_message("There was an error starting the raffle.")
@@ -7634,7 +7636,7 @@ class TwitchBot(commands.Bot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT id, name, is_weighted FROM raffles WHERE status=%s ORDER BY start_time DESC LIMIT 1", ("running",))
+                await cursor.execute("SELECT id, name, is_weighted FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
                     await send_chat_message("There is no active raffle right now.")
@@ -7669,7 +7671,7 @@ class TwitchBot(commands.Bot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT id FROM raffles WHERE status=%s ORDER BY start_time DESC LIMIT 1", ("running",))
+                await cursor.execute("SELECT id FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
                     await send_chat_message("There is no active raffle to leave.")
@@ -7682,6 +7684,39 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"Error leaving raffle: {e}")
             await send_chat_message("There was an error removing you from the raffle.")
+
+    @commands.command(name='stopraffle')
+    async def stopraffle_command(self, ctx):
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                # Permission check
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("stopraffle",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                await cursor.execute("SELECT id, name FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                raffle = await cursor.fetchone()
+                if not raffle:
+                    await send_chat_message("There is no active raffle to stop.")
+                    return
+                raffle_id = raffle.get('id')
+                raffle_name = raffle.get('name')
+                await cursor.execute("UPDATE raffles SET status=%s WHERE id=%s", ('ended', raffle_id))
+                await connection.commit()
+                await send_chat_message(f"Raffle '{raffle_name}' has been stopped and ended without drawing winners.")
+        except Exception as e:
+            bot_logger.error(f"Error stopping raffle: {e}")
+            await send_chat_message("There was an error stopping the raffle.")
 
     @commands.command(name='drawraffle')
     async def drawraffle_command(self, ctx, raffle_id: str = None):
@@ -7705,44 +7740,65 @@ class TwitchBot(commands.Bot):
                         return
                 # Determine raffle to draw
                 if raffle_id:
-                    await cursor.execute("SELECT id, name, is_weighted FROM raffles WHERE id=%s", (raffle_id,))
+                    await cursor.execute("SELECT id, name, prize, number_of_winners, is_weighted FROM raffles WHERE id=%s", (raffle_id,))
                     raffle = await cursor.fetchone()
                 else:
-                    await cursor.execute("SELECT id, name, is_weighted FROM raffles WHERE status IN (%s, %s) ORDER BY start_time DESC LIMIT 1", ("running","scheduled"))
+                    await cursor.execute("SELECT id, name, prize, number_of_winners, is_weighted FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                     raffle = await cursor.fetchone()
                 if not raffle:
                     await send_chat_message("No raffle found to draw.")
                     return
                 raffle_id = raffle.get('id')
                 raffle_name = raffle.get('name')
+                raffle_prize = raffle.get('prize')
+                number_of_winners = raffle.get('number_of_winners', 1)
                 is_weighted = raffle.get('is_weighted')
                 await cursor.execute("SELECT username, user_id, weight FROM raffle_entries WHERE raffle_id=%s", (raffle_id,))
                 entries = await cursor.fetchall()
                 if not entries:
                     await send_chat_message(f"No entries in raffle '{raffle_name}'.")
                     return
-                # Weighted selection
-                total_weight = sum([e.get('weight',1) for e in entries])
-                pick = random.randint(1, total_weight)
-                running = 0
-                winner = None
-                winner_id = None
-                for e in entries:
-                    running += e.get('weight',1)
-                    if running >= pick:
-                        winner = e.get('username')
-                        winner_id = e.get('user_id')
-                        break
-                if not winner:
-                    await send_chat_message("There was an error selecting a winner.")
+                # Draw multiple winners
+                winners = []
+                available_entries = list(entries)
+                for _ in range(min(number_of_winners, len(entries))):
+                    total_weight = sum([e.get('weight',1) for e in available_entries])
+                    pick = random.randint(1, total_weight)
+                    running = 0
+                    winner = None
+                    winner_index = -1
+                    for idx, e in enumerate(available_entries):
+                        running += e.get('weight',1)
+                        if running >= pick:
+                            winner = e
+                            winner_index = idx
+                            break
+                    if winner:
+                        winners.append(winner)
+                        # Remove winner from available entries for next draw
+                        available_entries.pop(winner_index)
+                if not winners:
+                    await send_chat_message("There was an error selecting winners.")
                     return
+                # Store winners as JSON
+                winner_names = [w.get('username') for w in winners]
+                winner_ids = [w.get('user_id') for w in winners]
+                winner_names_json = json.dumps(winner_names)
+                winner_ids_json = json.dumps(winner_ids)
                 # Update raffle record
-                await cursor.execute("UPDATE raffles SET winner_username=%s, winner_user_id=%s, status=%s WHERE id=%s", (winner, winner_id, 'ended', raffle_id))
+                await cursor.execute("UPDATE raffles SET winner_username=%s, winner_user_id=%s, status=%s WHERE id=%s", (winner_names_json, winner_ids_json, 'ended', raffle_id))
                 await connection.commit()
-                await send_chat_message(f"🎉 Congratulations @{winner}! You won the raffle '{raffle_name}' 🎉")
-                # Notify websocket clients/overlays
+                # Announce winners
+                if len(winners) == 1:
+                    winner_text = f"@{winner_names[0]}"
+                else:
+                    winner_text = ", ".join([f"@{w}" for w in winner_names])
+                prize_text = f" - Prize: {raffle_prize}" if raffle_prize else ""
+                await send_chat_message(f"🎉 Congratulations {winner_text}! You won the raffle '{raffle_name}'{prize_text} 🎉")
+                # Notify websocket clients/overlays for each winner
                 try:
-                    create_task(websocket_notice(event="RAFFLE_WINNER", additional_data={"raffle_name": raffle_name, "winner": winner}))
+                    for winner_name in winner_names:
+                        create_task(websocket_notice(event="RAFFLE_WINNER", additional_data={"raffle_name": raffle_name, "winner": winner_name, "prize": raffle_prize}))
                 except Exception as e:
                     websocket_logger.error(f"Failed to send RAFFLE_WINNER notify: {e}")
         except Exception as e:
