@@ -105,6 +105,10 @@ if (is_dir($docsPath)) {
     foreach ($files as $file) {
         // accept versions with two or more dot-separated numeric parts (1.2, 1.2.3, 1.2.3.4, ...)
         if (preg_match('/^(\d+\.\d+(?:\.\d+)*)\.md$/', $file, $matches)) {
+            // compute path, version and date before using them
+            $filePath = $docsPath . '/' . $file;
+            $versionNum = $matches[1];
+            $date = extractVersionDate($filePath);
             $versionFiles[] = [
                 'file' => $file,
                 'path' => $filePath,
