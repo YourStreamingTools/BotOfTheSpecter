@@ -7753,7 +7753,7 @@ class TwitchBot(commands.Bot):
                 raffle_prize = raffle.get('prize')
                 number_of_winners = raffle.get('number_of_winners', 1)
                 is_weighted = raffle.get('is_weighted')
-                await cursor.execute("SELECT username, user_id, weight FROM raffle_entries WHERE raffle_id=%s", (raffle_id,))
+                await cursor.execute("SELECT id, username, user_id, weight FROM raffle_entries WHERE raffle_id=%s", (raffle_id,))
                 entries = await cursor.fetchall()
                 if not entries:
                     await send_chat_message(f"No entries in raffle '{raffle_name}'.")
@@ -7780,13 +7780,16 @@ class TwitchBot(commands.Bot):
                 if not winners:
                     await send_chat_message("There was an error selecting winners.")
                     return
-                # Store winners as JSON
-                winner_names = [w.get('username') for w in winners]
-                winner_ids = [w.get('user_id') for w in winners]
-                winner_names_json = json.dumps(winner_names)
-                winner_ids_json = json.dumps(winner_ids)
-                # Update raffle record
-                await cursor.execute("UPDATE raffles SET winner_username=%s, winner_user_id=%s, status=%s WHERE id=%s", (winner_names_json, winner_ids_json, 'ended', raffle_id))
+                # Insert winners into raffle_winners table
+                winner_names = []
+                for winner in winners:
+                    entry_id = winner.get('id')
+                    username = winner.get('username')
+                    user_id = winner.get('user_id')
+                    winner_names.append(username)
+                    await cursor.execute("INSERT INTO raffle_winners (raffle_id, entry_id, username, user_id) VALUES (%s, %s, %s, %s)", (raffle_id, entry_id, username, user_id))
+                # Update raffle status to ended
+                await cursor.execute("UPDATE raffles SET status=%s WHERE id=%s", ('ended', raffle_id))
                 await connection.commit()
                 # Announce winners
                 if len(winners) == 1:

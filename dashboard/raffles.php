@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = 'Raffle not found.';
         } else {
             $number_of_winners = intval($raffle['number_of_winners']);
-            $stmt = $db->prepare("SELECT username, user_id, weight FROM raffle_entries WHERE raffle_id = ?");
+            $stmt = $db->prepare("SELECT id, username, user_id, weight FROM raffle_entries WHERE raffle_id = ?");
             $stmt->bind_param('i', $raffle_id);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -90,15 +90,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (count($winners) === 0) {
                     $message = 'Failed to pick a winner.';
                 } else {
-                    // Store winners as JSON
-                    $winner_names = array_column($winners, 'username');
-                    $winner_ids = array_column($winners, 'user_id');
-                    $winner_names_json = json_encode($winner_names);
-                    $winner_ids_json = json_encode($winner_ids);
-                    
-                    $stmt = $db->prepare("UPDATE raffles SET winner_username = ?, winner_user_id = ?, status = 'ended' WHERE id = ?");
-                    $stmt->bind_param('ssi', $winner_names_json, $winner_ids_json, $raffle_id);
-                    if ($stmt->execute()) {
+                    // Begin transaction
+                    $db->begin_transaction();
+                    try {
+                        // Insert winners into raffle_winners table
+                        $stmt = $db->prepare("INSERT INTO raffle_winners (raffle_id, entry_id, username, user_id) VALUES (?, ?, ?, ?)");
+                        $winner_names = [];
+                        foreach ($winners as $winner) {
+                            $entry_id = intval($winner['id']);
+                            $username = $winner['username'];
+                            $user_id = $winner['user_id'];
+                            $winner_names[] = $username;
+                            $stmt->bind_param('iiss', $raffle_id, $entry_id, $username, $user_id);
+                            $stmt->execute();
+                        }
+                        $stmt->close();
+                        // Update raffle status to ended
+                        $stmt = $db->prepare("UPDATE raffles SET status = 'ended' WHERE id = ?");
+                        $stmt->bind_param('i', $raffle_id);
+                        $stmt->execute();
+                        $stmt->close();
+                        $db->commit();
                         $winner_list = implode(', ', $winner_names);
                         $message = "Winner(s) selected: $winner_list";
                         // Notify websocket via API for each winner
@@ -120,8 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 }
                             }
                         }
-                    } else {
-                        $message = 'Failed to update raffle with winner.';
+                    } catch (Exception $e) {
+                        $db->rollback();
+                        $message = 'Failed to save raffle winners: ' . $e->getMessage();
                     }
                     $stmt->close();
                 }
@@ -130,11 +143,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Fetch raffles list
+// Fetch raffles list with winners
 $raffles = [];
-$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, winner_username FROM raffles ORDER BY created_at DESC LIMIT 50");
+$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted FROM raffles ORDER BY created_at DESC LIMIT 50");
 if ($res) {
-    while ($row = $res->fetch_assoc()) $raffles[] = $row;
+    while ($row = $res->fetch_assoc()) {
+        // Fetch winners for this raffle
+        $raffle_id = $row['id'];
+        $winners_stmt = $db->prepare("SELECT username FROM raffle_winners WHERE raffle_id = ?");
+        $winners_stmt->bind_param('i', $raffle_id);
+        $winners_stmt->execute();
+        $winners_res = $winners_stmt->get_result();
+        $winners = [];
+        while ($winner = $winners_res->fetch_assoc()) {
+            $winners[] = $winner['username'];
+        }
+        $winners_stmt->close();
+        $row['winners'] = $winners;
+        $raffles[] = $row;
+    }
 }
 
 ob_start();
@@ -197,13 +224,8 @@ ob_start();
                                 <td><?php echo $r['is_weighted'] ? 'Yes' : 'No'; ?></td>
                                 <td>
                                     <?php 
-                                    if ($r['winner_username']) {
-                                        $winners = json_decode($r['winner_username'], true);
-                                        if (is_array($winners)) {
-                                            echo htmlspecialchars(implode(', ', $winners));
-                                        } else {
-                                            echo htmlspecialchars($r['winner_username']);
-                                        }
+                                    if (!empty($r['winners'])) {
+                                        echo htmlspecialchars(implode(', ', $r['winners']));
                                     }
                                     ?>
                                 </td>
