@@ -96,6 +96,28 @@ function initializeRoadmapDatabase() {
     if (!$conn->query($sql)) {
         return array('success' => false, 'message' => 'Error backfilling roadmap_item_subcategories: ' . $conn->error);
     }
+
+    // Create roadmap_item_website_types table (supports multiple website types per item)
+    $sql = "CREATE TABLE IF NOT EXISTS roadmap_item_website_types (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        item_id INT NOT NULL,
+        website_type VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES roadmap_items(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_item_webtype (item_id, website_type),
+        INDEX idx_website_type (website_type),
+        INDEX idx_item_id_webtype (item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    if (!$conn->query($sql)) {
+        return array('success' => false, 'message' => 'Error creating roadmap_item_website_types table: ' . $conn->error);
+    }
+
+    // Backfill existing website_type values into roadmap_item_website_types (if missing)
+    $sql = "INSERT IGNORE INTO roadmap_item_website_types (item_id, website_type)
+            SELECT id, website_type FROM roadmap_items WHERE website_type IS NOT NULL";
+    if (!$conn->query($sql)) {
+        return array('success' => false, 'message' => 'Error backfilling roadmap_item_website_types: ' . $conn->error);
+    }
     $conn->close();
     return array('success' => true, 'message' => 'Database initialized successfully');
 }
