@@ -239,7 +239,7 @@ ob_start();
             <table class="table is-fullwidth" id="commandsTable">
                 <thead>
                     <tr>
-                        <th class="has-text-centered has-text-middle"><?php echo t('builtin_commands_table_command'); ?></th>
+                        <th class="has-text-centered has-text-middle" style="min-width: 155px;"><?php echo t('builtin_commands_table_command'); ?></th>
                         <th class="has-text-centered has-text-middle"><?php echo t('builtin_commands_table_description'); ?></th>
                         <th class="has-text-centered"><?php echo t('builtin_commands_table_usage_level'); ?></th>
                         <th class="has-text-centered is-narrow has-text-middle"><?php echo t('builtin_commands_table_status'); ?></th>
