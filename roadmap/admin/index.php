@@ -157,14 +157,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $category = $_POST['category'] ?? 'REQUESTS';
             $status = $_POST['status'] ?? '';
             if ($status === 'completed') {
-                $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW() WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE roadmap_items SET category = 'COMPLETED', completed_date = NOW(), updated_at = NOW() WHERE id = ?");
                 if ($stmt) {
                     $stmt->bind_param("i", $id);
                     $stmt->execute();
                     $stmt->close();
                 }
             } else {
-                $stmt = $conn->prepare("UPDATE roadmap_items SET category = ? WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE roadmap_items SET category = ?, updated_at = NOW() WHERE id = ?");
                 if ($stmt) {
                     $stmt->bind_param("si", $category, $id);
                     $stmt->execute();
@@ -187,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $subcategory = $_POST['subcategory'] ?? 'TWITCH BOT';
             $priority = $_POST['priority'] ?? 'MEDIUM';
             $website_type = (!empty($_POST['website_type']) ? $_POST['website_type'] : null);
-            $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ? WHERE id = ?");
+            $stmt = $conn->prepare("UPDATE roadmap_items SET title = ?, description = ?, category = ?, subcategory = ?, priority = ?, website_type = ?, updated_at = NOW() WHERE id = ?");
             if ($stmt) {
                 $stmt->bind_param("ssssssi", $title, $description, $category, $subcategory, $priority, $website_type, $id);
                 if ($stmt->execute()) {
@@ -274,7 +274,7 @@ if (!empty($selectedCategory) && in_array($selectedCategory, $categories)) {
     $query .= " AND category = '" . $conn->real_escape_string($selectedCategory) . "'";
 }
 
-$query .= " ORDER BY created_at DESC, priority DESC";
+$query .= " ORDER BY updated_at DESC, created_at DESC, priority DESC";
 
 if ($result = $conn->query($query)) {
     while ($row = $result->fetch_assoc()) {
