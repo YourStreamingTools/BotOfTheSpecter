@@ -229,8 +229,12 @@
 			"description": "This command is used to interact with the OBS Connector app for BotOfTheSpecter.",
 			"force_level": "mod"
 		},
+		"createraffle": {
+			"description": "This command will create a new raffle with specified name, prize, and number of winners. The raffle will be scheduled and must be started with !startraffle.",
+			"force_level": "mod"
+		},
 		"startraffle": {
-			"description": "This command will start a raffle with specified name, prize, and number of winners. Users can join using !joinraffle.",
+			"description": "This command will start a scheduled raffle. Use without arguments to start the first scheduled raffle, or provide a raffle ID to start a specific one (e.g., !startraffle 4).",
 			"force_level": "mod"
 		},
 		"joinraffle": {

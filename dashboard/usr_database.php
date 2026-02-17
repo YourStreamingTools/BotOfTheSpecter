@@ -461,7 +461,7 @@ try {
                 name VARCHAR(255) NOT NULL,
                 prize TEXT,
                 number_of_winners INT DEFAULT 1,
-                status VARCHAR(20) DEFAULT 'running',
+                status VARCHAR(20) DEFAULT 'scheduled',
                 is_weighted TINYINT(1) DEFAULT 0,
                 weight_sub_t1 DECIMAL(5,2) DEFAULT 2.00,
                 weight_sub_t2 DECIMAL(5,2) DEFAULT 3.00,

@@ -33,15 +33,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($name === '' || $number_of_winners <= 0) {
             $message = 'Invalid name or number of winners.';
         } else {
-            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only) VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only) VALUES (?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?)");
             $stmt->bind_param('ssiiddddii', $name, $prize, $number_of_winners, $weighted, $weight_sub_t1, $weight_sub_t2, $weight_sub_t3, $weight_vip, $exclude_mods, $subscribers_only);
             if ($stmt->execute()) {
-                $message = "Raffle '$name' started.";
+                $message = "Raffle '$name' created and scheduled.";
             } else {
                 $message = 'Failed to create raffle.';
             }
             $stmt->close();
         }
+    } elseif ($action === 'start' && isset($_POST['raffle_id'])) {
+        $raffle_id = intval($_POST['raffle_id']);
+        // Update raffle status from scheduled to running
+        $stmt = $db->prepare("UPDATE raffles SET status = 'running' WHERE id = ? AND status = 'scheduled'");
+        $stmt->bind_param('i', $raffle_id);
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            $message = "Raffle started successfully!";
+        } else {
+            $message = 'Failed to start raffle. It may not be in scheduled status.';
+        }
+        $stmt->close();
     } elseif ($action === 'draw' && isset($_POST['raffle_id'])) {
         $raffle_id = intval($_POST['raffle_id']);
         // Fetch raffle details
@@ -304,7 +315,13 @@ ob_start();
                                     ?>
                                 </td>
                                 <td>
-                                    <?php if ($r['status'] !== 'ended'): ?>
+                                    <?php if ($r['status'] === 'scheduled'): ?>
+                                        <form method="post" style="display:inline">
+                                            <input type="hidden" name="action" value="start">
+                                            <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
+                                            <button class="button is-small is-success" type="submit">Start</button>
+                                        </form>
+                                    <?php elseif ($r['status'] === 'running'): ?>
                                         <form method="post" style="display:inline">
                                             <input type="hidden" name="action" value="draw">
                                             <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
