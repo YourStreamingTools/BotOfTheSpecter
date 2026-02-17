@@ -184,7 +184,7 @@ def _read_uptime_marker_via_ssh(host: str, username: str, password: str, marker_
                     ssh.close()
             except Exception:
                 pass
-    logging.exception(f"Error fetching {server_label} uptime via SSH ({host}): {last_error}")
+    logging.error(f"Error fetching {server_label} uptime via SSH ({host}): {last_error}")
     return None
 
 # Process start time for basic uptime reporting
