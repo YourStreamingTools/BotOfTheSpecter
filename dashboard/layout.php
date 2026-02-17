@@ -161,24 +161,24 @@ function uuidv4()
         <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
             <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile', $layoutMode); ?>
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
-                <a href="mod_channels.php" class="sidebar-user-item"
+                <a href="../mod_channels.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text">Mod Channels</span>
                 </a>
                 <?php if ($showAdminPanelLink): ?>
-                    <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>"
+                    <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>"
                         style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                         <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
                         <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
                     </a>
                 <?php endif; ?>
-                <a href="profile.php" class="sidebar-user-item"
+                <a href="../profile.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
                     <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
                 </a>
-                <a href="logout.php" class="sidebar-user-item"
+                <a href="../logout.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
                     <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
@@ -200,21 +200,21 @@ function uuidv4()
         <div class="sidebar-content-wrapper">
             <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop', $layoutMode); ?>
             <div class="sidebar-user-section">
-                <a href="mod_channels.php" class="sidebar-user-item">
+                <a href="../mod_channels.php" class="sidebar-user-item">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text">Mod Channels</span>
                 </a>
                     <?php if ($showAdminPanelLink): ?>
-                    <a href="admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
+                    <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
                         <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
                         <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
                     </a>
                     <?php endif; ?>
-                <a href="profile.php" class="sidebar-user-item">
+                <a href="../profile.php" class="sidebar-user-item">
                     <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
                     <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
                 </a>
-                <a href="logout.php" class="sidebar-user-item">
+                <a href="../logout.php" class="sidebar-user-item">
                     <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
                     <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
                 </a>
@@ -236,7 +236,7 @@ function uuidv4()
             <?php if ($modDisplay || $modUsername): ?>
                 <span>You are moderating: <strong><?php echo $modDisplay ? $modDisplay : $modUsername; ?></strong><?php echo ($modDisplay && $modUsername) ? ' (@' . $modUsername . ')' : ''; ?></span>
             <?php else: ?>
-                <span>You are using the <strong>MODERATOR</strong> dashboard. No channel selected — <a href="mod_channels.php" style="color:#fff; text-decoration:underline;">select a channel to moderate</a>.</span>
+                <span>You are using the <strong>MODERATOR</strong> dashboard. No channel selected — <a href="../mod_channels.php" style="color:#fff; text-decoration:underline;">select a channel to moderate</a>.</span>
             <?php endif; ?>
         </div>
     <?php else: ?>
