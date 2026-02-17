@@ -499,6 +499,78 @@ async def v2_api_key_header_middleware(request: Request, call_next):
     request.scope["query_string"] = urlencode(query_items, doseq=True).encode("latin-1")
     return await call_next(request)
 
+_OPENAPI_HTTP_METHODS = {"get", "put", "post", "delete", "patch", "options", "head", "trace"}
+
+def _ensure_standard_openapi_responses(openapi_schema: dict) -> dict:
+    components = openapi_schema.setdefault("components", {})
+    schemas = components.setdefault("schemas", {})
+    schemas.setdefault("ValidationError", {
+        "title": "ValidationError",
+        "required": ["loc", "msg", "type"],
+        "type": "object",
+        "properties": {
+            "loc": {
+                "title": "Location",
+                "type": "array",
+                "items": {"anyOf": [{"type": "string"}, {"type": "integer"}]},
+            },
+            "msg": {"title": "Message", "type": "string"},
+            "type": {"title": "Error Type", "type": "string"},
+        },
+    })
+    schemas.setdefault("HTTPValidationError", {
+        "title": "HTTPValidationError",
+        "type": "object",
+        "properties": {
+            "detail": {
+                "title": "Detail",
+                "type": "array",
+                "items": {"$ref": "#/components/schemas/ValidationError"},
+            }
+        },
+    })
+    paths = openapi_schema.get("paths", {})
+    for path_item in paths.values():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in _OPENAPI_HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            responses = operation.setdefault("responses", {})
+            has_success_response = any(str(code).isdigit() and str(code).startswith("2") for code in responses.keys())
+            if not has_success_response:
+                responses["200"] = {"description": "Successful Response"}
+            responses.setdefault("422", {
+                "description": "Validation Error",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/HTTPValidationError"}
+                    }
+                },
+            })
+    return openapi_schema
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        tags=tags_metadata,
+    )
+    openapi_schema.setdefault("info", {})["termsOfService"] = "https://botofthespecter.com/terms-of-service.php"
+    openapi_schema["info"]["contact"] = {
+        "name": "BotOfTheSpecter",
+        "url": "https://botofthespecter.com/",
+        "email": "questions@botofthespecter.com",
+    }
+    app.openapi_schema = _ensure_standard_openapi_responses(openapi_schema)
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
 def build_v2_openapi_schema():
     openapi_schema = get_openapi(
         title=f"{app.title} v2",
@@ -574,7 +646,7 @@ def build_v2_openapi_schema():
             and path_to_remove not in _V2_WEBHOOK_PATHS_SET
         ):
             paths.pop(path_to_remove, None)
-    return openapi_schema
+    return _ensure_standard_openapi_responses(openapi_schema)
 
 @app.get("/v1/docs", include_in_schema=False)
 async def docs_v1_redirect():
