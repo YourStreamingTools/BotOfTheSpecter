@@ -173,13 +173,13 @@ sudo apt install -y mysql-server
     <h3 class="title is-4 has-text-light">Step 1: Clone the Repository (Servers 1, 2, 3, 5)</h3>
     <div class="box has-background-dark has-text-light">
         <p>Clone the BotOfTheSpecter repository to a temporary directory on each server (except Server 4 - Database):</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">cd /tmp
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>cd /tmp
 git clone https://github.com/YourStreamingTools/BotOfTheSpecter.git botofthespecter-temp
 cd botofthespecter-temp</code></pre>
         <p class="mt-3">Then move the appropriate files to their destinations based on your server type:</p>
         
         <h5 class="title is-6 mt-3">For Server 1 (Web/Dashboard):</h5>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo rm -rf /var/www/html
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo rm -rf /var/www/html
 sudo cp -r /tmp/botofthespecter-temp/dashboard /var/www/
 sudo cp -r /tmp/botofthespecter-temp/home /var/www/
 sudo cp -r /tmp/botofthespecter-temp/html /var/www/
@@ -194,19 +194,19 @@ sudo cp -r /tmp/botofthespecter-temp/cdn /var/www/
 sudo chown -R www-data:www-data /var/www</code></pre>
 
         <h5 class="title is-6 mt-3">For Server 2 (API):</h5>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo cp -r /tmp/botofthespecter-temp/api /home/botofthespecter/
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo cp -r /tmp/botofthespecter-temp/api /home/botofthespecter/
 sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
 
         <h5 class="title is-6 mt-3">For Server 3 (WebSocket):</h5>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo cp -r /tmp/botofthespecter-temp/websocket /home/botofthespecter/
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo cp -r /tmp/botofthespecter-temp/websocket /home/botofthespecter/
 sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
 
         <h5 class="title is-6 mt-3">For Server 5 (Bot):</h5>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo cp -r /tmp/botofthespecter-temp/bot /home/botofthespecter/
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo cp -r /tmp/botofthespecter-temp/bot /home/botofthespecter/
 sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
 
         <h5 class="title is-6 mt-3">Clean up temporary directory (All Servers):</h5>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">rm -rf /tmp/botofthespecter-temp</code></pre>
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>rm -rf /tmp/botofthespecter-temp</code></pre>
     </div>
     <h3 class="title is-4 has-text-light">Step 2: Configure Database Server (Server 4 Only)</h3>
     <div class="box has-background-dark has-text-light">
@@ -223,7 +223,7 @@ sudo chown -R botofthespecter:botofthespecter /home/botofthespecter</code></pre>
         </ul>
 
         <p class="mt-3">Run the following SQL commands to set up the database(s). The <strong>user-specific</strong> databases are created automatically on login; the following are the manual databases and tables you should create for core features:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo mysql -u root -p
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo mysql -u root -p
 -- spam_pattern: stores spam regex/phrases for auto-ban
 CREATE DATABASE IF NOT EXISTS spam_pattern;
 USE spam_pattern;
@@ -838,7 +838,7 @@ CREATE TABLE IF NOT EXISTS link_clicks (
 </code></pre>
 
         <p class="mt-3">Then create your database user with access to all databases:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>CREATE USER 'your_username'@'%' IDENTIFIED BY 'your_password';
 GRANT ALL PRIVILEGES ON *.* TO 'your_username'@'%';
 FLUSH PRIVILEGES;</code></pre>
 
@@ -856,7 +856,7 @@ FLUSH PRIVILEGES;</code></pre>
 
         <p class="mt-3"><strong>Example: Auto-Generated User Database (botofthespecter)</strong></p>
         <p class="subtitle is-6 has-text-grey-light">This database is created automatically by the system - you do not need to run these commands manually:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">-- User-specific database (auto-created on first login)
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>-- User-specific database (auto-created on first login)
 CREATE DATABASE IF NOT EXISTS botofthespecter;
 USE botofthespecter;
 
@@ -1151,21 +1151,19 @@ CREATE TABLE IF NOT EXISTS member_streams (
 </code></pre>
 
         <p class="mt-3">Configure MySQL to accept connections from other servers by editing <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code>:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">bind-address = 0.0.0.0</code></pre>
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>bind-address = 0.0.0.0</code></pre>
     </div>
     <h3 class="title is-4 has-text-light">Step 3: Set Up Python Environment (Servers 2, 3, & 5)</h3>
     <div class="box has-background-dark has-text-light">
     <p>All application servers share the same repository path: <code>/home/botofthespecter</code>. Create the virtual environment in that directory and use the venv's pip/python directly so commands are deterministic and work the same on every server.</p>
     <p>Recommended venv location: <code>/home/botofthespecter/botofthespecter</code></p>
-    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code"># create the venv (run as the botofthespecter user)
+    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code># create the venv (run as the botofthespecter user)
 python3 -m venv botofthespecter
 # install all required packages from the single shared requirements file
 /home/botofthespecter/botofthespecter/bin/pip install -r /home/botofthespecter/requirements.txt</code></pre>
     <p class="mt-3">Production notes:</p>
         <ul>
             <li>Reference the virtualenv executables directly in systemd unit files. Example: <code>Environment="PATH=/home/botofthespecter/botofthespecter/bin"</code> and <code>ExecStart=/home/botofthespecter/botofthespecter/bin/python /home/botofthespecter/api/api.py</code>.</li>
-            <li>Always run the venv creation and package installs as the <code>botofthespecter</code> user to ensure correct ownership of files and installed packages.</li>
-        </ul>
             <li>Always run the venv creation and package installs as the <code>botofthespecter</code> user to ensure correct ownership of files and installed packages.</li>
         </ul>
     </div>
@@ -1259,24 +1257,24 @@ S3_ALWAYS_UPLOAD=True</code></pre>
             <li><strong>API-HOST, WEBSOCKET-HOST, etc:</strong> Set these to the IP addresses or hostnames of your respective servers for inter-server communication</li>
         </ul>
     </div>
-    <h3 class="title is-4 has-text-light">Step 5: Set Up Python Environment (Server 3 - WebSocket)</h3>
+    <h3 class="title is-4 has-text-light">Step 5: Verify WebSocket Dependencies (Server 3)</h3>
     <div class="box has-background-dark has-text-light">
         <p>Install Python dependencies for the WebSocket server:</p>
-    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">cd /home/botofthespecter
+    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>cd /home/botofthespecter
 source /home/botofthespecter/botofthespecter/bin/activate
 /home/botofthespecter/botofthespecter/bin/pip install -r /home/botofthespecter/requirements.txt</code></pre>
     </div>
     <h3 class="title is-4 has-text-light">Step 6: Set Up Web Server (Server 1)</h3>
     <div class="box has-background-dark has-text-light">
         <p>Configure Apache2 to serve the PHP dashboard:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo apt install -y apache2 libapache2-mod-php
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo apt install -y apache2 libapache2-mod-php
 # Enable Apache2 modules
 sudo a2enmod rewrite
 sudo a2enmod php8.1
 # Create Apache2 configuration
 sudo nano /etc/apache2/sites-available/botofthespecter.conf</code></pre>
         <p class="mt-3">Configure Apache (or your web server) however you prefer. You must serve the dashboard and related assets under your domain and the following example subdomains. We don't enforce a specific VirtualHost layout — pick the configuration that matches your infrastructure and SSL setup.</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">Example DNS / subdomain names you should configure for your deployment:
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>Example DNS / subdomain names you should configure for your deployment:
 example.com
 dashboard.example.com
 overlay.example.com
@@ -1296,14 +1294,14 @@ Ensure each subdomain points to the correct server (Server 1 for the dashboard/s
     <h3 class="title is-4 has-text-light">Server 1: Start the Web/Dashboard Server</h3>
     <div class="box has-background-dark has-text-light">
         <p>Ensure Apache2 and PHP are running:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo systemctl enable apache2
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo systemctl enable apache2
 sudo systemctl start apache2
 sudo systemctl status apache2</code></pre>
     </div>
     <h3 class="title is-4 has-text-light">Server 2: Start the API Server</h3>
     <div class="box has-background-dark has-text-light">
         <p>From the API Server:</p>
-    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">cd /home/botofthespecter
+    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>cd /home/botofthespecter
 source /home/botofthespecter/botofthespecter/bin/activate
 # Run the API with TLS (replace the paths with your domain's Let's Encrypt certs)
 python -m uvicorn api.api:app --host 0.0.0.0 --port 443 \
@@ -1315,7 +1313,7 @@ python -m uvicorn api.api:app --host 0.0.0.0 --port 443 \
     <h3 class="title is-4 has-text-light">Server 3: Start the WebSocket Server</h3>
     <div class="box has-background-dark has-text-light">
         <p>From the WebSocket Server:</p>
-    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">cd /home/botofthespecter
+    <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>cd /home/botofthespecter
 source /home/botofthespecter/botofthespecter/bin/activate
 python /home/botofthespecter/server.py</code></pre>
         <p class="mt-3">For production, create a systemd service similar to the bot service below.</p>
@@ -1324,7 +1322,7 @@ python /home/botofthespecter/server.py</code></pre>
     <h3 class="title is-4 has-text-light">Server 4: MySQL/MariaDB Database</h3>
     <div class="box has-background-dark has-text-light">
         <p>Ensure the database service is running:</p>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code">sudo systemctl enable mysql
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code>sudo systemctl enable mysql
 sudo systemctl start mysql
 sudo systemctl status mysql</code></pre>
     </div>
@@ -1348,7 +1346,7 @@ sudo systemctl status mysql</code></pre>
             <li><strong>SSL/TLS:</strong> Encrypt communication between services</li>
         </ul>
         <h4 class="title is-5 mt-4">Firewall Configuration Example</h4>
-        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code"># Server 1 (Web) - Allow HTTP/HTTPS and communication with other services
+        <pre style="background-color: #1a1a1a; border: 1px solid #444444; border-radius: 4px; padding: 1rem;"><code># Server 1 (Web) - Allow HTTP/HTTPS and communication with other services
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw allow from 10.10.10.2:8001  # API Server
