@@ -290,8 +290,9 @@ ob_start();
 let currentlyPlayingVoice = null;
 function playVoiceSample(voiceName) {
     const audioElement = document.getElementById('audio-' + voiceName);
-    const button = event.target.closest('button');
+    const button = (typeof event !== 'undefined' && event.target) ? event.target.closest('button') : null;
     if (!audioElement) return;
+    if (!button) return;
     // If this voice is already playing, stop it
     if (currentlyPlayingVoice === voiceName && !audioElement.paused) {
         audioElement.pause();
