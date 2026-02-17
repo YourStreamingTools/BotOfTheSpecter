@@ -3109,7 +3109,7 @@ async def bot_status(api_key: str = Query(..., description="Your API key for aut
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():
-    return RedirectResponse(url="/docs")
+    return RedirectResponse(url="/v2/docs")
 
 # Any favicon ico request get's passed onto CDN for the ico
 @app.get("/favicon.ico", include_in_schema=False)
