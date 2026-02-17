@@ -38,7 +38,7 @@ if (!empty($selectedCategory) && in_array($selectedCategory, $categories)) {
     $query .= " AND category = '" . $conn->real_escape_string($selectedCategory) . "'";
 }
 
-$query .= " ORDER BY created_at DESC, priority DESC";
+$query .= " ORDER BY updated_at DESC, created_at DESC, priority DESC";
 
 if ($result = $conn->query($query)) {
     while ($row = $result->fetch_assoc()) {
@@ -162,6 +162,9 @@ ob_start();
                                 <div class="roadmap-card-title">
                                     <?php echo htmlspecialchars($item['title']); ?>
                                 </div>
+                                <div style="margin-top: 0.35rem; margin-bottom: 0.6rem;">
+                                    <small class="has-text-grey">Created: <?php $dtc = new DateTime($item['created_at']); echo htmlspecialchars($dtc->format('M d \a\t g:i A') . ' ' . $dtc->format('T')); ?><?php if (!empty($item['updated_at']) && $item['updated_at'] !== $item['created_at']): $dtu = new DateTime($item['updated_at']); echo ' • Updated: ' . htmlspecialchars($dtu->format('M d \a\t g:i A') . ' ' . $dtu->format('T')); endif; ?></small>
+                                </div>
                                 <div class="mb-2">
                                     <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
                                         <?php echo htmlspecialchars($item['subcategory']); ?>
@@ -181,7 +184,7 @@ ob_start();
                                     </span>
                                 </div>
                                 <div class="mt-3">
-                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-created-at="<?php echo htmlspecialchars($item['created_at']); ?>" data-updated-at="<?php echo htmlspecialchars($item['updated_at']); ?>">
                                         <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
                                         <span>Details</span>
                                     </button>
@@ -220,6 +223,9 @@ ob_start();
                                 <div class="roadmap-card-title">
                                     <?php echo htmlspecialchars($item['title']); ?>
                                 </div>
+                                <div style="margin-top: 0.35rem; margin-bottom: 0.6rem;">
+                                    <small class="has-text-grey">Created: <?php $dtc = new DateTime($item['created_at']); echo htmlspecialchars($dtc->format('M d \a\t g:i A') . ' ' . $dtc->format('T')); ?><?php if (!empty($item['updated_at']) && $item['updated_at'] !== $item['created_at']): $dtu = new DateTime($item['updated_at']); echo ' • Updated: ' . htmlspecialchars($dtu->format('M d \a\t g:i A') . ' ' . $dtu->format('T')); endif; ?></small>
+                                </div>
                                 <div class="mb-2">
                                     <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
                                         <?php echo htmlspecialchars($item['subcategory']); ?>
@@ -236,7 +242,7 @@ ob_start();
                                     </span>
                                 </div>
                                 <div class="mt-3">
-                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>">
+                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-created-at="<?php echo htmlspecialchars($item['created_at']); ?>" data-updated-at="<?php echo htmlspecialchars($item['updated_at']); ?>">
                                         <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
                                         <span>Details</span>
                                     </button>

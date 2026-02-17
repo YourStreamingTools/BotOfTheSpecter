@@ -137,6 +137,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 <div style="overflow-y: auto; padding-right: 1rem; display: flex; flex-direction: column; gap: 1.5rem;">
                     <div>
                         <h4 class="title is-6">Description</h4>
+                        <p id="detailsMeta" class="is-size-7 has-text-grey" style="margin-bottom:0.5rem;"></p>
                         <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
                     </div>
                     <div>
@@ -754,13 +755,23 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     const title = this.dataset.title;
                     const encoded = this.dataset.description || '';
                     const description = encoded ? atob(encoded) : '';
+                    const createdAt = this.dataset.createdAt || '';
+                    const updatedAt = this.dataset.updatedAt || '';
                     currentItemId = this.getAttribute('data-item-id');
                     document.getElementById('detailsTitle').textContent = title;
-                    // Parse markdown and linkify the description
+                    // Parse markdown and sanitize the description
                     const dirtyHtml = marked.parse(description || '');
                     const cleanHtml = (window.DOMPurify) ? DOMPurify.sanitize(dirtyHtml) : dirtyHtml;
                     const detailsContent = document.getElementById('detailsContent');
                     detailsContent.innerHTML = cleanHtml;
+                    // Show created/updated metadata
+                    const detailsMeta = document.getElementById('detailsMeta');
+                    if (detailsMeta) {
+                        let metaText = '';
+                        if (createdAt) metaText = 'Created ' + formatDateSydney(createdAt);
+                        if (updatedAt && updatedAt !== createdAt) metaText += ' • Updated ' + formatDateSydney(updatedAt);
+                        detailsMeta.textContent = metaText;
+                    }
                     // Highlight code blocks
                     detailsContent.querySelectorAll('pre code').forEach(block => {
                         hljs.highlightElement(block);
