@@ -11627,11 +11627,30 @@ async def handle_ad_break_start(duration_seconds):
                 json.dump([], f)
     except Exception as e:
         event_logger.error(f"Error clearing ad break chat history file (pre-clear): {e}")
-    # 2. AI Logic
+    # 2. Send immediate plain-text start notice, then optionally follow with AI message
     enable_ai = settings.get('enable_ai_ad_breaks', 0)
     premium_tier = await check_premium_feature(CHANNEL_NAME)
+    ai_enabled_for_start = bool(enable_ai and premium_tier >= 2000)
     ai_message_sent = False
-    if enable_ai and premium_tier >= 2000:
+    start_notice_sent = False
+    if settings.get('enable_start_ad_message', True):
+        ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
+        try:
+            if can_send_ad_message():
+                sent_ok = await send_chat_message(ad_start_message)
+                if sent_ok:
+                    start_notice_sent = True
+                    # If AI is disabled, treat this as the final ad message and start dedupe cooldown
+                    if not ai_enabled_for_start:
+                        try_mark_ad_message_sent_after(True)
+                else:
+                    api_logger.error(f"Ad start message failed to send: {ad_start_message}")
+            else:
+                api_logger.info("Skipped ad start immediate message due to cooldown")
+        except Exception as e:
+            api_logger.error(f"Exception while sending immediate ad start message: {e}")
+    # 3. AI Logic (optional follow-up)
+    if ai_enabled_for_start:
         try:
             # Check Ad Manager Status (to detect automated start-of-stream ads)
             uses_ad_manager = False
@@ -11726,9 +11745,9 @@ async def handle_ad_break_start(duration_seconds):
                     if "Chaos Crew" in ai_text:
                         ai_text = ai_text.replace("Chaos Crew", "Stream Team")
                         api_logger.info("Filtered 'Chaos Crew' from AI response")
-                    # Dedupe: ensure this process hasn't sent an ad message recently
+                    # Allow AI follow-up when this same ad event already sent the immediate start notice
                     try:
-                        if can_send_ad_message():
+                        if start_notice_sent or can_send_ad_message():
                             sent_ok = await send_chat_message(f"/me {ai_text}")
                             if sent_ok:
                                 try_mark_ad_message_sent_after(True)
@@ -11744,8 +11763,8 @@ async def handle_ad_break_start(duration_seconds):
                 api_logger.error(f"Error calling chat completion API for ad break: {e}")
         except Exception as e:
             event_logger.error(f"Error in AI Ad Break logic in handle_ad_break_start: {e}")
-    # 3. Standard Notice (Fallback or if AI disabled)
-    if not ai_message_sent:
+    # 4. Fallback notice if neither immediate nor AI message was sent
+    if not ai_message_sent and not start_notice_sent:
         if settings['enable_ad_notice'] and settings.get('enable_start_ad_message', True):
             ad_start_message = settings['ad_start_message'].replace("(duration)", formatted_duration)
             try:
@@ -11765,6 +11784,24 @@ async def handle_ad_break_start(duration_seconds):
         ai_message_sent = False
         enable_ai = settings.get('enable_ai_ad_breaks', 0)
         premium_tier = await check_premium_feature(CHANNEL_NAME)
+        ai_enabled_for_end = bool(enable_ai and premium_tier >= 2000)
+        end_notice_sent = False
+        # Send immediate plain-text ad-end message first, then optionally AI follow-up
+        if settings.get('enable_end_ad_message', True):
+            try:
+                if can_send_ad_message():
+                    sent_ok = await send_chat_message(settings['ad_end_message'])
+                    if sent_ok:
+                        end_notice_sent = True
+                        # If AI is disabled, this is the final message and should begin dedupe cooldown
+                        if not ai_enabled_for_end:
+                            try_mark_ad_message_sent_after(True)
+                    else:
+                        api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+                else:
+                    api_logger.info("Skipped ad end immediate message due to cooldown")
+            except Exception as e:
+                api_logger.error(f"Exception while sending immediate ad end message: {e}")
         # Pre-read and clear ad-break chat history so old messages don't persist when AI is disabled/permission missing
         chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
         chat_history = []
@@ -11788,7 +11825,7 @@ async def handle_ad_break_start(duration_seconds):
                 event_logger.error(f"Error clearing ad break chat history file (pre-clear ad end): {e}")
         except Exception as e:
             event_logger.debug(f"No ad break chat file to pre-clear: {e}")
-        if enable_ai and premium_tier >= 2000:
+        if ai_enabled_for_end:
             try:
                 system_prompt = (
                     "You are the witty and entertaining assistant for a Twitch stream. "
@@ -11862,9 +11899,9 @@ async def handle_ad_break_start(duration_seconds):
                         ai_text = ai_text.strip()
                         if "Chaos Crew" in ai_text:
                             ai_text = ai_text.replace("Chaos Crew", "Stream Team")
-                        # Dedupe check
+                        # Allow AI follow-up for this same ad-end event after immediate plain-text message
                         try:
-                            if can_send_ad_message():
+                            if end_notice_sent or can_send_ad_message():
                                 sent_ok = await send_chat_message(f"/me {ai_text}")
                                 if sent_ok:
                                     try_mark_ad_message_sent_after(True)
@@ -11880,22 +11917,19 @@ async def handle_ad_break_start(duration_seconds):
                     api_logger.error(f"Error calling chat completion API for ad break end: {e}")
             except Exception as e:
                 api_logger.error(f"Error in AI Ad Break End logic: {e}")
-        try:
-            # Check individual setting for end message (Standard/Fallback)
-            if not ai_message_sent and settings.get('enable_end_ad_message', True):
-                try:
-                    if can_send_ad_message():
-                        sent_ok = await send_chat_message(settings['ad_end_message'])
-                        if sent_ok:
-                            try_mark_ad_message_sent_after(True)
-                        else:
-                            api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+        # Fallback for cases where immediate send failed/skipped and AI message was not sent
+        if not ai_message_sent and not end_notice_sent and settings.get('enable_end_ad_message', True):
+            try:
+                if can_send_ad_message():
+                    sent_ok = await send_chat_message(settings['ad_end_message'])
+                    if sent_ok:
+                        try_mark_ad_message_sent_after(True)
                     else:
-                        api_logger.info("Skipped ad end fallback due to cooldown")
-                except Exception as e:
-                    api_logger.error(f"Exception while sending ad end message: {e}")
-        except Exception as e:
-            api_logger.error(f"Exception while sending ad end message: {e}")
+                        api_logger.error(f"Ad end message failed to send (fallback): {settings.get('ad_end_message')}")
+                else:
+                    api_logger.info("Skipped ad end fallback due to cooldown")
+            except Exception as e:
+                api_logger.error(f"Exception while sending ad end fallback message: {e}")
         # Check for the next ad after this one completes
         try:
             global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
