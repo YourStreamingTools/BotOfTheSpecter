@@ -2100,18 +2100,29 @@ async def system_uptime(request: Request):
 @app.get(
     "/chat-instructions",
     summary="Get AI chat instructions",
-    description="Return the AI system instructions used by the Twitch chat bot (?discord flag switches to the Discord-specific instructions file if present)",
+    description="Return AI system instructions used by the bot. Use ?discord=true for Discord chat instructions or ?ad_messages=true for ad-break AI instructions.",
     tags=["Public"],
     operation_id="get_chat_instructions"
 )
-async def chat_instructions(request: Request, discord: bool = Query(False, description="Return Discord-specific AI instructions if available")):
+async def chat_instructions(
+    request: Request,
+    discord: bool = Query(False, description="Return Discord-specific AI instructions if available"),
+    ad_messages: bool = Query(False, description="Return ad-break AI instructions if available")
+):
     # Prefer Discord-specific instructions when the query flag is set
     use_discord = discord
+    use_ad_messages = ad_messages
     # Decide which file to load
     base_dir = "/home/botofthespecter"
     discord_path = os.path.join(base_dir, "ai.discord.json")
+    ad_messages_path = os.path.join(base_dir, "ai.ad_messages.json")
     default_path = os.path.join(base_dir, "ai.json")
-    path = discord_path if use_discord and os.path.exists(discord_path) else default_path
+    if use_ad_messages and os.path.exists(ad_messages_path):
+        path = ad_messages_path
+    elif use_discord and os.path.exists(discord_path):
+        path = discord_path
+    else:
+        path = default_path
     try:
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
