@@ -5,12 +5,21 @@ $primary_db_name = 'website';
 $conn = new mysqli($db_servername, $db_username, $db_password, $primary_db_name);
 $api_key = $_GET['code'] ?? '';
 
+if ($conn->connect_error) {
+    http_response_code(500);
+    exit;
+}
+
+$username = '';
 $stmt = $conn->prepare("SELECT username FROM users WHERE api_key = ?");
-$stmt->bind_param("s", $api_key);
-$stmt->execute();
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
-$username = $user['username'] ?? '';
+if ($stmt) {
+    $stmt->bind_param("s", $api_key);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $user = $result ? $result->fetch_assoc() : null;
+    $username = $user['username'] ?? '';
+    $stmt->close();
+}
 
 // System music directory
 function getSystemMusicFiles() {
@@ -18,7 +27,7 @@ function getSystemMusicFiles() {
     $files = [];
     if (is_dir($musicDir)) {
         foreach (scandir($musicDir) as $file) {
-            if (is_file("$musicDir/$file") && str_ends_with($file, '.mp3')) {
+            if (is_file("$musicDir/$file") && str_ends_with(strtolower($file), '.mp3')) {
                 $files[] = $file;
             }
         }
@@ -33,7 +42,7 @@ function getUserMusicFiles($username) {
     $musicDir = '/var/www/usermusic/' . $username;
     if (is_dir($musicDir)) {
         foreach (scandir($musicDir) as $file) {
-            if (is_file("$musicDir/$file") && str_ends_with($file, '.mp3')) {
+            if (is_file("$musicDir/$file") && str_ends_with(strtolower($file), '.mp3')) {
                 $files[] = $file;
             }
         }
@@ -89,6 +98,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         let playedHistory = new Set();
         const audioPlayer = document.getElementById('audio-player');
         const nowPlayingDiv = document.getElementById('now-playing');
+        let reconnectTimer = null;
         const urlParams = new URLSearchParams(window.location.search);
         const showNowPlaying = urlParams.has('nowplaying');
         const color = urlParams.get('color') || 'white';
@@ -112,7 +122,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             }
             nowPlayingDiv.style.color = processedColor;
             let textShadow = '2px 2px 4px rgba(0,0,0,0.8)';
-            if (processedColor.toLowerCase() === 'black' || processedColor === '#000000' || processedColor === '#000000') {
+            if (processedColor.toLowerCase() === 'black' || processedColor === '#000' || processedColor === '#000000') {
                 textShadow = '2px 2px 4px rgba(255,255,255,0.8)';
             }
             nowPlayingDiv.style.textShadow = textShadow;
@@ -122,11 +132,25 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         } else {
             nowPlayingDiv.style.display = 'none';
         }
+        function setAudioVolume(newVolume) {
+            const parsed = Number(newVolume);
+            if (Number.isFinite(parsed)) {
+                volume = Math.max(0, Math.min(100, parsed));
+            }
+            audioPlayer.volume = volume / 100;
+        }
+        function scheduleReconnect() {
+            if (reconnectTimer !== null) return;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectWebSocket();
+            }, 5000);
+        }
         function playSong(url, songData = null) {
             if (!url) return;
             currentSong = url;
             audioPlayer.src = url;
-            audioPlayer.volume = (volume / 100) * 0.1;
+            setAudioVolume(volume);
             audioPlayer.play().then(() => {
                 if (songData && songData.file) {
                     currentSongData = {
@@ -158,7 +182,11 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         }
         function playSongByIndex(idx) {
             if (!playlist.length) return;
-            currentIndex = idx;
+            const parsedIndex = Number(idx);
+            if (!Number.isInteger(parsedIndex) || parsedIndex < 0 || parsedIndex >= playlist.length) {
+                return;
+            }
+            currentIndex = parsedIndex;
             const song = playlist[currentIndex];
             const url = song.url ? song.url : `https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`;
             playSong(url, song);
@@ -245,6 +273,10 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 console.log('Event:', event, ...args);
             });
             socket.on('connect', () => {
+                if (reconnectTimer !== null) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
                 const urlParams = new URLSearchParams(window.location.search);
                 const code = urlParams.get('code');
                 if (!code) return;
@@ -252,18 +284,17 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 tryAutoStartFirstSong();
             });
             socket.on('disconnect', () => {
-                setTimeout(connectWebSocket, 5000);
+                scheduleReconnect();
             });
             socket.on('connect_error', () => {
-                setTimeout(connectWebSocket, 5000);
+                scheduleReconnect();
             });
             socket.on('SUCCESS', () => {
                 socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
             });
             socket.on('MUSIC_SETTINGS', (settings) => {
                 if (typeof settings.volume !== 'undefined') {
-                    volume = settings.volume;
-                    audioPlayer.volume = (volume / 100) * 0.1;
+                    setAudioVolume(settings.volume);
                 }
                 if (typeof settings.repeat !== 'undefined') {
                     repeat = !!settings.repeat;
@@ -299,16 +330,18 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                     case 'pause': audioPlayer.pause(); break;
                     case 'next': playNextSong(); break;
                     case 'prev':
+                        if (!playlist.length) break;
                         currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
                         playSongByIndex(currentIndex);
                         break;
                     case 'play_index':
-                        if (typeof data.index !== 'undefined') playSongByIndex(data.index);
+                        if (typeof data.index !== 'undefined') {
+                            playSongByIndex(Number(data.index));
+                        }
                         break;
                     case 'MUSIC_SETTINGS':
                         if (typeof data.volume !== 'undefined') {
-                            volume = data.volume;
-                            audioPlayer.volume = (volume / 100) * 0.1;
+                            setAudioVolume(data.volume);
                         }
                         if (typeof data.repeat !== 'undefined') repeat = !!data.repeat;
                         if (typeof data.shuffle !== 'undefined') shuffle = !!data.shuffle;
