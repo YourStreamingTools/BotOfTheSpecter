@@ -93,11 +93,17 @@ OPENAI_API_KEY = os.getenv('OPENAI_KEY')
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 _cached_instructions = None
 _cached_instructions_time = 0
+_cached_ad_instructions = None
+_cached_ad_instructions_time = 0
+_cached_home_instructions = None
+_cached_home_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
+BOT_HOME_CHANNEL_NAME = 'botofthespecter'
+BOT_HOME_AI_HISTORY_DIR = '/home/botofthespecter/ai/bot-channel-chat-history'
 AD_BREAK_CHAT_DIR = '/home/botofthespecter/ai/ad_break_chat'
 # Max allowed characters per chat message; reserve room for possible prefixes like @username
-MAX_CHAT_MESSAGE_LENGTH = 240
+MAX_CHAT_MESSAGE_LENGTH = 500
 SSH_USERNAME = os.getenv('SSH_USERNAME')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 SSH_HOSTS = {
@@ -2560,7 +2566,9 @@ class TwitchBot(commands.Bot):
                 else:
                     chat_logger.info(f"Custom command '{command}' not found.")
             # Handle AI responses
-            if f'@{self.nick.lower()}' in str(message.content).lower():
+            if self._is_bot_home_channel():
+                await self.handle_bot_home_channel_ai(message, AuthorMessage, messageContent, messageAuthorID, messageAuthor)
+            elif f'@{self.nick.lower()}' in str(message.content).lower():
                 # Ignore messages from the bot itself to prevent self-responses
                 if message.author.name.lower() == self.nick.lower():
                     chat_logger.info(f"Ignoring AI mention from bot itself")
@@ -2887,10 +2895,46 @@ class TwitchBot(commands.Bot):
             bot_logger.error(f"Command '{command_name}' not found.")
             await send_chat_message(f"Command '{command_name}' not found.")
 
+    def _is_bot_home_channel(self):
+        return str(CHANNEL_NAME).lower() == BOT_HOME_CHANNEL_NAME
+
+    def _should_trigger_bot_home_ai(self, normalized_message):
+        if not normalized_message:
+            return False
+        if normalized_message.startswith('!'):
+            return False
+        return True
+
+    def _extract_bot_home_user_message(self, original_message):
+        cleaned = original_message or ""
+        cleaned = re.sub(rf"@{re.escape(BOT_HOME_CHANNEL_NAME)}\b", "", cleaned, flags=re.IGNORECASE)
+        if getattr(self, 'nick', None):
+            cleaned = re.sub(rf"@{re.escape(self.nick)}\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
+
+    async def handle_bot_home_channel_ai(self, message, original_message, normalized_message, user_id, author_name):
+        if not self._should_trigger_bot_home_ai(normalized_message):
+            return
+        if not author_name:
+            return
+        if author_name.lower() in {BOT_HOME_CHANNEL_NAME, self.nick.lower() if self.nick else ""}:
+            return
+        user_message = self._extract_bot_home_user_message(original_message)
+        if not user_message:
+            user_message = "Say a friendly hello and ask what they feel like chatting about."
+        ai_response = await self.get_bot_home_ai_response(user_message, user_id, author_name)
+        if not ai_response:
+            return
+        await self.send_ai_response(ai_response, author_name)
+
     async def handle_ai_response(self, user_message, user_id, message_author_name):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
         if not ai_response:
             return
+        await self.send_ai_response(ai_response, message_author_name)
+
+    async def send_ai_response(self, ai_response, message_author_name):
         # Normalize duplicate mentions that may be produced by the AI itself
         try:
             name = message_author_name or ''
@@ -3019,6 +3063,96 @@ class TwitchBot(commands.Bot):
                 except Exception:
                     part_to_send = part_to_send[:255]
                 await send_chat_message(part_to_send)
+
+    async def get_bot_home_ai_response(self, user_message, user_id, message_author_name):
+        try:
+            Path(BOT_HOME_AI_HISTORY_DIR).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            api_logger.debug(f"Could not create bot-home history directory {BOT_HOME_AI_HISTORY_DIR}: {e}")
+        messages = await get_remote_instruction_messages(home_ai=True)
+        try:
+            user_context = (
+                f"You are speaking to Twitch user '{message_author_name}' (id: {user_id}). "
+                f"Address them naturally and include @{message_author_name} when it helps clarity."
+            )
+            messages.append({'role': 'system', 'content': user_context})
+            messages.append({
+                'role': 'system',
+                'content': (
+                    f"Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total. "
+                    "One compact Twitch-ready message is preferred."
+                )
+            })
+        except Exception as e:
+            api_logger.error(f"Failed to build bot-home user context for AI: {e}")
+        history_key = str(user_id or message_author_name or 'unknown').strip().lower()
+        history_key = re.sub(r'[^a-z0-9_\-]', '_', history_key)
+        history_file = Path(BOT_HOME_AI_HISTORY_DIR) / f"{history_key}.json"
+        try:
+            history = []
+            if history_file.exists():
+                try:
+                    with history_file.open('r', encoding='utf-8') as hf:
+                        history = json.load(hf)
+                except Exception as e:
+                    api_logger.debug(f"Failed to read bot-home history for {history_key}: {e}")
+            if isinstance(history, list) and history:
+                for item in history[-12:]:
+                    if isinstance(item, dict) and 'role' in item and 'content' in item:
+                        messages.append({'role': item['role'], 'content': item['content']})
+        except Exception as e:
+            api_logger.debug(f"Error loading bot-home history for {history_key}: {e}")
+        messages.append({'role': 'user', 'content': user_message})
+        try:
+            api_logger.debug("Calling OpenAI chat completion from get_bot_home_ai_response")
+            chat_client = getattr(openai_client, 'chat', None)
+            ai_text = None
+            if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
+                resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
+                if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                    choice = resp['choices'][0]
+                    if 'message' in choice and 'content' in choice['message']:
+                        ai_text = choice['message']['content']
+                    elif 'text' in choice:
+                        ai_text = choice['text']
+                else:
+                    choices = getattr(resp, 'choices', None)
+                    if choices and len(choices) > 0:
+                        ai_text = getattr(choices[0].message, 'content', None)
+            elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
+                resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
+                if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
+                    ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
+                else:
+                    choices = getattr(resp, 'choices', None)
+                    if choices and len(choices) > 0:
+                        ai_text = getattr(choices[0].message, 'content', None)
+            else:
+                api_logger.error("No compatible chat completions method found on openai_client")
+                return "AI chat completions API is not available."
+        except Exception as e:
+            api_logger.error(f"Error calling chat completion API for bot-home mode: {e}")
+            return "An error occurred while contacting the AI chat service."
+        if not ai_text:
+            api_logger.error(f"Bot-home chat completion returned no usable text: {resp}")
+            return "The AI chat service returned an unexpected response."
+        try:
+            history = []
+            if history_file.exists():
+                try:
+                    with history_file.open('r', encoding='utf-8') as hf:
+                        history = json.load(hf)
+                except Exception as e:
+                    api_logger.debug(f"Failed to read existing bot-home history for append {history_key}: {e}")
+            history.append({'role': 'user', 'content': user_message})
+            history.append({'role': 'assistant', 'content': ai_text})
+            if len(history) > 200:
+                history = history[-200:]
+            with history_file.open('w', encoding='utf-8') as hf:
+                json.dump(history, hf, ensure_ascii=False, indent=2)
+        except Exception as e:
+            api_logger.debug(f"Error while persisting bot-home chat history for {history_key}: {e}")
+        return ai_text
 
     async def get_ai_response(self, user_message, user_id, message_author_name):
         global INSTRUCTIONS_CACHE_TTL, OPENAI_INSTRUCTIONS_ENDPOINT, bot_owner
@@ -11587,6 +11721,67 @@ def can_send_ad_message():
     except Exception:
         return True
 
+async def get_remote_instruction_messages(discord=False, ad_messages=False, home_ai=False):
+    global OPENAI_INSTRUCTIONS_ENDPOINT, INSTRUCTIONS_CACHE_TTL
+    global _cached_instructions, _cached_instructions_time
+    global _cached_ad_instructions, _cached_ad_instructions_time
+    global _cached_home_instructions, _cached_home_instructions_time
+    try:
+        now = time.time()
+        if ad_messages:
+            if _cached_ad_instructions and (now - _cached_ad_instructions_time) < INSTRUCTIONS_CACHE_TTL:
+                return list(_cached_ad_instructions)
+        elif home_ai:
+            if _cached_home_instructions and (now - _cached_home_instructions_time) < INSTRUCTIONS_CACHE_TTL:
+                return list(_cached_home_instructions)
+        else:
+            if _cached_instructions and (now - _cached_instructions_time) < INSTRUCTIONS_CACHE_TTL:
+                parsed = []
+                if isinstance(_cached_instructions, list):
+                    parsed.extend(_cached_instructions)
+                elif isinstance(_cached_instructions, dict):
+                    if 'system' in _cached_instructions and isinstance(_cached_instructions['system'], str):
+                        parsed.append({'role': 'system', 'content': _cached_instructions['system']})
+                    elif 'messages' in _cached_instructions and isinstance(_cached_instructions['messages'], list):
+                        parsed.extend(_cached_instructions['messages'])
+                return parsed
+        params = []
+        if discord:
+            params.append(("discord", "true"))
+        if ad_messages:
+            params.append(("ad_messages", "true"))
+        if home_ai:
+            params.append(("home_ai", "true"))
+        query = urlencode(params)
+        url = f"{OPENAI_INSTRUCTIONS_ENDPOINT}?{query}" if query else OPENAI_INSTRUCTIONS_ENDPOINT
+        async with httpClientSession() as session:
+            async with session.get(url, timeout=10) as resp:
+                if resp.status != 200:
+                    api_logger.error(f"Failed to fetch instructions from {url}: HTTP {resp.status}")
+                    return []
+                payload = await resp.json()
+        parsed_messages = []
+        if isinstance(payload, list):
+            parsed_messages.extend(payload)
+        elif isinstance(payload, dict):
+            if 'system' in payload and isinstance(payload['system'], str):
+                parsed_messages.append({'role': 'system', 'content': payload['system']})
+            elif 'messages' in payload and isinstance(payload['messages'], list):
+                parsed_messages.extend(payload['messages'])
+        if ad_messages:
+            _cached_ad_instructions = parsed_messages
+            _cached_ad_instructions_time = now
+        elif home_ai:
+            _cached_home_instructions = parsed_messages
+            _cached_home_instructions_time = now
+        else:
+            _cached_instructions = payload
+            _cached_instructions_time = now
+        return parsed_messages
+    except Exception as e:
+        api_logger.error(f"Error fetching remote instruction messages: {e}")
+        return []
+
 async def handle_ad_break_start(duration_seconds):
     settings = await get_ad_settings()
     # Honor global ad-notice toggle — if disabled, do nothing (same behavior as main bot)
@@ -11708,10 +11903,10 @@ async def handle_ad_break_start(duration_seconds):
                     user_content += f"Detected topics: {', '.join(vibe.get('topics'))}."
             except Exception as e:
                 event_logger.debug(f"Could not analyze chat vibe for ad start: {e}")
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ]
+            messages = await get_remote_instruction_messages(ad_messages=True)
+            if not messages:
+                raise RuntimeError("Ad AI instructions unavailable from API endpoint")
+            messages.append({"role": "user", "content": user_content})
             try:
                 api_logger.debug("Calling OpenAI chat completion for AI ad break")
                 chat_client = getattr(openai_client, 'chat', None)
@@ -11874,10 +12069,10 @@ async def handle_ad_break_start(duration_seconds):
                     user_content += "\nInstruction: Prefer referencing detected topics/tone. Do not invent activities not present in the recent chat or stream title."
                 except Exception as e:
                     event_logger.debug(f"Could not analyze chat vibe for ad end: {e}")
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ]
+                messages = await get_remote_instruction_messages(ad_messages=True)
+                if not messages:
+                    raise RuntimeError("Ad AI instructions unavailable from API endpoint")
+                messages.append({"role": "user", "content": user_content})
                 try:
                     chat_client = getattr(openai_client, 'chat', None)
                     ai_text = None
