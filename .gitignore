@@ -97,6 +97,7 @@ bot/export_user_data.log
 /yourchat/user-settings
 /yourchat/chat-logs
 /cdn/css
+/bot/ai
 # Other GitHub repositories within the main repository folder structure to be ignored
 /newdashboard
 /StreamersConnect
