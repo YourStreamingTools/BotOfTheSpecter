@@ -98,6 +98,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         let playedHistory = new Set();
         const audioPlayer = document.getElementById('audio-player');
         const nowPlayingDiv = document.getElementById('now-playing');
+        const VOLUME_SCALE = 0.1;
         let reconnectTimer = null;
         const urlParams = new URLSearchParams(window.location.search);
         const showNowPlaying = urlParams.has('nowplaying');
@@ -137,7 +138,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             if (Number.isFinite(parsed)) {
                 volume = Math.max(0, Math.min(100, parsed));
             }
-            audioPlayer.volume = volume / 100;
+            audioPlayer.volume = (volume / 100) * VOLUME_SCALE;
         }
         function scheduleReconnect() {
             if (reconnectTimer !== null) return;
