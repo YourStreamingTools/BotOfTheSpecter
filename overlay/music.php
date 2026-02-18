@@ -92,13 +92,20 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         const urlParams = new URLSearchParams(window.location.search);
         const showNowPlaying = urlParams.has('nowplaying');
         const color = urlParams.get('color') || 'white';
-
         if (showNowPlaying) {
             nowPlayingDiv.style.display = 'block';
             nowPlayingDiv.style.position = 'absolute';
             nowPlayingDiv.style.zIndex = '10000';
             nowPlayingDiv.style.fontSize = '24px';
             nowPlayingDiv.style.fontWeight = 'bold';
+            nowPlayingDiv.style.maxWidth = '90vw';
+            nowPlayingDiv.style.padding = '0 16px';
+            nowPlayingDiv.style.boxSizing = 'border-box';
+            nowPlayingDiv.style.whiteSpace = 'normal';
+            nowPlayingDiv.style.overflowWrap = 'anywhere';
+            nowPlayingDiv.style.wordBreak = 'break-word';
+            nowPlayingDiv.style.textAlign = 'center';
+            nowPlayingDiv.style.lineHeight = '1.2';
             let processedColor = color;
             if (!color.startsWith('#') && /^[0-9a-fA-F]{3,6}$/.test(color)) {
                 processedColor = '#' + color;
@@ -115,7 +122,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         } else {
             nowPlayingDiv.style.display = 'none';
         }
-
         function playSong(url, songData = null) {
             if (!url) return;
             currentSong = url;
@@ -143,7 +149,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 }
             }).catch(() => {});
         }
-
         function stopSong() {
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
@@ -151,7 +156,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 nowPlayingDiv.innerText = '';
             }
         }
-
         function playSongByIndex(idx) {
             if (!playlist.length) return;
             currentIndex = idx;
@@ -159,7 +163,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             const url = song.url ? song.url : `https://cdn.botofthespecter.com/music/${encodeURIComponent(song.file)}`;
             playSong(url, song);
         }
-
         function playNextSong() {
             // Use the active playlist (system or user). overlays will play user uploads when music_source === 'user'.
             if (repeat) {
@@ -167,7 +170,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 audioPlayer.play();
                 return;
             }
-
             if (shuffle && playlist.length > 1) {
                 let unplayed = playlist.filter(song => !playedHistory.has(song.file));
                 if (unplayed.length === 0) {
@@ -182,7 +184,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 playSongByIndex(currentIndex);
             }
         }
-
         function updateActivePlaylist() {
             if (musicSource === 'user' && userPlaylist && userPlaylist.length > 0) {
                 playlist = userPlaylist;
@@ -201,7 +202,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 console.log('[Overlay] no tracks available for current music source; waiting for NOW_PLAYING events');
             }
         }
-
         // Try to auto-start, but fallback to user gesture if autoplay fails
         function tryAutoStartFirstSong() {
             audioPlayer.muted = false;
@@ -210,7 +210,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 waitForUserGestureThenAutoplay();
             });
         }
-
         // Prompt the user for interaction before unmuting and starting playback
         function waitForUserGestureThenAutoplay() {
             const overlay = document.createElement('div');
@@ -228,7 +227,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             overlay.style.zIndex = '9999';
             overlay.innerHTML = `<h2 style="font-size:2em;margin-bottom:1em;">Click anywhere to start music playback</h2>`;
             document.body.appendChild(overlay);
-
             const handler = () => {
                 audioPlayer.muted = false;
                 autoStartFirstSong();
@@ -237,19 +235,15 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
             };
             document.body.addEventListener('click', handler, { once: true });
         }
-
         audioPlayer.addEventListener('ended', function() {
             playNextSong();
         });
-
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
-
             // Log all events and their data to the browser console
             socket.onAny((event, ...args) => {
                 console.log('Event:', event, ...args);
             });
-
             socket.on('connect', () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 const code = urlParams.get('code');
@@ -257,19 +251,15 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'DMCA' });
                 tryAutoStartFirstSong();
             });
-
             socket.on('disconnect', () => {
                 setTimeout(connectWebSocket, 5000);
             });
-
             socket.on('connect_error', () => {
                 setTimeout(connectWebSocket, 5000);
             });
-
             socket.on('SUCCESS', () => {
                 socket.emit('MUSIC_COMMAND', { command: 'MUSIC_SETTINGS' });
             });
-
             socket.on('MUSIC_SETTINGS', (settings) => {
                 if (typeof settings.volume !== 'undefined') {
                     volume = settings.volume;
@@ -287,7 +277,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                     updateActivePlaylist();
                 }
             });
-
             socket.on('NOW_PLAYING', (data) => {
                 if (data?.song?.url) {
                     // Server provided a direct URL (recommended for private/user uploads)
@@ -303,7 +292,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                     }
                 }
             });
-
             socket.on('MUSIC_COMMAND', (data) => {
                 if (!data || !data.command) return;
                 switch (data.command) {
@@ -327,7 +315,6 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                         break;
                 }
             });
-
             socket.on('PLAY', () => audioPlayer.play());
             socket.on('PAUSE', () => audioPlayer.pause());
             socket.on('WHAT_IS_PLAYING', () => {
@@ -337,11 +324,9 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 });
             });
         }
-
         document.body.addEventListener('click', () => {
             audioPlayer.play().catch(() => {});
         }, { once: true });
-
         connectWebSocket();
     </script>
 </body>
