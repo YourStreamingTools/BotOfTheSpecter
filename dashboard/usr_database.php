@@ -470,6 +470,9 @@ try {
                 exclude_mods TINYINT(1) DEFAULT 0,
                 subscribers_only TINYINT(1) DEFAULT 0,
                 followers_only TINYINT(1) DEFAULT 0,
+                followers_min_enabled TINYINT(1) DEFAULT 0,
+                followers_min_value INT DEFAULT 0,
+                followers_min_unit VARCHAR(10) DEFAULT 'days',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'raffle_entries' => "

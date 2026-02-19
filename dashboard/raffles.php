@@ -33,11 +33,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $exclude_mods = isset($_POST['exclude_mods']) ? 1 : 0;
         $subscribers_only = isset($_POST['subscribers_only']) ? 1 : 0;
         $followers_only = isset($_POST['followers_only']) ? 1 : 0;
+        $followers_min_enabled = isset($_POST['followers_min_enabled']) ? 1 : 0;
+        $followers_min_value = max(0, intval($_POST['followers_min_value'] ?? 0));
+        $followers_min_unit = $_POST['followers_min_unit'] ?? 'days';
+        $valid_follow_units = ['days', 'weeks', 'months', 'years'];
+        if (!in_array($followers_min_unit, $valid_follow_units, true)) {
+            $followers_min_unit = 'days';
+        }
+        if (!$followers_only) {
+            $followers_min_enabled = 0;
+            $followers_min_value = 0;
+            $followers_min_unit = 'days';
+        }
+        if (!$followers_min_enabled) {
+            $followers_min_value = 0;
+            $followers_min_unit = 'days';
+        }
         if ($name === '' || $number_of_winners <= 0) {
             $message = 'Invalid name or number of winners.';
         } else {
-            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only) VALUES (?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param('ssiiddddiii', $name, $prize, $number_of_winners, $weighted, $weight_sub_t1, $weight_sub_t2, $weight_sub_t3, $weight_vip, $exclude_mods, $subscribers_only, $followers_only);
+            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit) VALUES (?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param('ssiiddddiiiiis', $name, $prize, $number_of_winners, $weighted, $weight_sub_t1, $weight_sub_t2, $weight_sub_t3, $weight_vip, $exclude_mods, $subscribers_only, $followers_only, $followers_min_enabled, $followers_min_value, $followers_min_unit);
             if ($stmt->execute()) {
                 $message = "Raffle '$name' created and scheduled.";
             } else {
@@ -165,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Fetch raffles list with winners
 $raffles = [];
-$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only FROM raffles ORDER BY created_at DESC LIMIT 50");
+$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit FROM raffles ORDER BY created_at DESC LIMIT 50");
 if ($res) {
     while ($row = $res->fetch_assoc()) {
         // Fetch winners for this raffle
@@ -247,11 +263,11 @@ ob_start();
                                 </div>
                             </div>
                         </div>
-                        <div class="field">
-                            <label class="checkbox">
-                                <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
-                            </label>
-                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="checkbox">
+                            <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
+                        </label>
                     </div>
                     <div class="field">
                         <label class="checkbox">
@@ -260,14 +276,62 @@ ob_start();
                     </div>
                     <div class="field">
                         <label class="checkbox">
-                            <input type="checkbox" name="followers_only"> Only Followers Can Enter
+                            <input type="checkbox" name="followers_only" id="followers-only-checkbox" onchange="toggleFollowerMinimumSettings()"> Only Followers Can Enter
                         </label>
+                    </div>
+                    <div id="follower-minimum-settings" style="display: none; border-left: 3px solid #23d160; padding-left: 1rem; margin-left: 1rem;">
+                        <div class="field">
+                            <label class="checkbox">
+                                <input type="checkbox" name="followers_min_enabled" id="followers-min-enabled-checkbox" onchange="toggleFollowerMinimumInputs()"> Require Minimum Follow Time
+                            </label>
+                        </div>
+                        <div id="follower-minimum-inputs" style="display: none;">
+                        <div class="field">
+                            <label class="label">Minimum Follow Time</label>
+                            <div class="columns">
+                                <div class="column is-one-third">
+                                    <div class="control">
+                                        <input class="input" type="number" name="followers_min_value" min="0" value="0">
+                                    </div>
+                                </div>
+                                <div class="column is-one-third">
+                                    <div class="control">
+                                        <div class="select is-fullwidth">
+                                            <select name="followers_min_unit">
+                                                <option value="days">Days</option>
+                                                <option value="weeks">Weeks</option>
+                                                <option value="months">Months</option>
+                                                <option value="years">Years</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
                     </div>
                     <script>
                         function toggleWeightSettings() {
                             const checkbox = document.getElementById('weighted-checkbox');
                             const settings = document.getElementById('weight-settings');
                             settings.style.display = checkbox.checked ? 'block' : 'none';
+                        }
+                        function toggleFollowerMinimumSettings() {
+                            const checkbox = document.getElementById('followers-only-checkbox');
+                            const settings = document.getElementById('follower-minimum-settings');
+                            settings.style.display = checkbox.checked ? 'block' : 'none';
+                            if (!checkbox.checked) {
+                                const minEnabled = document.getElementById('followers-min-enabled-checkbox');
+                                if (minEnabled) {
+                                    minEnabled.checked = false;
+                                }
+                                toggleFollowerMinimumInputs();
+                            }
+                        }
+                        function toggleFollowerMinimumInputs() {
+                            const checkbox = document.getElementById('followers-min-enabled-checkbox');
+                            const settings = document.getElementById('follower-minimum-inputs');
+                            settings.style.display = checkbox && checkbox.checked ? 'block' : 'none';
                         }
                     </script>
                     <div class="field" style="margin-top: 1.5rem;">
@@ -312,7 +376,13 @@ ob_start();
                                     $exclusions = [];
                                     if ($r['exclude_mods']) $exclusions[] = 'Mods excluded';
                                     if ($r['subscribers_only']) $exclusions[] = 'Subs only';
-                                    if ($r['followers_only']) $exclusions[] = 'Followers only';
+                                    if ($r['followers_only']) {
+                                        $followersLabel = 'Followers only';
+                                        if (intval($r['followers_min_enabled']) === 1 && intval($r['followers_min_value']) > 0) {
+                                            $followersLabel .= ' (' . intval($r['followers_min_value']) . ' ' . htmlspecialchars($r['followers_min_unit']) . ' min)';
+                                        }
+                                        $exclusions[] = $followersLabel;
+                                    }
                                     echo !empty($exclusions) ? implode(', ', $exclusions) : 'None';
                                     ?>
                                 </td>
