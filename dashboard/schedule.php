@@ -118,7 +118,11 @@ if (isset($_GET['ajax'])) {
             echo json_encode(['ok' => false, 'error' => 'Segment ID is required to cancel.']);
             exit();
         }
-        $urlCancel = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
+        $cancelQuery = [
+            'broadcaster_id' => $broadcasterId,
+            'id' => $segId
+        ];
+        $urlCancel = 'https://api.twitch.tv/helix/schedule/segment?' . http_build_query($cancelQuery);
         $chCancel = curl_init($urlCancel);
         curl_setopt($chCancel, CURLOPT_CUSTOMREQUEST, 'PATCH');
         curl_setopt($chCancel, CURLOPT_RETURNTRANSFER, true);
@@ -136,20 +140,65 @@ if (isset($_GET['ajax'])) {
         $codeCancel = curl_getinfo($chCancel, CURLINFO_HTTP_CODE);
         $errCancel = curl_error($chCancel);
         curl_close($chCancel);
+        $responseCanceledState = $cancelState;
+        if (is_string($respCancel) && $respCancel !== '') {
+            $respJson = json_decode($respCancel, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($respJson)) {
+                $respSeg = null;
+                if (isset($respJson['data']['segments'][0]) && is_array($respJson['data']['segments'][0])) {
+                    $respSeg = $respJson['data']['segments'][0];
+                } elseif (isset($respJson['data']['segment']) && is_array($respJson['data']['segment'])) {
+                    $respSeg = $respJson['data']['segment'];
+                } elseif (isset($respJson['data'][0]) && is_array($respJson['data'][0])) {
+                    $respSeg = $respJson['data'][0];
+                }
+                if (is_array($respSeg)) {
+                    if (array_key_exists('is_canceled', $respSeg)) {
+                        $responseCanceledState = !empty($respSeg['is_canceled']);
+                    } elseif (array_key_exists('canceled_until', $respSeg)) {
+                        $responseCanceledState = !empty($respSeg['canceled_until']);
+                    }
+                }
+            }
+        }
+        $respCancelSafe = '';
+        if (is_string($respCancel) && $respCancel !== '') {
+            $respCancelSafe = preg_replace('/("(access_token|refresh_token|authorization|client_secret|auth_code|code)"\s*:\s*")[^"]*(")/i', '$1[REDACTED]$3', $respCancel);
+            $respCancelSafe = preg_replace('/Bearer\s+[A-Za-z0-9\-._~+\/=]+/i', 'Bearer [REDACTED]', $respCancelSafe);
+            if (strlen($respCancelSafe) > 300) {
+                $respCancelSafe = substr($respCancelSafe, 0, 300) . '...';
+            }
+        }
+        $debugMeta = [
+            'request' => [
+                'method' => 'PATCH',
+                'endpoint' => '/helix/schedule/segment',
+                'segment_id' => $segId,
+                'body' => ['is_canceled' => $cancelState]
+            ],
+            'response' => [
+                'http_code' => $codeCancel,
+                'curl_error' => $errCancel,
+                'body_preview' => $respCancelSafe
+            ]
+        ];
         if ($codeCancel === 200) {
             echo json_encode([
                 'ok' => true,
                 'action' => 'cancel_segment',
                 'segment_id' => $segId,
-                'is_canceled' => $cancelState,
-                'message' => $cancelState ? 'Segment canceled.' : 'Segment uncanceled.'
+                'is_canceled' => $responseCanceledState,
+                'requested_is_canceled' => $cancelState,
+                'message' => $responseCanceledState ? 'Segment canceled.' : 'Segment uncanceled.',
+                'debug' => $debugMeta
             ]);
             exit();
         }
         http_response_code($codeCancel > 0 ? $codeCancel : 500);
         echo json_encode([
             'ok' => false,
-            'error' => 'Twitch API returned HTTP ' . $codeCancel . '. ' . htmlspecialchars($respCancel ?: $errCancel)
+            'error' => 'Twitch API returned HTTP ' . $codeCancel . '. ' . htmlspecialchars($respCancel ?: $errCancel),
+            'debug' => $debugMeta
         ]);
         exit();
     }
@@ -329,7 +378,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SESSION['access_token'])) 
             if ($segId === '') {
                 $error = 'Segment ID is required to cancel.';
             } else {
-                $urlCancel = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
+                $cancelQuery = [
+                    'broadcaster_id' => $broadcasterId,
+                    'id' => $segId
+                ];
+                $urlCancel = 'https://api.twitch.tv/helix/schedule/segment?' . http_build_query($cancelQuery);
                 $chCancel = curl_init($urlCancel);
                 curl_setopt($chCancel, CURLOPT_CUSTOMREQUEST, 'PATCH');
                 curl_setopt($chCancel, CURLOPT_RETURNTRANSFER, true);
@@ -413,7 +466,7 @@ $schedule = null;
 if (!isset($error)) {
     $error = null;
 }
-function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first = 25, $maxPages = 20) {
+function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first = 25, $maxPages = 5) {
     $allSegments = [];
     $scheduleData = ['segments' => [], 'vacation' => null];
     $cursor = null;
@@ -489,7 +542,7 @@ $broadcasterId = $_SESSION['twitchUserId'] ?? null;
 if (empty($broadcasterId)) {
     $error = 'Broadcaster ID not available. Please re-login.';
 } else {
-    list($schedule, $fetchError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 20);
+    list($schedule, $fetchError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 5);
     if (!empty($fetchError)) {
         $error = $fetchError;
     }
@@ -521,7 +574,7 @@ if (empty($broadcasterId)) {
                     if (empty($success)) $success = $successMsg;
                     else $success .= ' ' . $successMsg;
                     // Refresh schedule data after auto-cancel so UI reflects current state.
-                    list($refreshSchedule, $refreshError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 20);
+                    list($refreshSchedule, $refreshError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 5);
                     if (empty($refreshError) && !empty($refreshSchedule)) {
                         $schedule = $refreshSchedule;
                     }
@@ -669,7 +722,7 @@ foreach ($segmentsByDay as $dayKey => $dayData) {
     foreach (($dayData['segments'] ?? []) as $seg) {
         $nextSevenSummary['total']++;
         if (!empty($seg['is_recurring'])) $nextSevenSummary['recurring']++;
-        if (!empty($seg['canceled_until'])) $nextSevenSummary['canceled']++;
+        if (!empty($seg['is_canceled']) || !empty($seg['canceled_until'])) $nextSevenSummary['canceled']++;
     }
 }
 
@@ -806,7 +859,7 @@ ob_start();
                             $end = fmt_dt($seg['end_time'] ?? null, $timezone);
                             $category = $seg['category']['name'] ?? null;
                             $isRecurring = !empty($seg['is_recurring']) ? true : false;
-                            $canceled = !empty($seg['canceled_until']);
+                            $canceled = !empty($seg['is_canceled']) || !empty($seg['canceled_until']);
                             $durationMins = segment_duration_minutes($seg['start_time'] ?? null, $seg['end_time'] ?? null);
                             $startLocalValue = isset($seg['start_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : '';
                             $endLocalValue = isset($seg['end_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : '';
@@ -863,7 +916,7 @@ ob_start();
                                 </div>
                             </div>
                             <div class="card-content has-background-darker">
-                                <form method="post" class="columns is-multiline segment-edit-form">
+                                <form method="post" class="columns is-multiline segment-edit-form" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">
                                     <input type="hidden" name="segment_id" value="<?php echo htmlspecialchars($seg['id']); ?>" />
                                     <div class="column is-12">
                                         <div class="field is-grouped is-align-items-center is-flex-wrap-wrap">
@@ -1163,6 +1216,35 @@ ob_start();
                 ev.preventDefault();
                 const submitBtn = ev.submitter;
                 if (!submitBtn) return false;
+                const isRecurringSegment = f.getAttribute('data-is-recurring') === '1';
+                const cancelStateInput = f.querySelector('input[name="cancel_state"]');
+                const wantsCancel = !!(cancelStateInput && String(cancelStateInput.value || '').trim() === '1');
+                if (isRecurringSegment && wantsCancel) {
+                    const startInputForNotice = f.querySelector('.segment-start-input');
+                    const targetStart = startInputForNotice ? new Date(startInputForNotice.value) : null;
+                    const msInDay = 24 * 60 * 60 * 1000;
+                    const today = new Date();
+                    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    const targetDayStart = targetStart && !Number.isNaN(targetStart.getTime())
+                        ? new Date(targetStart.getFullYear(), targetStart.getMonth(), targetStart.getDate())
+                        : null;
+                    const daysAfterToday = targetDayStart ? Math.floor((targetDayStart.getTime() - todayStart.getTime()) / msInDay) : -1;
+                    const isWayFuture = daysAfterToday >= 7;
+                    if (isWayFuture) {
+                        const recurringNote = "Sorry, you can't cancel a recurring stream this far in the future. Twitch only allows recurring stream canceling within a 7-day window including today.";
+                        if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+                            await Swal.fire({
+                                title: 'Cannot cancel this recurring stream yet',
+                                text: recurringNote,
+                                icon: 'warning',
+                                confirmButtonText: 'OK'
+                            });
+                        } else {
+                            window.alert(recurringNote);
+                        }
+                        return false;
+                    }
+                }
                 const card = f.closest('.schedule-segment-card');
                 const tagContainer = card ? card.querySelector('.schedule-card-tags') : null;
                 const wasCanceled = !!(card && card.classList.contains('schedule-segment-card-canceled'));
@@ -1181,7 +1263,13 @@ ob_start();
                     } catch (parseErr) {
                         payload = null;
                     }
+                    if (payload && payload.debug) {
+                        console.log('[Schedule PATCH debug]', payload.debug);
+                    }
                     if (!res.ok || !payload || !payload.ok) {
+                        if (payload && payload.debug) {
+                            console.error('[Schedule PATCH failed]', payload.debug);
+                        }
                         const msg = (payload && payload.error) ? payload.error : 'Unable to update stream cancel state right now.';
                         throw new Error(msg);
                     }
@@ -1193,7 +1281,6 @@ ob_start();
                     if (segmentColumn) {
                         segmentColumn.setAttribute('data-segment-canceled', isCanceled ? '1' : '0');
                     }
-                    const cancelStateInput = f.querySelector('input[name="cancel_state"]');
                     if (cancelStateInput) cancelStateInput.value = isCanceled ? '0' : '1';
                     submitBtn.textContent = isCanceled ? 'Uncancel' : 'Cancel Stream';
                     submitBtn.classList.toggle('is-warning', isCanceled);
