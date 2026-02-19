@@ -8319,6 +8319,35 @@ def safe_math(expr: str):
         i += 2
     return result
 
+def extract_customapi_placeholders(text: str):
+    placeholders = []
+    token = '(customapi.'
+    search_start = 0
+    while True:
+        start_index = text.find(token, search_start)
+        if start_index == -1:
+            break
+        depth = 0
+        end_index = None
+        for i in range(start_index, len(text)):
+            char = text[i]
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+                if depth == 0:
+                    end_index = i
+                    break
+        if end_index is None:
+            chat_logger.warning(f"Malformed customapi placeholder in response: {text[start_index:start_index + 120]}")
+            search_start = start_index + len(token)
+            continue
+        full_placeholder = text[start_index:end_index + 1]
+        url = full_placeholder[len(token):-1]
+        placeholders.append((full_placeholder, url))
+        search_start = end_index + 1
+    return placeholders
+
 # Function to update custom counts
 async def update_custom_count(command, count):
     count = int(count)
@@ -8530,19 +8559,6 @@ async def process_custom_command_variables(command, response, user="API", arg=No
                         except Exception as e:
                             chat_logger.error(f"Math expression error: {e}")
                             response = response.replace(f'(math.{math_expression})', "Error")
-                # Handle (customapi.)
-                if '(customapi.' in response:
-                    pattern = r'\(customapi\.(\S+?)\)'
-                    matches = re.finditer(pattern, response)
-                    for match in matches:
-                        full_placeholder = match.group(0)
-                        url = match.group(1)
-                        json_flag = False
-                        if url.startswith('json.'):
-                            json_flag = True
-                            url = url[5:]
-                        api_response = await fetch_api_response(url, json_flag=json_flag)
-                        response = response.replace(full_placeholder, api_response)
                 # Handle (game)
                 if '(game)' in response:
                     try:
@@ -8551,6 +8567,16 @@ async def process_custom_command_variables(command, response, user="API", arg=No
                     except Exception as e:
                         chat_logger.error(f"Error getting current game: {e}")
                         response = response.replace('(game)', "Error")
+                # Handle (customapi.)
+                if '(customapi.' in response:
+                    placeholders = extract_customapi_placeholders(response)
+                    for full_placeholder, url in placeholders:
+                        json_flag = False
+                        if url.startswith('json.'):
+                            json_flag = True
+                            url = url[5:]
+                        api_response = await fetch_api_response(url, json_flag=json_flag)
+                        response = response.replace(full_placeholder, api_response)
             # Send the main response to chat if requested
             if send_to_chat:
                 await send_chat_message(response)
@@ -10669,19 +10695,6 @@ async def process_channel_point_rewards(event_data, event_type):
                             except Exception as e:
                                 chat_logger.error(f"Error while handling (track): {e}")
                                 replacements['(track)'] = ''
-                        # Handle (customapi.)
-                        if '(customapi.' in custom_message:
-                            pattern = r'\(customapi\.(\S+?)\)'
-                            matches = re.finditer(pattern, custom_message)
-                            for match in matches:
-                                full_placeholder = match.group(0)
-                                url = match.group(1)
-                                json_flag = False
-                                if url.startswith('json.'):
-                                    json_flag = True
-                                    url = url[5:]
-                                api_response = await fetch_api_response(url, json_flag=json_flag)
-                                replacements[full_placeholder] = api_response
                         # Handle (tts)
                         if '(tts)' in custom_message:
                             tts_message = event_data.get("user_input", "")
@@ -10699,6 +10712,16 @@ async def process_channel_point_rewards(event_data, event_type):
                             fortune_message = await tell_fortune()
                             fortune_message = fortune_message[0].lower() + fortune_message[1:]
                             replacements['(fortune)'] = fortune_message
+                        # Handle (customapi.) after other replacements are available
+                        if '(customapi.' in custom_message:
+                            placeholders = extract_customapi_placeholders(custom_message)
+                            for full_placeholder, url in placeholders:
+                                json_flag = False
+                                if url.startswith('json.'):
+                                    json_flag = True
+                                    url = url[5:]
+                                api_response = await fetch_api_response(url, json_flag=json_flag)
+                                replacements[full_placeholder] = api_response
                         # Handle (vip) and (vip.today) - grant VIP via Twitch Helix API
                         if '(vip)' in custom_message or '(vip.today)' in custom_message:
                             try:
