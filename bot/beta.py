@@ -7773,7 +7773,7 @@ class TwitchBot(commands.Bot):
                 if len(args) > 3 and args[3].lower() == 'weighted':
                     weighted = True
                 # Create raffle with 'scheduled' status
-                await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'scheduled', 1 if weighted else 0, 2.00, 3.00, 4.00, 1.50, 0, 0))
+                await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'scheduled', 1 if weighted else 0, 2.00, 3.00, 4.00, 1.50, 0, 0, 0))
                 await connection.commit()
                 await send_chat_message(f"Raffle '{name}' created and scheduled! Use !startraffle to start it.")
         except Exception as e:
@@ -7828,7 +7828,7 @@ class TwitchBot(commands.Bot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
                     await send_chat_message("There is no active raffle right now.")
@@ -7842,6 +7842,7 @@ class TwitchBot(commands.Bot):
                 weight_vip = raffle.get('weight_vip', 1.50)
                 exclude_mods = raffle.get('exclude_mods', 0)
                 subscribers_only = raffle.get('subscribers_only', 0)
+                followers_only = raffle.get('followers_only', 0)
                 username = ctx.author.name
                 user_id = str(ctx.author.id)
                 is_mod = ctx.author.is_mod
@@ -7855,6 +7856,12 @@ class TwitchBot(commands.Bot):
                     subscription_tier = await is_user_subscribed(user_id)
                     if not subscription_tier:
                         await send_chat_message(f"@{username}, this raffle is for subscribers only.")
+                        return
+                # Check if followers only
+                if followers_only:
+                    is_follower = await is_user_follower(user_id)
+                    if not is_follower:
+                        await send_chat_message(f"@{username}, this raffle is for followers only.")
                         return
                 # Check existing entry
                 await cursor.execute("SELECT id FROM raffle_entries WHERE raffle_id=%s AND username=%s", (raffle_id, username))
@@ -8277,6 +8284,25 @@ async def is_user_subscribed(user_id):
                         tier_name = tier_mapping.get(tier, tier)
                         return tier_name
     return None
+
+# Function to check if a user follows the channel
+async def is_user_follower(user_id):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "user_id": user_id
+    }
+    async with httpClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                return bool(data.get('data'))
+            twitch_logger.error(f"Failed to check follower status for user_id {user_id}. Status Code: {response.status}")
+            return False
 
 # Function to add user to the table of known users
 async def user_is_seen(username):

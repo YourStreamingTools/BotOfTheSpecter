@@ -469,6 +469,7 @@ try {
                 weight_vip DECIMAL(5,2) DEFAULT 1.50,
                 exclude_mods TINYINT(1) DEFAULT 0,
                 subscribers_only TINYINT(1) DEFAULT 0,
+                followers_only TINYINT(1) DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'raffle_entries' => "
