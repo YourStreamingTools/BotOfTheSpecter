@@ -771,14 +771,22 @@ try {
             }
         }
     }
-    // Cleanup deprecated legacy task-list tables
-    $legacy_task_tables = ['working_study_overlay_task_rewards', 'working_study_overlay_tasks'];
-    foreach ($legacy_task_tables as $legacy_table) {
-        if ($usrDBconn->query("DROP TABLE IF EXISTS `$legacy_table`") === TRUE) {
-            echo "<script>console.log('Legacy table $legacy_table removed (if it existed).');</script>";
-        } else {
-            echo "<script>console.error('Error removing legacy table $legacy_table: " . addslashes($usrDBconn->error) . "');</script>";
+    // Prune tables that are no longer part of the managed schema
+    $managed_tables = array_keys($tables);
+    $existing_tables_result = $usrDBconn->query("SHOW TABLES");
+    if ($existing_tables_result) {
+        while ($table_row = $existing_tables_result->fetch_array(MYSQLI_NUM)) {
+            $existing_table_name = $table_row[0];
+            if (!in_array($existing_table_name, $managed_tables, true)) {
+                if ($usrDBconn->query("DROP TABLE IF EXISTS `$existing_table_name`") === TRUE) {
+                    echo "<script>console.log('Unmanaged table $existing_table_name removed.');</script>";
+                } else {
+                    echo "<script>console.error('Error removing unmanaged table $existing_table_name: " . addslashes($usrDBconn->error) . "');</script>";
+                }
+            }
         }
+    } else {
+        echo "<script>console.error('Error listing existing tables for schema pruning: " . addslashes($usrDBconn->error) . "');</script>";
     }
     // Special handling for chat_history table - remove primary key if it exists
     $checkPrimaryKey = $usrDBconn->query("SHOW INDEX FROM chat_history WHERE Key_name = 'PRIMARY'");
