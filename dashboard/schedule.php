@@ -788,7 +788,7 @@ ob_start();
                                                 <input type="hidden" name="cancel_state" value="<?php echo $canceled ? '0' : '1'; ?>" />
                                             </div>
                                             <div class="control">
-                                                <button class="button is-danger is-light" type="submit" name="action" value="delete_segment">Delete</button>
+                                                <button class="button is-danger is-light" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">Delete</button>
                                             </div>
                                         </div>
                                         <p class="help has-text-grey-light segment-duration-help">Duration must be between 30 minutes and 23 hours (1380 minutes).</p>
@@ -1031,10 +1031,15 @@ ob_start();
                 }
                 ev.preventDefault();
                 let confirmed = false;
+                const isRecurringDelete = !!(ev.submitter && ev.submitter.dataset && ev.submitter.dataset.isRecurring === '1');
+                const deleteTitle = isRecurringDelete ? 'Delete recurring stream?' : 'Delete this stream?';
+                const deleteText = isRecurringDelete
+                    ? 'Deleting a recurring stream will remove all future events as well. If you only need to remove this single one, please consider marking it as canceled instead.'
+                    : 'This cannot be undone.';
                 if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
                     const result = await Swal.fire({
-                        title: 'Delete this stream?',
-                        text: 'This cannot be undone.',
+                        title: deleteTitle,
+                        text: deleteText,
                         icon: 'warning',
                         showCancelButton: true,
                         confirmButtonText: 'Yes, delete it',
@@ -1043,7 +1048,7 @@ ob_start();
                     });
                     confirmed = !!(result && result.isConfirmed);
                 } else {
-                    confirmed = window.confirm('Delete this stream? This cannot be undone.');
+                    confirmed = window.confirm(deleteTitle + ' ' + deleteText);
                 }
                 if (confirmed) {
                     f.dataset.deleteConfirmed = '1';
