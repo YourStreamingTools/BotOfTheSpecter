@@ -932,8 +932,8 @@ ob_end_clean();
             const newStreamerUpsert = (task) => {
                 const list = document.getElementById('newStreamerTaskList');
                 if (!list) return;
-                let li = document.getElementById('new-task-' + task.id);
-                if (!li) { li = document.createElement('li'); li.id = 'new-task-' + task.id; list.appendChild(li); }
+                let li = document.getElementById('new-streamer-task-' + task.id);
+                if (!li) { li = document.createElement('li'); li.id = 'new-streamer-task-' + task.id; list.appendChild(li); }
                 const done = task.status === 'completed';
                 li.className = 'task-sys-item' + (done ? ' is-done' : '');
                 const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
@@ -942,16 +942,27 @@ ob_end_clean();
             const newViewerUpsert = (task) => {
                 const list = document.getElementById('newViewerTaskList');
                 if (!list) return;
-                let li = document.getElementById('new-task-' + task.id);
-                if (!li) { li = document.createElement('li'); li.id = 'new-task-' + task.id; list.appendChild(li); }
+                let li = document.getElementById('new-viewer-task-' + task.id);
+                if (!li) { li = document.createElement('li'); li.id = 'new-viewer-task-' + task.id; list.appendChild(li); }
                 const done = task.status === 'completed';
                 li.className = 'task-sys-item' + (done ? ' is-done' : '');
                 const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
                 li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div><div class="task-sys-item__meta">${escapeHtml(task.user_name || '')}</div></div>${pts}`;
             };
-            const newSetDone = (taskId, listId) => {
-                const li = document.getElementById('new-task-' + taskId);
-                if (li) li.classList.add('is-done');
+            const newSetDone = (taskId, owner) => {
+                const ownerKey = String(owner || '').toLowerCase();
+                if (ownerKey === 'streamer') {
+                    const li = document.getElementById('new-streamer-task-' + taskId);
+                    if (li) li.classList.add('is-done');
+                    return;
+                }
+                if (ownerKey === 'user' || ownerKey === 'viewer') {
+                    const li = document.getElementById('new-viewer-task-' + taskId);
+                    if (li) li.classList.add('is-done');
+                    return;
+                }
+                document.getElementById('new-streamer-task-' + taskId)?.classList.add('is-done');
+                document.getElementById('new-viewer-task-' + taskId)?.classList.add('is-done');
             };
             const showTaskRewardPopup = (msg) => {
                 const el = document.createElement('div');
@@ -1073,26 +1084,36 @@ ob_end_clean();
                     renderNewViewerList(d.user_tasks || []);
                 });
                 socket.on('TASK_CREATE', (d) => {
-                    if (d.task?.owner === 'streamer') newStreamerUpsert(d.task);
+                    const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
+                    if (owner === 'streamer' || (!owner && !d?.task?.user_name)) newStreamerUpsert(d.task);
                     else newViewerUpsert(d.task);
                 });
                 socket.on('TASK_UPDATE', (d) => {
                     if (!d.task) return;
-                    if (d.task.owner === 'streamer') newStreamerUpsert(d.task);
+                    const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
+                    if (owner === 'streamer' || (!owner && !d?.task?.user_name)) newStreamerUpsert(d.task);
                     else newViewerUpsert(d.task);
                 });
                 socket.on('TASK_COMPLETE', (d) => {
-                    newSetDone(d.task_id, d.owner === 'streamer' ? 'newStreamerTaskList' : 'newViewerTaskList');
+                    newSetDone(d.task_id, d.owner);
                 });
                 socket.on('TASK_APPROVE', (d) => {
                     // Approval means the task is accepted; no visual change here beyond completion
                 });
                 socket.on('TASK_REJECT', (d) => {
-                    const el = document.getElementById('new-task-' + d.task_id);
+                    const el = document.getElementById('new-viewer-task-' + d.task_id);
                     if (el) el.style.opacity = '0.2';
                 });
                 socket.on('TASK_DELETE', (d) => {
-                    document.getElementById('new-task-' + d.task_id)?.remove();
+                    const owner = String(d?.owner || '').toLowerCase();
+                    if (owner === 'streamer') {
+                        document.getElementById('new-streamer-task-' + d.task_id)?.remove();
+                    } else if (owner === 'user' || owner === 'viewer') {
+                        document.getElementById('new-viewer-task-' + d.task_id)?.remove();
+                    } else {
+                        document.getElementById('new-streamer-task-' + d.task_id)?.remove();
+                        document.getElementById('new-viewer-task-' + d.task_id)?.remove();
+                    }
                 });
                 socket.on('TASK_REWARD_CONFIRM', (d) => {
                     showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');

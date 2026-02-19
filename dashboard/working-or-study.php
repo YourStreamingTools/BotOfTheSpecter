@@ -894,6 +894,8 @@ ob_start();
         const copyTasklistCombinedBtn = document.getElementById('copyTasklistCombinedBtn');
         const taskRewardEnabledInput = document.getElementById('taskRewardEnabled');
         const taskRewardPointsInput = document.getElementById('taskRewardPoints');
+        const hasLegacyTaskUi = Boolean(taskInputTitle && taskInputPriority && addTaskBtn && streamerTaskTableWrap && userTaskTableWrap);
+        const hasRewardInputs = Boolean(taskRewardEnabledInput && taskRewardPointsInput);
         let taskList = [];
         let userTaskList = [];
         const tasklistLinkStreamer = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=true`;
@@ -909,8 +911,10 @@ ob_start();
                     focusLengthInput.value = initialSettings.focus_minutes || 60;
                     microBreakInput.value = initialSettings.micro_break_minutes || 5;
                     breakLengthInput.value = initialSettings.recharge_break_minutes || 30;
-                    taskRewardEnabledInput.checked = Number(initialSettings.reward_enabled || 0) === 1;
-                    taskRewardPointsInput.value = initialSettings.reward_points_per_task || 10;
+                    if (hasRewardInputs) {
+                        taskRewardEnabledInput.checked = Number(initialSettings.reward_enabled || 0) === 1;
+                        taskRewardPointsInput.value = initialSettings.reward_points_per_task || 10;
+                    }
                     console.log('[Timer] Settings loaded from page initialization:', initialSettings);
                 }
             } catch (error) {
@@ -923,8 +927,8 @@ ob_start();
                 const focus = safeNumberValue(focusLengthInput, 60);
                 const micro = safeNumberValue(microBreakInput, 5);
                 const recharge = safeNumberValue(breakLengthInput, 30);
-                const rewardEnabled = taskRewardEnabledInput.checked ? 1 : 0;
-                const rewardPointsRaw = Number(taskRewardPointsInput.value);
+                const rewardEnabled = hasRewardInputs && taskRewardEnabledInput.checked ? 1 : 0;
+                const rewardPointsRaw = hasRewardInputs ? Number(taskRewardPointsInput.value) : 10;
                 const rewardPoints = Number.isFinite(rewardPointsRaw) && rewardPointsRaw >= 0 ? Math.floor(rewardPointsRaw) : 10;
                 const formData = new FormData();
                 formData.append('action', 'save_settings');
@@ -965,6 +969,9 @@ ob_start();
         };
         // Load tasks from database (PHP-injected on page load)
         const loadTasksFromDatabase = async () => {
+            if (!hasLegacyTaskUi) {
+                return;
+            }
             try {
                 const splitTasks = (tasks) => {
                     taskList = (tasks || []).filter(task => {
@@ -1003,6 +1010,9 @@ ob_start();
         };
         // Save tasks to database via in-page operation + WebSocket sync
         const saveTasksToDatabase = async () => {
+            if (!hasLegacyTaskUi) {
+                return;
+            }
             try {
                 // Create a hidden form and submit to save tasks
                 const formData = new FormData();
@@ -1024,6 +1034,9 @@ ob_start();
             }
         };
         const renderTaskList = () => {
+            if (!hasLegacyTaskUi) {
+                return;
+            }
             if (!taskList || taskList.length === 0) {
                 streamerTaskTableWrap.innerHTML = `
                     <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
@@ -1136,6 +1149,9 @@ ob_start();
             return div.innerHTML;
         };
         const emitTaskListUpdate = () => {
+            if (!hasLegacyTaskUi) {
+                return;
+            }
             if (socket && socket.connected) {
                 console.log('[Dashboard] Emitting task list via WebSocket:', taskList.length, 'tasks');
                 socket.emit('SPECTER_TASKLIST_UPDATE', {
@@ -1402,7 +1418,7 @@ ob_start();
             }
         });
         // Task list copy buttons
-        copyTasklistLinkBtn.addEventListener('click', async () => {
+        copyTasklistLinkBtn?.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(tasklistLinkStreamer);
                 showToast('✓ Streamer task list link copied!', 'success');
@@ -1416,7 +1432,7 @@ ob_start();
                 showToast('⚠️ Failed to copy link', 'danger');
             }
         });
-        copyTasklistUserLinkBtn.addEventListener('click', async () => {
+        copyTasklistUserLinkBtn?.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(tasklistLinkUsers);
                 showToast('✓ Users task list link copied!', 'success');
@@ -1431,7 +1447,7 @@ ob_start();
             }
         });
         // Combined task list link (works for both streamer and users)
-        copyTasklistCombinedBtn.addEventListener('click', async () => {
+        copyTasklistCombinedBtn?.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(tasklistLinkCombined);
                 showToast('✓ Combined task list link copied!', 'success');
@@ -1446,7 +1462,7 @@ ob_start();
             }
         });
         // Add task button
-        addTaskBtn.addEventListener('click', () => {
+        addTaskBtn?.addEventListener('click', () => {
             const title = taskInputTitle.value.trim();
             const priority = taskInputPriority.value;
             if (!title) {
@@ -1470,7 +1486,7 @@ ob_start();
             showToast(`✓ Task added: "${title}"`, 'success');
         });
         // Enter key to add task
-        taskInputTitle.addEventListener('keypress', (e) => {
+        taskInputTitle?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 addTaskBtn.click();
             }
@@ -1536,10 +1552,10 @@ ob_start();
                 saveSettingsToDatabase();
             }
         });
-        taskRewardEnabledInput.addEventListener('change', () => {
+        taskRewardEnabledInput?.addEventListener('change', () => {
             saveSettingsToDatabase();
         });
-        taskRewardPointsInput.addEventListener('change', () => {
+        taskRewardPointsInput?.addEventListener('change', () => {
             const val = Number(taskRewardPointsInput.value);
             if (!Number.isFinite(val) || val < 0) {
                 taskRewardPointsInput.value = 10;
@@ -1564,7 +1580,14 @@ ob_start();
         chLoadTasks();
     });
     chSocket.on('TASK_CREATE',          (d) => { chAppendStreamerRow(d.task); chShowToast('Task created: ' + (d.task?.title || '')); });
-    chSocket.on('TASK_UPDATE',          (d) => { chAppendStreamerRow(d.task); });
+    chSocket.on('TASK_UPDATE',          (d) => {
+        const owner = String(d?.owner || d?.task?.owner || '').toLowerCase();
+        if (owner === 'streamer' || (!owner && !d?.task?.user_name)) {
+            chAppendStreamerRow(d.task);
+            return;
+        }
+        chAppendUserRow(d.task);
+    });
     chSocket.on('TASK_COMPLETE',        (d) => { chMarkStatus(d.task_id, d.owner || 'user', 'completed'); });
     chSocket.on('TASK_APPROVE',         (d) => { chUpdateApproval(d.task_id, 'approved'); });
     chSocket.on('TASK_REJECT',          (d) => { chUpdateApproval(d.task_id, 'rejected'); });
@@ -1625,7 +1648,7 @@ ob_start();
                 </div>
             </td>`;
         if (!document.getElementById('ch-st-' + task.id)) tbody.appendChild(row);
-        if (emit) chSocket.emit('TASK_UPDATE', { channel_code: chApiKey, task });
+        if (emit) chSocket.emit('TASK_UPDATE', { channel_code: chApiKey, owner: 'streamer', task: { ...task, owner: 'streamer' } });
     }
     function chAppendUserRow(task, emit = true) {
         if (!task) return;
@@ -1661,7 +1684,8 @@ ob_start();
     function chMarkStatus(id, owner, status) {
         const row = document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`);
         if (!row) return;
-        const cell = row.querySelector('td:nth-child(3)');
+        const statusCellIndex = owner === 'streamer' ? 2 : 3;
+        const cell = row.querySelector(`td:nth-child(${statusCellIndex})`);
         if (cell) cell.innerHTML = chStatusTag(status);
     }
     function chUpdateApproval(id, status) {
@@ -1795,9 +1819,9 @@ ob_start();
             : { action: 'ch_create_streamer_task', title, description: desc, category, reward_points: points };
         chPost(payload, (res) => {
             if (res.success) {
-                const taskObj = { id: res.id || parseInt(id), title, description: desc, category, reward_points: points, status: 'active' };
+                const taskObj = { id: res.id || parseInt(id), title, description: desc, category, reward_points: points, status: 'active', owner: 'streamer' };
                 chAppendStreamerRow(taskObj);
-                chSocket.emit(isEdit ? 'TASK_UPDATE' : 'TASK_CREATE', { channel_code: chApiKey, task: taskObj });
+                chSocket.emit(isEdit ? 'TASK_UPDATE' : 'TASK_CREATE', { channel_code: chApiKey, owner: 'streamer', task: taskObj });
                 document.getElementById('chStreamerTaskModal').classList.remove('is-active');
                 chShowToast(isEdit ? 'Task updated.' : 'Task created.');
             } else {
