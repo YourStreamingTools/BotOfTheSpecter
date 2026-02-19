@@ -43,6 +43,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo json_encode(['success' => false, 'error' => 'Database connection not available']);
         exit;
     }
+    $awardTaskPoints = function (int $taskId, array $task, bool $forceAward = false) use ($db): array {
+        $result = [
+            'awarded' => false,
+            'points_awarded' => 0,
+            'new_total' => null,
+            'user_name' => $task['user_name'] ?? null,
+            'user_id' => $task['user_id'] ?? null,
+            'task_id' => $taskId
+        ];
+        $rewardPoints = max(0, intval($task['reward_points'] ?? 0));
+        $userId = (string)($task['user_id'] ?? '');
+        $userName = (string)($task['user_name'] ?? '');
+        if ($taskId <= 0 || $rewardPoints <= 0 || $userId === '') {
+            return $result;
+        }
+        $alreadyRewardedStmt = $db->prepare("SELECT id FROM task_reward_log WHERE user_task_id = ? LIMIT 1");
+        if (!$alreadyRewardedStmt) {
+            throw new Exception('Prepare failed: ' . $db->error);
+        }
+        $alreadyRewardedStmt->bind_param("i", $taskId);
+        if (!$alreadyRewardedStmt->execute()) {
+            throw new Exception('Execute failed: ' . $alreadyRewardedStmt->error);
+        }
+        $alreadyRewarded = $alreadyRewardedStmt->get_result();
+        $alreadyExists = $alreadyRewarded && $alreadyRewarded->num_rows > 0;
+        $alreadyRewardedStmt->close();
+        if ($alreadyExists) {
+            return $result;
+        }
+        if (!$forceAward) {
+            $requireApproval = 0;
+            $settingsStmt = $db->prepare("SELECT require_approval FROM task_settings LIMIT 1");
+            if ($settingsStmt) {
+                if ($settingsStmt->execute()) {
+                    $settingsRow = $settingsStmt->get_result()->fetch_assoc();
+                    if ($settingsRow) {
+                        $requireApproval = !empty($settingsRow['require_approval']) ? 1 : 0;
+                    }
+                }
+                $settingsStmt->close();
+            }
+            if ($requireApproval && (($task['approval_status'] ?? '') !== 'approved')) {
+                return $result;
+            }
+        }
+        $currentPoints = 0;
+        $hasExistingPoints = false;
+        $selectPointsStmt = $db->prepare("SELECT points FROM bot_points WHERE user_id = ? LIMIT 1");
+        if (!$selectPointsStmt) {
+            throw new Exception('Prepare failed: ' . $db->error);
+        }
+        $selectPointsStmt->bind_param("s", $userId);
+        if (!$selectPointsStmt->execute()) {
+            throw new Exception('Execute failed: ' . $selectPointsStmt->error);
+        }
+        $pointsRow = $selectPointsStmt->get_result()->fetch_assoc();
+        $selectPointsStmt->close();
+        if ($pointsRow) {
+            $hasExistingPoints = true;
+            $currentPoints = intval($pointsRow['points'] ?? 0);
+        }
+        $newTotal = $currentPoints + $rewardPoints;
+        if ($hasExistingPoints) {
+            $updatePointsStmt = $db->prepare("UPDATE bot_points SET points = ?, user_name = ? WHERE user_id = ?");
+            if (!$updatePointsStmt) {
+                throw new Exception('Prepare failed: ' . $db->error);
+            }
+            $updatePointsStmt->bind_param("iss", $newTotal, $userName, $userId);
+            if (!$updatePointsStmt->execute()) {
+                throw new Exception('Execute failed: ' . $updatePointsStmt->error);
+            }
+            $updatePointsStmt->close();
+        } else {
+            $insertPointsStmt = $db->prepare("INSERT INTO bot_points (user_id, user_name, points) VALUES (?, ?, ?)");
+            if (!$insertPointsStmt) {
+                throw new Exception('Prepare failed: ' . $db->error);
+            }
+            $insertPointsStmt->bind_param("ssi", $userId, $userName, $newTotal);
+            if (!$insertPointsStmt->execute()) {
+                throw new Exception('Execute failed: ' . $insertPointsStmt->error);
+            }
+            $insertPointsStmt->close();
+        }
+        $logStmt = $db->prepare("INSERT INTO task_reward_log (user_task_id, user_id, user_name, points_awarded) VALUES (?, ?, ?, ?)");
+        if (!$logStmt) {
+            throw new Exception('Prepare failed: ' . $db->error);
+        }
+        $logStmt->bind_param("issi", $taskId, $userId, $userName, $rewardPoints);
+        if (!$logStmt->execute()) {
+            throw new Exception('Execute failed: ' . $logStmt->error);
+        }
+        $logStmt->close();
+        $result['awarded'] = true;
+        $result['points_awarded'] = $rewardPoints;
+        $result['new_total'] = $newTotal;
+        return $result;
+    };
     if ($action === 'get_settings') {
         // Load timer settings from database
         $stmt = $db->prepare("SELECT focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task FROM working_study_overlay_settings LIMIT 1");
@@ -179,12 +276,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($action === 'ch_approve_user_task') {
         $id = intval($_POST['id'] ?? 0);
         if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
-        $stmt = $db->prepare("UPDATE user_tasks SET approval_status='approved' WHERE id=?");
-        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
-        $rs = $db->prepare("SELECT id, user_id, user_name, title, reward_points FROM user_tasks WHERE id=?");
-        $rs->bind_param("i", $id); $rs->execute();
-        $task = $rs->get_result()->fetch_assoc(); $rs->close();
-        echo json_encode(['success' => $ok, 'task' => $task]);
+        $db->begin_transaction();
+        try {
+            $stmt = $db->prepare("UPDATE user_tasks SET approval_status='approved' WHERE id=?");
+            if (!$stmt) { throw new Exception('Prepare failed: ' . $db->error); }
+            $stmt->bind_param("i", $id);
+            $ok = $stmt->execute();
+            $stmt->close();
+            $rs = $db->prepare("SELECT id, user_id, user_name, title, reward_points, approval_status, status FROM user_tasks WHERE id=?");
+            if (!$rs) { throw new Exception('Prepare failed: ' . $db->error); }
+            $rs->bind_param("i", $id);
+            if (!$rs->execute()) { throw new Exception('Execute failed: ' . $rs->error); }
+            $task = $rs->get_result()->fetch_assoc();
+            $rs->close();
+            $awardResult = ['awarded' => false, 'points_awarded' => 0, 'new_total' => null];
+            if ($ok && $task && (($task['status'] ?? '') === 'completed')) {
+                $awardResult = $awardTaskPoints($id, $task, true);
+            }
+            $db->commit();
+            echo json_encode(['success' => $ok, 'task' => $task, 'reward' => $awardResult]);
+        } catch (Exception $e) {
+            $db->rollback();
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
         exit;
     }
     if ($action === 'ch_reject_user_task') {
@@ -198,12 +312,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($action === 'ch_complete_user_task') {
         $id = intval($_POST['id'] ?? 0);
         if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
-        $stmt = $db->prepare("UPDATE user_tasks SET status='completed', completed_at=NOW() WHERE id=?");
-        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
-        $rs = $db->prepare("SELECT id, user_id, user_name, title, reward_points, approval_status FROM user_tasks WHERE id=?");
-        $rs->bind_param("i", $id); $rs->execute();
-        $task = $rs->get_result()->fetch_assoc(); $rs->close();
-        echo json_encode(['success' => $ok, 'task' => $task]);
+        $db->begin_transaction();
+        try {
+            $stmt = $db->prepare("UPDATE user_tasks SET status='completed', completed_at=NOW() WHERE id=?");
+            if (!$stmt) { throw new Exception('Prepare failed: ' . $db->error); }
+            $stmt->bind_param("i", $id);
+            $ok = $stmt->execute();
+            $stmt->close();
+            $rs = $db->prepare("SELECT id, user_id, user_name, title, reward_points, approval_status, status FROM user_tasks WHERE id=?");
+            if (!$rs) { throw new Exception('Prepare failed: ' . $db->error); }
+            $rs->bind_param("i", $id);
+            if (!$rs->execute()) { throw new Exception('Execute failed: ' . $rs->error); }
+            $task = $rs->get_result()->fetch_assoc();
+            $rs->close();
+            $awardResult = ['awarded' => false, 'points_awarded' => 0, 'new_total' => null];
+            if ($ok && $task) {
+                $awardResult = $awardTaskPoints($id, $task);
+            }
+            $db->commit();
+            echo json_encode(['success' => $ok, 'task' => $task, 'reward' => $awardResult]);
+        } catch (Exception $e) {
+            $db->rollback();
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
         exit;
     }
     if ($action === 'ch_complete_streamer_task') {
@@ -1287,6 +1418,17 @@ ob_start();
                     require_approval: requireApproval ? 1 : 0, owner: 'user',
                 });
                 chShowToast(`Task for ${t.user_name} marked complete.`);
+                if (res.reward?.awarded) {
+                    chSocket.emit('TASK_REWARD_CONFIRM', {
+                        channel_code: chApiKey,
+                        task_id: t.id,
+                        user_id: t.user_id,
+                        user_name: t.user_name,
+                        points_awarded: res.reward.points_awarded,
+                        new_total: res.reward.new_total,
+                    });
+                    chShowToast(`✔ ${t.user_name} earned ${res.reward.points_awarded} pts (total: ${res.reward.new_total})`);
+                }
             }
         });
     };
@@ -1300,6 +1442,17 @@ ob_start();
                     user_name: t.user_name, title: t.title, reward_points: t.reward_points,
                 });
                 chShowToast(`Approved task for ${t.user_name}.`);
+                if (res.reward?.awarded) {
+                    chSocket.emit('TASK_REWARD_CONFIRM', {
+                        channel_code: chApiKey,
+                        task_id: t.id,
+                        user_id: t.user_id,
+                        user_name: t.user_name,
+                        points_awarded: res.reward.points_awarded,
+                        new_total: res.reward.new_total,
+                    });
+                    chShowToast(`✔ ${t.user_name} earned ${res.reward.points_awarded} pts (total: ${res.reward.new_total})`);
+                }
             }
         });
     };
