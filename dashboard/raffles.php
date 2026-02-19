@@ -233,7 +233,7 @@ ob_start();
                             Enable Weighted Raffle (subscribers and VIPs get enhanced odds)
                         </label>
                     </div>
-                    <div id="weight-settings" style="display: none; border-left: 3px solid #3273dc; padding-left: 1rem; margin-left: 1rem;">
+                    <div id="weight-settings" style="display: none; border-left: 3px solid #3273dc; padding-left: 1rem; margin-left: 1rem; margin-bottom: 1rem;">
                         <h4 class="subtitle is-6">Weight Multipliers</h4>
                         <div class="columns">
                             <div class="column">
