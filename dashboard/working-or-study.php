@@ -830,7 +830,7 @@ ob_start();
             if (isRequesting) return;
             setButtonsLoading(true);
             try {
-                if (!socket || !socket.connected || !socketReady) {
+                if (!socket || !socket.connected) {
                     console.error('[Timer Dashboard] Socket not connected');
                     console.log('[Timer Dashboard] Socket state:', {
                         exists: !!socket,
