@@ -188,14 +188,6 @@ ob_end_clean();
         <div class="study-overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>"
             id="overlayRoot">
             <section class="study-overlay-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
-                <div class="study-overlay-status-row">
-                    <span class="study-overlay-connection-status" id="connectionStatus" data-state="connecting">
-                        <span class="dot"></span>
-                        Connecting…
-                    </span>
-                    <span class="study-overlay-label">Overlay for
-                        <?php echo htmlspecialchars($username ?: 'Specter'); ?></span>
-                </div>
                 <div class="study-overlay-timer-ring">
                     <svg viewBox="0 0 220 220">
                         <circle class="study-overlay-ring-bg" cx="110" cy="110" r="98"></circle>
@@ -288,6 +280,8 @@ ob_end_clean();
                 totalTimeLogged: 0,
                 durations: { ...defaultDurations }
             };
+            const timerStateStorageKey = `specter:working-study:timer:${overlayApiKey}`;
+            let hasRestoredTimerState = false;
             const formatDuration = seconds => {
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
@@ -398,6 +392,36 @@ ob_end_clean();
                 sessionsCompletedEl.textContent = timerState.sessionsCompleted;
                 totalTimeLoggedEl.textContent = formatTotalTime(timerState.totalTimeLogged);
             };
+            const saveTimerState = () => {
+                try {
+                    if (typeof window === 'undefined' || !window.localStorage) {
+                        return;
+                    }
+                    window.localStorage.setItem(timerStateStorageKey, JSON.stringify({
+                        currentPhase: timerState.currentPhase,
+                        remainingSeconds: timerState.remainingSeconds,
+                        totalDuration: timerState.totalDuration,
+                        timerRunning: timerState.timerRunning,
+                        timerPaused: timerState.timerPaused,
+                        sessionsCompleted: timerState.sessionsCompleted,
+                        totalTimeLogged: timerState.totalTimeLogged,
+                        durations: timerState.durations,
+                        lastUpdatedAt: Date.now()
+                    }));
+                } catch (error) {
+                    console.warn('[Overlay] Unable to persist timer state:', error);
+                }
+            };
+            const clearSavedTimerState = () => {
+                try {
+                    if (typeof window === 'undefined' || !window.localStorage) {
+                        return;
+                    }
+                    window.localStorage.removeItem(timerStateStorageKey);
+                } catch (error) {
+                    console.warn('[Overlay] Unable to clear timer state:', error);
+                }
+            };
             const emitTimerState = state => {
                 if (socket && socket.connected) {
                     socket.emit('SPECTER_TIMER_STATE', { code: overlayApiKey, state });
@@ -431,6 +455,7 @@ ob_end_clean();
                 clearInterval(timerState.countdownId);
                 timerState.timerRunning = true;
                 timerState.timerPaused = false;
+                saveTimerState();
                 emitTimerState('running');
                 timerState.countdownId = setInterval(() => {
                     timerState.remainingSeconds = Math.max(0, timerState.remainingSeconds - 1);
@@ -441,9 +466,11 @@ ob_end_clean();
                         return;
                     }
                     updateDisplay();
+                    saveTimerState();
                     emitTimerUpdate();
                 }, 1000);
                 updateDisplay();
+                saveTimerState();
                 emitTimerUpdate();
             };
             const finishPhase = () => {
@@ -452,10 +479,12 @@ ob_end_clean();
                 timerState.remainingSeconds = 0;
                 timerState.sessionsCompleted += 1;
                 timerState.totalTimeLogged += timerState.totalDuration;
+                clearSavedTimerState();
                 updateStatsDisplay();
                 emitSessionStats();
                 emitTimerState('stopped');
                 updateDisplay();
+                emitTimerUpdate();
             };
             const pauseTimer = () => {
                 if (!timerState.timerRunning) {
@@ -465,6 +494,7 @@ ob_end_clean();
                 timerState.countdownId = null;
                 timerState.timerRunning = false;
                 timerState.timerPaused = true;
+                saveTimerState();
                 emitTimerState('paused');
                 updateDisplay();
                 emitTimerUpdate();
@@ -481,6 +511,7 @@ ob_end_clean();
                 timerState.timerRunning = false;
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = 0;
+                clearSavedTimerState();
                 emitTimerState('stopped');
                 updateDisplay();
                 emitTimerUpdate();
@@ -492,6 +523,7 @@ ob_end_clean();
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = timerState.durations[timerState.currentPhase];
                 timerState.totalDuration = timerState.durations[timerState.currentPhase];
+                saveTimerState();
                 emitTimerState('stopped');
                 updateDisplay();
                 emitTimerUpdate();
@@ -513,6 +545,84 @@ ob_end_clean();
                 emitTimerUpdate();
                 if (options.autoStart) {
                     startCountdown();
+                } else {
+                    saveTimerState();
+                }
+            };
+            const restoreSavedTimerState = () => {
+                try {
+                    if (typeof window === 'undefined' || !window.localStorage) {
+                        return false;
+                    }
+                    const raw = window.localStorage.getItem(timerStateStorageKey);
+                    if (!raw) {
+                        return false;
+                    }
+                    const saved = JSON.parse(raw);
+                    if (!saved || !phases[saved.currentPhase]) {
+                        clearSavedTimerState();
+                        return false;
+                    }
+
+                    if (saved.durations && typeof saved.durations === 'object') {
+                        const focus = Number(saved.durations.focus);
+                        const micro = Number(saved.durations.micro);
+                        const recharge = Number(saved.durations.recharge);
+                        if (Number.isFinite(focus) && focus > 0) timerState.durations.focus = Math.round(focus);
+                        if (Number.isFinite(micro) && micro > 0) timerState.durations.micro = Math.round(micro);
+                        if (Number.isFinite(recharge) && recharge > 0) timerState.durations.recharge = Math.round(recharge);
+                    }
+
+                    timerState.currentPhase = saved.currentPhase;
+                    timerState.totalDuration = Number.isFinite(saved.totalDuration) && saved.totalDuration > 0
+                        ? Math.round(saved.totalDuration)
+                        : timerState.durations[timerState.currentPhase];
+                    timerState.remainingSeconds = Number.isFinite(saved.remainingSeconds) && saved.remainingSeconds >= 0
+                        ? Math.round(saved.remainingSeconds)
+                        : timerState.totalDuration;
+                    timerState.sessionsCompleted = Number.isFinite(saved.sessionsCompleted) && saved.sessionsCompleted >= 0
+                        ? Math.round(saved.sessionsCompleted)
+                        : 0;
+                    timerState.totalTimeLogged = Number.isFinite(saved.totalTimeLogged) && saved.totalTimeLogged >= 0
+                        ? Math.round(saved.totalTimeLogged)
+                        : 0;
+
+                    const savedAt = Number(saved.lastUpdatedAt);
+                    const elapsedSeconds = Number.isFinite(savedAt) && savedAt > 0
+                        ? Math.max(0, Math.floor((Date.now() - savedAt) / 1000))
+                        : 0;
+
+                    if (saved.timerRunning) {
+                        timerState.remainingSeconds = Math.max(0, timerState.remainingSeconds - elapsedSeconds);
+                        timerState.timerRunning = false;
+                        timerState.timerPaused = false;
+                        if (timerState.remainingSeconds <= 0) {
+                            timerState.remainingSeconds = 0;
+                            timerState.sessionsCompleted += 1;
+                            timerState.totalTimeLogged += timerState.totalDuration;
+                            clearSavedTimerState();
+                            updateStatsDisplay();
+                            updateDisplay();
+                            return true;
+                        }
+                        startCountdown();
+                        return true;
+                    }
+
+                    timerState.timerRunning = false;
+                    timerState.timerPaused = Boolean(saved.timerPaused);
+                    if (timerState.remainingSeconds <= 0) {
+                        clearSavedTimerState();
+                    } else {
+                        saveTimerState();
+                    }
+                    updateStatsDisplay();
+                    updateDisplay();
+                    return true;
+                } catch (error) {
+                    console.warn('[Overlay] Failed to restore timer state:', error);
+                    clearSavedTimerState();
+                    return false;
                 }
             };
             const getCurrentTimeStamp = () => {
@@ -566,7 +676,12 @@ ob_end_clean();
                         timerState.durations.focus = timerState.durations.focus || defaultDurations.focus;
                         timerState.durations.micro = timerState.durations.micro || defaultDurations.micro;
                         timerState.durations.recharge = timerState.durations.recharge || defaultDurations.recharge;
-                        setPhase(timerState.currentPhase, { autoStart: false });
+                        if (!hasRestoredTimerState) {
+                            setPhase(timerState.currentPhase, { autoStart: false });
+                        } else if (!timerState.timerRunning && !timerState.timerPaused && timerState.remainingSeconds > 0) {
+                            saveTimerState();
+                            updateDisplay();
+                        }
                     }
                 } catch (error) {
                     console.error('[Overlay] Unable to load settings:', error);
@@ -639,7 +754,6 @@ ob_end_clean();
                     console.log('[Overlay] Received SUCCESS payload:', payload);
                     if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
                         console.log('[Overlay] Registration CONFIRMED by server');
-                        setConnectionStatus('Registered', 'connected');
                     }
                 });
                 socket.on('SPECTER_PHASE', payload => {
@@ -718,6 +832,7 @@ ob_end_clean();
                     updateStatsDisplay();
                 });
             };
+            hasRestoredTimerState = restoreSavedTimerState();
             connect();
             renderTasks([]);
             updateStatsDisplay();
