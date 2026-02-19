@@ -1,4 +1,5 @@
 <?php
+ob_start(); // Capture any output from includes (e.g. database setup messages) so it doesn't corrupt POST JSON responses
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -33,6 +34,8 @@ $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&time
 
 // Handle API requests for working study settings and tasks
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    // Discard any text output by the database setup includes before we send JSON headers
+    while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
     $action = $_POST['action'];
     // Verify database connection exists
@@ -272,28 +275,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
     if ($action === 'ch_get_tasks') {
-        $streamer_tasks = [];
-        $user_tasks     = [];
-        // Guard: only query if the tables exist (they may not exist on first login before usr_database.php runs)
-        $st_exists = $db->query("SHOW TABLES LIKE 'streamer_tasks'");
-        $ut_exists = $db->query("SHOW TABLES LIKE 'user_tasks'");
-        if ($st_exists && $st_exists->num_rows > 0) {
-            $st = $db->prepare("SELECT id, title, description, category, status, reward_points, created_at FROM streamer_tasks ORDER BY created_at DESC");
-            if ($st && $st->execute()) {
-                $res = $st->get_result();
-                if ($res) { $streamer_tasks = $res->fetch_all(MYSQLI_ASSOC); }
-                $st->close();
+        try {
+            $streamer_tasks = [];
+            $user_tasks     = [];
+            // Guard: only query if the tables exist
+            $st_exists_res = $db->query("SHOW TABLES LIKE 'streamer_tasks'");
+            $ut_exists_res = $db->query("SHOW TABLES LIKE 'user_tasks'");
+            if ($st_exists_res && $st_exists_res->num_rows > 0) {
+                $st = $db->prepare("SELECT id, title, description, category, status, reward_points, created_at FROM streamer_tasks ORDER BY created_at DESC");
+                if ($st && $st->execute()) {
+                    $res = $st->get_result();
+                    if ($res) { $streamer_tasks = $res->fetch_all(MYSQLI_ASSOC); }
+                    $st->close();
+                }
             }
-        }
-        if ($ut_exists && $ut_exists->num_rows > 0) {
-            $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
-            if ($ut && $ut->execute()) {
-                $res = $ut->get_result();
-                if ($res) { $user_tasks = $res->fetch_all(MYSQLI_ASSOC); }
-                $ut->close();
+            if ($ut_exists_res && $ut_exists_res->num_rows > 0) {
+                $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
+                if ($ut && $ut->execute()) {
+                    $res = $ut->get_result();
+                    if ($res) { $user_tasks = $res->fetch_all(MYSQLI_ASSOC); }
+                    $ut->close();
+                }
             }
+            echo json_encode(['success' => true, 'streamer_tasks' => $streamer_tasks, 'user_tasks' => $user_tasks]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
-        echo json_encode(['success' => true, 'streamer_tasks' => $streamer_tasks, 'user_tasks' => $user_tasks]);
         exit;
     }
     if ($action === 'ch_create_streamer_task') {
@@ -1917,5 +1924,7 @@ ob_start();
 <?php
 $scripts = ob_get_clean();
 
+// Discard any stray output captured from includes before sending the page
+ob_end_clean();
 include 'layout.php';
 ?>

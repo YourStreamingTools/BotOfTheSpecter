@@ -961,7 +961,6 @@ ob_end_clean();
                 container.appendChild(el);
                 setTimeout(() => el.remove(), 5000);
             };
-            const escapeHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             // ────────────────────────────────────────────────────────────────
             const connect = () => {
                 setConnectionStatus('Connecting…', 'connecting');
