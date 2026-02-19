@@ -274,6 +274,7 @@ class BotOfTheSpecter_WebsocketServer:
             "SPECTER_SESSION_STATS",
             "SPECTER_TIMER_STATE",
             "SPECTER_TIMER_UPDATE",
+            "SPECTER_SETTINGS_UPDATE",
             "SPECTER_PHASE",
             "SPECTER_TASKLIST_UPDATE",
             "SPECTER_TASKLIST",
