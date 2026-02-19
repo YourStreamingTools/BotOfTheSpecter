@@ -584,31 +584,6 @@ try {
                 reward_points_per_task INT DEFAULT 10,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        'working_study_overlay_tasks' => "
-            CREATE TABLE IF NOT EXISTS working_study_overlay_tasks (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                username VARCHAR(255) NOT NULL,
-                user_id VARCHAR(50) DEFAULT NULL,
-                task_id VARCHAR(255) NOT NULL,
-                title VARCHAR(255) NOT NULL,
-                priority VARCHAR(20) DEFAULT 'medium',
-                completed TINYINT(1) DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE (username, task_id),
-                INDEX idx_username (username)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        'working_study_overlay_task_rewards' => "
-            CREATE TABLE IF NOT EXISTS working_study_overlay_task_rewards (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                username VARCHAR(255) NOT NULL,
-                user_id VARCHAR(50) DEFAULT NULL,
-                task_id VARCHAR(255) NOT NULL,
-                points_awarded INT NOT NULL DEFAULT 0,
-                rewarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (username, task_id),
-                INDEX idx_user_id (user_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'automated_shoutout_settings' => "
             CREATE TABLE IF NOT EXISTS automated_shoutout_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -794,6 +769,15 @@ try {
             } else {
                 echo "<script>console.error('Error fetching existing columns for table $table_name: " . addslashes($usrDBconn->error) . "');</script>";
             }
+        }
+    }
+    // Cleanup deprecated legacy task-list tables
+    $legacy_task_tables = ['working_study_overlay_task_rewards', 'working_study_overlay_tasks'];
+    foreach ($legacy_task_tables as $legacy_table) {
+        if ($usrDBconn->query("DROP TABLE IF EXISTS `$legacy_table`") === TRUE) {
+            echo "<script>console.log('Legacy table $legacy_table removed (if it existed).');</script>";
+        } else {
+            echo "<script>console.error('Error removing legacy table $legacy_table: " . addslashes($usrDBconn->error) . "');</script>";
         }
     }
     // Special handling for chat_history table - remove primary key if it exists

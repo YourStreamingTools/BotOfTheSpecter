@@ -14,10 +14,8 @@ $user_db = null;
 $has_timer_query = array_key_exists('timer', $_GET);
 $has_tasklist_query = array_key_exists('tasklist', $_GET);
 $show_timer_panel = true;
-$show_tasklist_panel = true;
 $overlay_mode_class = '';
 if ($has_timer_query && !$has_tasklist_query) {
-    $show_tasklist_panel = false;
     $overlay_mode_class = 'study-overlay--timer-only';
 } elseif ($has_tasklist_query && !$has_timer_query) {
     $show_timer_panel = false;
@@ -78,19 +76,6 @@ if (!$error_html) {
                     micro_break_minutes INT DEFAULT 5,
                     recharge_break_minutes INT DEFAULT 30,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-            'working_study_overlay_tasks' => "
-                CREATE TABLE IF NOT EXISTS working_study_overlay_tasks (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    username VARCHAR(255) NOT NULL,
-                    task_id VARCHAR(255) NOT NULL,
-                    title VARCHAR(255) NOT NULL,
-                    priority VARCHAR(20) DEFAULT 'medium',
-                    completed TINYINT(1) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE (username, task_id),
-                    INDEX idx_username (username)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         ];
         foreach ($tables_to_create as $table_name => $create_sql) {
@@ -145,31 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
                 ]
             ]);
         }
-        exit;
-    }
-    if ($action === 'get_tasks') {
-        $stmt = $user_db->prepare("SELECT username, task_id as id, title, priority, completed FROM working_study_overlay_tasks ORDER BY created_at DESC");
-        if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $user_db->error]);
-            exit;
-        }
-        if (!$stmt->execute()) {
-            echo json_encode(['success' => false, 'error' => 'Execute failed: ' . $stmt->error]);
-            exit;
-        }
-        $result = $stmt->get_result();
-        $tasks = [];
-        while ($row = $result->fetch_assoc()) {
-            $tasks[] = [
-                'username' => $row['username'],
-                'id' => $row['id'],
-                'title' => $row['title'],
-                'priority' => $row['priority'],
-                'completed' => (bool) $row['completed']
-            ];
-        }
-        $stmt->close();
-        echo json_encode(['success' => true, 'data' => $tasks]);
         exit;
     }
     if ($action === 'get_channel_tasks') {
@@ -359,18 +319,6 @@ ob_end_clean();
                     </div>
                 </div>
             </section>
-            <section class="study-overlay-task-card" data-visible="<?php echo $show_tasklist_panel ? 'true' : 'false'; ?>">
-                <header>
-                    <span class="study-overlay-task-title">Task List</span>
-                </header>
-                <div class="study-overlay-task-list" id="taskList">
-                    <p class="study-overlay-empty-state">Loading tasks…</p>
-                </div>
-                <div class="study-overlay-task-footer">
-                    <span id="taskCount">0 tasks</span>
-                    <span id="taskUpdated">Updated: --:--</span>
-                </div>
-            </section>
             <!-- New task system: Streamer Tasks panel -->
             <!-- Shown when ?tasklist is present (filtered by ?tasklist&streamer=true to show only this panel) -->
             <section class="task-sys-card task-sys-card--streamer"
@@ -422,12 +370,6 @@ ob_end_clean();
             const statusText = document.getElementById('statusText');
             const sessionsCompletedEl = document.getElementById('sessionsCompleted');
             const totalTimeLoggedEl = document.getElementById('totalTimeLogged');
-            const taskListEl = document.getElementById('taskList');
-            const taskCountEl = document.getElementById('taskCount');
-            const taskUpdatedEl = document.getElementById('taskUpdated');
-            const urlParams = new URLSearchParams(window.location.search);
-            const streamerParam = (urlParams.get('streamer') || '').toLowerCase();
-            const streamerMode = streamerParam === 'true' ? true : (streamerParam === 'false' ? false : null);
             const ringElement = document.getElementById('timerRingProgress');
             const circleRadius = 98;
             const circumference = 2 * Math.PI * circleRadius;
@@ -798,59 +740,7 @@ ob_end_clean();
                     return false;
                 }
             };
-            const getCurrentTimeStamp = () => {
-                const now = new Date();
-                return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            };
-            const renderTasks = tasks => {
-                taskListEl.innerHTML = '';
-                const normalizedStreamerName = String(overlayUserName || '').toLowerCase();
-                const filteredTasks = (tasks || []).filter(task => {
-                    if (streamerMode === null) {
-                        return true;
-                    }
-                    const owner = String(task.username || '').toLowerCase();
-                    if (streamerMode === true) {
-                        return owner === normalizedStreamerName;
-                    }
-                    return owner !== normalizedStreamerName;
-                });
-                if (!filteredTasks.length) {
-                    taskListEl.innerHTML = '<p class="study-overlay-empty-state">No tasks yet.</p>';
-                    taskCountEl.textContent = '0 tasks';
-                    taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
-                    return;
-                }
-                filteredTasks.forEach(task => {
-                    const node = document.createElement('article');
-                    node.className = 'study-overlay-task-item' + (task.completed ? ' completed' : '');
-                    node.innerHTML = `
-                        <p class="study-overlay-task-text">${escapeHtml(task.title)}</p>
-                        <div class="study-overlay-task-meta">
-                            ${task.priority ? `<span class="study-overlay-task-priority ${task.priority.toLowerCase()}">${task.priority}</span>` : ''}
-                            ${task.completed ? '<span>Completed</span>' : ''}
-                        </div>
-                    `;
-                    taskListEl.appendChild(node);
-                });
-                taskCountEl.textContent = `${filteredTasks.length} task${filteredTasks.length === 1 ? '' : 's'}`;
-                taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
-            };
-            const tasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_tasks`;
             const settingsEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_settings`;
-            const loadTasksFromAPI = async () => {
-                try {
-                    const response = await fetch(tasksEndpoint, { cache: 'no-store' });
-                    const data = await response.json();
-                    if (data.success) {
-                        renderTasks(data.data);
-                    } else {
-                        console.error('[Overlay] Task list failed:', data.error);
-                    }
-                } catch (error) {
-                    console.error('[Overlay] Unable to load tasks:', error);
-                }
-            };
             const loadSettingsFromAPI = async () => {
                 try {
                     const response = await fetch(settingsEndpoint, { cache: 'no-store' });
@@ -990,7 +880,6 @@ ob_end_clean();
                     console.log('[Overlay] Sent REGISTER event for code:', overlayApiKey);
                     emitSessionStats();
                     loadSettingsFromAPI();
-                    loadTasksFromAPI();
                     loadChannelTasks();
                     startStatsTicker();
                 });
@@ -1072,12 +961,6 @@ ob_end_clean();
                 socket.on('SPECTER_STATS_REQUEST', () => {
                     emitSessionStats();
                 });
-                socket.on('SPECTER_TASKLIST_UPDATE', () => {
-                    loadTasksFromAPI();
-                });
-                socket.on('SPECTER_TASKLIST', () => {
-                    loadTasksFromAPI();
-                });
                 // ── New channel task system events ──────────────────────────
                 socket.on('TASK_LIST_SYNC', (d) => {
                     renderNewStreamerList(d.streamer_tasks || []);
@@ -1131,7 +1014,6 @@ ob_end_clean();
             };
             hasRestoredTimerState = restoreSavedTimerState();
             connect();
-            renderTasks([]);
             updateStatsDisplay();
             updateDisplay();
         })();
