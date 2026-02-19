@@ -911,7 +911,7 @@ ob_start();
                                     <?php if ($endDateText !== ''): ?>
                                         <p class="mb-1"><strong>End Date:</strong> <?php echo htmlspecialchars($endDateText); ?></p>
                                     <?php endif; ?>
-                                    <p class="mb-2"><strong>Duration</strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
+                                    <p class="mb-1"><strong>Duration</strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
                                     <p class="mb-2"><strong>Category</strong><br><?php echo $category ? htmlspecialchars($category) : '<em>Not specified</em>'; ?></p>
                                 </div>
                             </div>
@@ -927,17 +927,25 @@ ob_start();
                                                 <input class="input segment-end-input" type="datetime-local" name="segment_end" value="<?php echo $endLocalValue; ?>" />
                                                 <input type="hidden" name="segment_duration" class="segment-duration-hidden" value="<?php echo ($durationMins !== null) ? (int)$durationMins : ''; ?>" />
                                             </div>
+                                        </div>
+                                        <div class="field">
                                             <div class="control schedule-duration-display">
                                                 <span class="tag is-dark segment-duration-preview">Duration: <?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></span>
                                             </div>
-                                            <div class="control" style="min-width:220px; position:relative;">
+                                        </div>
+                                        <div class="field">
+                                            <div class="control is-expanded" style="position:relative;">
                                                 <input class="input segment-category-search" type="text" placeholder="Search category..." value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
                                                 <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" />
                                                 <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--card-bg); border:1px solid #333; border-radius:4px; margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
                                             </div>
-                                            <div class="control">
+                                        </div>
+                                        <div class="field">
+                                            <div class="control is-expanded">
                                                 <input class="input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="Title" />
                                             </div>
+                                        </div>
+                                        <div class="field is-grouped is-align-items-center is-flex-wrap-wrap">
                                             <div class="control">
                                                 <button class="button is-link segment-update-btn" type="submit" name="action" value="update_segment">Update</button>
                                             </div>
