@@ -896,6 +896,11 @@ ob_end_clean();
                 tasks.forEach(t => newViewerUpsert(t));
                 refreshTaskListAutoScroll();
             };
+            const getTaskDescription = (task) => {
+                const description = String(task?.description || '').trim();
+                if (description) return description;
+                return String(task?.title || '').trim();
+            };
             const newStreamerUpsert = (task) => {
                 const list = document.getElementById('newStreamerTaskList');
                 if (!list) return;
@@ -903,8 +908,8 @@ ob_end_clean();
                 if (!li) { li = document.createElement('li'); li.id = 'new-streamer-task-' + task.id; list.appendChild(li); }
                 const done = task.status === 'completed';
                 li.className = 'task-sys-item' + (done ? ' is-done' : '');
-                const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
-                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div>${task.category ? `<div class="task-sys-item__meta">${escapeHtml(task.category)}</div>` : ''}</div>${pts}`;
+                const taskDescription = getTaskDescription(task) || 'Untitled task';
+                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
             };
             const newViewerUpsert = (task) => {
@@ -914,8 +919,9 @@ ob_end_clean();
                 if (!li) { li = document.createElement('li'); li.id = 'new-viewer-task-' + task.id; list.appendChild(li); }
                 const done = task.status === 'completed';
                 li.className = 'task-sys-item' + (done ? ' is-done' : '');
-                const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
-                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div><div class="task-sys-item__meta">${escapeHtml(task.user_name || '')}</div></div>${pts}`;
+                const userName = String(task?.user_name || '').trim() || 'Unknown';
+                const taskDescription = getTaskDescription(task) || 'Untitled task';
+                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
             };
             const newSetDone = (taskId, owner) => {
