@@ -3307,9 +3307,9 @@ body {
 
 .schedule-segment-card {
     width: 100%;
-    min-height: 730px;
-    height: 730px;
-    max-height: 730px;
+    min-height: 750px;
+    height: 800px;
+    max-height: 800px;
     display: flex;
     flex-direction: column;
 }
