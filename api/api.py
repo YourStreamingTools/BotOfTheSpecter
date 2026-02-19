@@ -404,6 +404,9 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/joke",
     "/sound-alerts",
     "/custom-commands",
+    "/user-commands/get",
+    "/user-commands/add",
+    "/user-commands/remove",
     "/weather",
     "/websocket/tts",
     "/websocket/walkon",
@@ -426,6 +429,11 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/bot/status",
 ]
 _V2_API_KEY_REQUIRED_PATHS_SET = set(_V2_API_KEY_REQUIRED_PATHS)
+
+
+def _sanitize_user_command_name(command: str) -> str:
+    lowered = (command or "").replace(" ", "").lower()
+    return "".join(ch for ch in lowered if ("a" <= ch <= "z") or ch.isdigit())
 
 _V2_PUBLIC_PATHS = [
     "/freestuff/games",
@@ -2389,6 +2397,171 @@ async def get_custom_commands(api_key: str = Query(...), channel: str = Query(No
     except Exception as e:
         logging.error(f"Error retrieving custom commands for user '{username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving custom commands: {str(e)}")
+
+# User Managed Commands Endpoint
+@app.get(
+    "/user-commands/get",
+    summary="Get list of user managed commands",
+    description="Retrieve all user managed commands available for your account from your database.",
+    tags=["Commands"],
+    operation_id="get_user_managed_commands"
+)
+async def get_user_managed_commands(
+    api_key: str = Query(...),
+    username: str = Query(..., description="Target username to fetch commands for"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    owner_username = resolve_username(key_info, channel)
+    target_username = username.strip()
+    if not target_username:
+        raise HTTPException(status_code=400, detail="username is required")
+    try:
+        connection = await get_mysql_connection_user(owner_username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    """
+                    SELECT command, response, status, cooldown, user_id
+                    FROM custom_user_commands
+                    WHERE user_id = %s
+                    ORDER BY command ASC
+                    """,
+                    (target_username,),
+                )
+                commands = await cursor.fetchall()
+            command_list = []
+            for cmd in commands:
+                command_list.append({
+                    "command": cmd["command"],
+                    "response": cmd["response"],
+                    "status": cmd["status"],
+                    "cooldown": cmd["cooldown"],
+                    "username": cmd["user_id"],
+                })
+            return {
+                "user": owner_username,
+                "target_username": target_username,
+                "total_commands": len(command_list),
+                "commands": command_list,
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving user managed commands for user '{owner_username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving user managed commands: {str(e)}")
+
+@app.post(
+    "/user-commands/add",
+    summary="Add a user managed command",
+    description="Add a user managed command, matching dashboard sanitization and duplicate checks.",
+    tags=["Commands"],
+    operation_id="add_user_managed_command"
+)
+async def add_user_managed_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Command name (without ! prefix)"),
+    response: str = Query(..., description="Command response", max_length=500),
+    cooldown: int = Query(15, description="Cooldown in seconds", ge=1),
+    username: str = Query(..., description="Target username for this command"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    owner_username = resolve_username(key_info, channel)
+    new_command = _sanitize_user_command_name(command)
+    if not new_command:
+        raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    target_username = username.strip()
+    if not target_username:
+        raise HTTPException(status_code=400, detail="username is required")
+    try:
+        connection = await get_mysql_connection_user(owner_username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT command FROM custom_user_commands WHERE command = %s",
+                    (new_command,),
+                )
+                existing = await cursor.fetchone()
+                if existing:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Command '{new_command}' already exists. Please choose a different name.",
+                    )
+                await cursor.execute(
+                    """
+                    INSERT INTO custom_user_commands (command, response, status, cooldown, user_id)
+                    VALUES (%s, %s, 'Enabled', %s, %s)
+                    """,
+                    (new_command, response, cooldown, target_username),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=500, detail="Command was not added to the database")
+            return {
+                "status": "success",
+                "user": owner_username,
+                "command": new_command,
+                "username": target_username,
+                "message": f"User command '{new_command}' for username '{target_username}' added successfully!",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error adding user managed command for user '{owner_username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error adding user managed command: {str(e)}")
+
+@app.post(
+    "/user-commands/remove",
+    summary="Remove a user managed command",
+    description="Remove a user managed command by command name.",
+    tags=["Commands"],
+    operation_id="remove_user_managed_command"
+)
+async def remove_user_managed_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Command name to remove (without ! prefix)"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    command_name = _sanitize_user_command_name(command)
+    if not command_name:
+        raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "DELETE FROM custom_user_commands WHERE command = %s",
+                    (command_name,),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"{command_name} not found")
+            return {
+                "status": "success",
+                "user": username,
+                "command": command_name,
+                "message": f"User command {command_name} deleted successfully!",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error removing user managed command for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error removing user managed command: {str(e)}")
 
 # Weather Data Endpoint
 @app.get(
