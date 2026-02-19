@@ -1344,7 +1344,7 @@ ob_start();
             <td>
                 <div class="buttons are-small">
                     ${task.status === 'active' ? `<button class="button is-success is-light" onclick="chCompleteUser(${task.id})">Done</button>` : ''}
-                    ${canApprove ? `<button class="button is-link is-light" onclick="chApproveUser(${task.id})">Approve</button>` : ''}
+                    ${canApprove ? `<button class="button is-link is-light" onclick="chAwardUser(${task.id})">Award</button>` : ''}
                     ${canApprove ? `<button class="button is-warning is-light" onclick="chRejectUser(${task.id})">Reject</button>` : ''}
                 </div>
             </td>`;
@@ -1432,7 +1432,7 @@ ob_start();
             }
         });
     };
-    window.chApproveUser = function (id) {
+    window.chAwardUser = function (id) {
         chPost({ action: 'ch_approve_user_task', id }, (res) => {
             if (res.success && res.task) {
                 const t = res.task;
@@ -1441,7 +1441,7 @@ ob_start();
                     channel_code: chApiKey, task_id: t.id, user_id: t.user_id,
                     user_name: t.user_name, title: t.title, reward_points: t.reward_points,
                 });
-                chShowToast(`Approved task for ${t.user_name}.`);
+                chShowToast(`Awarded task for ${t.user_name}.`);
                 if (res.reward?.awarded) {
                     chSocket.emit('TASK_REWARD_CONFIRM', {
                         channel_code: chApiKey,
@@ -1456,6 +1456,7 @@ ob_start();
             }
         });
     };
+    window.chApproveUser = window.chAwardUser;
     window.chRejectUser = function (id) {
         chPost({ action: 'ch_reject_user_task', id }, (res) => {
             if (res.success) {
