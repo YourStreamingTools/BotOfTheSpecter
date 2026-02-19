@@ -633,6 +633,57 @@ try {
                 session_id VARCHAR(255) PRIMARY KEY,
                 session_name VARCHAR(255) NOT NULL,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'streamer_tasks' => "
+            CREATE TABLE IF NOT EXISTS streamer_tasks (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                title VARCHAR(255) NOT NULL,
+                description TEXT DEFAULT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                status ENUM('active','completed','hidden') DEFAULT 'active',
+                reward_points INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'user_tasks' => "
+            CREATE TABLE IF NOT EXISTS user_tasks (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                streamer_task_id INT DEFAULT NULL,
+                user_id VARCHAR(50) NOT NULL,
+                user_name VARCHAR(100) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                description TEXT DEFAULT NULL,
+                category VARCHAR(100) DEFAULT 'General',
+                status ENUM('pending','active','completed','rejected') DEFAULT 'active',
+                approval_status ENUM('auto','pending_approval','approved','rejected') DEFAULT 'auto',
+                reward_points INT DEFAULT 0,
+                completed_at TIMESTAMP NULL DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_user_id (user_id),
+                INDEX idx_status (status),
+                INDEX idx_approval (approval_status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'task_reward_log' => "
+            CREATE TABLE IF NOT EXISTS task_reward_log (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_task_id INT NOT NULL,
+                user_id VARCHAR(50) NOT NULL,
+                user_name VARCHAR(100) NOT NULL,
+                points_awarded INT NOT NULL DEFAULT 0,
+                rewarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_task_reward (user_task_id),
+                INDEX idx_user_id (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'task_settings' => "
+            CREATE TABLE IF NOT EXISTS task_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                require_approval TINYINT(1) DEFAULT 0,
+                default_reward_points INT DEFAULT 50,
+                allow_user_tasks TINYINT(1) DEFAULT 1,
+                task_visible_overlay TINYINT(1) DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
@@ -825,6 +876,10 @@ try {
     // Ensure default options for working_study_overlay_settings
     if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task) SELECT 60, 5, 30, 0, 10 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default working_study_overlay_settings options ensured.');
+    }
+    // Ensure default options for task_settings exist
+    if ($usrDBconn->query("INSERT INTO task_settings (require_approval, default_reward_points, allow_user_tasks, task_visible_overlay) SELECT 0, 50, 1, 1 WHERE NOT EXISTS (SELECT 1 FROM task_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default task_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist
     if (

@@ -23,6 +23,13 @@ if ($has_timer_query && !$has_tasklist_query) {
     $show_timer_panel = false;
     $overlay_mode_class = 'study-overlay--tasks-only';
 }
+// New task system panel visibility
+// ?tasklist                 -> both streamer + viewer task panels visible
+// ?tasklist&streamer=true   -> only streamer task panel visible
+// ?tasklist&streamer=false  -> only viewer task panel visible
+$streamer_filter_param = isset($_GET['streamer']) ? $_GET['streamer'] : null;
+$show_new_streamer_panel = $has_tasklist_query && ($streamer_filter_param !== 'false');
+$show_new_viewer_panel   = $has_tasklist_query && ($streamer_filter_param !== 'true');
 
 include '/var/www/config/database.php';
 
@@ -165,6 +172,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         echo json_encode(['success' => true, 'data' => $tasks]);
         exit;
     }
+    if ($action === 'get_channel_tasks') {
+        // Returns streamer_tasks and user_tasks from the new channel task system
+        $streamer_tasks_arr = [];
+        $user_tasks_arr = [];
+        // Check if the tables exist before querying
+        $st_exists = $user_db->query("SHOW TABLES LIKE 'streamer_tasks'")->num_rows > 0;
+        $ut_exists = $user_db->query("SHOW TABLES LIKE 'user_tasks'")->num_rows > 0;
+        if ($st_exists) {
+            $s = $user_db->prepare("SELECT id, title, description, category, status, reward_points FROM streamer_tasks WHERE status != 'hidden' ORDER BY created_at DESC");
+            if ($s && $s->execute()) {
+                $streamer_tasks_arr = $s->get_result()->fetch_all(MYSQLI_ASSOC);
+                $s->close();
+            }
+        }
+        if ($ut_exists) {
+            $u = $user_db->prepare("SELECT id, user_name, title, description, status, reward_points, completed_at FROM user_tasks WHERE status != 'rejected' ORDER BY created_at DESC");
+            if ($u && $u->execute()) {
+                $user_tasks_arr = $u->get_result()->fetch_all(MYSQLI_ASSOC);
+                $u->close();
+            }
+        }
+        echo json_encode(['success' => true, 'streamer_tasks' => $streamer_tasks_arr, 'user_tasks' => $user_tasks_arr]);
+        exit;
+    }
 }
 
 ob_end_clean();
@@ -177,6 +208,123 @@ ob_end_clean();
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <link rel="stylesheet" href="index.css">
+    <style>
+        /* ── New task system panels ─────────────────────────────────── */
+        .task-sys-card {
+            background: rgba(20, 20, 30, 0.85);
+            border: 1px solid rgba(255,255,255,.13);
+            border-radius: 10px;
+            min-width: 200px;
+            max-width: 340px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .task-sys-card__header {
+            padding: 8px 12px;
+            background: rgba(255,255,255,.07);
+            font-weight: 700;
+            font-size: .78rem;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .task-sys-card__dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .task-sys-card__list {
+            list-style: none;
+            margin: 0;
+            padding: 6px 0;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+        .task-sys-card__list:empty::after {
+            content: 'No tasks';
+            display: block;
+            text-align: center;
+            padding: 14px;
+            color: rgba(255,255,255,.38);
+            font-style: italic;
+            font-size: .75rem;
+        }
+        .task-sys-item {
+            padding: 5px 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+            border-bottom: 1px solid rgba(255,255,255,.05);
+            animation: taskSlideIn .3s ease;
+        }
+        .task-sys-item:last-child { border-bottom: none; }
+        .task-sys-item.is-done { opacity: .4; }
+        .task-sys-item__check {
+            margin-top: 3px;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            border: 2px solid #48c78e;
+            flex-shrink: 0;
+        }
+        .task-sys-item.is-done .task-sys-item__check {
+            background: #48c78e;
+            position: relative;
+        }
+        .task-sys-item.is-done .task-sys-item__check::after {
+            content: '\2713';
+            position: absolute;
+            top: -2px; left: 1px;
+            font-size: .5rem;
+            color: #fff;
+        }
+        .task-sys-item__body { flex: 1; min-width: 0; }
+        .task-sys-item__title {
+            font-size: .78rem;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .task-sys-item.is-done .task-sys-item__title { text-decoration: line-through; }
+        .task-sys-item__meta {
+            font-size: .65rem;
+            color: rgba(255,255,255,.45);
+            margin-top: 1px;
+        }
+        .task-sys-item__pts {
+            font-size: .68rem;
+            color: #ffd700;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .task-sys-reward {
+            position: fixed;
+            bottom: 18px; right: 18px;
+            background: #23d160;
+            color: #fff;
+            border-radius: 8px;
+            padding: 9px 15px;
+            font-weight: 700;
+            font-size: .85rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,.45);
+            animation: taskPopIn .4s ease;
+            z-index: 1000;
+        }
+        @keyframes taskSlideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to   { opacity: 1; transform: none; }
+        }
+        @keyframes taskPopIn {
+            0%   { transform: scale(.6); opacity: 0; }
+            70%  { transform: scale(1.07); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
 </head>
 <body class="study-overlay-page">
     <?php if ($error_html): ?>
@@ -223,6 +371,29 @@ ob_end_clean();
                     <span id="taskUpdated">Updated: --:--</span>
                 </div>
             </section>
+            <!-- New task system: Streamer Tasks panel -->
+            <!-- Shown when ?tasklist is present (filtered by ?tasklist&streamer=true to show only this panel) -->
+            <section class="task-sys-card task-sys-card--streamer"
+                     data-visible="<?php echo $show_new_streamer_panel ? 'true' : 'false'; ?>"
+                     <?php if (!$show_new_streamer_panel) echo 'style="display:none"'; ?>>
+                <div class="task-sys-card__header">
+                    <span class="task-sys-card__dot" style="background:#48c78e"></span>
+                    Streamer Tasks
+                </div>
+                <ul class="task-sys-card__list" id="newStreamerTaskList"></ul>
+            </section>
+            <!-- New task system: Viewer Tasks panel -->
+            <!-- Shown when ?tasklist is present (hidden when ?tasklist&streamer=true) -->
+            <section class="task-sys-card task-sys-card--viewer"
+                     data-visible="<?php echo $show_new_viewer_panel ? 'true' : 'false'; ?>"
+                     <?php if (!$show_new_viewer_panel) echo 'style="display:none"'; ?>>
+                <div class="task-sys-card__header">
+                    <span class="task-sys-card__dot" style="background:#3e8ed0"></span>
+                    Viewer Tasks
+                </div>
+                <ul class="task-sys-card__list" id="newViewerTaskList"></ul>
+            </section>
+            <div id="taskRewardPopups"></div>
         </div>
     <?php endif; ?>
     <script>
@@ -730,6 +901,68 @@ ob_end_clean();
                 }
                 setTimeout(connect, delay);
             };
+            // ─── New channel task system helpers ───────────────────────────
+            const channelTasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_channel_tasks`;
+            const loadChannelTasks = async () => {
+                // Only fetch if at least one task panel is visible
+                const sPanel = document.getElementById('newStreamerTaskList');
+                const vPanel = document.getElementById('newViewerTaskList');
+                if (!sPanel && !vPanel) return;
+                try {
+                    const r = await fetch(channelTasksEndpoint);
+                    const j = await r.json();
+                    if (j.success) {
+                        renderNewStreamerList(j.streamer_tasks || []);
+                        renderNewViewerList(j.user_tasks || []);
+                    }
+                } catch (e) { console.warn('[Overlay] loadChannelTasks error', e); }
+            };
+            const renderNewStreamerList = (tasks) => {
+                const list = document.getElementById('newStreamerTaskList');
+                if (!list) return;
+                list.innerHTML = '';
+                tasks.forEach(t => newStreamerUpsert(t));
+            };
+            const renderNewViewerList = (tasks) => {
+                const list = document.getElementById('newViewerTaskList');
+                if (!list) return;
+                list.innerHTML = '';
+                tasks.forEach(t => newViewerUpsert(t));
+            };
+            const newStreamerUpsert = (task) => {
+                const list = document.getElementById('newStreamerTaskList');
+                if (!list) return;
+                let li = document.getElementById('new-task-' + task.id);
+                if (!li) { li = document.createElement('li'); li.id = 'new-task-' + task.id; list.appendChild(li); }
+                const done = task.status === 'completed';
+                li.className = 'task-sys-item' + (done ? ' is-done' : '');
+                const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
+                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div>${task.category ? `<div class="task-sys-item__meta">${escapeHtml(task.category)}</div>` : ''}</div>${pts}`;
+            };
+            const newViewerUpsert = (task) => {
+                const list = document.getElementById('newViewerTaskList');
+                if (!list) return;
+                let li = document.getElementById('new-task-' + task.id);
+                if (!li) { li = document.createElement('li'); li.id = 'new-task-' + task.id; list.appendChild(li); }
+                const done = task.status === 'completed';
+                li.className = 'task-sys-item' + (done ? ' is-done' : '');
+                const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
+                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div><div class="task-sys-item__meta">${escapeHtml(task.user_name || '')}</div></div>${pts}`;
+            };
+            const newSetDone = (taskId, listId) => {
+                const li = document.getElementById('new-task-' + taskId);
+                if (li) li.classList.add('is-done');
+            };
+            const showTaskRewardPopup = (msg) => {
+                const el = document.createElement('div');
+                el.className = 'task-sys-reward';
+                el.textContent = msg;
+                const container = document.getElementById('taskRewardPopups') || document.body;
+                container.appendChild(el);
+                setTimeout(() => el.remove(), 5000);
+            };
+            const escapeHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            // ────────────────────────────────────────────────────────────────
             const connect = () => {
                 setConnectionStatus('Connecting…', 'connecting');
                 console.log('[Overlay] Creating socket connection...');
@@ -748,6 +981,7 @@ ob_end_clean();
                     emitSessionStats();
                     loadSettingsFromAPI();
                     loadTasksFromAPI();
+                    loadChannelTasks();
                     startStatsTicker();
                 });
                 console.log('[Overlay] Registering all WebSocket event listeners...');
@@ -833,6 +1067,36 @@ ob_end_clean();
                 });
                 socket.on('SPECTER_TASKLIST', () => {
                     loadTasksFromAPI();
+                });
+                // ── New channel task system events ──────────────────────────
+                socket.on('TASK_LIST_SYNC', (d) => {
+                    renderNewStreamerList(d.streamer_tasks || []);
+                    renderNewViewerList(d.user_tasks || []);
+                });
+                socket.on('TASK_CREATE', (d) => {
+                    if (d.task?.owner === 'streamer') newStreamerUpsert(d.task);
+                    else newViewerUpsert(d.task);
+                });
+                socket.on('TASK_UPDATE', (d) => {
+                    if (!d.task) return;
+                    if (d.task.owner === 'streamer') newStreamerUpsert(d.task);
+                    else newViewerUpsert(d.task);
+                });
+                socket.on('TASK_COMPLETE', (d) => {
+                    newSetDone(d.task_id, d.owner === 'streamer' ? 'newStreamerTaskList' : 'newViewerTaskList');
+                });
+                socket.on('TASK_APPROVE', (d) => {
+                    // Approval means the task is accepted; no visual change here beyond completion
+                });
+                socket.on('TASK_REJECT', (d) => {
+                    const el = document.getElementById('new-task-' + d.task_id);
+                    if (el) el.style.opacity = '0.2';
+                });
+                socket.on('TASK_DELETE', (d) => {
+                    document.getElementById('new-task-' + d.task_id)?.remove();
+                });
+                socket.on('TASK_REWARD_CONFIRM', (d) => {
+                    showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');
                 });
                 socket.on('SPECTER_SESSION_STATS', payload => {
                     if (!payload) return;

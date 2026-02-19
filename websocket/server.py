@@ -248,6 +248,15 @@ class BotOfTheSpecter_WebsocketServer:
             ("SPECTER_TASKLIST_UPDATE", self.handle_specter_tasklist_update),
             ("SPECTER_TASKLIST", self.handle_specter_tasklist),
             ("SPECTER_STATS_REQUEST", self.handle_specter_stats_request),
+            # Task system events
+            ("TASK_CREATE",          self.handle_task_create),
+            ("TASK_UPDATE",          self.handle_task_update),
+            ("TASK_COMPLETE",        self.handle_task_complete),
+            ("TASK_APPROVE",         self.handle_task_approve),
+            ("TASK_REJECT",          self.handle_task_reject),
+            ("TASK_DELETE",          self.handle_task_delete),
+            ("TASK_REWARD_CONFIRM",  self.handle_task_reward_confirm),
+            ("TASK_SETTINGS_UPDATE", self.handle_task_settings_update),
             # OBS events: FROM OBS TO Specter (incoming notifications from OBS)
             ("OBS_EVENT", self.obs_handler.handle_obs_event),
             ("OBS_EVENT_RECEIVED", self.obs_handler.handle_obs_event_received),
@@ -310,6 +319,96 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def handle_specter_stats_request(self, sid, data):
         await self._route_timer_event("SPECTER_STATS_REQUEST", sid, data)
+
+    async def handle_task_create(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_CREATE from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_CREATE", payload, source_sid=sid)
+
+    async def handle_task_complete(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_COMPLETE from [{sid}]: {payload}")
+        # Broadcast completion to all task clients (dashboard + overlay)
+        await self.broadcast_to_task_clients_only("TASK_COMPLETE", payload, source_sid=sid)
+        # Determine whether approval is required (payload flag set by dashboard)
+        require_approval = payload.get("require_approval", False)
+        if not require_approval:
+            # Fire reward trigger directly to bot
+            await self.emit_task_reward_trigger(sid, payload)
+
+    async def emit_task_reward_trigger(self, sid, payload):
+        code = self.get_code_by_sid(sid)
+        if not code and isinstance(payload, dict):
+            code = payload.get('code') or payload.get('channel_code')
+        if not code or code not in self.registered_clients:
+            self.logger.warning(f"emit_task_reward_trigger: no code found for sid [{sid}]")
+            return
+        trigger_payload = {
+            "channel_code": code,
+            "user_id":      payload.get("user_id"),
+            "user_name":    payload.get("user_name"),
+            "task_id":      payload.get("task_id"),
+            "points":       payload.get("reward_points", 0),
+            "task_title":   payload.get("title", ""),
+        }
+        for client in self.registered_clients[code]:
+            if client.get('channel', '').lower() not in ['dashboard', 'overlay']:
+                # Send only to non-dashboard/non-overlay = bot
+                await self.sio.emit("TASK_REWARD_TRIGGER", trigger_payload, to=client['sid'])
+                self.logger.info(f"TASK_REWARD_TRIGGER sent to bot [{client['sid']}] for user {payload.get('user_name')}")
+
+    async def handle_task_update(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_UPDATE from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_UPDATE", payload, source_sid=sid)
+
+    async def handle_task_approve(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_APPROVE from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_APPROVE", payload, source_sid=sid)
+        await self.emit_task_reward_trigger(sid, payload)
+
+    async def handle_task_reject(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_REJECT from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_REJECT", payload, source_sid=sid)
+
+    async def handle_task_delete(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_DELETE from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_DELETE", payload, source_sid=sid)
+
+    async def handle_task_settings_update(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_SETTINGS_UPDATE from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_SETTINGS_UPDATE", payload, source_sid=sid)
+
+    async def handle_task_reward_confirm(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        self.logger.info(f"TASK_REWARD_CONFIRM from [{sid}]: {payload}")
+        await self.broadcast_to_task_clients_only("TASK_REWARD_CONFIRM", payload, source_sid=sid)
+
+    async def broadcast_to_task_clients_only(self, event_name, data, source_sid=None):
+        count = 0
+        effective_code = None
+        if source_sid:
+            effective_code = self.get_code_by_sid(source_sid)
+        if not effective_code and data and isinstance(data, dict):
+            effective_code = data.get('code') or data.get('channel_code')
+        if not effective_code:
+            self.logger.warning(f"broadcast_to_task_clients_only: No code found for event {event_name}")
+            return 0
+        if effective_code not in self.registered_clients:
+            self.logger.warning(f"broadcast_to_task_clients_only: Code {effective_code} not found in registered_clients")
+            return 0
+        payload = dict(data) if isinstance(data, dict) else {}
+        payload["channel_code"] = effective_code
+        for client in self.registered_clients[effective_code]:
+            if client['sid'] != source_sid:
+                await self.sio.emit(event_name, payload, to=client['sid'])
+                count += 1
+        self.logger.info(f"broadcast_to_task_clients_only: Broadcasted {event_name} to {count} clients (code: {effective_code})")
+        return count
 
     async def ip_restriction_middleware(self, app, handler):
         async def middleware_handler(request):
@@ -491,6 +590,10 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Client [{sid}] with name [{name}] registered with code: {code}")
                 await self.sio.emit("SUCCESS", {"message": "Registration successful", "code": code, "name": name}, to=sid)
             self.logger.info(f"Total registered clients for code {code}: {len(self.registered_clients[code])}")
+            # Push TASK_LIST_SYNC to task-aware clients on connect so they can hydrate state
+            if channel.lower() in ['dashboard', 'overlay'] and 'task' in sid_name.lower():
+                await self.sio.emit("TASK_LIST_SYNC", {"channel_code": code, "streamer_tasks": [], "user_tasks": []}, to=sid)
+                self.logger.info(f"Sent TASK_LIST_SYNC to newly registered task client [{sid}]")
         else:
             self.logger.warning("Code not provided and not a global listener during registration")
             await self.sio.emit("ERROR", {"message": "Registration failed: code missing and not global listener"}, to=sid)

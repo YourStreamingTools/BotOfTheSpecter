@@ -1888,6 +1888,58 @@ async def OBS_EVENT_RECEIVED(data):
     except Exception as e:
         websocket_logger.error(f"Error processing OBS event: {e}", exc_info=True)
 
+@specterSocket.event
+async def TASK_REWARD_TRIGGER(data):
+    websocket_logger.info(f"TASK_REWARD_TRIGGER received: {data}")
+    try:
+        user_id    = data.get("user_id")
+        user_name  = data.get("user_name")
+        points     = int(data.get("points", 0))
+        task_id    = data.get("task_id")
+        task_title = data.get("task_title", "a task")
+        channel_code = data.get("channel_code", "")
+        # Validate required fields
+        if not user_id or not user_name:
+            websocket_logger.error(f"TASK_REWARD_TRIGGER: missing user_id or user_name in payload: {data}")
+            return
+        if points <= 0:
+            websocket_logger.warning(f"TASK_REWARD_TRIGGER: points={points} for user {user_name}, skipping reward")
+            return
+        # Award points using the existing points system
+        result = await manage_user_points(user_id, user_name, "credit", points)
+        if result["success"]:
+            websocket_logger.info(f"TASK_REWARD_TRIGGER: awarded {points} points to {user_name} (task: {task_id})")
+            # Announce in Twitch chat
+            try:
+                point_name = "points"
+                connection = await mysql_handler.get_connection()
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT point_name FROM bot_settings LIMIT 1")
+                    row = await cursor.fetchone()
+                    if row and row.get("point_name"):
+                        point_name = row["point_name"]
+            except Exception:
+                pass
+            await send_chat_message(
+                f"@{user_name} completed \"{task_title}\" and earned {points} {point_name}! "
+                f"They now have {result['points']} {point_name}."
+            )
+            # Confirm back to the WebSocket server
+            confirm_payload = {
+                "channel_code":  channel_code,
+                "user_id":       user_id,
+                "user_name":     user_name,
+                "task_id":       task_id,
+                "points_awarded": points,
+                "new_total":     result["points"],
+            }
+            await specterSocket.emit("TASK_REWARD_CONFIRM", confirm_payload)
+            websocket_logger.info(f"TASK_REWARD_CONFIRM emitted for task {task_id}, user {user_name}")
+        else:
+            websocket_logger.error(f"TASK_REWARD_TRIGGER: manage_user_points failed for {user_name}: {result.get('error')}")
+    except Exception as e:
+        websocket_logger.error(f"TASK_REWARD_TRIGGER: unexpected error: {e}", exc_info=True)
+
 # Helper function for manual websocket reconnection (can be called from commands)
 async def force_websocket_reconnect():
     global websocket_connected

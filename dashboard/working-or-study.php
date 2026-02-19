@@ -245,6 +245,120 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         exit;
     }
+    // ── Channel Task System API (prefixed ch_) ────────────────────────────────
+    if ($action === 'ch_get_settings') {
+        $stmt = $db->prepare("SELECT require_approval, default_reward_points, allow_user_tasks, task_visible_overlay FROM task_settings LIMIT 1");
+        if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
+        $stmt->execute();
+        $settings = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$settings) {
+            $settings = ['require_approval' => 0, 'default_reward_points' => 50, 'allow_user_tasks' => 1, 'task_visible_overlay' => 1];
+        }
+        echo json_encode(['success' => true, 'data' => $settings]);
+        exit;
+    }
+    if ($action === 'ch_save_settings') {
+        $require_approval     = !empty($_POST['require_approval'])     ? 1 : 0;
+        $default_reward       = max(0, intval($_POST['default_reward_points'] ?? 50));
+        $allow_user_tasks     = !empty($_POST['allow_user_tasks'])     ? 1 : 0;
+        $task_visible_overlay = !empty($_POST['task_visible_overlay']) ? 1 : 0;
+        $stmt = $db->prepare("UPDATE task_settings SET require_approval=?, default_reward_points=?, allow_user_tasks=?, task_visible_overlay=? WHERE id=1");
+        if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
+        $stmt->bind_param("iiii", $require_approval, $default_reward, $allow_user_tasks, $task_visible_overlay);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => $ok]);
+        exit;
+    }
+    if ($action === 'ch_get_tasks') {
+        $st = $db->prepare("SELECT id, title, description, category, status, reward_points, created_at FROM streamer_tasks ORDER BY created_at DESC");
+        $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
+        if (!$st || !$ut) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
+        $st->execute(); $ut->execute();
+        $streamer_tasks = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+        $user_tasks     = $ut->get_result()->fetch_all(MYSQLI_ASSOC);
+        $st->close(); $ut->close();
+        echo json_encode(['success' => true, 'streamer_tasks' => $streamer_tasks, 'user_tasks' => $user_tasks]);
+        exit;
+    }
+    if ($action === 'ch_create_streamer_task') {
+        $title    = trim($_POST['title'] ?? '');
+        $desc     = trim($_POST['description'] ?? '');
+        $category = trim($_POST['category'] ?? 'General');
+        $points   = max(0, intval($_POST['reward_points'] ?? 0));
+        if (!$title) { echo json_encode(['success' => false, 'error' => 'Title required']); exit; }
+        $stmt = $db->prepare("INSERT INTO streamer_tasks (title, description, category, reward_points) VALUES (?, ?, ?, ?)");
+        if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
+        $stmt->bind_param("sssi", $title, $desc, $category, $points);
+        $ok = $stmt->execute(); $id = $db->insert_id; $stmt->close();
+        echo json_encode(['success' => $ok, 'id' => $id]);
+        exit;
+    }
+    if ($action === 'ch_update_streamer_task') {
+        $id     = intval($_POST['id'] ?? 0);
+        $title  = trim($_POST['title'] ?? '');
+        $desc   = trim($_POST['description'] ?? '');
+        $cat    = trim($_POST['category'] ?? 'General');
+        $pts    = max(0, intval($_POST['reward_points'] ?? 0));
+        $status = in_array($_POST['status'] ?? '', ['active','completed','hidden']) ? $_POST['status'] : 'active';
+        if (!$id || !$title) { echo json_encode(['success' => false, 'error' => 'Invalid data']); exit; }
+        $stmt = $db->prepare("UPDATE streamer_tasks SET title=?, description=?, category=?, reward_points=?, status=? WHERE id=?");
+        if (!$stmt) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
+        $stmt->bind_param("sssisi", $title, $desc, $cat, $pts, $status, $id);
+        $ok = $stmt->execute(); $stmt->close();
+        echo json_encode(['success' => $ok]);
+        exit;
+    }
+    if ($action === 'ch_delete_streamer_task') {
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
+        $stmt = $db->prepare("DELETE FROM streamer_tasks WHERE id=?");
+        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
+        echo json_encode(['success' => $ok]);
+        exit;
+    }
+    if ($action === 'ch_approve_user_task') {
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
+        $stmt = $db->prepare("UPDATE user_tasks SET approval_status='approved' WHERE id=?");
+        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
+        $rs = $db->prepare("SELECT id, user_id, user_name, title, reward_points FROM user_tasks WHERE id=?");
+        $rs->bind_param("i", $id); $rs->execute();
+        $task = $rs->get_result()->fetch_assoc(); $rs->close();
+        echo json_encode(['success' => $ok, 'task' => $task]);
+        exit;
+    }
+    if ($action === 'ch_reject_user_task') {
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
+        $stmt = $db->prepare("UPDATE user_tasks SET approval_status='rejected', status='rejected' WHERE id=?");
+        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
+        echo json_encode(['success' => $ok]);
+        exit;
+    }
+    if ($action === 'ch_complete_user_task') {
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
+        $stmt = $db->prepare("UPDATE user_tasks SET status='completed', completed_at=NOW() WHERE id=?");
+        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
+        $rs = $db->prepare("SELECT id, user_id, user_name, title, reward_points, approval_status FROM user_tasks WHERE id=?");
+        $rs->bind_param("i", $id); $rs->execute();
+        $task = $rs->get_result()->fetch_assoc(); $rs->close();
+        echo json_encode(['success' => $ok, 'task' => $task]);
+        exit;
+    }
+    if ($action === 'ch_complete_streamer_task') {
+        $id = intval($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'Missing id']); exit; }
+        $stmt = $db->prepare("UPDATE streamer_tasks SET status='completed' WHERE id=?");
+        $stmt->bind_param("i", $id); $ok = $stmt->execute(); $stmt->close();
+        echo json_encode(['success' => $ok]);
+        exit;
+    }
+
+    echo json_encode(['success' => false, 'error' => 'Unknown action']);
+    exit;
 }
 
 // Load initial settings for page initialization
@@ -282,6 +396,17 @@ if ($db && isset($_SESSION['username'])) {
     }
 }
 
+// Load initial task system settings
+$chInitialSettings = ['require_approval' => 0, 'default_reward_points' => 50, 'allow_user_tasks' => 1, 'task_visible_overlay' => 1];
+if ($db) {
+    $stmt = $db->prepare("SELECT require_approval, default_reward_points, allow_user_tasks, task_visible_overlay FROM task_settings LIMIT 1");
+    if ($stmt) {
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        if ($row) { $chInitialSettings = $row; }
+        $stmt->close();
+    }
+}
 ob_start();
 ?>
 <section class="section">
@@ -631,6 +756,164 @@ ob_start();
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Channel Task Manager (streamer_tasks + user_tasks)
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <div class="card mt-5">
+        <header class="card-header">
+            <p class="card-header-title">
+                <span class="icon mr-2"><i class="fas fa-tasks"></i></span>
+                Channel Task Manager
+            </p>
+            <button class="card-header-icon" id="chToggleSettingsBtn" aria-label="toggle task settings">
+                <span class="icon"><i class="fas fa-angle-down" id="chSettingsChevron"></i></span>
+            </button>
+        </header>
+        <!-- Settings sub-panel -->
+        <div class="card-content" id="chSettingsPanel">
+            <div class="columns is-multiline">
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label">Default Reward Points per Task</label>
+                        <div class="control">
+                            <input class="input" type="number" id="chDefaultRewardPoints" min="0"
+                                value="<?php echo (int)$chInitialSettings['default_reward_points']; ?>">
+                        </div>
+                        <p class="help">Applied when a new task is created without a custom value.</p>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label">Toggles</label>
+                        <div class="control">
+                            <label class="checkbox mr-4">
+                                <input type="checkbox" id="chRequireApproval"
+                                    <?php echo $chInitialSettings['require_approval'] ? 'checked' : ''; ?>>
+                                Require streamer approval before awarding points
+                            </label>
+                        </div>
+                        <div class="control mt-2">
+                            <label class="checkbox mr-4">
+                                <input type="checkbox" id="chAllowUserTasks"
+                                    <?php echo $chInitialSettings['allow_user_tasks'] ? 'checked' : ''; ?>>
+                                Allow viewers to submit tasks
+                            </label>
+                        </div>
+                        <div class="control mt-2">
+                            <label class="checkbox">
+                                <input type="checkbox" id="chTaskVisibleOverlay"
+                                    <?php echo $chInitialSettings['task_visible_overlay'] ? 'checked' : ''; ?>>
+                                Show tasks on overlay
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-link" id="chSaveSettingsBtn">Save Settings</button>
+                </div>
+            </div>
+        </div>
+        <!-- Dual-column task tables -->
+        <div class="card-content">
+            <div class="columns">
+                <div class="column is-half">
+                    <div class="level is-mobile mb-3">
+                        <div class="level-left">
+                            <h3 class="title is-6 mb-0">
+                                <span class="icon mr-1"><i class="fas fa-list-check"></i></span>
+                                Streamer Tasks
+                            </h3>
+                        </div>
+                        <div class="level-right">
+                            <button class="button is-primary is-small" id="chAddStreamerTaskBtn">
+                                <span class="icon"><i class="fas fa-plus"></i></span>
+                                <span>Add Task</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="table is-fullwidth is-striped is-hoverable is-narrow">
+                            <thead>
+                                <tr><th>Task</th><th>Status</th><th>Pts</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="chStreamerTaskBody">
+                                <tr id="chStreamerEmpty">
+                                    <td colspan="4" class="has-text-centered has-text-grey py-4">No tasks yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <h3 class="title is-6 mb-3">
+                        <span class="icon mr-1"><i class="fas fa-users"></i></span>
+                        Viewer Tasks
+                    </h3>
+                    <div class="table-container">
+                        <table class="table is-fullwidth is-striped is-hoverable is-narrow">
+                            <thead>
+                                <tr><th>User</th><th>Task</th><th>Status</th><th>Approval</th><th>Pts</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="chUserTaskBody">
+                                <tr id="chUserEmpty">
+                                    <td colspan="6" class="has-text-centered has-text-grey py-4">No viewer tasks yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add/Edit Streamer Task Modal -->
+    <div class="modal" id="chStreamerTaskModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title" id="chStreamerTaskModalTitle">Add Streamer Task</p>
+                <button class="delete" aria-label="close" id="chCloseStreamerTaskModal"></button>
+            </header>
+            <section class="modal-card-body">
+                <input type="hidden" id="chEditStreamerTaskId" value="">
+                <div class="field">
+                    <label class="label">Task Title <span class="has-text-danger">*</span></label>
+                    <div class="control">
+                        <input class="input" type="text" id="chStreamerTaskTitle" placeholder="e.g. Beat the final boss">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Description</label>
+                    <div class="control">
+                        <textarea class="textarea" id="chStreamerTaskDesc" rows="2" placeholder="Optional details..."></textarea>
+                    </div>
+                </div>
+                <div class="columns">
+                    <div class="column">
+                        <div class="field">
+                            <label class="label">Category</label>
+                            <div class="control">
+                                <input class="input" type="text" id="chStreamerTaskCategory" value="General">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label class="label">Reward Points</label>
+                            <div class="control">
+                                <input class="input" type="number" id="chStreamerTaskPoints" min="0" value="50">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-success" id="chSaveStreamerTaskBtn">Save Task</button>
+                <button class="button" id="chCancelStreamerTaskBtn">Cancel</button>
+            </footer>
         </div>
     </div>
     <div class="toast-area" id="toastArea" aria-live="polite" role="status"></div>
@@ -1335,6 +1618,287 @@ ob_start();
             saveSettingsToDatabase();
         });
     })();
+</script>
+<script>
+/* ═══ Channel Task Manager ════════════════════════════════════════════════ */
+(function () {
+    'use strict';
+
+    const chApiKey = <?php echo json_encode($api_key); ?>;
+    const chRequireApprovalInit = <?php echo (int)$chInitialSettings['require_approval']; ?>;
+    // ── WebSocket (shares the page-level socket if available, else own) ──────
+    // Use a separate named socket for the task channel so REGISTER is distinct
+    const chSocket = io('https://websocket.botofthespecter.com', { transports: ['websocket'] });
+    chSocket.on('connect', () => {
+        chSocket.emit('REGISTER', { code: chApiKey, channel: 'dashboard', name: 'Tasks' });
+        chLoadTasks();
+    });
+    chSocket.on('TASK_CREATE',          (d) => { chAppendStreamerRow(d.task); chShowToast('Task created: ' + (d.task?.title || '')); });
+    chSocket.on('TASK_UPDATE',          (d) => { chAppendStreamerRow(d.task); });
+    chSocket.on('TASK_COMPLETE',        (d) => { chMarkStatus(d.task_id, d.owner || 'user', 'completed'); });
+    chSocket.on('TASK_APPROVE',         (d) => { chUpdateApproval(d.task_id, 'approved'); });
+    chSocket.on('TASK_REJECT',          (d) => { chUpdateApproval(d.task_id, 'rejected'); });
+    chSocket.on('TASK_DELETE',          (d) => { chRemoveRow(d.task_id, d.owner || 'streamer'); });
+    chSocket.on('TASK_LIST_SYNC',       (d) => {
+        chRenderStreamer(d.streamer_tasks || []);
+        chRenderUser(d.user_tasks || []);
+    });
+    chSocket.on('TASK_REWARD_CONFIRM',  (d) => {
+        chShowToast(`✔ ${d.user_name} earned ${d.points_awarded} pts for a task! (total: ${d.new_total})`);
+    });
+    // ── Data ─────────────────────────────────────────────────────────────────
+    function chLoadTasks() {
+        chPost({ action: 'ch_get_tasks' }, (res) => {
+            if (res.success) {
+                chRenderStreamer(res.streamer_tasks || []);
+                chRenderUser(res.user_tasks || []);
+            }
+        });
+    }
+    // ── Render ────────────────────────────────────────────────────────────────
+    function chRenderStreamer(tasks) {
+        const tbody = document.getElementById('chStreamerTaskBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!tasks.length) {
+            tbody.innerHTML = '<tr id="chStreamerEmpty"><td colspan="4" class="has-text-centered has-text-grey py-4">No tasks yet.</td></tr>';
+            return;
+        }
+        tasks.forEach(t => chAppendStreamerRow(t, false));
+    }
+    function chRenderUser(tasks) {
+        const tbody = document.getElementById('chUserTaskBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!tasks.length) {
+            tbody.innerHTML = '<tr id="chUserEmpty"><td colspan="6" class="has-text-centered has-text-grey py-4">No viewer tasks yet.</td></tr>';
+            return;
+        }
+        tasks.forEach(t => chAppendUserRow(t, false));
+    }
+    function chAppendStreamerRow(task, emit = true) {
+        if (!task) return;
+        document.getElementById('chStreamerEmpty')?.remove();
+        const tbody = document.getElementById('chStreamerTaskBody');
+        if (!tbody) return;
+        let row = document.getElementById('ch-st-' + task.id) || document.createElement('tr');
+        row.id = 'ch-st-' + task.id;
+        row.innerHTML = `
+            <td><strong>${chEsc(task.title)}</strong><br><small class="has-text-grey">${chEsc(task.category || '')}</small></td>
+            <td>${chStatusTag(task.status)}</td>
+            <td>${task.reward_points ?? 0}</td>
+            <td>
+                <div class="buttons are-small">
+                    <button class="button is-info is-light" onclick="chOpenEditTask(${task.id})">Edit</button>
+                    ${task.status !== 'completed' ? `<button class="button is-success is-light" onclick="chCompleteStreamer(${task.id})">Done</button>` : ''}
+                    <button class="button is-danger is-light" onclick="chDeleteStreamer(${task.id})">Delete</button>
+                </div>
+            </td>`;
+        if (!document.getElementById('ch-st-' + task.id)) tbody.appendChild(row);
+        if (emit) chSocket.emit('TASK_UPDATE', { channel_code: chApiKey, task });
+    }
+    function chAppendUserRow(task, emit = true) {
+        if (!task) return;
+        document.getElementById('chUserEmpty')?.remove();
+        const tbody = document.getElementById('chUserTaskBody');
+        if (!tbody) return;
+        let row = document.getElementById('ch-ut-' + task.id) || document.createElement('tr');
+        row.id = 'ch-ut-' + task.id;
+        const canApprove = task.approval_status === 'pending_approval';
+        row.innerHTML = `
+            <td>${chEsc(task.user_name)}</td>
+            <td><strong>${chEsc(task.title)}</strong></td>
+            <td>${chStatusTag(task.status)}</td>
+            <td>${chApprovalTag(task.approval_status)}</td>
+            <td>${task.reward_points ?? 0}</td>
+            <td>
+                <div class="buttons are-small">
+                    ${task.status === 'active' ? `<button class="button is-success is-light" onclick="chCompleteUser(${task.id})">Done</button>` : ''}
+                    ${canApprove ? `<button class="button is-link is-light" onclick="chApproveUser(${task.id})">Approve</button>` : ''}
+                    ${canApprove ? `<button class="button is-warning is-light" onclick="chRejectUser(${task.id})">Reject</button>` : ''}
+                </div>
+            </td>`;
+        if (!document.getElementById('ch-ut-' + task.id)) tbody.appendChild(row);
+    }
+    function chStatusTag(s) {
+        const m = { active:'is-success', completed:'is-info', hidden:'is-dark', pending:'is-warning', rejected:'is-danger' };
+        return `<span class="tag ${m[s]||'is-light'}">${s||'unknown'}</span>`;
+    }
+    function chApprovalTag(s) {
+        const m = { auto:'is-light', pending_approval:'is-warning', approved:'is-success', rejected:'is-danger' };
+        return `<span class="tag ${m[s]||'is-light'}">${s||'auto'}</span>`;
+    }
+    function chMarkStatus(id, owner, status) {
+        const row = document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`);
+        if (!row) return;
+        const cell = row.querySelector('td:nth-child(3)');
+        if (cell) cell.innerHTML = chStatusTag(status);
+    }
+    function chUpdateApproval(id, status) {
+        const row = document.getElementById('ch-ut-' + id);
+        if (!row) return;
+        const cell = row.querySelector('td:nth-child(4)');
+        if (cell) cell.innerHTML = chApprovalTag(status);
+    }
+    function chRemoveRow(id, owner) {
+        document.getElementById(`${owner==='streamer'?'ch-st-':'ch-ut-'}${id}`)?.remove();
+    }
+    // ── Actions ───────────────────────────────────────────────────────────────
+    window.chOpenEditTask = function (id) {
+        const row = document.getElementById('ch-st-' + id);
+        if (!row) return;
+        const cells = row.querySelectorAll('td');
+        document.getElementById('chEditStreamerTaskId').value = id;
+        document.getElementById('chStreamerTaskTitle').value    = cells[0].querySelector('strong')?.textContent || '';
+        document.getElementById('chStreamerTaskDesc').value     = '';
+        document.getElementById('chStreamerTaskCategory').value = cells[0].querySelector('small')?.textContent || 'General';
+        document.getElementById('chStreamerTaskPoints').value   = cells[2].textContent.trim();
+        document.getElementById('chStreamerTaskModalTitle').textContent = 'Edit Task';
+        document.getElementById('chStreamerTaskModal').classList.add('is-active');
+    };
+    window.chDeleteStreamer = function (id) {
+        if (!confirm('Delete this task?')) return;
+        chPost({ action: 'ch_delete_streamer_task', id }, (res) => {
+            if (res.success) {
+                document.getElementById('ch-st-' + id)?.remove();
+                chSocket.emit('TASK_DELETE', { channel_code: chApiKey, task_id: id, owner: 'streamer' });
+                chShowToast('Task deleted.');
+            }
+        });
+    };
+    window.chCompleteStreamer = function (id) {
+        chPost({ action: 'ch_complete_streamer_task', id }, (res) => {
+            if (res.success) {
+                chMarkStatus(id, 'streamer', 'completed');
+                chSocket.emit('TASK_COMPLETE', { channel_code: chApiKey, task_id: id, owner: 'streamer' });
+                chShowToast('Task completed.');
+            }
+        });
+    };
+    window.chCompleteUser = function (id) {
+        chPost({ action: 'ch_complete_user_task', id }, (res) => {
+            if (res.success && res.task) {
+                const t = res.task;
+                const requireApproval = document.getElementById('chRequireApproval')?.checked;
+                chMarkStatus(id, 'user', 'completed');
+                chSocket.emit('TASK_COMPLETE', {
+                    channel_code: chApiKey, task_id: t.id, user_id: t.user_id,
+                    user_name: t.user_name, title: t.title, reward_points: t.reward_points,
+                    require_approval: requireApproval ? 1 : 0, owner: 'user',
+                });
+                chShowToast(`Task for ${t.user_name} marked complete.`);
+            }
+        });
+    };
+    window.chApproveUser = function (id) {
+        chPost({ action: 'ch_approve_user_task', id }, (res) => {
+            if (res.success && res.task) {
+                const t = res.task;
+                chUpdateApproval(id, 'approved');
+                chSocket.emit('TASK_APPROVE', {
+                    channel_code: chApiKey, task_id: t.id, user_id: t.user_id,
+                    user_name: t.user_name, title: t.title, reward_points: t.reward_points,
+                });
+                chShowToast(`Approved task for ${t.user_name}.`);
+            }
+        });
+    };
+    window.chRejectUser = function (id) {
+        chPost({ action: 'ch_reject_user_task', id }, (res) => {
+            if (res.success) {
+                chUpdateApproval(id, 'rejected');
+                chSocket.emit('TASK_REJECT', { channel_code: chApiKey, task_id: id });
+                chShowToast('Task rejected.');
+            }
+        });
+    };
+    // ── Settings ──────────────────────────────────────────────────────────────
+    document.getElementById('chSaveSettingsBtn')?.addEventListener('click', () => {
+        const payload = {
+            action:               'ch_save_settings',
+            require_approval:     document.getElementById('chRequireApproval')?.checked     ? 1 : 0,
+            default_reward_points: document.getElementById('chDefaultRewardPoints')?.value  || 50,
+            allow_user_tasks:     document.getElementById('chAllowUserTasks')?.checked      ? 1 : 0,
+            task_visible_overlay: document.getElementById('chTaskVisibleOverlay')?.checked  ? 1 : 0,
+        };
+        chPost(payload, (res) => {
+            if (res.success) {
+                chSocket.emit('TASK_SETTINGS_UPDATE', { channel_code: chApiKey, settings: payload });
+                chShowToast('Settings saved.');
+            } else {
+                chShowToast('Failed to save settings.', 'is-danger');
+            }
+        });
+    });
+    document.getElementById('chToggleSettingsBtn')?.addEventListener('click', () => {
+        const panel = document.getElementById('chSettingsPanel');
+        const chevron = document.getElementById('chSettingsChevron');
+        const hidden = panel.style.display === 'none';
+        panel.style.display = hidden ? '' : 'none';
+        chevron.className = hidden ? 'fas fa-angle-down' : 'fas fa-angle-up';
+    });
+    // ── Add / Edit modal ──────────────────────────────────────────────────────
+    document.getElementById('chAddStreamerTaskBtn')?.addEventListener('click', () => {
+        document.getElementById('chEditStreamerTaskId').value = '';
+        document.getElementById('chStreamerTaskTitle').value  = '';
+        document.getElementById('chStreamerTaskDesc').value   = '';
+        document.getElementById('chStreamerTaskCategory').value = 'General';
+        document.getElementById('chStreamerTaskPoints').value = document.getElementById('chDefaultRewardPoints')?.value || 50;
+        document.getElementById('chStreamerTaskModalTitle').textContent = 'Add Streamer Task';
+        document.getElementById('chStreamerTaskModal').classList.add('is-active');
+    });
+    ['chCloseStreamerTaskModal', 'chCancelStreamerTaskBtn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () => {
+            document.getElementById('chStreamerTaskModal').classList.remove('is-active');
+        });
+    });
+    document.getElementById('chSaveStreamerTaskBtn')?.addEventListener('click', () => {
+        const id       = document.getElementById('chEditStreamerTaskId').value;
+        const title    = document.getElementById('chStreamerTaskTitle').value.trim();
+        const desc     = document.getElementById('chStreamerTaskDesc').value.trim();
+        const category = document.getElementById('chStreamerTaskCategory').value.trim() || 'General';
+        const points   = parseInt(document.getElementById('chStreamerTaskPoints').value) || 0;
+        if (!title) { chShowToast('Title is required.', 'is-warning'); return; }
+        const isEdit = !!id;
+        const payload = isEdit
+            ? { action: 'ch_update_streamer_task', id, title, description: desc, category, reward_points: points, status: 'active' }
+            : { action: 'ch_create_streamer_task', title, description: desc, category, reward_points: points };
+        chPost(payload, (res) => {
+            if (res.success) {
+                const taskObj = { id: res.id || parseInt(id), title, description: desc, category, reward_points: points, status: 'active' };
+                chAppendStreamerRow(taskObj);
+                chSocket.emit(isEdit ? 'TASK_UPDATE' : 'TASK_CREATE', { channel_code: chApiKey, task: taskObj });
+                document.getElementById('chStreamerTaskModal').classList.remove('is-active');
+                chShowToast(isEdit ? 'Task updated.' : 'Task created.');
+            } else {
+                chShowToast(res.error || 'Failed to save task.', 'is-danger');
+            }
+        });
+    });
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    function chPost(data, callback) {
+        const fd = new FormData();
+        Object.entries(data).forEach(([k, v]) => fd.append(k, v));
+        fetch('working-or-study.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(callback)
+            .catch(e => chShowToast('Network error: ' + e.message, 'is-danger'));
+    }
+    function chEsc(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function chShowToast(msg, cls = 'is-success') {
+        const area = document.getElementById('toastArea');
+        if (!area) return;
+        const el = document.createElement('div');
+        el.className = `notification ${cls} toast-item`;
+        el.style.cssText = 'margin-bottom:.5rem;animation:fadeIn .3s ease';
+        el.textContent = msg;
+        area.appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+    }
+})();
 </script>
 <?php
 $scripts = ob_get_clean();
