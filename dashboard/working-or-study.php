@@ -500,7 +500,7 @@ $content = ob_get_clean();
 
 ob_start();
 ?>
-<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 <script>
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
@@ -541,7 +541,6 @@ ob_start();
         const tasklistLinkStreamer = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=true`;
         const tasklistLinkUsers = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=false`;
         const tasklistLinkCombined = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist`;
-
         // PHP-injected initial data
         const initialSettings = <?php echo json_encode($initialSettings); ?>;
         const initialTasks = <?php echo json_encode($initialTasks); ?>;
@@ -558,24 +557,40 @@ ob_start();
                 console.error('[Timer] Error loading settings:', error);
             }
         };
-        // Save settings to database via WebSocket (overlay will handle persistence)
+        // Save settings to database and sync live to overlay via WebSocket
         const saveSettingsToDatabase = async () => {
             try {
-                const focus = focusLengthInput.value;
-                const micro = microBreakInput.value;
-                const recharge = breakLengthInput.value;
+                const focus = safeNumberValue(focusLengthInput, 60);
+                const micro = safeNumberValue(microBreakInput, 5);
+                const recharge = safeNumberValue(breakLengthInput, 30);
+                const formData = new FormData();
+                formData.append('action', 'save_settings');
+                formData.append('focus_minutes', String(focus));
+                formData.append('micro_break_minutes', String(micro));
+                formData.append('recharge_break_minutes', String(recharge));
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to save timer settings');
+                }
                 if (socket && socket.connected) {
                     socket.emit('SPECTER_SETTINGS_UPDATE', {
                         code: apiKey,
-                        focus_minutes: parseInt(focus),
-                        micro_break_minutes: parseInt(micro),
-                        recharge_break_minutes: parseInt(recharge)
+                        focus_minutes: focus,
+                        micro_break_minutes: micro,
+                        recharge_break_minutes: recharge
                     });
-                    console.log('[Timer] Settings saved and sent to overlay');
-                    showToast('✓ Timer settings saved', 'success');
+                    console.log('[Timer] Settings saved to database and sent to overlay');
                 } else {
-                    console.warn('[Timer] WebSocket not connected, settings not sent to overlay');
+                    console.warn('[Timer] Settings saved to database, but WebSocket not connected for live sync');
                 }
+                showToast('✓ Timer settings saved', 'success');
             } catch (error) {
                 console.error('[Timer] Error saving settings:', error);
                 showToast('⚠️ Error saving settings', 'danger');
@@ -602,16 +617,13 @@ ob_start();
                 const formData = new FormData();
                 formData.append('action', 'save_tasks');
                 formData.append('tasks', JSON.stringify(taskList));
-
                 const response = await fetch(window.location.href, {
                     method: 'POST',
                     body: formData
                 });
-
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-
                 const result = await response.json();
                 if (result.success) {
                     console.log('[Tasks] Saved to dashboard database');
@@ -762,7 +774,6 @@ ob_start();
                 stopBtn.disabled = false;
             }
         };
-
         const formatTotalTime = (totalSeconds) => {
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -771,24 +782,20 @@ ob_start();
             }
             return `${minutes}m`;
         };
-
         const formatTime = (seconds) => {
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
             return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         };
-
         const updateLiveTimer = (timerData) => {
             if (!timerData) return;
             liveTimerDisplay.textContent = formatTime(timerData.remainingSeconds || 0);
             livePhaseLabel.textContent = timerData.phaseLabel || 'Unknown';
             livePhaseStatus.textContent = timerData.phaseStatus || 'Waiting';
-
             // Update timer color based on phase
             if (timerData.phaseColor) {
                 liveTimerDisplay.style.color = timerData.phaseColor;
             }
-
             // Update timer state display
             if (timerData.timerRunning) {
                 liveTimerState.textContent = 'Running';
@@ -801,7 +808,6 @@ ob_start();
                 liveTimerState.style.color = 'rgba(255, 255, 255, 0.7)';
             }
         };
-
         const updateStatsDisplay = () => {
             console.log(`[Timer Dashboard] Session stats updated - Sessions: ${sessionsCompleted}, Total Time: ${formatTotalTime(totalTimeLogged)}`);
         };
@@ -1030,7 +1036,6 @@ ob_start();
                 username: currentUsername,
                 createdAt: new Date().toISOString()
             });
-
             taskInputTitle.value = '';
             taskInputPriority.value = 'medium';
             renderTaskList();
