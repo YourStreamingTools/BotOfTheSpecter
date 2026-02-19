@@ -249,64 +249,89 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
             <div class="modal" id="editItemModal">
                 <div class="modal-background"></div>
-                <div class="modal-card" style="width: 90vw; max-width: 600px;">
-                    <header class="modal-card-head" style="padding: 1rem;">
-                        <p class="modal-card-title" style="font-size: 1.25rem;">Edit Item</p>
+                <div class="modal-card edit-item-modal-card">
+                    <header class="modal-card-head">
+                        <p class="modal-card-title">
+                            <span class="icon-text">
+                                <span class="icon"><i class="fas fa-pen"></i></span>
+                                <span>Edit Roadmap Item</span>
+                            </span>
+                        </p>
                         <button class="delete"></button>
                     </header>
-                    <section class="modal-card-body" style="max-height: 60vh; overflow-y: auto; padding: 0.25rem;">
-                        <form id="editItemForm" method="POST" style="display: flex; flex-direction: column; gap: 0.125rem;">
+                    <section class="modal-card-body">
+                        <form id="editItemForm" method="POST">
                             <input type="hidden" name="action" value="edit_item">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="id" id="editItemId" value="">
-                            <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Title</label>
-                            <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required
-                                style="padding: 0.25rem; font-size: 0.8rem; margin: 0;">
-                            <label class="label" style="margin: 0.125rem 0 0.1rem 0; font-size: 0.8rem;">Description</label>
-                            <textarea class="textarea" name="description" id="editItemDescription"
-                                placeholder="Item description (supports markdown)..."
-                                style="height: 150px; padding: 0.5rem; font-size: 0.9rem; resize: vertical; margin: 0; font-family: 'Courier New', monospace;"></textarea>
-                            <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
-                                <div style="flex: 1;">
-                                    <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Category</label>
-                                    <select name="category" id="editItemCategory"
-                                        style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
-                                        <option value="REQUESTS">REQUESTS</option>
-                                        <option value="IN PROGRESS">IN PROGRESS</option>
-                                        <option value="BETA TESTING">BETA TESTING</option>
-                                        <option value="COMPLETED">COMPLETED</option>
-                                        <option value="REJECTED">REJECTED</option>
-                                    </select>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Priority</label>
-                                    <select name="priority" id="editItemPriority"
-                                        style="width: 100%; padding: 0.25rem; font-size: 0.8rem; line-height: 1.2; border: 1px solid #444; background-color: #1a1a2e; color: #e0e0e0; border-radius: 4px; margin: 0;">
-                                        <option value="LOW">Low</option>
-                                        <option value="MEDIUM">Medium</option>
-                                        <option value="HIGH">High</option>
-                                        <option value="CRITICAL">Critical</option>
-                                    </select>
+                            <div class="field">
+                                <label class="label">Title</label>
+                                <div class="control">
+                                    <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 0.25rem; margin-top: 0.125rem;">
-                                <div style="flex: 1;">
-                                    <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Subcategory</label>
+                            <div class="field">
+                                <label class="label">Description</label>
+                                <div class="control">
+                                    <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description (supports markdown)..."></textarea>
+                                </div>
+                            </div>
+                            <div class="columns is-mobile is-variable is-2 mb-1">
+                                <div class="column">
+                                    <div class="field">
+                                        <label class="label">Category</label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth">
+                                                <select name="category" id="editItemCategory">
+                                                    <option value="REQUESTS">REQUESTS</option>
+                                                    <option value="IN PROGRESS">IN PROGRESS</option>
+                                                    <option value="BETA TESTING">BETA TESTING</option>
+                                                    <option value="COMPLETED">COMPLETED</option>
+                                                    <option value="REJECTED">REJECTED</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="column">
+                                    <div class="field">
+                                        <label class="label">Priority</label>
+                                        <div class="control">
+                                            <div class="select is-fullwidth">
+                                                <select name="priority" id="editItemPriority">
+                                                    <option value="LOW">Low</option>
+                                                    <option value="MEDIUM">Medium</option>
+                                                    <option value="HIGH">High</option>
+                                                    <option value="CRITICAL">Critical</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="columns is-mobile is-variable is-2 mb-0">
+                                <div class="column">
+                                    <div class="field">
+                                        <label class="label">Subcategory</label>
                                     <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"></div>
                                     <p class="help" style="font-size:0.7rem;">Click a tag to add — custom tags are not allowed.</p>
                                 </div>
-                                <div id="edit-website-type-field" style="flex: 1;">
-                                    <label class="label" style="margin: 0 0 0.1rem 0; font-size: 0.8rem;">Website Type</label>
-                                    <div class="tag-multiselect" id="editItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
+                                </div>
+                                <div class="column" id="edit-website-type-field">
+                                    <div class="field">
+                                        <label class="label">Website Type</label>
+                                        <div class="tag-multiselect" id="editItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
+                                    </div>
                                 </div>
                             </div>
                         </form>
                     </section>
-                    <footer class="modal-card-foot" style="padding: 0.5rem;">
-                        <button type="submit" form="editItemForm" class="button is-warning"
-                            style="font-size: 0.875rem; padding: 0.4rem 1rem;">Save Changes</button>
-                        <button type="button" class="button is-light" id="cancelEditBtn"
-                            style="font-size: 0.875rem; padding: 0.4rem 1rem;">Cancel</button>
+                    <footer class="modal-card-foot is-justify-content-flex-end">
+                        <button type="button" class="button is-light" id="cancelEditBtn">Cancel</button>
+                        <button type="submit" form="editItemForm" class="button is-warning">
+                            <span class="icon"><i class="fas fa-save"></i></span>
+                            <span>Save Changes</span>
+                        </button>
                     </footer>
                 </div>
             </div>
