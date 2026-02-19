@@ -345,102 +345,108 @@ body > main {
     margin-bottom: 0.5rem;
 }
 
-/* Compact modal form styles */
-#editItemModal .field {
-    margin-bottom: 0 !important;
-    margin-top: 0 !important;
-}
-
-#editItemModal .control {
-    margin-bottom: 0 !important;
-    margin-top: 0 !important;
-}
-
-#editItemModal .select {
-    margin-bottom: 0 !important;
-    margin-top: 0 !important;
-}
-
-#editItemModal .label {
-    margin-bottom: 0.15rem !important;
-    margin-top: 0 !important;
-}
-
-#editItemModal input,
-#editItemModal textarea,
-#editItemModal select {
-    line-height: 1.2 !important;
-    margin: 0 !important;
-}
-
-#editItemModal .input {
-    padding: 0.35rem !important;
-    height: auto !important;
-    font-size: 0.8rem !important;
-}
-
-#editItemModal .textarea {
-    padding: 0.35rem !important;
-    font-size: 0.8rem !important;
-    line-height: 1.2 !important;
-}
-
-#editItemModal select {
-    padding: 0.35rem !important;
-    font-size: 0.8rem !important;
-    height: auto !important;
-}
-
-#editItemModal .select::after {
-    height: 12px !important;
-}
-
-#editItemModal .field-body {
-    display: block !important;
-}
-
-#editItemModal form {
-    margin: 0 !important;
-}
-
+/* Edit item modal styles */
 #editItemModal {
-    padding: 1rem !important;
+    padding: 1rem;
 }
 
-#editItemModal .modal-card {
-    margin: 0 !important;
-    padding: 0 !important;
-    max-height: 80vh !important;
+#editItemModal .modal-background {
+    backdrop-filter: blur(3px);
 }
 
-#editItemModal .modal-card-body {
-    padding: 0.5rem !important;
-    margin: 0 !important;
+#editItemModal .edit-item-modal-card {
+    width: min(92vw, 760px);
+    max-height: 88vh;
+    border: 1px solid rgba(102, 126, 234, 0.28);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.45);
 }
 
 #editItemModal .modal-card-head {
-    padding: 0.5rem !important;
-    margin: 0 !important;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#editItemModal .modal-card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+#editItemModal .modal-card-body {
+    padding: 1rem 1.25rem 0.75rem;
+    overflow-y: auto;
+}
+
+#editItemModal #editItemForm {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+#editItemModal .field {
+    margin-bottom: 0;
+}
+
+#editItemModal .label {
+    margin-bottom: 0.35rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: rgba(224, 224, 224, 0.9);
+}
+
+#editItemModal .input,
+#editItemModal .select select,
+#editItemModal .textarea {
+    border-radius: 10px;
+    border-color: rgba(255, 255, 255, 0.12);
+    background-color: rgba(17, 20, 33, 0.95);
+    color: #f0f2ff;
+}
+
+#editItemModal .input,
+#editItemModal .select select {
+    min-height: 2.6rem;
+}
+
+#editItemModal .textarea {
+    min-height: 180px;
+    resize: vertical;
+    font-family: 'Courier New', monospace;
+    line-height: 1.35;
+}
+
+#editItemModal .help {
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    color: rgba(224, 224, 224, 0.72);
 }
 
 #editItemModal .modal-card-foot {
-    padding: 0.5rem !important;
-    margin: 0 !important;
+    gap: 0.6rem;
+    padding: 0.9rem 1.25rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-#editItemModal form > div {
-    margin: 0 !important;
-    padding: 0 !important;
-}
+@media screen and (max-width: 768px) {
+    #editItemModal .columns.is-mobile {
+        display: block;
+    }
 
-#editItemModal [style*="display: grid"] {
-    margin: 0 !important;
-    padding: 0 !important;
-}
+    #editItemModal .columns.is-mobile .column {
+        width: 100%;
+        padding-top: 0;
+        padding-bottom: 0.55rem;
+    }
 
-#editItemModal [style*="display: flex"] {
-    margin: 0 !important;
-    padding: 0 !important;
+    #editItemModal .modal-card-foot {
+        justify-content: stretch !important;
+    }
+
+    #editItemModal .modal-card-foot .button {
+        flex: 1;
+    }
 }
 
 /* ============================================
