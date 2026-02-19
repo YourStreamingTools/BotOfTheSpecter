@@ -46,34 +46,42 @@
 
                 socket.on('SUBATHON_START', (data) => {
                     console.log('SUBATHON_START event received:', data);
-                    totalTime = data.totalTime;
+                    totalTime = Number(data.starting_minutes) || 0;
                     remainingTime = totalTime;
                     startCountdown();
-                    displaySubathonNotification(`Subathon Started: ${data.message}`);
+                    displaySubathonNotification('Subathon Started');
                 });
 
                 socket.on('SUBATHON_STOP', (data) => {
                     console.log('SUBATHON_STOP event received:', data);
                     stopCountdown();
-                    displaySubathonNotification(`Subathon Stopped: ${data.message}`);
+                    displaySubathonNotification('Subathon Stopped');
                 });
 
                 socket.on('SUBATHON_PAUSE', (data) => {
                     console.log('SUBATHON_PAUSE event received:', data);
+                    const incomingRemaining = Number(data.remaining_minutes);
+                    if (!Number.isNaN(incomingRemaining) && incomingRemaining >= 0) {
+                        remainingTime = incomingRemaining;
+                    }
                     pauseCountdown();
-                    displaySubathonNotification(`Subathon Paused: ${data.message}`);
+                    displaySubathonNotification('Subathon Paused');
                 });
 
                 socket.on('SUBATHON_RESUME', (data) => {
                     console.log('SUBATHON_RESUME event received:', data);
+                    const incomingRemaining = Number(data.remaining_minutes);
+                    if (!Number.isNaN(incomingRemaining) && incomingRemaining >= 0) {
+                        remainingTime = incomingRemaining;
+                    }
                     resumeCountdown();
-                    displaySubathonNotification(`Subathon Resumed: ${data.message}`);
+                    displaySubathonNotification('Subathon Resumed');
                 });
 
                 socket.on('SUBATHON_ADD_TIME', (data) => {
                     console.log('SUBATHON_ADD_TIME event received:', data);
-                    addTime(data.additionalTime); // Assuming data.additionalTime is in minutes
-                    displaySubathonNotification(`Time Added: ${data.message}`);
+                    addTime(Number(data.added_minutes) || 0);
+                    displaySubathonNotification('Time Added');
                 });
 
                 // Log all events

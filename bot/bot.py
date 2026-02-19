@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.4"
+VERSION = "5.7.5"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8995,7 +8995,7 @@ async def websocket_notice(
                 elif event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
                     if additional_data:
                         params.update(additional_data)
-                    else:
+                    elif event != "SUBATHON_STOP":
                         websocket_logger.error(f"Event '{event}' requires additional parameters.")
                         return
                 elif event == "SEND_OBS_EVENT":
@@ -9682,10 +9682,10 @@ async def start_subathon(ctx):
             if subathon_state and subathon_state["paused"]:
                 await resume_subathon(ctx)
             else:
-                await cursor.execute("SELECT * FROM subathon_settings LIMIT 1")
+                await cursor.execute("SELECT * FROM subathon_settings ORDER BY id DESC LIMIT 1")
                 settings = await cursor.fetchone()
                 if settings:
-                    starting_minutes = settings["starting_minutes"]
+                    starting_minutes = int(settings.get("starting_minutes") or 60)
                     subathon_start_time = time_right_now()
                     subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
