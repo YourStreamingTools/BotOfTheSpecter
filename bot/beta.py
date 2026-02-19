@@ -8433,7 +8433,18 @@ async def get_user_count(command, user):
         pass
 
 # Function to process custom command variables
-async def process_custom_command_variables(command, response, user="API", arg=None, send_to_chat=False):
+async def process_custom_command_variables(
+    command,
+    response,
+    user="API",
+    arg=None,
+    send_to_chat=False,
+    emit_additional=True,
+    _visited_commands=None,
+):
+    if _visited_commands is None:
+        _visited_commands = set()
+    _visited_commands.add(command)
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8520,11 +8531,24 @@ async def process_custom_command_variables(command, response, user="API", arg=No
                     command_match = re.search(r'\(command\.(\w+)\)', response)
                     if command_match:
                         sub_command = command_match.group(1)
+                        if sub_command in _visited_commands:
+                            chat_logger.warning(f"Detected command recursion while processing '{command}' -> '{sub_command}'")
+                            response = response.replace(f"(command.{sub_command})", "[Command Loop Detected]")
+                            continue
                         await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
                         sub_response = await cursor.fetchone()
                         if sub_response:
                             response = response.replace(f"(command.{sub_command})", "")
-                            responses_to_send.append(sub_response["response"])
+                            processed_sub_response = await process_custom_command_variables(
+                                sub_command,
+                                sub_response["response"],
+                                user=user,
+                                arg=arg,
+                                send_to_chat=False,
+                                emit_additional=False,
+                                _visited_commands=set(_visited_commands),
+                            )
+                            responses_to_send.append(processed_sub_response)
                         else:
                             chat_logger.warning(f"Command {sub_command} referenced but not found")
                             response = response.replace(f"(command.{sub_command})", "[Command Not Found]")
@@ -8581,10 +8605,13 @@ async def process_custom_command_variables(command, response, user="API", arg=No
             if send_to_chat:
                 await send_chat_message(response)
             # Send any additional responses from (command.) references
-            for resp in responses_to_send:
-                await send_chat_message(resp)
+            if emit_additional:
+                for resp in responses_to_send:
+                    await send_chat_message(resp)
+            return response
     except Exception as e:
         chat_logger.error(f"Error processing custom command variables: {e}")
+        return response
 
 # Functions for weather
 async def get_streamer_weather():
