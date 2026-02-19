@@ -7828,7 +7828,7 @@ class TwitchBot(commands.Bot):
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
                 raffle = await cursor.fetchone()
                 if not raffle:
                     await send_chat_message("There is no active raffle right now.")
@@ -7843,6 +7843,9 @@ class TwitchBot(commands.Bot):
                 exclude_mods = raffle.get('exclude_mods', 0)
                 subscribers_only = raffle.get('subscribers_only', 0)
                 followers_only = raffle.get('followers_only', 0)
+                followers_min_enabled = int(raffle.get('followers_min_enabled', 0) or 0)
+                followers_min_value = int(raffle.get('followers_min_value', 0) or 0)
+                followers_min_unit = (raffle.get('followers_min_unit', 'days') or 'days').lower()
                 username = ctx.author.name
                 user_id = str(ctx.author.id)
                 is_mod = ctx.author.is_mod
@@ -7859,9 +7862,12 @@ class TwitchBot(commands.Bot):
                         return
                 # Check if followers only
                 if followers_only:
-                    is_follower = await is_user_follower(user_id)
-                    if not is_follower:
+                    followed_since = await get_user_followed_since(user_id)
+                    if not followed_since:
                         await send_chat_message(f"@{username}, this raffle is for followers only.")
+                        return
+                    if followers_min_enabled and followers_min_value > 0 and not has_followed_minimum_duration(followed_since, followers_min_value, followers_min_unit):
+                        await send_chat_message(f"@{username}, you must be following for at least {followers_min_value} {followers_min_unit} to join this raffle.")
                         return
                 # Check existing entry
                 await cursor.execute("SELECT id FROM raffle_entries WHERE raffle_id=%s AND username=%s", (raffle_id, username))
@@ -8285,8 +8291,8 @@ async def is_user_subscribed(user_id):
                         return tier_name
     return None
 
-# Function to check if a user follows the channel
-async def is_user_follower(user_id):
+# Function to get when a user started following the channel
+async def get_user_followed_since(user_id):
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
     headers = {
         "Client-ID": CLIENT_ID,
@@ -8300,9 +8306,39 @@ async def is_user_follower(user_id):
         async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
             if response.status == 200:
                 data = await response.json()
-                return bool(data.get('data'))
+                followers = data.get('data', [])
+                if not followers:
+                    return None
+                followed_at = followers[0].get('followed_at')
+                if not followed_at:
+                    return None
+                try:
+                    return datetime.fromisoformat(followed_at.replace('Z', '+00:00'))
+                except Exception:
+                    twitch_logger.error(f"Failed to parse followed_at value for user_id {user_id}: {followed_at}")
+                    return None
             twitch_logger.error(f"Failed to check follower status for user_id {user_id}. Status Code: {response.status}")
-            return False
+            return None
+
+# Function to check if a user follows the channel
+async def is_user_follower(user_id):
+    return bool(await get_user_followed_since(user_id))
+
+def has_followed_minimum_duration(followed_since, minimum_value, minimum_unit):
+    if minimum_value <= 0:
+        return True
+    if followed_since.tzinfo is None:
+        followed_since = followed_since.replace(tzinfo=timezone.utc)
+    elapsed = time_right_now(timezone.utc) - followed_since
+    if minimum_unit == 'weeks':
+        required_duration = timedelta(weeks=minimum_value)
+    elif minimum_unit == 'months':
+        required_duration = timedelta(days=minimum_value * 30)
+    elif minimum_unit == 'years':
+        required_duration = timedelta(days=minimum_value * 365)
+    else:
+        required_duration = timedelta(days=minimum_value)
+    return elapsed >= required_duration
 
 # Function to add user to the table of known users
 async def user_is_seen(username):
