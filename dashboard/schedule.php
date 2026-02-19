@@ -357,39 +357,85 @@ $schedule = null;
 if (!isset($error)) {
     $error = null;
 }
+function fetch_twitch_schedule($broadcasterId, $clientID, $accessToken, $first = 25, $maxPages = 20) {
+    $allSegments = [];
+    $scheduleData = ['segments' => [], 'vacation' => null];
+    $cursor = null;
+    $page = 0;
+
+    while (true) {
+        $query = [
+            'broadcaster_id' => $broadcasterId,
+            'first' => $first
+        ];
+        if (!empty($cursor)) {
+            $query['after'] = $cursor;
+        }
+        $url = 'https://api.twitch.tv/helix/schedule?' . http_build_query($query);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . $accessToken
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
+        curl_close($ch);
+
+        if ($resp === false) {
+            return [null, 'Twitch API request failed: ' . htmlspecialchars($curlErr)];
+        }
+        if ($httpCode !== 200) {
+            if ($httpCode === 401) {
+                return [null, 'Unauthorized. Your Twitch session may need re-linking.'];
+            }
+            if ($httpCode === 404) {
+                return [null, 'No schedule found for this broadcaster.'];
+            }
+            return [null, 'Twitch API returned HTTP ' . $httpCode . '.'];
+        }
+
+        $data = json_decode($resp, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !isset($data['data'])) {
+            return [null, 'Unable to parse Twitch response.'];
+        }
+
+        $pageData = $data['data'];
+        if ($page === 0) {
+            $scheduleData = $pageData;
+        }
+        if (isset($pageData['vacation'])) {
+            $scheduleData['vacation'] = $pageData['vacation'];
+        }
+        $pageSegments = (isset($pageData['segments']) && is_array($pageData['segments'])) ? $pageData['segments'] : [];
+        if (!empty($pageSegments)) {
+            $allSegments = array_merge($allSegments, $pageSegments);
+        }
+
+        $cursor = null;
+        if (isset($data['pagination']['cursor']) && is_string($data['pagination']['cursor']) && $data['pagination']['cursor'] !== '') {
+            $cursor = $data['pagination']['cursor'];
+        }
+
+        $page++;
+        if (empty($cursor) || $page >= $maxPages) {
+            break;
+        }
+    }
+
+    $scheduleData['segments'] = $allSegments;
+    return [$scheduleData, null];
+}
 $broadcasterId = $_SESSION['twitchUserId'] ?? null;
 if (empty($broadcasterId)) {
     $error = 'Broadcaster ID not available. Please re-login.';
 } else {
-    $url = 'https://api.twitch.tv/helix/schedule?broadcaster_id=' . urlencode($broadcasterId) . '&first=25';
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    $headers = [
-        'Client-ID: ' . $clientID,
-        'Authorization: Bearer ' . $_SESSION['access_token']
-    ];
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $resp = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr = curl_error($ch);
-    curl_close($ch);
-    if ($resp === false) {
-        $error = 'Twitch API request failed: ' . htmlspecialchars($curlErr);
-    } elseif ($httpCode === 200) {
-        $data = json_decode($resp, true);
-        if (json_last_error() === JSON_ERROR_NONE && isset($data['data'])) {
-            $schedule = $data['data'];
-        } else {
-            $error = 'Unable to parse Twitch response.';
-        }
-    } elseif ($httpCode === 401) {
-        $error = 'Unauthorized. Your Twitch session may need re-linking.';
-    } elseif ($httpCode === 404) {
-        $error = 'No schedule found for this broadcaster.';
-    } else {
-        $error = 'Twitch API returned HTTP ' . $httpCode . '.';
+    list($schedule, $fetchError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 20);
+    if (!empty($fetchError)) {
+        $error = $fetchError;
     }
     // Auto-disable vacation if Twitch still shows it active after end time has passed.
     if (empty($error) && !empty($schedule['vacation']['end_time'])) {
@@ -419,23 +465,9 @@ if (empty($broadcasterId)) {
                     if (empty($success)) $success = $successMsg;
                     else $success .= ' ' . $successMsg;
                     // Refresh schedule data after auto-cancel so UI reflects current state.
-                    $refreshUrl = 'https://api.twitch.tv/helix/schedule?broadcaster_id=' . urlencode($broadcasterId) . '&first=25';
-                    $chRefresh = curl_init($refreshUrl);
-                    curl_setopt($chRefresh, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($chRefresh, CURLOPT_TIMEOUT, 5);
-                    curl_setopt($chRefresh, CURLOPT_SSL_VERIFYPEER, true);
-                    curl_setopt($chRefresh, CURLOPT_HTTPHEADER, [
-                        'Client-ID: ' . $clientID,
-                        'Authorization: Bearer ' . $_SESSION['access_token']
-                    ]);
-                    $refreshResp = curl_exec($chRefresh);
-                    $refreshCode = curl_getinfo($chRefresh, CURLINFO_HTTP_CODE);
-                    curl_close($chRefresh);
-                    if ($refreshResp !== false && $refreshCode === 200) {
-                        $refreshData = json_decode($refreshResp, true);
-                        if (json_last_error() === JSON_ERROR_NONE && isset($refreshData['data'])) {
-                            $schedule = $refreshData['data'];
-                        }
+                    list($refreshSchedule, $refreshError) = fetch_twitch_schedule($broadcasterId, $clientID, $_SESSION['access_token'], 25, 20);
+                    if (empty($refreshError) && !empty($refreshSchedule)) {
+                        $schedule = $refreshSchedule;
                     }
                 } elseif (empty($error)) {
                     $error = 'Auto-cancel of expired vacation failed (HTTP ' . $autoCode . '). ' . htmlspecialchars($autoResp ?: $autoErr);
@@ -487,6 +519,8 @@ $selectedDayKeys = [];
 $initialDayKeySet = [];
 $dayOrderMap = [];
 $hasMoreDays = false;
+$loadMoreDayBatchSize = 6;
+$initialLoadMoreEvents = 0;
 $nextSevenSummary = [
     'total' => 0,
     'recurring' => 0,
@@ -555,6 +589,18 @@ if (!empty($segmentsByDay)) {
     $initialDayKeySet = !empty($selectedDayKeys) ? array_fill_keys($selectedDayKeys, true) : [];
     $dayOrderMap = array_flip($orderedDayKeys);
     $hasMoreDays = count($orderedDayKeys) > count($selectedDayKeys);
+    if ($hasMoreDays) {
+        $remainingDayKeys = [];
+        foreach ($orderedDayKeys as $dayKey) {
+            if (!isset($initialDayKeySet[$dayKey])) {
+                $remainingDayKeys[] = $dayKey;
+            }
+        }
+        $nextLoadDayKeys = array_slice($remainingDayKeys, 0, $loadMoreDayBatchSize);
+        foreach ($nextLoadDayKeys as $dayKey) {
+            $initialLoadMoreEvents += count($segmentsByDay[$dayKey]['segments'] ?? []);
+        }
+    }
 }
 
 $nextSevenSummary['total'] = 0;
@@ -809,7 +855,8 @@ ob_start();
             </div>
             <?php if ($hasMoreDays): ?>
                 <div class="has-text-centered mt-4">
-                    <button type="button" class="button is-link is-light" id="loadMoreDaysBtn">Load 6 More</button>
+                    <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? 'Load 1 More' : ('Load ' . (int)$initialLoadMoreEvents . ' More'); ?>
+                    <button type="button" class="button is-link is-light" id="loadMoreDaysBtn" data-day-batch-size="<?php echo (int)$loadMoreDayBatchSize; ?>"><?php echo htmlspecialchars($initialLoadMoreLabel); ?></button>
                 </div>
             <?php endif; ?>
             <?php if (!empty($schedule['vacation'])): ?>
@@ -1090,8 +1137,10 @@ ob_start();
     });
     const loadMoreDaysBtn = document.getElementById('loadMoreDaysBtn');
     if (loadMoreDaysBtn) {
+        const dayBatchSize = Number(loadMoreDaysBtn.getAttribute('data-day-batch-size')) || 6;
+        const getHiddenColumns = () => Array.from(document.querySelectorAll('.schedule-day-columns .schedule-day-hidden'));
         const getHiddenDayOrders = () => {
-            const hiddenColumns = Array.from(document.querySelectorAll('.schedule-day-columns .schedule-day-hidden'));
+            const hiddenColumns = getHiddenColumns();
             const orderSet = new Set();
             hiddenColumns.forEach((col) => {
                 const order = Number(col.getAttribute('data-day-order'));
@@ -1099,14 +1148,26 @@ ob_start();
             });
             return Array.from(orderSet).sort((a, b) => a - b);
         };
+        const getNextLoadEventCount = () => {
+            const nextOrders = getHiddenDayOrders().slice(0, dayBatchSize);
+            let count = 0;
+            nextOrders.forEach((order) => {
+                count += document.querySelectorAll('.schedule-day-columns .schedule-day-hidden[data-day-order="' + order + '"]').length;
+            });
+            return count;
+        };
         const updateButtonState = () => {
-            const remainingOrders = getHiddenDayOrders();
-            if (remainingOrders.length === 0) {
+            const hiddenColumns = getHiddenColumns();
+            if (hiddenColumns.length === 0) {
                 loadMoreDaysBtn.style.display = 'none';
+                return;
             }
+            const nextEventCount = getNextLoadEventCount();
+            const labelCount = nextEventCount > 0 ? nextEventCount : hiddenColumns.length;
+            loadMoreDaysBtn.textContent = labelCount === 1 ? 'Load 1 More' : ('Load ' + labelCount + ' More');
         };
         loadMoreDaysBtn.addEventListener('click', () => {
-            const nextOrders = getHiddenDayOrders().slice(0, 6);
+            const nextOrders = getHiddenDayOrders().slice(0, dayBatchSize);
             if (nextOrders.length === 0) {
                 loadMoreDaysBtn.style.display = 'none';
                 return;
