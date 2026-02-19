@@ -482,6 +482,11 @@ function fmt_duration_human($minutes) {
 }
 $segments = (isset($schedule['segments']) && is_array($schedule['segments'])) ? $schedule['segments'] : [];
 $segmentsByDay = [];
+$orderedDayKeys = [];
+$selectedDayKeys = [];
+$initialDayKeySet = [];
+$dayOrderMap = [];
+$hasMoreDays = false;
 $nextSevenSummary = [
     'total' => 0,
     'recurring' => 0,
@@ -527,7 +532,6 @@ if (!empty($segmentsByDay)) {
         return ($a['sort_ts'] ?? 0) <=> ($b['sort_ts'] ?? 0);
     });
     $orderedDayKeys = array_keys($segmentsByDay);
-    $selectedDayKeys = [];
     if (isset($segmentsByDay[$todayKey])) {
         $selectedDayKeys[] = $todayKey;
     }
@@ -548,21 +552,18 @@ if (!empty($segmentsByDay)) {
         $selectedDayKeys[] = $dayKey;
         $postTomorrowCount++;
     }
-    if (!empty($selectedDayKeys)) {
-        $filteredByDay = [];
-        foreach ($selectedDayKeys as $dayKey) {
-            if (isset($segmentsByDay[$dayKey])) {
-                $filteredByDay[$dayKey] = $segmentsByDay[$dayKey];
-            }
-        }
-        $segmentsByDay = $filteredByDay;
-    }
+    $initialDayKeySet = !empty($selectedDayKeys) ? array_fill_keys($selectedDayKeys, true) : [];
+    $dayOrderMap = array_flip($orderedDayKeys);
+    $hasMoreDays = count($orderedDayKeys) > count($selectedDayKeys);
 }
 
 $nextSevenSummary['total'] = 0;
 $nextSevenSummary['recurring'] = 0;
 $nextSevenSummary['canceled'] = 0;
-foreach ($segmentsByDay as $dayData) {
+foreach ($segmentsByDay as $dayKey => $dayData) {
+    if (!empty($initialDayKeySet) && !isset($initialDayKeySet[$dayKey])) {
+        continue;
+    }
     foreach (($dayData['segments'] ?? []) as $seg) {
         $nextSevenSummary['total']++;
         if (!empty($seg['is_recurring'])) $nextSevenSummary['recurring']++;
@@ -693,7 +694,11 @@ ob_start();
                 </div>
             </div>
             <div class="columns is-multiline schedule-day-columns">
-            <?php foreach ($segmentsByDay as $dayData): ?>
+            <?php foreach ($segmentsByDay as $dayKey => $dayData): ?>
+                <?php
+                    $isDayInitiallyVisible = empty($initialDayKeySet) || isset($initialDayKeySet[$dayKey]);
+                    $dayOrderIndex = isset($dayOrderMap[$dayKey]) ? (int)$dayOrderMap[$dayKey] : 0;
+                ?>
                 <?php foreach ($dayData['segments'] as $segIndex => $seg):
                             $start = fmt_dt($seg['start_time'] ?? null, $timezone);
                             $end = fmt_dt($seg['end_time'] ?? null, $timezone);
@@ -722,7 +727,7 @@ ob_start();
                                 // Keep fallback placeholders above.
                             }
                             ?>
-                <div class="column is-12-mobile is-6-tablet is-4-desktop">
+                <div class="column is-12-mobile is-6-tablet is-4-desktop<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
                     <div class="schedule-day-group mb-5">
                         <?php if ($segIndex === 0): ?>
                         <h2 class="title is-5 has-text-white mb-3"><?php echo htmlspecialchars($dayData['label']); ?></h2>
@@ -802,6 +807,11 @@ ob_start();
                 <?php endforeach; ?>
             <?php endforeach; ?>
             </div>
+            <?php if ($hasMoreDays): ?>
+                <div class="has-text-centered mt-4">
+                    <button type="button" class="button is-link is-light" id="loadMoreDaysBtn">Load 6 More</button>
+                </div>
+            <?php endif; ?>
             <?php if (!empty($schedule['vacation'])): ?>
                 <div class="box mt-4 has-background-dark">
                     <p class="title is-6 has-text-white">Vacation / Off dates</p>
@@ -1078,6 +1088,40 @@ ob_start();
             }
         });
     });
+    const loadMoreDaysBtn = document.getElementById('loadMoreDaysBtn');
+    if (loadMoreDaysBtn) {
+        const getHiddenDayOrders = () => {
+            const hiddenColumns = Array.from(document.querySelectorAll('.schedule-day-columns .schedule-day-hidden'));
+            const orderSet = new Set();
+            hiddenColumns.forEach((col) => {
+                const order = Number(col.getAttribute('data-day-order'));
+                if (!Number.isNaN(order)) orderSet.add(order);
+            });
+            return Array.from(orderSet).sort((a, b) => a - b);
+        };
+        const updateButtonState = () => {
+            const remainingOrders = getHiddenDayOrders();
+            if (remainingOrders.length === 0) {
+                loadMoreDaysBtn.style.display = 'none';
+            }
+        };
+        loadMoreDaysBtn.addEventListener('click', () => {
+            const nextOrders = getHiddenDayOrders().slice(0, 6);
+            if (nextOrders.length === 0) {
+                loadMoreDaysBtn.style.display = 'none';
+                return;
+            }
+            nextOrders.forEach((order) => {
+                const dayColumns = document.querySelectorAll('.schedule-day-columns .schedule-day-hidden[data-day-order="' + order + '"]');
+                dayColumns.forEach((col) => {
+                    col.style.display = '';
+                    col.classList.remove('schedule-day-hidden');
+                });
+            });
+            updateButtonState();
+        });
+        updateButtonState();
+    }
 })();
 </script>
 <?php
