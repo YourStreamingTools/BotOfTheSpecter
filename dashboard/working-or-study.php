@@ -85,169 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo json_encode(['success' => $success]);
         exit;
     }
-    if ($action === 'get_tasks') {
-        // Load all tasks for this channel database
-        $stmt = $db->prepare("SELECT username, user_id, task_id as id, title, priority, completed FROM working_study_overlay_tasks ORDER BY created_at DESC");
-        if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $db->error]);
-            exit;
-        }
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $tasks = [];
-        while ($row = $result->fetch_assoc()) {
-            $tasks[] = [
-                'username' => $row['username'],
-                'user_id' => $row['user_id'],
-                'id' => $row['id'],
-                'title' => $row['title'],
-                'priority' => $row['priority'],
-                'completed' => (bool) $row['completed']
-            ];
-        }
-        $stmt->close();
-        echo json_encode(['success' => true, 'data' => $tasks]);
-        exit;
-    }
-    if ($action === 'save_tasks') {
-        // Save all tasks for current user to database
-        $username = (string) $_SESSION['username'];
-        $sessionUserId = (string) ($_SESSION['twitchUserId'] ?? '');
-        $tasks = json_decode($_POST['tasks'] ?? '[]', true);
-        if (!is_array($tasks)) {
-            echo json_encode(['success' => false, 'error' => 'Invalid tasks format']);
-            exit;
-        }
-        $rewardEnabled = 0;
-        $rewardPoints = 0;
-        $settingsStmt = $db->prepare("SELECT reward_enabled, reward_points_per_task FROM working_study_overlay_settings LIMIT 1");
-        if ($settingsStmt) {
-            $settingsStmt->execute();
-            $settingsResult = $settingsStmt->get_result();
-            if ($settingsRow = $settingsResult->fetch_assoc()) {
-                $rewardEnabled = !empty($settingsRow['reward_enabled']) ? 1 : 0;
-                $rewardPoints = max(0, intval($settingsRow['reward_points_per_task'] ?? 0));
-            }
-            $settingsStmt->close();
-        }
-
-        $db->begin_transaction();
-        try {
-            // Clear existing tasks for this user only
-            $deleteStmt = $db->prepare("DELETE FROM working_study_overlay_tasks WHERE username = ?");
-            if (!$deleteStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-            $deleteStmt->bind_param("s", $username);
-            if (!$deleteStmt->execute()) {
-                throw new Exception('Execute failed: ' . $deleteStmt->error);
-            }
-            $deleteStmt->close();
-
-            // Insert new tasks for this user
-            $insertStmt = $db->prepare("INSERT INTO working_study_overlay_tasks (username, user_id, task_id, title, priority, completed) VALUES (?, ?, ?, ?, ?, ?)");
-            if (!$insertStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-
-            $rewardCheckStmt = $db->prepare("SELECT id FROM working_study_overlay_task_rewards WHERE username = ? AND task_id = ? LIMIT 1");
-            if (!$rewardCheckStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-
-            $rewardInsertStmt = $db->prepare("INSERT INTO working_study_overlay_task_rewards (username, user_id, task_id, points_awarded) VALUES (?, ?, ?, ?)");
-            if (!$rewardInsertStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-
-            $pointsSelectStmt = $db->prepare("SELECT points FROM bot_points WHERE user_id = ? LIMIT 1");
-            if (!$pointsSelectStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-
-            $pointsUpdateStmt = $db->prepare("UPDATE bot_points SET points = ?, user_name = ? WHERE user_id = ?");
-            if (!$pointsUpdateStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-
-            $pointsInsertStmt = $db->prepare("INSERT INTO bot_points (user_id, user_name, points) VALUES (?, ?, ?)");
-            if (!$pointsInsertStmt) {
-                throw new Exception('Prepare failed: ' . $db->error);
-            }
-
-            $pointsAwardedTotal = 0;
-
-            foreach ($tasks as $task) {
-                $task_id = (string) ($task['id'] ?? '');
-                $title = (string) ($task['title'] ?? '');
-                $priority = (string) ($task['priority'] ?? 'medium');
-                $completed = !empty($task['completed']) ? 1 : 0;
-                $taskUserId = (string) ($task['user_id'] ?? $sessionUserId);
-
-                if ($task_id === '' || $title === '') {
-                    continue;
-                }
-
-                $insertStmt->bind_param("sssssi", $username, $taskUserId, $task_id, $title, $priority, $completed);
-                if (!$insertStmt->execute()) {
-                    throw new Exception('Execute failed: ' . $insertStmt->error);
-                }
-
-                if (!$rewardEnabled || $rewardPoints <= 0 || !$completed || $taskUserId === '') {
-                    continue;
-                }
-
-                $rewardCheckStmt->bind_param("ss", $username, $task_id);
-                if (!$rewardCheckStmt->execute()) {
-                    throw new Exception('Execute failed: ' . $rewardCheckStmt->error);
-                }
-                $rewardResult = $rewardCheckStmt->get_result();
-                if ($rewardResult && $rewardResult->num_rows > 0) {
-                    continue;
-                }
-
-                $rewardInsertStmt->bind_param("sssi", $username, $taskUserId, $task_id, $rewardPoints);
-                if (!$rewardInsertStmt->execute()) {
-                    throw new Exception('Execute failed: ' . $rewardInsertStmt->error);
-                }
-
-                $pointsSelectStmt->bind_param("s", $taskUserId);
-                if (!$pointsSelectStmt->execute()) {
-                    throw new Exception('Execute failed: ' . $pointsSelectStmt->error);
-                }
-                $pointsResult = $pointsSelectStmt->get_result();
-
-                if ($pointsRow = $pointsResult->fetch_assoc()) {
-                    $newPoints = intval($pointsRow['points'] ?? 0) + $rewardPoints;
-                    $pointsUpdateStmt->bind_param("iss", $newPoints, $username, $taskUserId);
-                    if (!$pointsUpdateStmt->execute()) {
-                        throw new Exception('Execute failed: ' . $pointsUpdateStmt->error);
-                    }
-                } else {
-                    $pointsInsertStmt->bind_param("ssi", $taskUserId, $username, $rewardPoints);
-                    if (!$pointsInsertStmt->execute()) {
-                        throw new Exception('Execute failed: ' . $pointsInsertStmt->error);
-                    }
-                }
-
-                $pointsAwardedTotal += $rewardPoints;
-            }
-
-            $insertStmt->close();
-            $rewardCheckStmt->close();
-            $rewardInsertStmt->close();
-            $pointsSelectStmt->close();
-            $pointsUpdateStmt->close();
-            $pointsInsertStmt->close();
-
-            $db->commit();
-            echo json_encode(['success' => true, 'points_awarded' => $pointsAwardedTotal]);
-        } catch (Exception $e) {
-            $db->rollback();
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-        exit;
-    }
     // ── Channel Task System API (prefixed ch_) ────────────────────────────────
     if ($action === 'ch_get_settings') {
         $stmt = $db->prepare("SELECT require_approval, default_reward_points, allow_user_tasks, task_visible_overlay FROM task_settings LIMIT 1");
@@ -391,27 +228,6 @@ if ($db) {
         $result = $stmt->get_result();
         if ($row = $result->fetch_assoc()) {
             $initialSettings = $row;
-        }
-        $stmt->close();
-    }
-}
-
-// Load initial tasks for page initialization
-$initialTasks = [];
-if ($db && isset($_SESSION['username'])) {
-    $stmt = $db->prepare("SELECT username, user_id, task_id as id, title, priority, completed FROM working_study_overlay_tasks ORDER BY created_at DESC");
-    if ($stmt) {
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $initialTasks[] = [
-                'username' => $row['username'],
-                'user_id' => $row['user_id'],
-                'id' => $row['id'],
-                'title' => $row['title'],
-                'priority' => $row['priority'],
-                'completed' => (bool) $row['completed']
-            ];
         }
         $stmt->close();
     }
@@ -857,10 +673,8 @@ ob_start();
 <script>
     (function () {
         const apiKey = <?php echo json_encode($api_key); ?>;
-        const currentUsername = <?php echo json_encode($_SESSION['username']); ?>;
         const dashboardDebug = false;
         const overlayLink = <?php echo json_encode($overlayLinkWithCode); ?>;
-        const currentUserId = <?php echo json_encode($_SESSION['twitchUserId'] ?? ''); ?>;
         const copyOverlayLinkBtn = document.getElementById('copyOverlayLinkBtn');
         const buttonsPhase = document.querySelectorAll('[data-specter-phase]');
         const buttonsControl = document.querySelectorAll('[data-specter-control]');
@@ -883,27 +697,14 @@ ob_start();
         let timerState = 'stopped'; // stopped, running, paused
         let sessionsCompleted = 0;
         let totalTimeLogged = 0;
-        // Task List Management
-        const taskInputTitle = document.getElementById('taskInputTitle');
-        const taskInputPriority = document.getElementById('taskInputPriority');
-        const addTaskBtn = document.getElementById('addTaskBtn');
-        const streamerTaskTableWrap = document.getElementById('streamerTaskTableWrap');
-        const userTaskTableWrap = document.getElementById('userTaskTableWrap');
         const copyTasklistLinkBtn = document.getElementById('copyTasklistLinkBtn');
         const copyTasklistUserLinkBtn = document.getElementById('copyTasklistUserLinkBtn');
         const copyTasklistCombinedBtn = document.getElementById('copyTasklistCombinedBtn');
-        const taskRewardEnabledInput = document.getElementById('taskRewardEnabled');
-        const taskRewardPointsInput = document.getElementById('taskRewardPoints');
-        const hasLegacyTaskUi = Boolean(taskInputTitle && taskInputPriority && addTaskBtn && streamerTaskTableWrap && userTaskTableWrap);
-        const hasRewardInputs = Boolean(taskRewardEnabledInput && taskRewardPointsInput);
-        let taskList = [];
-        let userTaskList = [];
         const tasklistLinkStreamer = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=true`;
         const tasklistLinkUsers = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist&streamer=false`;
         const tasklistLinkCombined = `https://overlay.botofthespecter.com/working-or-study.php?code=${encodeURIComponent(apiKey)}&tasklist`;
         // PHP-injected initial data
         const initialSettings = <?php echo json_encode($initialSettings); ?>;
-        const initialTasks = <?php echo json_encode($initialTasks); ?>;
         // Load settings from database (PHP-injected on page load)
         const loadSettingsFromDatabase = async () => {
             try {
@@ -911,10 +712,6 @@ ob_start();
                     focusLengthInput.value = initialSettings.focus_minutes || 60;
                     microBreakInput.value = initialSettings.micro_break_minutes || 5;
                     breakLengthInput.value = initialSettings.recharge_break_minutes || 30;
-                    if (hasRewardInputs) {
-                        taskRewardEnabledInput.checked = Number(initialSettings.reward_enabled || 0) === 1;
-                        taskRewardPointsInput.value = initialSettings.reward_points_per_task || 10;
-                    }
                     console.log('[Timer] Settings loaded from page initialization:', initialSettings);
                 }
             } catch (error) {
@@ -927,16 +724,11 @@ ob_start();
                 const focus = safeNumberValue(focusLengthInput, 60);
                 const micro = safeNumberValue(microBreakInput, 5);
                 const recharge = safeNumberValue(breakLengthInput, 30);
-                const rewardEnabled = hasRewardInputs && taskRewardEnabledInput.checked ? 1 : 0;
-                const rewardPointsRaw = hasRewardInputs ? Number(taskRewardPointsInput.value) : 10;
-                const rewardPoints = Number.isFinite(rewardPointsRaw) && rewardPointsRaw >= 0 ? Math.floor(rewardPointsRaw) : 10;
                 const formData = new FormData();
                 formData.append('action', 'save_settings');
                 formData.append('focus_minutes', String(focus));
                 formData.append('micro_break_minutes', String(micro));
                 formData.append('recharge_break_minutes', String(recharge));
-                formData.append('reward_enabled', String(rewardEnabled));
-                formData.append('reward_points_per_task', String(rewardPoints));
                 const response = await fetch(window.location.href, {
                     method: 'POST',
                     body: formData
@@ -953,9 +745,7 @@ ob_start();
                         code: apiKey,
                         focus_minutes: focus,
                         micro_break_minutes: micro,
-                        recharge_break_minutes: recharge,
-                        reward_enabled: rewardEnabled,
-                        reward_points_per_task: rewardPoints
+                        recharge_break_minutes: recharge
                     });
                     console.log('[Timer] Settings saved to database and sent to overlay');
                 } else {
@@ -967,204 +757,10 @@ ob_start();
                 showToast('⚠️ Error saving settings', 'danger');
             }
         };
-        // Load tasks from database (PHP-injected on page load)
-        const loadTasksFromDatabase = async () => {
-            if (!hasLegacyTaskUi) {
-                return;
-            }
-            try {
-                const splitTasks = (tasks) => {
-                    taskList = (tasks || []).filter(task => {
-                        const taskOwner = String(task.username || currentUsername).toLowerCase();
-                        return taskOwner === String(currentUsername).toLowerCase();
-                    });
-                    userTaskList = (tasks || []).filter(task => {
-                        const taskOwner = String(task.username || '').toLowerCase();
-                        return taskOwner && taskOwner !== String(currentUsername).toLowerCase();
-                    });
-                };
-
-                if (initialTasks && initialTasks.length > 0) {
-                    splitTasks(initialTasks);
-                    renderTaskList();
-                    console.log('[Tasks] Loaded from page initialization:', taskList.length, 'streamer tasks and', userTaskList.length, 'user tasks');
-                }
-                const formData = new FormData();
-                formData.append('action', 'get_tasks');
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const result = await response.json();
-                if (result.success && Array.isArray(result.data)) {
-                    splitTasks(result.data);
-                    renderTaskList();
-                    console.log('[Tasks] Refreshed from database:', taskList.length, 'streamer tasks and', userTaskList.length, 'user tasks');
-                }
-            } catch (error) {
-                console.error('[Tasks] Error loading tasks:', error);
-            }
-        };
-        // Save tasks to database via in-page operation + WebSocket sync
-        const saveTasksToDatabase = async () => {
-            if (!hasLegacyTaskUi) {
-                return;
-            }
-            try {
-                // Create a hidden form and submit to save tasks
-                const formData = new FormData();
-                formData.append('action', 'save_tasks');
-                formData.append('tasks', JSON.stringify(taskList));
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const result = await response.json();
-                if (result.success) {
-                    console.log('[Tasks] Saved to dashboard database');
-                }
-            } catch (error) {
-                console.error('[Tasks] Error saving tasks:', error);
-            }
-        };
-        const renderTaskList = () => {
-            if (!hasLegacyTaskUi) {
-                return;
-            }
-            if (!taskList || taskList.length === 0) {
-                streamerTaskTableWrap.innerHTML = `
-                    <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
-                        <p>No streamer tasks yet. Add one to get started!</p>
-                    </div>
-                `;
-            } else {
-                streamerTaskTableWrap.innerHTML = `
-                    <table class="table is-fullwidth is-striped is-hoverable">
-                        <thead>
-                            <tr>
-                                <th style="width: 42px;">Done</th>
-                                <th>Task</th>
-                                <th style="width: 110px;">Priority</th>
-                                <th style="width: 64px;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${taskList.map((task, index) => `
-                                <tr>
-                                    <td>
-                                        <div class="task-checkbox-custom ${task.completed ? 'checked' : ''}" data-task-index="${index}" style="flex-shrink: 0; width: 20px; height: 20px; min-width: 20px; border: 2px solid ${task.completed ? '#2ecc71' : 'rgba(255, 255, 255, 0.3)'}; border-radius: 4px; background: ${task.completed ? '#2ecc71' : 'transparent'}; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #ffffff; text-shadow: ${task.completed ? '0 1px 2px rgba(0, 0, 0, 0.3)' : 'none'};">${task.completed ? '✓' : ''}</div>
-                                    </td>
-                                    <td style="color: #f8fbff; ${task.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHtml(task.title)}</td>
-                                    <td><span style="padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${getPriorityColor(task.priority, true)}; color: ${getPriorityColor(task.priority)};">${task.priority}</span></td>
-                                    <td>
-                                        <button type="button" class="button is-small is-danger is-light" data-task-index="${index}">
-                                            <span class="icon is-small"><i class="fas fa-trash" aria-hidden="true"></i></span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-            }
-
-            if (!userTaskList || userTaskList.length === 0) {
-                userTaskTableWrap.innerHTML = `
-                    <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
-                        <p>No user tasks yet.</p>
-                    </div>
-                `;
-            } else {
-                userTaskTableWrap.innerHTML = `
-                    <table class="table is-fullwidth is-striped is-hoverable">
-                        <thead>
-                            <tr>
-                                <th style="width: 42px;">Done</th>
-                                <th>User</th>
-                                <th>Task</th>
-                                <th style="width: 110px;">Priority</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${userTaskList.map((task) => `
-                                <tr>
-                                    <td>${task.completed ? '✓' : ''}</td>
-                                    <td>${escapeHtml(task.username || 'user')}</td>
-                                    <td style="color: #f8fbff; ${task.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${escapeHtml(task.title)}</td>
-                                    <td><span style="padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${getPriorityColor(task.priority, true)}; color: ${getPriorityColor(task.priority)};">${task.priority}</span></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-            }
-
-            // Add event listeners
-            streamerTaskTableWrap.querySelectorAll('.task-checkbox-custom').forEach(checkbox => {
-                checkbox.addEventListener('click', (e) => {
-                    const index = parseInt(e.target.dataset.taskIndex);
-                    taskList[index].completed = !taskList[index].completed;
-                    renderTaskList();
-                    emitTaskListUpdate();
-                });
-                checkbox.addEventListener('mouseenter', (e) => {
-                    if (!taskList[parseInt(e.target.dataset.taskIndex)].completed) {
-                        e.target.style.borderColor = 'var(--accent-color)';
-                        e.target.style.background = 'rgba(255, 255, 255, 0.05)';
-                    }
-                });
-                checkbox.addEventListener('mouseleave', (e) => {
-                    if (!taskList[parseInt(e.target.dataset.taskIndex)].completed) {
-                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                        e.target.style.background = 'transparent';
-                    }
-                });
-            });
-            streamerTaskTableWrap.querySelectorAll('.button.is-danger').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const index = parseInt(e.currentTarget.dataset.taskIndex);
-                    taskList.splice(index, 1);
-                    renderTaskList();
-                    emitTaskListUpdate();
-                });
-            });
-        };
-        const getPriorityColor = (priority, background = false) => {
-            const colors = {
-                high: { bg: 'rgba(255, 145, 97, 0.2)', text: '#ff9161' },
-                medium: { bg: 'rgba(107, 233, 255, 0.2)', text: '#6be9ff' },
-                low: { bg: 'rgba(180, 131, 255, 0.2)', text: '#b483ff' }
-            };
-            return (colors[priority.toLowerCase()] || colors.medium)[background ? 'bg' : 'text'];
-        };
         const escapeHtml = (text) => {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        };
-        const emitTaskListUpdate = () => {
-            if (!hasLegacyTaskUi) {
-                return;
-            }
-            if (socket && socket.connected) {
-                console.log('[Dashboard] Emitting task list via WebSocket:', taskList.length, 'tasks');
-                socket.emit('SPECTER_TASKLIST_UPDATE', {
-                    code: apiKey,
-                    tasks: taskList,
-                    timestamp: Date.now(),
-                    source: 'dashboard'
-                });
-            } else {
-                console.warn('[Dashboard] WebSocket not connected, cannot emit task list');
-            }
-            // Save to database
-            saveTasksToDatabase();
         };
         const getToastArea = () => {
             if (toastArea) return toastArea;
@@ -1378,14 +974,6 @@ ob_start();
                 console.log('[Timer Dashboard] Received timer update:', payload);
                 updateLiveTimer(payload);
             });
-            socket.on('SPECTER_TASKLIST_UPDATE', payload => {
-                console.log('[Timer Dashboard] Received task list update:', payload);
-                loadTasksFromDatabase();
-            });
-            socket.on('SPECTER_TASKLIST', payload => {
-                console.log('[Timer Dashboard] Received task list event:', payload);
-                loadTasksFromDatabase();
-            });
             socket.on('SUCCESS', payload => {
                 if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
                     socketReady = true;
@@ -1461,39 +1049,8 @@ ob_start();
                 showToast('⚠️ Failed to copy link', 'danger');
             }
         });
-        // Add task button
-        addTaskBtn?.addEventListener('click', () => {
-            const title = taskInputTitle.value.trim();
-            const priority = taskInputPriority.value;
-            if (!title) {
-                showToast('⚠️ Please enter a task title', 'warning');
-                taskInputTitle.focus();
-                return;
-            }
-            taskList.push({
-                id: Date.now(),
-                title,
-                priority,
-                completed: false,
-                username: currentUsername,
-                user_id: currentUserId,
-                createdAt: new Date().toISOString()
-            });
-            taskInputTitle.value = '';
-            taskInputPriority.value = 'medium';
-            renderTaskList();
-            emitTaskListUpdate();
-            showToast(`✓ Task added: "${title}"`, 'success');
-        });
-        // Enter key to add task
-        taskInputTitle?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                addTaskBtn.click();
-            }
-        });
         // Initialize by loading from database
         loadSettingsFromDatabase();
-        loadTasksFromDatabase();
         buttonsPhase.forEach(button => {
             button.addEventListener('click', async () => {
                 const phase = button.getAttribute('data-specter-phase');
@@ -1551,17 +1108,6 @@ ob_start();
             } else {
                 saveSettingsToDatabase();
             }
-        });
-        taskRewardEnabledInput?.addEventListener('change', () => {
-            saveSettingsToDatabase();
-        });
-        taskRewardPointsInput?.addEventListener('change', () => {
-            const val = Number(taskRewardPointsInput.value);
-            if (!Number.isFinite(val) || val < 0) {
-                taskRewardPointsInput.value = 10;
-                showToast('⚠️ Reward points must be 0 or more', 'danger');
-            }
-            saveSettingsToDatabase();
         });
     })();
 </script>
