@@ -175,7 +175,7 @@ ob_end_clean();
     <meta charset="UTF-8">
     <title>Specter Working/Study Timer</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <link rel="stylesheet" href="index.css">
 </head>
 <body class="study-overlay-page">
@@ -344,7 +344,6 @@ ob_end_clean();
                 if (payload.break_minutes !== undefined && payload.break_minutes !== null) {
                     const converted = minutesToSeconds(payload.break_minutes);
                     if (converted) {
-                        timerState.durations.micro = converted;
                         timerState.durations.recharge = converted;
                     }
                 }
@@ -644,7 +643,7 @@ ob_end_clean();
                     }
                 });
                 socket.on('SPECTER_PHASE', payload => {
-                    console.log('[Overlay] SPECTER_TIMER_CONTROL listener registered');
+                    console.log('[Overlay] SPECTER_PHASE listener triggered');
                     const phaseKey = (payload.phase || payload.phase_key || '').toLowerCase();
                     if (!phaseKey || !phases[phaseKey]) {
                         return;
@@ -653,6 +652,19 @@ ob_end_clean();
                     const autoStart = payload.auto_start !== undefined ? Boolean(payload.auto_start) : true;
                     const overrideDuration = parseDurationOverride(payload);
                     setPhase(phaseKey, { autoStart, duration: overrideDuration });
+                });
+                socket.on('SPECTER_SETTINGS_UPDATE', payload => {
+                    console.log('[Overlay] SPECTER_SETTINGS_UPDATE listener triggered');
+                    if (!payload) {
+                        return;
+                    }
+                    updateDurationsFromPayload(payload);
+                    if (!timerState.timerRunning && !timerState.timerPaused) {
+                        timerState.totalDuration = timerState.durations[timerState.currentPhase];
+                        timerState.remainingSeconds = timerState.totalDuration;
+                        updateDisplay();
+                        emitTimerUpdate();
+                    }
                 });
                 socket.on('SPECTER_TIMER_CONTROL', payload => {
                     console.log('[Overlay] SPECTER_TIMER_CONTROL listener triggered');
