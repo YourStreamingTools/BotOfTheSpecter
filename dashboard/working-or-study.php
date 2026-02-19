@@ -674,111 +674,6 @@ ob_start();
             </div>
         </div>
     </div>
-    <div class="card">
-        <header class="card-header">
-            <p class="card-header-title">
-                Task List Management
-            </p>
-            <div class="buttons">
-                <button type="button" class="button is-info is-small" id="copyTasklistCombinedBtn">
-                    <span class="icon">
-                        <i class="fas fa-copy" aria-hidden="true"></i>
-                    </span>
-                    <span>Copy Link (Combined)</span>
-                </button>
-                <button type="button" class="button is-info is-small" id="copyTasklistLinkBtn">
-                    <span class="icon">
-                        <i class="fas fa-copy" aria-hidden="true"></i>
-                    </span>
-                    <span>Copy Link (Streamer)</span>
-                </button>
-                <button type="button" class="button is-info is-small" id="copyTasklistUserLinkBtn">
-                    <span class="icon">
-                        <i class="fas fa-copy" aria-hidden="true"></i>
-                    </span>
-                    <span>Copy Link (Users)</span>
-                </button>
-            </div>
-        </header>
-        <div class="card-content">
-            <div class="content">
-                <p><strong>Display a Task List on Your Stream</strong></p>
-                <p>Create and manage a beautiful task list overlay that shows your productivity goals to viewers. Tasks
-                    can be toggled as complete by users watching your stream.</p>
-            </div>
-            <div class="columns is-multiline">
-                <div class="column is-full">
-                    <h3 class="title is-6">Task Reward Settings</h3>
-                    <div class="columns">
-                        <div class="column is-two-thirds">
-                            <label class="checkbox">
-                                <input type="checkbox" id="taskRewardEnabled">
-                                Enable bot-point rewards when users complete a task
-                            </label>
-                            <p class="help">When enabled, first-time task completion awards points automatically.</p>
-                        </div>
-                        <div class="column is-one-third">
-                            <div class="field">
-                                <label class="label" for="taskRewardPoints">Points Per Completed Task</label>
-                                <div class="control">
-                                    <input id="taskRewardPoints" class="input" type="number" min="0" step="1" value="10" placeholder="10">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-full">
-                    <h3 class="title is-6">Add New Task</h3>
-                    <div class="field is-grouped">
-                        <div class="control is-expanded">
-                            <input id="taskInputTitle" class="input" type="text" placeholder="Enter task title..."
-                                maxlength="100">
-                        </div>
-                        <div class="control">
-                            <div class="select">
-                                <select id="taskInputPriority">
-                                    <option value="low">Low</option>
-                                    <option value="medium" selected>Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="control">
-                            <button type="button" class="button is-primary" id="addTaskBtn">
-                                <span class="icon">
-                                    <i class="fas fa-plus" aria-hidden="true"></i>
-                                </span>
-                                <span>Add Task</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-full">
-                    <h3 class="title is-6">Current Tasks</h3>
-                    <div class="columns is-multiline">
-                        <div class="column is-half">
-                            <h4 class="title is-7">Streamer Tasks</h4>
-                            <div id="streamerTaskTableWrap"
-                                style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
-                                <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
-                                    <p>No streamer tasks yet.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="column is-half">
-                            <h4 class="title is-7">User Tasks</h4>
-                            <div id="userTaskTableWrap"
-                                style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
-                                <div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.5);">
-                                    <p>No user tasks yet.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
     <!-- ═══════════════════════════════════════════════════════════════════════
          Channel Task Manager (streamer_tasks + user_tasks)
     ══════════════════════════════════════════════════════════════════════════ -->
@@ -788,9 +683,23 @@ ob_start();
                 <span class="icon mr-2"><i class="fas fa-tasks"></i></span>
                 Channel Task Manager
             </p>
-            <button class="card-header-icon" id="chToggleSettingsBtn" aria-label="toggle task settings">
-                <span class="icon"><i class="fas fa-angle-down" id="chSettingsChevron"></i></span>
-            </button>
+            <div class="card-header-icon buttons" style="padding: 0.25rem 0.75rem; margin: 0;">
+                <button type="button" class="button is-info is-small" id="copyTasklistCombinedBtn">
+                    <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
+                    <span>Copy Link (Combined)</span>
+                </button>
+                <button type="button" class="button is-info is-small" id="copyTasklistLinkBtn">
+                    <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
+                    <span>Copy Link (Streamer)</span>
+                </button>
+                <button type="button" class="button is-info is-small" id="copyTasklistUserLinkBtn">
+                    <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
+                    <span>Copy Link (Users)</span>
+                </button>
+                <button class="button is-ghost is-small" id="chToggleSettingsBtn" aria-label="toggle task settings">
+                    <span class="icon"><i class="fas fa-angle-down" id="chSettingsChevron"></i></span>
+                </button>
+            </div>
         </header>
         <!-- Settings sub-panel -->
         <div class="card-content" id="chSettingsPanel">
