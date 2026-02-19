@@ -97,6 +97,62 @@ if (isset($_GET['ajax'])) {
             exit();
         }
     }
+    if ($ajax === 'segment_action' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $broadcasterId = $_SESSION['twitchUserId'] ?? null;
+        if (empty($broadcasterId)) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Broadcaster ID not available. Please re-login.']);
+            exit();
+        }
+        $op = trim($_POST['action'] ?? '');
+        if ($op !== 'cancel_segment') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Unsupported segment action for AJAX request.']);
+            exit();
+        }
+        $segId = trim($_POST['segment_id'] ?? '');
+        $cancelRaw = strtolower(trim((string)($_POST['cancel_state'] ?? '1')));
+        $cancelState = in_array($cancelRaw, ['1', 'true', 'yes', 'on'], true);
+        if ($segId === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Segment ID is required to cancel.']);
+            exit();
+        }
+        $urlCancel = 'https://api.twitch.tv/helix/schedule/segment?broadcaster_id=' . urlencode($broadcasterId) . '&id=' . urlencode($segId);
+        $chCancel = curl_init($urlCancel);
+        curl_setopt($chCancel, CURLOPT_CUSTOMREQUEST, 'PATCH');
+        curl_setopt($chCancel, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($chCancel, CURLOPT_TIMEOUT, 10);
+        curl_setopt($chCancel, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($chCancel, CURLOPT_HTTPHEADER, [
+            'Client-ID: ' . $clientID,
+            'Authorization: Bearer ' . ($_SESSION['access_token'] ?? ''),
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($chCancel, CURLOPT_POSTFIELDS, json_encode([
+            'is_canceled' => $cancelState
+        ]));
+        $respCancel = curl_exec($chCancel);
+        $codeCancel = curl_getinfo($chCancel, CURLINFO_HTTP_CODE);
+        $errCancel = curl_error($chCancel);
+        curl_close($chCancel);
+        if ($codeCancel === 200) {
+            echo json_encode([
+                'ok' => true,
+                'action' => 'cancel_segment',
+                'segment_id' => $segId,
+                'is_canceled' => $cancelState,
+                'message' => $cancelState ? 'Segment canceled.' : 'Segment uncanceled.'
+            ]);
+            exit();
+        }
+        http_response_code($codeCancel > 0 ? $codeCancel : 500);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Twitch API returned HTTP ' . $codeCancel . '. ' . htmlspecialchars($respCancel ?: $errCancel)
+        ]);
+        exit();
+    }
     http_response_code(400);
     echo json_encode(['error' => 'Invalid ajax request']);
     exit();
@@ -728,7 +784,7 @@ ob_start();
                     <div class="column is-6-mobile is-3-tablet">
                         <div class="schedule-summary-item">
                             <span class="has-text-grey-light">Canceled</span>
-                            <strong class="has-text-danger"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
+                            <strong class="has-text-danger" id="scheduleSummaryCanceled"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
                         </div>
                     </div>
                     <div class="column is-6-mobile is-3-tablet">
@@ -790,7 +846,7 @@ ob_start();
                                         <span class="tag is-small is-info">Recurring</span>
                                     <?php endif; ?>
                                     <?php if ($canceled): ?>
-                                        <span class="tag is-small is-danger">Canceled</span>
+                                        <span class="tag is-small is-danger" data-role="canceled-tag">Canceled</span>
                                     <?php endif; ?>
                                 </span>
                             </header>
@@ -1081,6 +1137,71 @@ ob_start();
         }
         f.addEventListener('submit', async function(ev){
             const submitAction = ev.submitter && ev.submitter.value ? ev.submitter.value : '';
+            if (submitAction === 'cancel_segment') {
+                ev.preventDefault();
+                const submitBtn = ev.submitter;
+                if (!submitBtn) return false;
+                const card = f.closest('.schedule-segment-card');
+                const tagContainer = card ? card.querySelector('.schedule-card-tags') : null;
+                const wasCanceled = !!(card && card.classList.contains('schedule-segment-card-canceled'));
+                submitBtn.disabled = true;
+                try {
+                    const formData = new FormData(f);
+                    formData.set('action', 'cancel_segment');
+                    const res = await fetch('schedule.php?ajax=segment_action', {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'same-origin'
+                    });
+                    let payload = null;
+                    try {
+                        payload = await res.json();
+                    } catch (parseErr) {
+                        payload = null;
+                    }
+                    if (!res.ok || !payload || !payload.ok) {
+                        const msg = (payload && payload.error) ? payload.error : 'Unable to update stream cancel state right now.';
+                        throw new Error(msg);
+                    }
+                    const isCanceled = !!payload.is_canceled;
+                    if (card) {
+                        card.classList.toggle('schedule-segment-card-canceled', isCanceled);
+                    }
+                    const cancelStateInput = f.querySelector('input[name="cancel_state"]');
+                    if (cancelStateInput) cancelStateInput.value = isCanceled ? '0' : '1';
+                    submitBtn.textContent = isCanceled ? 'Uncancel' : 'Cancel Stream';
+                    submitBtn.classList.toggle('is-warning', isCanceled);
+                    submitBtn.classList.toggle('is-danger', !isCanceled);
+                    if (tagContainer) {
+                        let canceledTag = tagContainer.querySelector('[data-role="canceled-tag"]');
+                        if (isCanceled && !canceledTag) {
+                            canceledTag = document.createElement('span');
+                            canceledTag.className = 'tag is-small is-danger';
+                            canceledTag.setAttribute('data-role', 'canceled-tag');
+                            canceledTag.textContent = 'Canceled';
+                            tagContainer.appendChild(canceledTag);
+                        } else if (!isCanceled && canceledTag) {
+                            canceledTag.remove();
+                        }
+                    }
+                    const canceledSummary = document.getElementById('scheduleSummaryCanceled');
+                    if (canceledSummary) {
+                        const current = Number(canceledSummary.textContent || '0');
+                        if (!Number.isNaN(current)) {
+                            let next = current;
+                            if (!wasCanceled && isCanceled) next = current + 1;
+                            if (wasCanceled && !isCanceled) next = Math.max(0, current - 1);
+                            canceledSummary.textContent = String(next);
+                        }
+                    }
+                    Toastify({ text: payload.message || (isCanceled ? 'Segment canceled.' : 'Segment uncanceled.'), duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
+                } catch (err) {
+                    showToastError(err && err.message ? err.message : 'Unable to update stream cancel state right now.');
+                } finally {
+                    submitBtn.disabled = false;
+                }
+                return false;
+            }
             if (submitAction === 'delete_segment') {
                 if (f.dataset.deleteConfirmed === '1') {
                     f.dataset.deleteConfirmed = '';
