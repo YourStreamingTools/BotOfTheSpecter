@@ -708,6 +708,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let tokenExpiresIn = null;
             let tokenValidatedAt = null;
             let tokenScopes = []; // Store token scopes
+            let tokenUserId = CONFIG.USER_ID ? String(CONFIG.USER_ID) : null;
             let ircReconnectAttempts = 0;
             let eventSubReconnectAttempts = 0;
             let maxReconnectAttempts = 5;
@@ -878,6 +879,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let presenceEnabled = false;
             let activeChatters = new Set(); // Users currently in chat (tracked via IRC JOIN/PART)
             let messageBasedChatters = new Set(); // Users detected via first message only
+            let initialPresenceBootstrapActive = false;
+            let initialPresenceBootstrapDone = false;
+            let initialIrcNamesBatch = new Set();
+            let initialPresenceBootstrapTimeoutHandle = null;
             function normalizePresenceLogin(userLogin) {
                 if (!userLogin) return null;
                 return String(userLogin).trim().toLowerCase() || null;
@@ -897,6 +902,120 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             function removePresenceMarkers(setRef, userId, userLogin) {
                 getPresenceKeys(userId, userLogin).forEach(k => setRef.delete(k));
+            }
+            function resetInitialPresenceBootstrap() {
+                initialPresenceBootstrapActive = false;
+                initialPresenceBootstrapDone = false;
+                initialIrcNamesBatch.clear();
+                if (initialPresenceBootstrapTimeoutHandle) {
+                    clearTimeout(initialPresenceBootstrapTimeoutHandle);
+                    initialPresenceBootstrapTimeoutHandle = null;
+                }
+            }
+            function buildInitialPresenceSummaryText() {
+                const currentUser = normalizePresenceLogin(CONFIG.USER_LOGIN);
+                const names = Array.from(initialIrcNamesBatch)
+                    .filter(Boolean)
+                    .filter(name => name !== currentUser)
+                    .sort((a, b) => a.localeCompare(b));
+                if (names.length === 0) return 'Currently in chat (0): none detected yet';
+                const maxNamesToShow = 20;
+                const visible = names.slice(0, maxNamesToShow).join(', ');
+                const remaining = names.length - maxNamesToShow;
+                if (remaining > 0) {
+                    return `Currently in chat (${names.length}): ${visible}, +${remaining} more`;
+                }
+                return `Currently in chat (${names.length}): ${visible}`;
+            }
+            function finalizeInitialPresenceBootstrap(source) {
+                if (initialPresenceBootstrapDone) return;
+                initialPresenceBootstrapDone = true;
+                initialPresenceBootstrapActive = false;
+                if (initialPresenceBootstrapTimeoutHandle) {
+                    clearTimeout(initialPresenceBootstrapTimeoutHandle);
+                    initialPresenceBootstrapTimeoutHandle = null;
+                }
+                const summaryText = buildInitialPresenceSummaryText();
+                if (summaryText) {
+                    setPresenceMessage(summaryText);
+                }
+                console.log(`Initial presence bootstrap finalized via ${source}`);
+            }
+            async function loadInitialChattersFromHelix() {
+                if (!tokenScopes.includes('moderator:read:chatters')) {
+                    console.log('Skipping Helix chatters bootstrap: missing moderator:read:chatters scope');
+                    return false;
+                }
+                const broadcasterId = CONFIG.USER_ID ? String(CONFIG.USER_ID) : null;
+                const moderatorId = tokenUserId || (CONFIG.USER_ID ? String(CONFIG.USER_ID) : null);
+                if (!broadcasterId || !moderatorId || !accessToken || !CONFIG.CLIENT_ID) {
+                    console.warn('Skipping Helix chatters bootstrap: missing auth/config values');
+                    return false;
+                }
+                let loadedAny = false;
+                let cursor = null;
+                do {
+                    const params = new URLSearchParams({
+                        broadcaster_id: broadcasterId,
+                        moderator_id: moderatorId,
+                        first: '1000'
+                    });
+                    if (cursor) params.append('after', cursor);
+                    const response = await fetch(`https://api.twitch.tv/helix/chat/chatters?${params.toString()}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Client-Id': CONFIG.CLIENT_ID
+                        }
+                    });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.warn('Helix chatters bootstrap failed', {
+                            status: response.status,
+                            broadcaster_id: broadcasterId,
+                            moderator_id: moderatorId,
+                            details: errorText
+                        });
+                        return loadedAny;
+                    }
+                    const payload = await response.json();
+                    const chatters = Array.isArray(payload?.data) ? payload.data : [];
+                    for (const chatter of chatters) {
+                        const chatterId = chatter?.user_id ? String(chatter.user_id) : null;
+                        const chatterLogin = normalizePresenceLogin(chatter?.user_login);
+                        addPresenceMarkers(activeChatters, chatterId, chatterLogin);
+                        addPresenceMarkers(messageBasedChatters, chatterId, chatterLogin);
+                        if (chatterLogin) {
+                            initialIrcNamesBatch.add(chatterLogin);
+                            loadedAny = true;
+                        }
+                    }
+                    cursor = payload?.pagination?.cursor || null;
+                } while (cursor);
+                return loadedAny;
+            }
+            async function bootstrapInitialPresence() {
+                if (initialPresenceBootstrapActive || initialPresenceBootstrapDone) return;
+                initialPresenceBootstrapActive = true;
+                initialIrcNamesBatch.clear();
+                if (initialPresenceBootstrapTimeoutHandle) {
+                    clearTimeout(initialPresenceBootstrapTimeoutHandle);
+                }
+                initialPresenceBootstrapTimeoutHandle = setTimeout(() => {
+                    if (!initialPresenceBootstrapDone) {
+                        finalizeInitialPresenceBootstrap('timeout');
+                    }
+                }, 8000);
+                try {
+                    const helixLoaded = await loadInitialChattersFromHelix();
+                    if (helixLoaded) {
+                        finalizeInitialPresenceBootstrap('helix');
+                        return;
+                    }
+                    console.log('Helix chatters unavailable/empty; waiting for IRC NAMES (353/366) bootstrap');
+                } catch (error) {
+                    console.warn('Helix chatters bootstrap error; falling back to IRC NAMES', error);
+                }
             }
             // Max chat messages to retain in overlay (match Twitch default of 50)
             const MAX_CHAT_MESSAGES = 50;
@@ -1783,10 +1902,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     tokenExpiresIn = data.expires_in;
                     tokenValidatedAt = Math.floor(Date.now() / 1000);
                     tokenScopes = data.scopes || [];
+                    tokenUserId = data.user_id ? String(data.user_id) : tokenUserId;
                     const hoursRemaining = Math.floor(tokenExpiresIn / 3600);
                     const minutesRemaining = Math.floor((tokenExpiresIn % 3600) / 60);
                     console.log(`✓ Token validated: expires in ${tokenExpiresIn}s (${hoursRemaining}h ${minutesRemaining}m)`);
                     console.log('Token scopes:', tokenScopes.join(', '));
+                    console.log('Token user id:', tokenUserId);
                     // Check for required IRC scopes
                     const hasIRCRead = tokenScopes.includes('chat:read');
                     const hasIRCEdit = tokenScopes.includes('chat:edit');
@@ -2283,6 +2404,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // Clear presence tracking
                 activeChatters.clear();
                 messageBasedChatters.clear();
+                resetInitialPresenceBootstrap();
                 // Attempt reconnection
                 if (ircReconnectAttempts < maxReconnectAttempts) {
                     const delay = Math.min(1000 * Math.pow(2, ircReconnectAttempts), 30000);
@@ -2577,6 +2699,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         console.log('Successfully joined channel:', joinChannel);
                         ircJoined = true;
                         ircReconnectAttempts = 0;
+                        resetInitialPresenceBootstrap();
                         // Update status based on both connections
                         if (eventSubConnected) {
                             updateStatus(true, 'Connected');
@@ -2592,12 +2715,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         fetchBadges();
                         // Setup ping timeout
                         setupPingTimeout();
+                        // Bootstrap current chatters as a single grouped presence event
+                        bootstrapInitialPresence();
                     } else {
                         // Another user joined
                         const userId = message.tags && message.tags['user-id'];
                         const displayName = (message.tags && message.tags['display-name']) || joinUser;
                         const alreadyMarkedByMessage = hasPresenceMarker(messageBasedChatters, userId, joinUser);
                         addPresenceMarkers(activeChatters, userId, joinUser);
+                        // During initial bootstrap, collect users and suppress per-user JOIN spam
+                        if (initialPresenceBootstrapActive && !initialPresenceBootstrapDone) {
+                            const normalizedJoinUser = normalizePresenceLogin(joinUser);
+                            if (normalizedJoinUser) {
+                                initialIrcNamesBatch.add(normalizedJoinUser);
+                            }
+                            addPresenceMarkers(messageBasedChatters, userId, joinUser);
+                            break;
+                        }
                         // Show join message if presence notifications enabled and user hasn't sent a message yet
                         if (presenceEnabled && !alreadyMarkedByMessage) {
                             showSystemMessage(`${displayName} joined the chat`, 'join');
@@ -2605,9 +2739,27 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                     break;
                 }
-                case '353': // NAMES list
+                case '353': { // NAMES list
+                    const namesListRaw = message.params && message.params.length > 0 ? message.params[message.params.length - 1] : '';
+                    if (namesListRaw) {
+                        const names = namesListRaw
+                            .split(' ')
+                            .map(name => name.replace(/^[~&@%+]+/, '').trim())
+                            .filter(Boolean)
+                            .map(name => normalizePresenceLogin(name))
+                            .filter(Boolean);
+                        names.forEach(name => {
+                            addPresenceMarkers(activeChatters, null, name);
+                            addPresenceMarkers(messageBasedChatters, null, name);
+                            initialIrcNamesBatch.add(name);
+                        });
+                    }
+                    break;
+                }
                 case '366': // End of NAMES list
-                   // Membership information, we can ignore for now
+                    if (initialPresenceBootstrapActive && !initialPresenceBootstrapDone) {
+                        finalizeInitialPresenceBootstrap('irc-names');
+                    }
                     break;
                 case 'PART': {
                     // User left channel
@@ -3719,14 +3871,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             renderNicknames();
             initFilterCollapse();
             initImportExportUI();
-            await fetchBadges(); // Fetch badge data (wait so badges are available before connecting)
-            // Validate token on startup to get accurate expires_in
-            await validateToken();
-            // Connect both IRC and EventSub WebSockets
-            connectIRCWebSocket();
-            connectEventSubWebSocket();
-            updateTokenTimer();
-            // Initialize presence checkbox and state (IRC-based)
+            // Initialize presence checkbox and state (IRC-based) before connecting sockets
             try {
                 const checkbox = document.getElementById('notify-joins-checkbox');
                 presenceEnabled = loadPresenceSetting();
@@ -3741,6 +3886,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             } catch (e) {
                 console.error('Error initializing presence setting', e);
             }
+            await fetchBadges(); // Fetch badge data (wait so badges are available before connecting)
+            // Validate token on startup to get accurate expires_in
+            await validateToken();
+            // Connect both IRC and EventSub WebSockets
+            connectIRCWebSocket();
+            connectEventSubWebSocket();
+            updateTokenTimer();
         }
         // Start initialization
         initializeApp();
