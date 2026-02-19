@@ -272,13 +272,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
     if ($action === 'ch_get_tasks') {
-        $st = $db->prepare("SELECT id, title, description, category, status, reward_points, created_at FROM streamer_tasks ORDER BY created_at DESC");
-        $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
-        if (!$st || !$ut) { echo json_encode(['success' => false, 'error' => $db->error]); exit; }
-        $st->execute(); $ut->execute();
-        $streamer_tasks = $st->get_result()->fetch_all(MYSQLI_ASSOC);
-        $user_tasks     = $ut->get_result()->fetch_all(MYSQLI_ASSOC);
-        $st->close(); $ut->close();
+        $streamer_tasks = [];
+        $user_tasks     = [];
+        // Guard: only query if the tables exist (they may not exist on first login before usr_database.php runs)
+        $st_exists = $db->query("SHOW TABLES LIKE 'streamer_tasks'");
+        $ut_exists = $db->query("SHOW TABLES LIKE 'user_tasks'");
+        if ($st_exists && $st_exists->num_rows > 0) {
+            $st = $db->prepare("SELECT id, title, description, category, status, reward_points, created_at FROM streamer_tasks ORDER BY created_at DESC");
+            if ($st && $st->execute()) {
+                $res = $st->get_result();
+                if ($res) { $streamer_tasks = $res->fetch_all(MYSQLI_ASSOC); }
+                $st->close();
+            }
+        }
+        if ($ut_exists && $ut_exists->num_rows > 0) {
+            $ut = $db->prepare("SELECT id, streamer_task_id, user_id, user_name, title, description, category, status, approval_status, reward_points, completed_at, created_at FROM user_tasks ORDER BY created_at DESC");
+            if ($ut && $ut->execute()) {
+                $res = $ut->get_result();
+                if ($res) { $user_tasks = $res->fetch_all(MYSQLI_ASSOC); }
+                $ut->close();
+            }
+        }
         echo json_encode(['success' => true, 'streamer_tasks' => $streamer_tasks, 'user_tasks' => $user_tasks]);
         exit;
     }
