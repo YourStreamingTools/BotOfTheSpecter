@@ -238,6 +238,16 @@ class BotOfTheSpecter_WebsocketServer:
             ("KOFI", self.handle_kofi_event),
             ("PATREON", self.handle_patreon_event),
             ("SYSTEM_UPDATE", self.event_handler.handle_system_update),
+            ("SPECTER_TIMER_CONTROL", self.handle_specter_timer_control),
+            ("SPECTER_TIMER_COMMAND", self.handle_specter_timer_command),
+            ("SPECTER_SESSION_STATS", self.handle_specter_session_stats),
+            ("SPECTER_TIMER_STATE", self.handle_specter_timer_state),
+            ("SPECTER_TIMER_UPDATE", self.handle_specter_timer_update),
+            ("SPECTER_SETTINGS_UPDATE", self.handle_specter_settings_update),
+            ("SPECTER_PHASE", self.handle_specter_phase),
+            ("SPECTER_TASKLIST_UPDATE", self.handle_specter_tasklist_update),
+            ("SPECTER_TASKLIST", self.handle_specter_tasklist),
+            ("SPECTER_STATS_REQUEST", self.handle_specter_stats_request),
             # OBS events: FROM OBS TO Specter (incoming notifications from OBS)
             ("OBS_EVENT", self.obs_handler.handle_obs_event),
             ("OBS_EVENT_RECEIVED", self.obs_handler.handle_obs_event_received),
@@ -251,6 +261,55 @@ class BotOfTheSpecter_WebsocketServer:
             self.sio.on(event, handler)
         # Treat key wildcard-managed events as already handled
         self.explicit_event_handlers.update({"NOW_PLAYING", "MUSIC_SETTINGS"})
+
+    async def _route_timer_event(self, event_name, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        payload_repr = "<empty>"
+        if payload:
+            try:
+                payload_repr = json.dumps(payload, default=str)
+            except Exception:
+                payload_repr = str(payload)
+            if len(payload_repr) > 400:
+                payload_repr = f"{payload_repr[:400]}..."
+        if event_name == "SPECTER_TIMER_CONTROL":
+            self.last_timer_control_event = {
+                "sid": sid,
+                "data": payload,
+                "timestamp": time.time()
+            }
+        self.logger.info(f"{event_name} from [{sid}]: {payload_repr}")
+        await self.broadcast_to_timer_clients_only(event_name, payload, source_sid=sid)
+
+    async def handle_specter_timer_control(self, sid, data):
+        await self._route_timer_event("SPECTER_TIMER_CONTROL", sid, data)
+
+    async def handle_specter_timer_command(self, sid, data):
+        await self._route_timer_event("SPECTER_TIMER_COMMAND", sid, data)
+
+    async def handle_specter_session_stats(self, sid, data):
+        await self._route_timer_event("SPECTER_SESSION_STATS", sid, data)
+
+    async def handle_specter_timer_state(self, sid, data):
+        await self._route_timer_event("SPECTER_TIMER_STATE", sid, data)
+
+    async def handle_specter_timer_update(self, sid, data):
+        await self._route_timer_event("SPECTER_TIMER_UPDATE", sid, data)
+
+    async def handle_specter_settings_update(self, sid, data):
+        await self._route_timer_event("SPECTER_SETTINGS_UPDATE", sid, data)
+
+    async def handle_specter_phase(self, sid, data):
+        await self._route_timer_event("SPECTER_PHASE", sid, data)
+
+    async def handle_specter_tasklist_update(self, sid, data):
+        await self._route_timer_event("SPECTER_TASKLIST_UPDATE", sid, data)
+
+    async def handle_specter_tasklist(self, sid, data):
+        await self._route_timer_event("SPECTER_TASKLIST", sid, data)
+
+    async def handle_specter_stats_request(self, sid, data):
+        await self._route_timer_event("SPECTER_STATS_REQUEST", sid, data)
 
     async def ip_restriction_middleware(self, app, handler):
         async def middleware_handler(request):
@@ -280,7 +339,7 @@ class BotOfTheSpecter_WebsocketServer:
             "SPECTER_TASKLIST",
             "SPECTER_STATS_REQUEST"
         ]
-        if event in timer_events:
+        if event in timer_events and event not in self.explicit_event_handlers:
             payload_repr = "<empty>"
             if data:
                 try:
@@ -538,7 +597,9 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"broadcast_to_timer_clients_only: Routing {event_name} to {len(timer_clients)} timer clients (code: {effective_code})")
         for client in timer_clients:
             self.logger.info(f"Emitting {event_name} to {client['sid']} (name: {client.get('name')})")
-            await self.sio.emit(event_name, {**data, "channel_code": effective_code}, to=client['sid'])
+            payload = dict(data) if isinstance(data, dict) else {}
+            payload["channel_code"] = effective_code
+            await self.sio.emit(event_name, payload, to=client['sid'])
             count += 1
         if data:
             try:
