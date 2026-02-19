@@ -3261,3 +3261,81 @@ body {
     color: #95a5a6;
     border: 1px solid rgba(149, 165, 166, 0.3);
 }
+
+/* Schedule page enhancements */
+.schedule-summary-box {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.schedule-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+.schedule-day-group > .title {
+    border-left: 3px solid var(--accent);
+    padding-left: 0.65rem;
+}
+
+.schedule-duration-display {
+    min-width: 130px;
+}
+
+.segment-edit-form .field.is-grouped {
+    row-gap: 0.75rem;
+}
+
+.schedule-day-group .columns.is-multiline {
+    align-items: stretch;
+}
+
+.schedule-day-columns > .column,
+.schedule-day-group > .columns.is-multiline > .column {
+    display: flex;
+}
+
+.segment-edit-form .help {
+    width: 100%;
+    display: block;
+    white-space: normal;
+}
+
+.schedule-segment-card {
+    width: 100%;
+    min-height: 730px;
+    height: 730px;
+    max-height: 730px;
+    display: flex;
+    flex-direction: column;
+}
+
+.schedule-segment-card.schedule-segment-card-canceled {
+    border: 2px solid #ff4e65;
+}
+
+.schedule-segment-card > .card-content {
+    flex: 0 0 auto;
+    display: block;
+}
+
+.schedule-segment-card > .card-content:first-of-type {
+    flex: 1 1 auto;
+}
+
+.schedule-card-tags {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+    cursor: default;
+}
+
+.schedule-card-tags .tag {
+    cursor: default;
+    pointer-events: none;
+}
