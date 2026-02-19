@@ -243,9 +243,12 @@
 }
 
 .config-card .tag.is-light {
-    background-color: rgba(79, 153, 216, 0.2);
-    color: #4f99d8;
-    border: 1px solid rgba(79, 153, 216, 0.4);
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(59, 130, 246, 0.24) !important;
+    color: #eaf4ff !important;
+    border: 1px solid rgba(96, 165, 250, 0.6);
+    font-weight: 600;
 }
 
 .config-card .tag.is-info {

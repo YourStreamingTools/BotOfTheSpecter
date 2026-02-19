@@ -88,6 +88,12 @@ function uuidv4()
 {
     return bin2hex(random_bytes(4));
 }
+
+$isAdminCssPage = isset($layoutMode) && $layoutMode === 'admin';
+if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
+    $cssPath = strtolower((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+    $isAdminCssPage = strpos(rtrim($cssPath, '/'), '/admin') !== false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" class="dark-theme" data-theme="dark">
@@ -103,9 +109,11 @@ function uuidv4()
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/bulma-responsive-tables.css">
-    <link rel="stylesheet" href="/css/custom.css?v=<?php echo uuidv4(); ?>">
-    <?php if (isset($layoutMode) && $layoutMode === 'admin'): ?>
+    <?php if ($isAdminCssPage): ?>
+        <link rel="stylesheet" href="/css/custom.css?v=<?php echo uuidv4(); ?>">
         <link rel="stylesheet" href="/css/admin.css?v=<?php echo uuidv4(); ?>">
+    <?php else: ?>
+        <link rel="stylesheet" href="/css/custom.css?v=<?php echo uuidv4(); ?>">
     <?php endif; ?>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
