@@ -878,6 +878,26 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let presenceEnabled = false;
             let activeChatters = new Set(); // Users currently in chat (tracked via IRC JOIN/PART)
             let messageBasedChatters = new Set(); // Users detected via first message only
+            function normalizePresenceLogin(userLogin) {
+                if (!userLogin) return null;
+                return String(userLogin).trim().toLowerCase() || null;
+            }
+            function getPresenceKeys(userId, userLogin) {
+                const keys = [];
+                if (userId) keys.push(String(userId));
+                const normalizedLogin = normalizePresenceLogin(userLogin);
+                if (normalizedLogin && !keys.includes(normalizedLogin)) keys.push(normalizedLogin);
+                return keys;
+            }
+            function hasPresenceMarker(setRef, userId, userLogin) {
+                return getPresenceKeys(userId, userLogin).some(k => setRef.has(k));
+            }
+            function addPresenceMarkers(setRef, userId, userLogin) {
+                getPresenceKeys(userId, userLogin).forEach(k => setRef.add(k));
+            }
+            function removePresenceMarkers(setRef, userId, userLogin) {
+                getPresenceKeys(userId, userLogin).forEach(k => setRef.delete(k));
+            }
             // Max chat messages to retain in overlay (match Twitch default of 50)
             const MAX_CHAT_MESSAGES = 50;
             function loadPresenceSetting() {
@@ -2576,10 +2596,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         // Another user joined
                         const userId = message.tags && message.tags['user-id'];
                         const displayName = (message.tags && message.tags['display-name']) || joinUser;
-                        const userKey = userId || joinUser.toLowerCase(); // Use userId if available, otherwise login name
-                        activeChatters.add(userKey);
+                        const alreadyMarkedByMessage = hasPresenceMarker(messageBasedChatters, userId, joinUser);
+                        addPresenceMarkers(activeChatters, userId, joinUser);
                         // Show join message if presence notifications enabled and user hasn't sent a message yet
-                        if (presenceEnabled && !messageBasedChatters.has(userKey)) {
+                        if (presenceEnabled && !alreadyMarkedByMessage) {
                             showSystemMessage(`${displayName} joined the chat`, 'join');
                         }
                     }
@@ -2594,9 +2614,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const partUserId = message.tags && message.tags['user-id'];
                     const partUser = message.prefix.split('!')[0];
                     const partDisplayName = (message.tags && message.tags['display-name']) || partUser;
-                    const partUserKey = partUserId || partUser.toLowerCase(); // Use userId if available, otherwise login name
-                    activeChatters.delete(partUserKey);
-                    messageBasedChatters.delete(partUserKey);
+                    removePresenceMarkers(activeChatters, partUserId, partUser);
+                    removePresenceMarkers(messageBasedChatters, partUserId, partUser);
                     // Show leave message if presence notifications enabled
                     if (presenceEnabled) {
                         showSystemMessage(`${partDisplayName} left the chat`, 'leave');
@@ -2645,13 +2664,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                     return login !== normalized && (e.user_name || '').toLowerCase() !== normalized;
                                 });
                                 // Remove from presence sets
-                                messageBasedChatters.delete(normalized);
-                                activeChatters.delete(normalized);
+                                removePresenceMarkers(messageBasedChatters, null, normalized);
+                                removePresenceMarkers(activeChatters, null, normalized);
                                 // If target user-id is present, remove by id too
                                 if (message.tags && message.tags['target-user-id']) {
                                     const targetId = message.tags['target-user-id'];
-                                    messageBasedChatters.delete(targetId);
-                                    activeChatters.delete(targetId);
+                                    removePresenceMarkers(messageBasedChatters, targetId, normalized);
+                                    removePresenceMarkers(activeChatters, targetId, normalized);
                                     recentChatMessages = recentChatMessages.filter(e => (e.user_id || '') !== targetId);
                                 }
                                 // Persist updated history
@@ -2817,9 +2836,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 };
             }
             // Track presence
-            const userKey = userId || username.toLowerCase(); // Use userId if available, otherwise login name
-            activeChatters.add(userKey);
-            messageBasedChatters.add(userKey);
+            addPresenceMarkers(activeChatters, userId, username);
+            addPresenceMarkers(messageBasedChatters, userId, username);
             // Apply filters
             if (isMessageFiltered(event)) {
                 return;
@@ -2931,10 +2949,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Check if this user needs to be marked as joined first
             const userLogin = event.chatter_user_login;
-            const userKey = event.chatter_user_id || (userLogin ? userLogin.toLowerCase() : null);
-            if (presenceEnabled && userKey && !activeChatters.has(userKey) && !messageBasedChatters.has(userKey)) {
+            const presenceUserId = event.chatter_user_id;
+            const hasKnownPresence = hasPresenceMarker(activeChatters, presenceUserId, userLogin) || hasPresenceMarker(messageBasedChatters, presenceUserId, userLogin);
+            if (presenceEnabled && !hasKnownPresence) {
                 // User hasn't been detected by presence system, mark them as joined via message
-                messageBasedChatters.add(userKey);
+                addPresenceMarkers(activeChatters, presenceUserId, userLogin);
+                addPresenceMarkers(messageBasedChatters, presenceUserId, userLogin);
                 showSystemMessage(`${event.chatter_user_name} joined the chat`, 'join');
             }
             // Presence is handled via Twitch Helix API (no message-based presence)
