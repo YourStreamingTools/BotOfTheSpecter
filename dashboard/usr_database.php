@@ -415,6 +415,15 @@ try {
                 sub_add_3 INT DEFAULT NULL,
                 donation_add INT DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'subathon' => "
+            CREATE TABLE IF NOT EXISTS subathon (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                start_time DATETIME NOT NULL,
+                end_time DATETIME NOT NULL,
+                starting_minutes INT NOT NULL DEFAULT 60,
+                paused TINYINT(1) NOT NULL DEFAULT 0,
+                remaining_minutes INT NOT NULL DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'tts_settings' => "
             CREATE TABLE IF NOT EXISTS tts_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,

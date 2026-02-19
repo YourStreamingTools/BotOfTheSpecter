@@ -36,7 +36,7 @@ if ($db->connect_error) {
 }
 
 // Fetch the current subathon settings using MySQLi
-$stmt = $db->prepare("SELECT * FROM subathon_settings LIMIT 1");
+$stmt = $db->prepare("SELECT * FROM subathon_settings ORDER BY id DESC LIMIT 1");
 $stmt->execute();
 $result = $stmt->get_result();
 $settings = $result->fetch_assoc();
@@ -55,14 +55,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
     $sub_add_1 = $_POST['sub_add_1'];
     $sub_add_2 = $_POST['sub_add_2'];
     $sub_add_3 = $_POST['sub_add_3'];
-    // Update the settings in the database using MySQLi
-    $stmt = $db->prepare("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE starting_minutes=?, cheer_add=?, sub_add_1=?, sub_add_2=?, sub_add_3=?");
-    $stmt->bind_param(
-        "iiiiiiiii", 
-        $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3,
-        $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3
-    );
+    if (!empty($settings['id'])) {
+        // Update the latest settings row in the database
+        $stmt = $db->prepare("UPDATE subathon_settings SET starting_minutes=?, cheer_add=?, sub_add_1=?, sub_add_2=?, sub_add_3=? WHERE id=?");
+        $stmt->bind_param(
+            "iiiiii",
+            $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3, $settings['id']
+        );
+    } else {
+        // Insert initial settings row when none exists
+        $stmt = $db->prepare("INSERT INTO subathon_settings (starting_minutes, cheer_add, sub_add_1, sub_add_2, sub_add_3) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param(
+            "iiiii",
+            $starting_minutes, $cheer_add, $sub_add_1, $sub_add_2, $sub_add_3
+        );
+    }
     $stmt->execute();
+    $stmt->close();
+
+    // Keep local settings state in sync with saved values
+    $settings = [
+        'id' => $settings['id'] ?? null,
+        'starting_minutes' => $starting_minutes,
+        'cheer_add' => $cheer_add,
+        'sub_add_1' => $sub_add_1,
+        'sub_add_2' => $sub_add_2,
+        'sub_add_3' => $sub_add_3,
+    ];
     // Set the success message
     $message = t('subathon_settings_update_success');
 }
