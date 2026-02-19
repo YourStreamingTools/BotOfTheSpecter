@@ -467,13 +467,11 @@ function segment_duration_minutes($startRfc3339, $endRfc3339) {
         return null;
     }
 }
-
 function fmt_duration_human($minutes) {
     if (!is_numeric($minutes) || (int)$minutes <= 0) return '—';
     $totalMinutes = (int)$minutes;
     $hours = intdiv($totalMinutes, 60);
     $mins = $totalMinutes % 60;
-
     if ($hours > 0 && $mins > 0) {
         return $hours . 'h ' . $mins . 'm';
     }
@@ -832,7 +830,6 @@ ob_start();
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
         return Math.floor((end.getTime() - start.getTime()) / 60000);
     }
-
     function formatDurationHuman(mins) {
         if (mins === null || mins <= 0) return '—';
         const hours = Math.floor(mins / 60);
@@ -841,7 +838,6 @@ ob_start();
         if (hours > 0) return `${hours}h`;
         return `${minutes}m`;
     }
-
     function applyDurationState(startInput, endInput, hiddenInput, previewEl, helpEl, actionButton) {
         const mins = minutesBetween(startInput ? startInput.value : '', endInput ? endInput.value : '');
         let valid = false;
@@ -1026,8 +1022,39 @@ ob_start();
             endInput.addEventListener('input', syncSegmentDuration);
             syncSegmentDuration();
         }
-        f.addEventListener('submit', function(ev){
+        f.addEventListener('submit', async function(ev){
             const submitAction = ev.submitter && ev.submitter.value ? ev.submitter.value : '';
+            if (submitAction === 'delete_segment') {
+                if (f.dataset.deleteConfirmed === '1') {
+                    f.dataset.deleteConfirmed = '';
+                    return true;
+                }
+                ev.preventDefault();
+                let confirmed = false;
+                if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+                    const result = await Swal.fire({
+                        title: 'Delete this stream?',
+                        text: 'This cannot be undone.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, delete it',
+                        cancelButtonText: 'Cancel',
+                        reverseButtons: true
+                    });
+                    confirmed = !!(result && result.isConfirmed);
+                } else {
+                    confirmed = window.confirm('Delete this stream? This cannot be undone.');
+                }
+                if (confirmed) {
+                    f.dataset.deleteConfirmed = '1';
+                    if (ev.submitter && typeof f.requestSubmit === 'function') {
+                        f.requestSubmit(ev.submitter);
+                    } else {
+                        f.submit();
+                    }
+                }
+                return false;
+            }
             if (submitAction !== 'update_segment') return true;
             const visible = f.querySelector('.segment-category-search');
             const hidden = f.querySelector('.segment-category-id');
