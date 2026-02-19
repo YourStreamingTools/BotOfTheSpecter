@@ -32,11 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $weight_vip = floatval($_POST['weight_vip'] ?? 1.50);
         $exclude_mods = isset($_POST['exclude_mods']) ? 1 : 0;
         $subscribers_only = isset($_POST['subscribers_only']) ? 1 : 0;
+        $followers_only = isset($_POST['followers_only']) ? 1 : 0;
         if ($name === '' || $number_of_winners <= 0) {
             $message = 'Invalid name or number of winners.';
         } else {
-            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only) VALUES (?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param('ssiiddddii', $name, $prize, $number_of_winners, $weighted, $weight_sub_t1, $weight_sub_t2, $weight_sub_t3, $weight_vip, $exclude_mods, $subscribers_only);
+            $stmt = $db->prepare("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only) VALUES (?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param('ssiiddddiii', $name, $prize, $number_of_winners, $weighted, $weight_sub_t1, $weight_sub_t2, $weight_sub_t3, $weight_vip, $exclude_mods, $subscribers_only, $followers_only);
             if ($stmt->execute()) {
                 $message = "Raffle '$name' created and scheduled.";
             } else {
@@ -164,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Fetch raffles list with winners
 $raffles = [];
-$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only FROM raffles ORDER BY created_at DESC LIMIT 50");
+$res = $db->query("SELECT id, name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only FROM raffles ORDER BY created_at DESC LIMIT 50");
 if ($res) {
     while ($row = $res->fetch_assoc()) {
         // Fetch winners for this raffle
@@ -251,11 +252,16 @@ ob_start();
                                 <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
                             </label>
                         </div>
-                        <div class="field">
-                            <label class="checkbox">
-                                <input type="checkbox" name="subscribers_only"> Only Subscribers Can Enter
-                            </label>
-                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="checkbox">
+                            <input type="checkbox" name="subscribers_only"> Only Subscribers Can Enter
+                        </label>
+                    </div>
+                    <div class="field">
+                        <label class="checkbox">
+                            <input type="checkbox" name="followers_only"> Only Followers Can Enter
+                        </label>
                     </div>
                     <script>
                         function toggleWeightSettings() {
@@ -306,6 +312,7 @@ ob_start();
                                     $exclusions = [];
                                     if ($r['exclude_mods']) $exclusions[] = 'Mods excluded';
                                     if ($r['subscribers_only']) $exclusions[] = 'Subs only';
+                                    if ($r['followers_only']) $exclusions[] = 'Followers only';
                                     echo !empty($exclusions) ? implode(', ', $exclusions) : 'None';
                                     ?>
                                 </td>
