@@ -807,17 +807,94 @@ ob_end_clean();
                     }
                 } catch (e) { console.warn('[Overlay] loadChannelTasks error', e); }
             };
+            const taskListAutoScrollState = new Map();
+            const stopTaskListAutoScroll = (listId) => {
+                const state = taskListAutoScrollState.get(listId);
+                if (!state) return;
+                if (state.intervalId) clearInterval(state.intervalId);
+                if (state.pauseTimeoutId) clearTimeout(state.pauseTimeoutId);
+                taskListAutoScrollState.delete(listId);
+            };
+            const ensureTaskListAutoScroll = (listId) => {
+                const list = document.getElementById(listId);
+                if (!list) {
+                    stopTaskListAutoScroll(listId);
+                    return;
+                }
+                const taskCount = list.querySelectorAll('.task-sys-item').length;
+                const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+                const shouldAutoScroll = taskCount > 5 && maxScroll > 0;
+                if (!shouldAutoScroll) {
+                    stopTaskListAutoScroll(listId);
+                    list.scrollTop = 0;
+                    return;
+                }
+                if (taskListAutoScrollState.has(listId)) {
+                    return;
+                }
+                const state = {
+                    direction: 1,
+                    intervalId: null,
+                    pauseTimeoutId: null,
+                };
+                const pauseAndReverse = (nextDirection) => {
+                    if (state.intervalId) {
+                        clearInterval(state.intervalId);
+                        state.intervalId = null;
+                    }
+                    if (state.pauseTimeoutId) {
+                        clearTimeout(state.pauseTimeoutId);
+                        state.pauseTimeoutId = null;
+                    }
+                    state.pauseTimeoutId = setTimeout(() => {
+                        state.direction = nextDirection;
+                        state.intervalId = setInterval(tick, 28);
+                    }, 850);
+                };
+                const tick = () => {
+                    const currentList = document.getElementById(listId);
+                    if (!currentList) {
+                        stopTaskListAutoScroll(listId);
+                        return;
+                    }
+                    const currentTaskCount = currentList.querySelectorAll('.task-sys-item').length;
+                    const currentMaxScroll = Math.max(0, currentList.scrollHeight - currentList.clientHeight);
+                    if (currentTaskCount <= 5 || currentMaxScroll <= 0) {
+                        stopTaskListAutoScroll(listId);
+                        currentList.scrollTop = 0;
+                        return;
+                    }
+                    currentList.scrollTop += state.direction;
+                    if (currentList.scrollTop >= currentMaxScroll) {
+                        currentList.scrollTop = currentMaxScroll;
+                        pauseAndReverse(-1);
+                    } else if (currentList.scrollTop <= 0) {
+                        currentList.scrollTop = 0;
+                        pauseAndReverse(1);
+                    }
+                };
+                state.intervalId = setInterval(tick, 28);
+                taskListAutoScrollState.set(listId, state);
+            };
+            const refreshTaskListAutoScroll = () => {
+                window.requestAnimationFrame(() => {
+                    ensureTaskListAutoScroll('newStreamerTaskList');
+                    ensureTaskListAutoScroll('newViewerTaskList');
+                });
+            };
             const renderNewStreamerList = (tasks) => {
                 const list = document.getElementById('newStreamerTaskList');
                 if (!list) return;
                 list.innerHTML = '';
                 tasks.forEach(t => newStreamerUpsert(t));
+                refreshTaskListAutoScroll();
             };
             const renderNewViewerList = (tasks) => {
                 const list = document.getElementById('newViewerTaskList');
                 if (!list) return;
                 list.innerHTML = '';
                 tasks.forEach(t => newViewerUpsert(t));
+                refreshTaskListAutoScroll();
             };
             const newStreamerUpsert = (task) => {
                 const list = document.getElementById('newStreamerTaskList');
@@ -828,6 +905,7 @@ ob_end_clean();
                 li.className = 'task-sys-item' + (done ? ' is-done' : '');
                 const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
                 li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div>${task.category ? `<div class="task-sys-item__meta">${escapeHtml(task.category)}</div>` : ''}</div>${pts}`;
+                refreshTaskListAutoScroll();
             };
             const newViewerUpsert = (task) => {
                 const list = document.getElementById('newViewerTaskList');
@@ -838,6 +916,7 @@ ob_end_clean();
                 li.className = 'task-sys-item' + (done ? ' is-done' : '');
                 const pts = task.reward_points ? `<span class="task-sys-item__pts">${task.reward_points} pts</span>` : '';
                 li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(task.title)}</div><div class="task-sys-item__meta">${escapeHtml(task.user_name || '')}</div></div>${pts}`;
+                refreshTaskListAutoScroll();
             };
             const newSetDone = (taskId, owner) => {
                 const ownerKey = String(owner || '').toLowerCase();
@@ -997,6 +1076,7 @@ ob_end_clean();
                         document.getElementById('new-streamer-task-' + d.task_id)?.remove();
                         document.getElementById('new-viewer-task-' + d.task_id)?.remove();
                     }
+                    refreshTaskListAutoScroll();
                 });
                 socket.on('TASK_REWARD_CONFIRM', (d) => {
                     showTaskRewardPopup('\uD83C\uDFC6 ' + d.user_name + ' earned ' + d.points_awarded + ' pts!');
