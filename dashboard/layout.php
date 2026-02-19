@@ -161,6 +161,13 @@ function uuidv4()
         <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
             <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile', $layoutMode); ?>
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
+                <?php if ($layoutMode === 'admin' || $layoutMode === 'moderator' || $layoutMode === 'todolist'): ?>
+                    <a href="../dashboard.php" class="sidebar-user-item"
+                        style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                        <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
+                        <span class="sidebar-user-text">User Dashboard</span>
+                    </a>
+                <?php endif; ?>
                 <a href="../mod_channels.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
@@ -200,6 +207,12 @@ function uuidv4()
         <div class="sidebar-content-wrapper">
             <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop', $layoutMode); ?>
             <div class="sidebar-user-section">
+                <?php if ($layoutMode === 'admin' || $layoutMode === 'moderator' || $layoutMode === 'todolist'): ?>
+                    <a href="../dashboard.php" class="sidebar-user-item">
+                        <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
+                        <span class="sidebar-user-text">User Dashboard</span>
+                    </a>
+                <?php endif; ?>
                 <a href="../mod_channels.php" class="sidebar-user-item">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="sidebar-user-text">Mod Channels</span>
