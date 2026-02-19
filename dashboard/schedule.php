@@ -772,13 +772,13 @@ ob_start();
                     <div class="column is-6-mobile is-3-tablet">
                         <div class="schedule-summary-item">
                             <span class="has-text-grey-light">Streams</span>
-                            <strong class="has-text-white"><?php echo (int)$nextSevenSummary['total']; ?></strong>
+                            <strong class="has-text-white" id="scheduleSummaryStreams"><?php echo (int)$nextSevenSummary['total']; ?></strong>
                         </div>
                     </div>
                     <div class="column is-6-mobile is-3-tablet">
                         <div class="schedule-summary-item">
                             <span class="has-text-grey-light">Recurring</span>
-                            <strong class="has-text-info"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
+                            <strong class="has-text-info" id="scheduleSummaryRecurring"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
                         </div>
                     </div>
                     <div class="column is-6-mobile is-3-tablet">
@@ -829,7 +829,7 @@ ob_start();
                                 // Keep fallback placeholders above.
                             }
                             ?>
-                <div class="column is-12-mobile is-6-tablet is-4-desktop<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
+                <div class="column is-12-mobile is-6-tablet is-4-desktop<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>" data-segment-recurring="<?php echo $isRecurring ? '1' : '0'; ?>" data-segment-canceled="<?php echo $canceled ? '1' : '0'; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
                     <div class="schedule-day-group mb-5">
                         <?php if ($segIndex === 0): ?>
                         <h2 class="title is-5 has-text-white mb-3"><?php echo htmlspecialchars($dayData['label']); ?></h2>
@@ -1024,6 +1024,28 @@ ob_start();
             return await res.json();
         } catch (e) { return null; }
     }
+    const refreshSummaryCounts = () => {
+        const streamsEl = document.getElementById('scheduleSummaryStreams');
+        const recurringEl = document.getElementById('scheduleSummaryRecurring');
+        const canceledEl = document.getElementById('scheduleSummaryCanceled');
+        if (!streamsEl && !recurringEl && !canceledEl) return;
+        const visibleColumns = Array.from(document.querySelectorAll('.schedule-day-columns > .column')).filter((col) => {
+            const hiddenByClass = col.classList.contains('schedule-day-hidden');
+            const hiddenByStyle = col.style && col.style.display === 'none';
+            return !hiddenByClass && !hiddenByStyle;
+        });
+        let total = 0;
+        let recurring = 0;
+        let canceled = 0;
+        visibleColumns.forEach((col) => {
+            total += 1;
+            if (String(col.getAttribute('data-segment-recurring') || '0') === '1') recurring += 1;
+            if (String(col.getAttribute('data-segment-canceled') || '0') === '1') canceled += 1;
+        });
+        if (streamsEl) streamsEl.textContent = String(total);
+        if (recurringEl) recurringEl.textContent = String(recurring);
+        if (canceledEl) canceledEl.textContent = String(canceled);
+    };
     // Create form duration calculation
     const createStart = document.getElementById('create_segment_start');
     const createEnd = document.getElementById('create_segment_end');
@@ -1167,6 +1189,10 @@ ob_start();
                     if (card) {
                         card.classList.toggle('schedule-segment-card-canceled', isCanceled);
                     }
+                    const segmentColumn = f.closest('.schedule-day-columns > .column');
+                    if (segmentColumn) {
+                        segmentColumn.setAttribute('data-segment-canceled', isCanceled ? '1' : '0');
+                    }
                     const cancelStateInput = f.querySelector('input[name="cancel_state"]');
                     if (cancelStateInput) cancelStateInput.value = isCanceled ? '0' : '1';
                     submitBtn.textContent = isCanceled ? 'Uncancel' : 'Cancel Stream';
@@ -1184,16 +1210,7 @@ ob_start();
                             canceledTag.remove();
                         }
                     }
-                    const canceledSummary = document.getElementById('scheduleSummaryCanceled');
-                    if (canceledSummary) {
-                        const current = Number(canceledSummary.textContent || '0');
-                        if (!Number.isNaN(current)) {
-                            let next = current;
-                            if (!wasCanceled && isCanceled) next = current + 1;
-                            if (wasCanceled && !isCanceled) next = Math.max(0, current - 1);
-                            canceledSummary.textContent = String(next);
-                        }
-                    }
+                    refreshSummaryCounts();
                     Toastify({ text: payload.message || (isCanceled ? 'Segment canceled.' : 'Segment uncanceled.'), duration: 2200, gravity: 'bottom', position: 'right', style: { background: '#22c55e', color: '#fff' } }).showToast();
                 } catch (err) {
                     showToastError(err && err.message ? err.message : 'Unable to update stream cancel state right now.');
@@ -1300,10 +1317,12 @@ ob_start();
                     col.classList.remove('schedule-day-hidden');
                 });
             });
+            refreshSummaryCounts();
             updateButtonState();
         });
         updateButtonState();
     }
+    refreshSummaryCounts();
 })();
 </script>
 <?php
