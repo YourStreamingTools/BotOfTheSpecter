@@ -580,12 +580,15 @@ try {
                 focus_minutes INT DEFAULT 60,
                 micro_break_minutes INT DEFAULT 5,
                 recharge_break_minutes INT DEFAULT 30,
+                reward_enabled TINYINT(1) DEFAULT 0,
+                reward_points_per_task INT DEFAULT 10,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'working_study_overlay_tasks' => "
             CREATE TABLE IF NOT EXISTS working_study_overlay_tasks (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 username VARCHAR(255) NOT NULL,
+                user_id VARCHAR(50) DEFAULT NULL,
                 task_id VARCHAR(255) NOT NULL,
                 title VARCHAR(255) NOT NULL,
                 priority VARCHAR(20) DEFAULT 'medium',
@@ -594,6 +597,17 @@ try {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE (username, task_id),
                 INDEX idx_username (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'working_study_overlay_task_rewards' => "
+            CREATE TABLE IF NOT EXISTS working_study_overlay_task_rewards (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                username VARCHAR(255) NOT NULL,
+                user_id VARCHAR(50) DEFAULT NULL,
+                task_id VARCHAR(255) NOT NULL,
+                points_awarded INT NOT NULL DEFAULT 0,
+                rewarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (username, task_id),
+                INDEX idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'automated_shoutout_settings' => "
             CREATE TABLE IF NOT EXISTS automated_shoutout_settings (
@@ -809,7 +823,7 @@ try {
         async_log('Default automated_shoutout_settings options ensured.');
     }
     // Ensure default options for working_study_overlay_settings
-    if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes) SELECT 60, 5, 30 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO working_study_overlay_settings (focus_minutes, micro_break_minutes, recharge_break_minutes, reward_enabled, reward_points_per_task) SELECT 60, 5, 30, 0, 10 WHERE NOT EXISTS (SELECT 1 FROM working_study_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default working_study_overlay_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist

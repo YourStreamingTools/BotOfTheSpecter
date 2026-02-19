@@ -141,12 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         exit;
     }
     if ($action === 'get_tasks') {
-        $stmt = $user_db->prepare("SELECT task_id as id, title, priority, completed FROM working_study_overlay_tasks WHERE username = ? ORDER BY created_at DESC");
+        $stmt = $user_db->prepare("SELECT username, task_id as id, title, priority, completed FROM working_study_overlay_tasks ORDER BY created_at DESC");
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $user_db->error]);
             exit;
         }
-        $stmt->bind_param("s", $username);
         if (!$stmt->execute()) {
             echo json_encode(['success' => false, 'error' => 'Execute failed: ' . $stmt->error]);
             exit;
@@ -155,6 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
         $tasks = [];
         while ($row = $result->fetch_assoc()) {
             $tasks[] = [
+                'username' => $row['username'],
                 'id' => $row['id'],
                 'title' => $row['title'],
                 'priority' => $row['priority'],
@@ -254,6 +254,9 @@ ob_end_clean();
             const taskListEl = document.getElementById('taskList');
             const taskCountEl = document.getElementById('taskCount');
             const taskUpdatedEl = document.getElementById('taskUpdated');
+            const urlParams = new URLSearchParams(window.location.search);
+            const streamerParam = (urlParams.get('streamer') || '').toLowerCase();
+            const streamerMode = streamerParam === 'true' ? true : (streamerParam === 'false' ? false : null);
             const ringElement = document.getElementById('timerRingProgress');
             const circleRadius = 98;
             const circumference = 2 * Math.PI * circleRadius;
@@ -608,7 +611,6 @@ ob_end_clean();
                         startCountdown();
                         return true;
                     }
-
                     timerState.timerRunning = false;
                     timerState.timerPaused = Boolean(saved.timerPaused);
                     if (timerState.remainingSeconds <= 0) {
@@ -631,13 +633,24 @@ ob_end_clean();
             };
             const renderTasks = tasks => {
                 taskListEl.innerHTML = '';
-                if (!tasks || !tasks.length) {
+                const normalizedStreamerName = String(overlayUserName || '').toLowerCase();
+                const filteredTasks = (tasks || []).filter(task => {
+                    if (streamerMode === null) {
+                        return true;
+                    }
+                    const owner = String(task.username || '').toLowerCase();
+                    if (streamerMode === true) {
+                        return owner === normalizedStreamerName;
+                    }
+                    return owner !== normalizedStreamerName;
+                });
+                if (!filteredTasks.length) {
                     taskListEl.innerHTML = '<p class="study-overlay-empty-state">No tasks yet.</p>';
                     taskCountEl.textContent = '0 tasks';
                     taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
                     return;
                 }
-                tasks.forEach(task => {
+                filteredTasks.forEach(task => {
                     const node = document.createElement('article');
                     node.className = 'study-overlay-task-item' + (task.completed ? ' completed' : '');
                     node.innerHTML = `
@@ -649,7 +662,7 @@ ob_end_clean();
                     `;
                     taskListEl.appendChild(node);
                 });
-                taskCountEl.textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
+                taskCountEl.textContent = `${filteredTasks.length} task${filteredTasks.length === 1 ? '' : 's'}`;
                 taskUpdatedEl.textContent = `Updated: ${getCurrentTimeStamp()}`;
             };
             const tasksEndpoint = `${window.location.pathname}?code=${encodeURIComponent(overlayApiKey)}&action=get_tasks`;
