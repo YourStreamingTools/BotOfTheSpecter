@@ -23,7 +23,7 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let socket;

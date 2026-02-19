@@ -60,7 +60,7 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
     <meta charset="UTF-8">
     <title>Overlay DMCA Music</title>
     <link rel="stylesheet" href="index.css">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 </head>
 <body>
     <audio id="audio-player" preload="auto"></audio>
