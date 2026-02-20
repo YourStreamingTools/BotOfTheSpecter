@@ -574,6 +574,13 @@ ob_start();
                             </span>
                             <span>Stop</span>
                         </button>
+                        <button type="button" class="button is-medium is-dark" data-specter-control="reset_all"
+                            style="flex: 1; min-width: 100%; margin-top: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-undo-alt" aria-hidden="true"></i>
+                            </span>
+                            <span>Reset All</span>
+                        </button>
                     </div>
                 </div>
                 <div class="column is-full">
@@ -1072,7 +1079,8 @@ ob_start();
             pause: 'Timer paused',
             resume: 'Timer resumed',
             reset: 'Timer reset',
-            stop: 'Timer stopped'
+            stop: 'Timer stopped',
+            reset_all: 'Timer and stats reset to defaults'
         };
         const setButtonsLoading = (loading) => {
             isRequesting = loading;
@@ -1307,6 +1315,12 @@ ob_start();
             button.addEventListener('click', async () => {
                 const action = button.getAttribute('data-specter-control');
                 console.log(`[Timer Dashboard] Control button clicked: ${action}`);
+                if (action === 'reset_all') {
+                    focusLengthInput.value = 60;
+                    microBreakInput.value = 5;
+                    breakLengthInput.value = 30;
+                    await saveSettingsToDatabase();
+                }
                 const toastMessage = controlMessages[action] || `Timer ${action}`;
                 await notifyServer(
                     { specter_event: 'SPECTER_TIMER_COMMAND', action, ...gatherDurations() },
