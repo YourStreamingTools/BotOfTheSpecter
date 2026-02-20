@@ -359,6 +359,9 @@ ob_end_clean();
         const overlayApiKey = <?php echo json_encode($api_key ?? null); ?>;
         const overlayUserName = <?php echo json_encode($username ?? 'Specter User'); ?>;
         const overlayErrorMessage = <?php echo json_encode($error_html ?? null); ?>;
+        const hasTimerQuery = <?php echo $has_timer_query ? 'true' : 'false'; ?>;
+        const hasTasklistQuery = <?php echo $has_tasklist_query ? 'true' : 'false'; ?>;
+        const streamerFilterParam = <?php echo json_encode($streamer_filter_param); ?>;
         (function () {
             if (overlayErrorMessage) {
                 const errorNode = document.getElementById('overlayErrorMessage');
@@ -945,6 +948,21 @@ ob_end_clean();
             let socket = null;
             let reconnectAttempts = 0;
             let statsTicker = null;
+            const getOverlayConnectionName = () => {
+                if (hasTasklistQuery) {
+                    if (streamerFilterParam === 'true') {
+                        return 'Working Study - Task List - Streamer';
+                    }
+                    if (streamerFilterParam === 'false') {
+                        return 'Working Study - Task List - Users';
+                    }
+                    return 'Working Study - Task List - Users';
+                }
+                if (hasTimerQuery || !hasTasklistQuery) {
+                    return 'Working Study - Timer';
+                }
+                return 'Working Study - Timer';
+            };
             const setConnectionStatus = (text, state) => {
                 if (!connectionStatus) return;
                 connectionStatus.textContent = text;
@@ -1136,14 +1154,15 @@ ob_end_clean();
                 console.log('[Overlay] Socket instance created, registering event listeners...');
                 socket.on('connect', () => {
                     reconnectAttempts = 0;
+                    const overlayConnectionName = getOverlayConnectionName();
                     console.log('[Overlay] Connected to socket server! ID:', socket.id);
                     setConnectionStatus('Connected', 'connected');
                     socket.emit('REGISTER', {
                         code: overlayApiKey,
                         channel: 'Overlay',
-                        name: `Working Study Timer - ${overlayUserName}`
+                        name: overlayConnectionName
                     });
-                    console.log('[Overlay] Sent REGISTER event for code:', overlayApiKey);
+                    console.log('[Overlay] Sent REGISTER event for code/name:', overlayApiKey, overlayConnectionName);
                     emitSessionStats();
                     loadSettingsFromAPI();
                     loadChannelTasks();
