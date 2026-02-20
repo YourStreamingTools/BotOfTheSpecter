@@ -395,15 +395,16 @@ ob_start();
         <div class="card-content">
             <div class="content">
                 <p><strong>Specter Working/Study Timer Overlay</strong></p>
-                <p>Control a professional productivity timer overlay displayed on your stream. Track focus sessions,
-                    breaks, and recharge time with real-time visual feedback.</p>
+                <p>Control a live Working/Study timer overlay for your stream with focus, micro break, and recharge phases,
+                    plus real-time dashboard synchronization.</p>
                 <ul>
-                    <li>Visual progress ring that depletes with time</li>
-                    <li>Dynamic color coding for each phase: Orange (focus), Cyan (break), Purple (recharge)</li>
-                    <li>Session counter and total time logged statistics</li>
-                    <li>Sound notifications when phases complete</li>
-                    <li>Real-time synchronization via WebSocket</li>
-                    <li>Responsive design that scales for stream overlays</li>
+                    <li>Visual countdown ring with live phase label, timer state, and remaining time</li>
+                    <li>Phase controls for Focus Sprint, Micro Break, and Recharge Stretch</li>
+                    <li>Timer controls for Start, Pause, Resume, Reset, and Stop</li>
+                    <li>Micro break interruption flow that resumes the paused focus timer when micro break ends</li>
+                    <li>Live session stats (sessions completed and total logged time)</li>
+                    <li>WebSocket synchronization between dashboard and overlay, including state re-sync after refresh</li>
+                    <li>Optional task list overlay modes (streamer tasks, viewer tasks, or combined)</li>
                 </ul>
             </div>
             <div class="columns is-multiline">
