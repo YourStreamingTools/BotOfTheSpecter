@@ -391,6 +391,7 @@ ob_end_clean();
                 totalDuration: defaultDurations.focus,
                 timerRunning: false,
                 timerPaused: false,
+                interruptedFocus: null,
                 countdownId: null,
                 sessionsCompleted: 0,
                 totalTimeLogged: 0,
@@ -519,6 +520,7 @@ ob_end_clean();
                         totalDuration: timerState.totalDuration,
                         timerRunning: timerState.timerRunning,
                         timerPaused: timerState.timerPaused,
+                        interruptedFocus: timerState.interruptedFocus,
                         sessionsCompleted: timerState.sessionsCompleted,
                         totalTimeLogged: timerState.totalTimeLogged,
                         durations: timerState.durations,
@@ -567,6 +569,9 @@ ob_end_clean();
                     });
                 }
             };
+            const clearInterruptedFocus = () => {
+                timerState.interruptedFocus = null;
+            };
             const startCountdown = () => {
                 clearInterval(timerState.countdownId);
                 timerState.timerRunning = true;
@@ -590,9 +595,29 @@ ob_end_clean();
                 emitTimerUpdate();
             };
             const finishPhase = () => {
+                if (
+                    timerState.currentPhase === 'micro' &&
+                    timerState.interruptedFocus &&
+                    Number.isFinite(timerState.interruptedFocus.remainingSeconds) &&
+                    timerState.interruptedFocus.remainingSeconds > 0
+                ) {
+                    const interruptedFocus = timerState.interruptedFocus;
+                    clearInterruptedFocus();
+                    timerState.currentPhase = 'focus';
+                    timerState.totalDuration = interruptedFocus.totalDuration;
+                    timerState.remainingSeconds = interruptedFocus.remainingSeconds;
+                    timerState.timerRunning = false;
+                    timerState.timerPaused = false;
+                    updateDisplay();
+                    saveTimerState();
+                    emitTimerUpdate();
+                    startCountdown();
+                    return;
+                }
                 timerState.timerRunning = false;
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = 0;
+                clearInterruptedFocus();
                 timerState.sessionsCompleted += 1;
                 timerState.totalTimeLogged += timerState.totalDuration;
                 clearSavedTimerState();
@@ -627,6 +652,7 @@ ob_end_clean();
                 timerState.timerRunning = false;
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = 0;
+                clearInterruptedFocus();
                 clearSavedTimerState();
                 emitTimerState('stopped');
                 updateDisplay();
@@ -639,6 +665,7 @@ ob_end_clean();
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = timerState.durations[timerState.currentPhase];
                 timerState.totalDuration = timerState.durations[timerState.currentPhase];
+                clearInterruptedFocus();
                 saveTimerState();
                 emitTimerState('stopped');
                 updateDisplay();
@@ -648,6 +675,23 @@ ob_end_clean();
                 if (!phases[phase]) {
                     return;
                 }
+
+                const isMicroBreakInterruption =
+                    phase === 'micro' &&
+                    timerState.currentPhase === 'focus' &&
+                    timerState.timerRunning &&
+                    Number.isFinite(timerState.remainingSeconds) &&
+                    timerState.remainingSeconds > 0;
+
+                if (isMicroBreakInterruption) {
+                    timerState.interruptedFocus = {
+                        remainingSeconds: timerState.remainingSeconds,
+                        totalDuration: timerState.totalDuration
+                    };
+                } else if (phase !== 'micro') {
+                    clearInterruptedFocus();
+                }
+
                 timerState.currentPhase = phase;
                 const durationSeconds = typeof options.duration === 'number' && options.duration > 0
                     ? options.duration
@@ -702,6 +746,24 @@ ob_end_clean();
                     timerState.totalTimeLogged = Number.isFinite(saved.totalTimeLogged) && saved.totalTimeLogged >= 0
                         ? Math.round(saved.totalTimeLogged)
                         : 0;
+
+                    if (saved.interruptedFocus && typeof saved.interruptedFocus === 'object') {
+                        const interruptedRemaining = Number(saved.interruptedFocus.remainingSeconds);
+                        const interruptedTotal = Number(saved.interruptedFocus.totalDuration);
+                        if (
+                            Number.isFinite(interruptedRemaining) && interruptedRemaining > 0 &&
+                            Number.isFinite(interruptedTotal) && interruptedTotal > 0
+                        ) {
+                            timerState.interruptedFocus = {
+                                remainingSeconds: Math.round(interruptedRemaining),
+                                totalDuration: Math.round(interruptedTotal)
+                            };
+                        } else {
+                            clearInterruptedFocus();
+                        }
+                    } else {
+                        clearInterruptedFocus();
+                    }
 
                     const savedAt = Number(saved.lastUpdatedAt);
                     const elapsedSeconds = Number.isFinite(savedAt) && savedAt > 0
@@ -1045,6 +1107,14 @@ ob_end_clean();
                 };
                 socket.on('SPECTER_STATS_REQUEST', () => {
                     emitSessionStats();
+                    if (timerState.timerRunning) {
+                        emitTimerState('running');
+                    } else if (timerState.timerPaused) {
+                        emitTimerState('paused');
+                    } else {
+                        emitTimerState('stopped');
+                    }
+                    emitTimerUpdate();
                 });
                 // ── New channel task system events ──────────────────────────
                 socket.on('TASK_LIST_SYNC', (d) => {
