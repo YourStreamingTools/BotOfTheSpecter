@@ -408,95 +408,79 @@ ob_start();
                 </ul>
             </div>
             <div class="columns is-multiline">
-                <div class="column is-full">
+                <div class="column is-one-third">
                     <h3 class="title is-6">Duration Settings</h3>
-                    <div class="columns">
-                        <div class="column is-one-third">
-                            <div class="field">
-                                <label class="label">
-                                    <span class="icon-text">
-                                        <span class="icon">
-                                            <i class="fas fa-fire" aria-hidden="true"></i>
-                                        </span>
-                                        <span>Focus Sprint Duration</span>
-                                    </span>
-                                </label>
-                                <div class="control">
-                                    <div class="field has-addons">
-                                        <p class="control is-expanded">
-                                            <input id="focusLengthMinutes" class="input" type="number" min="1" step="1"
-                                                value="60" placeholder="Focus minutes">
-                                        </p>
-                                        <p class="control">
-                                            <span class="button is-static">min</span>
-                                        </p>
-                                    </div>
-                                </div>
-                                <p class="help">How long to focus before a break</p>
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-fire" aria-hidden="true"></i>
+                                </span>
+                                <span>Focus Sprint Duration</span>
+                            </span>
+                        </label>
+                        <div class="control">
+                            <div class="field has-addons">
+                                <p class="control is-expanded">
+                                    <input id="focusLengthMinutes" class="input" type="number" min="1" step="1"
+                                        value="60" placeholder="Focus minutes">
+                                </p>
+                                <p class="control">
+                                    <span class="button is-static">min</span>
+                                </p>
                             </div>
                         </div>
-                        <div class="column is-one-third">
-                            <div class="field">
-                                <label class="label">
-                                    <span class="icon-text">
-                                        <span class="icon">
-                                            <i class="fas fa-wind" aria-hidden="true"></i>
-                                        </span>
-                                        <span>Micro Break Duration</span>
-                                    </span>
-                                </label>
-                                <div class="control">
-                                    <div class="field has-addons">
-                                        <p class="control is-expanded">
-                                            <input id="microBreakMinutes" class="input" type="number" min="1" step="1"
-                                                value="5" placeholder="Micro break minutes">
-                                        </p>
-                                        <p class="control">
-                                            <span class="button is-static">min</span>
-                                        </p>
-                                    </div>
-                                </div>
-                                <p class="help">Quick break duration</p>
+                        <p class="help">How long to focus before a break</p>
+                    </div>
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-wind" aria-hidden="true"></i>
+                                </span>
+                                <span>Micro Break Duration</span>
+                            </span>
+                        </label>
+                        <div class="control">
+                            <div class="field has-addons">
+                                <p class="control is-expanded">
+                                    <input id="microBreakMinutes" class="input" type="number" min="1" step="1"
+                                        value="5" placeholder="Micro break minutes">
+                                </p>
+                                <p class="control">
+                                    <span class="button is-static">min</span>
+                                </p>
                             </div>
                         </div>
-                        <div class="column is-one-third">
-                            <div class="field">
-                                <label class="label">
-                                    <span class="icon-text">
-                                        <span class="icon">
-                                            <i class="fas fa-leaf" aria-hidden="true"></i>
-                                        </span>
-                                        <span>Recharge Break Duration</span>
-                                    </span>
-                                </label>
-                                <div class="control">
-                                    <div class="field has-addons">
-                                        <p class="control is-expanded">
-                                            <input id="breakLengthMinutes" class="input" type="number" min="1" step="1"
-                                                value="30" placeholder="Break minutes">
-                                        </p>
-                                        <p class="control">
-                                            <span class="button is-static">min</span>
-                                        </p>
-                                    </div>
-                                </div>
-                                <p class="help">Longer break for recharging</p>
+                        <p class="help">Quick break duration</p>
+                    </div>
+                    <div class="field">
+                        <label class="label">
+                            <span class="icon-text">
+                                <span class="icon">
+                                    <i class="fas fa-leaf" aria-hidden="true"></i>
+                                </span>
+                                <span>Recharge Break Duration</span>
+                            </span>
+                        </label>
+                        <div class="control">
+                            <div class="field has-addons">
+                                <p class="control is-expanded">
+                                    <input id="breakLengthMinutes" class="input" type="number" min="1" step="1"
+                                        value="30" placeholder="Break minutes">
+                                </p>
+                                <p class="control">
+                                    <span class="button is-static">min</span>
+                                </p>
                             </div>
                         </div>
+                        <p class="help">Longer break for recharging</p>
                     </div>
                     <div class="field mt-2">
-                        <div class="control">
-                            <button type="button" class="button is-link" id="updateOverlaySettingsBtn">
-                                <span class="icon">
-                                    <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
-                                </span>
-                                <span>Update Overlay</span>
-                            </button>
-                        </div>
-                        <p class="help">Pushes current duration values to the overlay immediately.</p>
+                        <p class="help">Adjust durations here. Use Overlay Control to apply or reset the overlay.</p>
                     </div>
                 </div>
-                <div class="column is-half">
+                <div class="column is-one-third">
                     <h3 class="title is-6">
                         <span class="icon-text">
                             <span class="icon">
@@ -528,8 +512,32 @@ ob_start();
                             <span>Start Recharge Stretch</span>
                         </button>
                     </div>
+                    <h3 class="title is-6 mt-4">
+                        <span class="icon-text">
+                            <span class="icon">
+                                <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                            </span>
+                            <span>Overlay Control</span>
+                        </span>
+                    </h3>
+                    <div class="buttons is-flex-wrap-wrap">
+                        <button type="button" class="button is-link" id="updateOverlaySettingsBtn"
+                            style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
+                            <span class="icon">
+                                <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                            </span>
+                            <span>Update Overlay</span>
+                        </button>
+                        <button type="button" class="button is-medium is-dark" data-specter-control="reset_all"
+                            style="flex: 1; min-width: 100%;">
+                            <span class="icon">
+                                <i class="fas fa-undo-alt" aria-hidden="true"></i>
+                            </span>
+                            <span>Reset Overlay</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="column is-half">
+                <div class="column is-one-third">
                     <h3 class="title is-6">
                         <span class="icon-text">
                             <span class="icon">
@@ -573,13 +581,6 @@ ob_start();
                                 <i class="fas fa-stop" aria-hidden="true"></i>
                             </span>
                             <span>Stop</span>
-                        </button>
-                        <button type="button" class="button is-medium is-dark" data-specter-control="reset_all"
-                            style="flex: 1; min-width: 100%; margin-top: 0.5rem;">
-                            <span class="icon">
-                                <i class="fas fa-undo-alt" aria-hidden="true"></i>
-                            </span>
-                            <span>Reset All</span>
                         </button>
                     </div>
                 </div>
@@ -1080,7 +1081,7 @@ ob_start();
             resume: 'Timer resumed',
             reset: 'Timer reset',
             stop: 'Timer stopped',
-            reset_all: 'Timer and stats reset to defaults'
+            reset_all: 'Overlay reset to defaults'
         };
         const setButtonsLoading = (loading) => {
             isRequesting = loading;
