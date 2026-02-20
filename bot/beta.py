@@ -2407,6 +2407,7 @@ class TwitchBot(commands.Bot):
         await builtin_commands_creation()
         await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
+        looped_tasks["periodic_stream_metadata_refresh"] = create_task(periodic_stream_metadata_refresh())
         create_task(known_users())
         create_task(channel_point_rewards())
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
@@ -10688,6 +10689,49 @@ async def check_stream_online():
                 await connection.commit()
     finally:
         pass
+
+async def refresh_stream_metadata():
+    global current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    if 'current_game' not in globals():
+        current_game = None
+    if 'stream_title' not in globals():
+        stream_title = None
+    url = f"https://api.twitch.tv/helix/channels?broadcaster_id={CHANNEL_ID}"
+    headers = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}"}
+    try:
+        timeout = ClientTimeout(total=15)
+        async with httpClientSession(timeout=timeout) as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status != 200:
+                    api_logger.error(f"Failed to refresh stream metadata: {response.status}")
+                    return False
+                data = await response.json()
+                if not data.get('data'):
+                    api_logger.info("No stream metadata available from Twitch channels endpoint")
+                    return False
+                channel_data = data['data'][0]
+                previous_game = current_game
+                previous_title = stream_title
+                current_game = channel_data.get('game_name', None)
+                stream_title = channel_data.get('title', None)
+                if previous_game != current_game or previous_title != stream_title:
+                    api_logger.info(f"Stream metadata refreshed. Title: {stream_title} | Category: {current_game}")
+                return True
+    except Exception as e:
+        api_logger.error(f"Error refreshing stream metadata: {e}")
+        return False
+
+async def periodic_stream_metadata_refresh():
+    while True:
+        try:
+            await refresh_stream_metadata()
+            await sleep(300)
+        except asyncioCancelledError:
+            bot_logger.info("Periodic stream metadata refresh task cancelled")
+            break
+        except Exception as e:
+            api_logger.error(f"Unexpected error in periodic_stream_metadata_refresh: {e}")
+            await sleep(60)
 
 async def get_current_game():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, current_game
