@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Handle GET requests for tasks
 ob_start();
 
@@ -21,6 +17,7 @@ if ($has_timer_query && !$has_tasklist_query) {
     $show_timer_panel = false;
     $overlay_mode_class = 'study-overlay--tasks-only';
 }
+
 // New task system panel visibility
 // ?tasklist                 -> both streamer + viewer task panels visible
 // ?tasklist&streamer=true   -> only streamer task panel visible
@@ -767,18 +764,43 @@ ob_end_clean();
                 updateDisplay();
                 emitTimerUpdate();
             };
+            const resetAllState = payload => {
+                clearInterval(timerState.countdownId);
+                timerState.countdownId = null;
+                timerState.timerRunning = false;
+                timerState.timerPaused = false;
+                clearInterruptedFocus();
+                const focusDefault = minutesToSeconds(payload?.focus_minutes) || defaultDurations.focus;
+                const microDefault = minutesToSeconds(payload?.micro_minutes ?? payload?.micro_break_minutes) || defaultDurations.micro;
+                const rechargeDefault = minutesToSeconds(payload?.break_minutes ?? payload?.recharge_break_minutes) || defaultDurations.recharge;
+                timerState.durations.focus = focusDefault;
+                timerState.durations.micro = microDefault;
+                timerState.durations.recharge = rechargeDefault;
+                timerState.currentPhase = 'focus';
+                timerState.totalDuration = focusDefault;
+                timerState.remainingSeconds = focusDefault;
+                timerState.phaseCounts = { focus: 0, micro: 0, recharge: 0 };
+                timerState.legacySessionOffset = 0;
+                timerState.sessionsCompleted = 0;
+                timerState.totalTimeLogged = 0;
+                saveSessionStats();
+                saveTimerState();
+                updateStatsDisplay();
+                emitSessionStats();
+                emitTimerState('stopped');
+                updateDisplay();
+                emitTimerUpdate();
+            };
             const setPhase = (phase, options = { autoStart: true, duration: null }) => {
                 if (!phases[phase]) {
                     return;
                 }
-
                 const isMicroBreakInterruption =
                     phase === 'micro' &&
                     timerState.currentPhase === 'focus' &&
                     timerState.timerRunning &&
                     Number.isFinite(timerState.remainingSeconds) &&
                     timerState.remainingSeconds > 0;
-
                 if (isMicroBreakInterruption) {
                     timerState.interruptedFocus = {
                         remainingSeconds: timerState.remainingSeconds,
@@ -787,7 +809,6 @@ ob_end_clean();
                 } else if (phase !== 'micro') {
                     clearInterruptedFocus();
                 }
-
                 timerState.currentPhase = phase;
                 const durationSeconds = typeof options.duration === 'number' && options.duration > 0
                     ? options.duration
@@ -819,7 +840,6 @@ ob_end_clean();
                         clearSavedTimerState();
                         return false;
                     }
-
                     if (saved.durations && typeof saved.durations === 'object') {
                         const focus = Number(saved.durations.focus);
                         const micro = Number(saved.durations.micro);
@@ -828,7 +848,6 @@ ob_end_clean();
                         if (Number.isFinite(micro) && micro > 0) timerState.durations.micro = Math.round(micro);
                         if (Number.isFinite(recharge) && recharge > 0) timerState.durations.recharge = Math.round(recharge);
                     }
-
                     timerState.currentPhase = saved.currentPhase;
                     timerState.totalDuration = Number.isFinite(saved.totalDuration) && saved.totalDuration > 0
                         ? Math.round(saved.totalDuration)
@@ -849,7 +868,6 @@ ob_end_clean();
                         timerState.legacySessionOffset = timerState.sessionsCompleted;
                     }
                     saveSessionStats();
-
                     if (saved.interruptedFocus && typeof saved.interruptedFocus === 'object') {
                         const interruptedRemaining = Number(saved.interruptedFocus.remainingSeconds);
                         const interruptedTotal = Number(saved.interruptedFocus.totalDuration);
@@ -867,12 +885,10 @@ ob_end_clean();
                     } else {
                         clearInterruptedFocus();
                     }
-
                     const savedAt = Number(saved.lastUpdatedAt);
                     const elapsedSeconds = Number.isFinite(savedAt) && savedAt > 0
                         ? Math.max(0, Math.floor((Date.now() - savedAt) / 1000))
                         : 0;
-
                     if (saved.timerRunning) {
                         timerState.remainingSeconds = Math.max(0, timerState.remainingSeconds - elapsedSeconds);
                         timerState.timerRunning = false;
@@ -1199,6 +1215,8 @@ ob_end_clean();
                         resumeTimer();
                     } else if (action === 'reset') {
                         resetTimer();
+                    } else if (action === 'reset_all') {
+                        resetAllState(payload);
                     } else if (action === 'stop') {
                         stopTimer();
                     } else if (action === 'start') {
