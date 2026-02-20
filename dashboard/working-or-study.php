@@ -1103,6 +1103,16 @@ ob_start();
             });
             socket.on('SPECTER_TIMER_UPDATE', payload => {
                 console.log('[Timer Dashboard] Received timer update:', payload);
+                if (payload && typeof payload === 'object') {
+                    if (payload.timerRunning) {
+                        timerState = 'running';
+                    } else if (payload.timerPaused) {
+                        timerState = 'paused';
+                    } else {
+                        timerState = 'stopped';
+                    }
+                    updateButtonStates();
+                }
                 updateLiveTimer(payload);
             });
             socket.on('SUCCESS', payload => {
@@ -1195,7 +1205,7 @@ ob_start();
                 }
                 const phaseName = phaseNames[phase] || phase;
                 await notifyServer(
-                    { specter_event: 'SPECTER_PHASE', ...payload, ...gatherDurations() },
+                    { specter_event: 'SPECTER_PHASE', ...gatherDurations(), ...payload },
                     `Started ${phaseName}`,
                     'success'
                 );
