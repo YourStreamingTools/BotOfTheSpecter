@@ -310,7 +310,19 @@ ob_end_clean();
                 </div>
                 <div class="study-overlay-stats-row">
                     <div>
-                        <div class="study-overlay-stat-label">Sessions</div>
+                        <div class="study-overlay-stat-label">Focus</div>
+                        <div class="study-overlay-stat-value" id="focusSessionsCompleted">0</div>
+                    </div>
+                    <div>
+                        <div class="study-overlay-stat-label">Micro</div>
+                        <div class="study-overlay-stat-value" id="microSessionsCompleted">0</div>
+                    </div>
+                    <div>
+                        <div class="study-overlay-stat-label">Recharge</div>
+                        <div class="study-overlay-stat-value" id="rechargeSessionsCompleted">0</div>
+                    </div>
+                    <div>
+                        <div class="study-overlay-stat-label">Total Sessions</div>
                         <div class="study-overlay-stat-value" id="sessionsCompleted">0</div>
                     </div>
                     <div>
@@ -368,6 +380,9 @@ ob_end_clean();
             const phaseLabel = document.getElementById('phaseLabel');
             const timerDisplay = document.getElementById('timerDisplay');
             const statusText = document.getElementById('statusText');
+            const focusSessionsCompletedEl = document.getElementById('focusSessionsCompleted');
+            const microSessionsCompletedEl = document.getElementById('microSessionsCompleted');
+            const rechargeSessionsCompletedEl = document.getElementById('rechargeSessionsCompleted');
             const sessionsCompletedEl = document.getElementById('sessionsCompleted');
             const totalTimeLoggedEl = document.getElementById('totalTimeLogged');
             const ringElement = document.getElementById('timerRingProgress');
@@ -395,6 +410,8 @@ ob_end_clean();
                 countdownId: null,
                 sessionsCompleted: 0,
                 totalTimeLogged: 0,
+                phaseCounts: { focus: 0, micro: 0, recharge: 0 },
+                legacySessionOffset: 0,
                 durations: { ...defaultDurations }
             };
             const timerStateStorageKey = `specter:working-study:timer:${overlayApiKey}`;
@@ -412,6 +429,20 @@ ob_end_clean();
                     return `${hours}h ${minutes}m`;
                 }
                 return `${minutes}m`;
+            };
+            const normalizePhaseCounts = counts => {
+                const source = counts && typeof counts === 'object' ? counts : {};
+                return {
+                    focus: Number.isFinite(Number(source.focus)) && Number(source.focus) >= 0 ? Math.round(Number(source.focus)) : 0,
+                    micro: Number.isFinite(Number(source.micro)) && Number(source.micro) >= 0 ? Math.round(Number(source.micro)) : 0,
+                    recharge: Number.isFinite(Number(source.recharge)) && Number(source.recharge) >= 0 ? Math.round(Number(source.recharge)) : 0
+                };
+            };
+            const getPhaseSessionTotal = () => {
+                return (timerState.phaseCounts.focus || 0) + (timerState.phaseCounts.micro || 0) + (timerState.phaseCounts.recharge || 0);
+            };
+            const getTotalSessions = () => {
+                return (timerState.legacySessionOffset || 0) + getPhaseSessionTotal();
             };
             const escapeHtml = text => {
                 const div = document.createElement('div');
@@ -507,7 +538,10 @@ ob_end_clean();
                 return 'Waiting';
             };
             const updateStatsDisplay = () => {
-                sessionsCompletedEl.textContent = timerState.sessionsCompleted;
+                if (focusSessionsCompletedEl) focusSessionsCompletedEl.textContent = timerState.phaseCounts.focus || 0;
+                if (microSessionsCompletedEl) microSessionsCompletedEl.textContent = timerState.phaseCounts.micro || 0;
+                if (rechargeSessionsCompletedEl) rechargeSessionsCompletedEl.textContent = timerState.phaseCounts.recharge || 0;
+                sessionsCompletedEl.textContent = getTotalSessions();
                 totalTimeLoggedEl.textContent = formatTotalTime(timerState.totalTimeLogged);
             };
             const saveSessionStats = () => {
@@ -516,8 +550,10 @@ ob_end_clean();
                         return;
                     }
                     window.localStorage.setItem(timerStatsStorageKey, JSON.stringify({
-                        sessionsCompleted: timerState.sessionsCompleted,
+                        sessionsCompleted: getTotalSessions(),
                         totalTimeLogged: timerState.totalTimeLogged,
+                        phaseCounts: timerState.phaseCounts,
+                        legacySessionOffset: timerState.legacySessionOffset,
                         lastUpdatedAt: Date.now()
                     }));
                 } catch (error) {
@@ -537,12 +573,19 @@ ob_end_clean();
                     if (!savedStats || typeof savedStats !== 'object') {
                         return;
                     }
-                    if (Number.isFinite(savedStats.sessionsCompleted) && savedStats.sessionsCompleted >= 0) {
-                        timerState.sessionsCompleted = Math.round(savedStats.sessionsCompleted);
+                    timerState.phaseCounts = normalizePhaseCounts(savedStats.phaseCounts);
+                    if (Number.isFinite(savedStats.legacySessionOffset) && savedStats.legacySessionOffset >= 0) {
+                        timerState.legacySessionOffset = Math.round(savedStats.legacySessionOffset);
+                    } else {
+                        timerState.legacySessionOffset = 0;
+                    }
+                    if (Number.isFinite(savedStats.sessionsCompleted) && savedStats.sessionsCompleted >= 0 && getPhaseSessionTotal() === 0) {
+                        timerState.legacySessionOffset = Math.round(savedStats.sessionsCompleted);
                     }
                     if (Number.isFinite(savedStats.totalTimeLogged) && savedStats.totalTimeLogged >= 0) {
                         timerState.totalTimeLogged = Math.round(savedStats.totalTimeLogged);
                     }
+                    timerState.sessionsCompleted = getTotalSessions();
                 } catch (error) {
                     console.warn('[Overlay] Unable to restore timer stats:', error);
                 }
@@ -559,8 +602,10 @@ ob_end_clean();
                         timerRunning: timerState.timerRunning,
                         timerPaused: timerState.timerPaused,
                         interruptedFocus: timerState.interruptedFocus,
-                        sessionsCompleted: timerState.sessionsCompleted,
+                        sessionsCompleted: getTotalSessions(),
                         totalTimeLogged: timerState.totalTimeLogged,
+                        phaseCounts: timerState.phaseCounts,
+                        legacySessionOffset: timerState.legacySessionOffset,
                         durations: timerState.durations,
                         lastUpdatedAt: Date.now()
                     }));
@@ -603,10 +648,22 @@ ob_end_clean();
                 if (socket && socket.connected) {
                     socket.emit('SPECTER_SESSION_STATS', {
                         code: overlayApiKey,
-                        sessionsCompleted: timerState.sessionsCompleted,
-                        totalTimeLogged: timerState.totalTimeLogged
+                        sessionsCompleted: getTotalSessions(),
+                        totalSessions: getTotalSessions(),
+                        totalTimeLogged: timerState.totalTimeLogged,
+                        phaseCounts: timerState.phaseCounts
                     });
                 }
+            };
+            const recordCompletedPhase = (phaseKey, durationSeconds = 0) => {
+                if (phaseKey && Object.prototype.hasOwnProperty.call(timerState.phaseCounts, phaseKey)) {
+                    timerState.phaseCounts[phaseKey] += 1;
+                }
+                timerState.sessionsCompleted = getTotalSessions();
+                timerState.totalTimeLogged += Math.max(0, Math.round(Number(durationSeconds) || 0));
+                saveSessionStats();
+                updateStatsDisplay();
+                emitSessionStats();
             };
             const clearInterruptedFocus = () => {
                 timerState.interruptedFocus = null;
@@ -640,8 +697,11 @@ ob_end_clean();
                     Number.isFinite(timerState.interruptedFocus.remainingSeconds) &&
                     timerState.interruptedFocus.remainingSeconds > 0
                 ) {
+                    const finishedPhase = timerState.currentPhase;
+                    const finishedDuration = timerState.totalDuration;
                     const interruptedFocus = timerState.interruptedFocus;
                     clearInterruptedFocus();
+                    recordCompletedPhase(finishedPhase, finishedDuration);
                     timerState.currentPhase = 'focus';
                     timerState.totalDuration = interruptedFocus.totalDuration;
                     timerState.remainingSeconds = interruptedFocus.remainingSeconds;
@@ -657,12 +717,8 @@ ob_end_clean();
                 timerState.timerPaused = false;
                 timerState.remainingSeconds = 0;
                 clearInterruptedFocus();
-                timerState.sessionsCompleted += 1;
-                timerState.totalTimeLogged += timerState.totalDuration;
-                saveSessionStats();
+                recordCompletedPhase(timerState.currentPhase, timerState.totalDuration);
                 clearSavedTimerState();
-                updateStatsDisplay();
-                emitSessionStats();
                 emitTimerState('stopped');
                 updateDisplay();
                 emitTimerUpdate();
@@ -786,6 +842,12 @@ ob_end_clean();
                     timerState.totalTimeLogged = Number.isFinite(saved.totalTimeLogged) && saved.totalTimeLogged >= 0
                         ? Math.round(saved.totalTimeLogged)
                         : 0;
+                    timerState.phaseCounts = normalizePhaseCounts(saved.phaseCounts);
+                    if (Number.isFinite(saved.legacySessionOffset) && saved.legacySessionOffset >= 0) {
+                        timerState.legacySessionOffset = Math.round(saved.legacySessionOffset);
+                    } else if (getPhaseSessionTotal() === 0 && timerState.sessionsCompleted > 0) {
+                        timerState.legacySessionOffset = timerState.sessionsCompleted;
+                    }
                     saveSessionStats();
 
                     if (saved.interruptedFocus && typeof saved.interruptedFocus === 'object') {
@@ -817,11 +879,8 @@ ob_end_clean();
                         timerState.timerPaused = false;
                         if (timerState.remainingSeconds <= 0) {
                             timerState.remainingSeconds = 0;
-                            timerState.sessionsCompleted += 1;
-                            timerState.totalTimeLogged += timerState.totalDuration;
-                            saveSessionStats();
+                            recordCompletedPhase(timerState.currentPhase, timerState.totalDuration);
                             clearSavedTimerState();
-                            updateStatsDisplay();
                             updateDisplay();
                             return true;
                         }
@@ -1201,8 +1260,15 @@ ob_end_clean();
                 });
                 socket.on('SPECTER_SESSION_STATS', payload => {
                     if (!payload) return;
+                    if (payload.phaseCounts && typeof payload.phaseCounts === 'object') {
+                        timerState.phaseCounts = normalizePhaseCounts(payload.phaseCounts);
+                        timerState.legacySessionOffset = 0;
+                    }
                     if (typeof payload.sessionsCompleted === 'number') {
                         timerState.sessionsCompleted = payload.sessionsCompleted;
+                        if (getPhaseSessionTotal() === 0 && timerState.sessionsCompleted > 0) {
+                            timerState.legacySessionOffset = Math.round(timerState.sessionsCompleted);
+                        }
                     }
                     if (typeof payload.totalTimeLogged === 'number') {
                         timerState.totalTimeLogged = payload.totalTimeLogged;

@@ -612,20 +612,41 @@ ob_start();
                     </h3>
                     <div class="box"
                         style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1);">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center;">
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; text-align: center;">
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                    <i class="fas fa-hourglass-end" style="margin-right: 6px;"></i>Sessions Completed
+                                    <i class="fas fa-fire" style="margin-right: 6px;"></i>Focus Sprints
+                                </p>
+                                <p id="overlayFocusCount"
+                                    style="font-size: 2rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
+                                    <i class="fas fa-mug-hot" style="margin-right: 6px;"></i>Micro Breaks
+                                </p>
+                                <p id="overlayMicroCount"
+                                    style="font-size: 2rem; font-weight: 700; color: #6be9ff; margin: 0;">0</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
+                                    <i class="fas fa-leaf" style="margin-right: 6px;"></i>Recharge Breaks
+                                </p>
+                                <p id="overlayRechargeCount"
+                                    style="font-size: 2rem; font-weight: 700; color: #b483ff; margin: 0;">0</p>
+                            </div>
+                            <div>
+                                <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
+                                    <i class="fas fa-hourglass-end" style="margin-right: 6px;"></i>Total Sessions
                                 </p>
                                 <p id="overlaySessionsCount"
-                                    style="font-size: 2.5rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
+                                    style="font-size: 2rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
                             </div>
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
                                     <i class="fas fa-clock" style="margin-right: 6px;"></i>Total Focus Time
                                 </p>
                                 <p id="overlayTotalTime"
-                                    style="font-size: 2.5rem; font-weight: 700; color: #6be9ff; margin: 0;">0h 0m</p>
+                                    style="font-size: 2rem; font-weight: 700; color: #6be9ff; margin: 0;">0h 0m</p>
                             </div>
                         </div>
                     </div>
@@ -832,6 +853,9 @@ ob_start();
         const stopBtn = document.querySelector('[data-specter-control="stop"]');
         const resetBtn = document.querySelector('[data-specter-control="reset"]');
         const overlaySessionsCountEl = document.getElementById('overlaySessionsCount');
+        const overlayFocusCountEl = document.getElementById('overlayFocusCount');
+        const overlayMicroCountEl = document.getElementById('overlayMicroCount');
+        const overlayRechargeCountEl = document.getElementById('overlayRechargeCount');
         const overlayTotalTimeEl = document.getElementById('overlayTotalTime');
         const liveTimerDisplay = document.getElementById('liveTimerDisplay');
         const livePhaseLabel = document.getElementById('livePhaseLabel');
@@ -841,6 +865,8 @@ ob_start();
         let timerState = 'stopped'; // stopped, running, paused
         let sessionsCompleted = 0;
         let totalTimeLogged = 0;
+        let phaseCounts = { focus: 0, micro: 0, recharge: 0 };
+        const dashboardStatsStorageKey = `specter:working-study:dashboard-stats:${apiKey}`;
         const copyTasklistLinkBtn = document.getElementById('copyTasklistLinkBtn');
         const copyTasklistUserLinkBtn = document.getElementById('copyTasklistUserLinkBtn');
         const copyTasklistCombinedBtn = document.getElementById('copyTasklistCombinedBtn');
@@ -990,7 +1016,51 @@ ob_start();
             }
         };
         const updateStatsDisplay = () => {
-            console.log(`[Timer Dashboard] Session stats updated - Sessions: ${sessionsCompleted}, Total Time: ${formatTotalTime(totalTimeLogged)}`);
+            overlaySessionsCountEl.textContent = sessionsCompleted;
+            overlayTotalTimeEl.textContent = formatTotalTime(totalTimeLogged);
+            if (overlayFocusCountEl) overlayFocusCountEl.textContent = phaseCounts.focus || 0;
+            if (overlayMicroCountEl) overlayMicroCountEl.textContent = phaseCounts.micro || 0;
+            if (overlayRechargeCountEl) overlayRechargeCountEl.textContent = phaseCounts.recharge || 0;
+            try {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    window.localStorage.setItem(dashboardStatsStorageKey, JSON.stringify({
+                        sessionsCompleted,
+                        totalTimeLogged,
+                        phaseCounts,
+                        lastUpdatedAt: Date.now()
+                    }));
+                }
+            } catch (error) {
+                console.warn('[Timer Dashboard] Unable to persist session stats locally:', error);
+            }
+            console.log(`[Timer Dashboard] Session stats updated - Focus: ${phaseCounts.focus || 0}, Micro: ${phaseCounts.micro || 0}, Recharge: ${phaseCounts.recharge || 0}, Total Sessions: ${sessionsCompleted}, Total Time: ${formatTotalTime(totalTimeLogged)}`);
+        };
+        const restoreStatsDisplay = () => {
+            try {
+                if (typeof window === 'undefined' || !window.localStorage) {
+                    return;
+                }
+                const raw = window.localStorage.getItem(dashboardStatsStorageKey);
+                if (!raw) {
+                    return;
+                }
+                const saved = JSON.parse(raw);
+                if (!saved || typeof saved !== 'object') {
+                    return;
+                }
+                if (saved.phaseCounts && typeof saved.phaseCounts === 'object') {
+                    phaseCounts = {
+                        focus: Number(saved.phaseCounts.focus) || 0,
+                        micro: Number(saved.phaseCounts.micro) || 0,
+                        recharge: Number(saved.phaseCounts.recharge) || 0
+                    };
+                }
+                sessionsCompleted = Number(saved.sessionsCompleted) || 0;
+                totalTimeLogged = Number(saved.totalTimeLogged) || 0;
+                updateStatsDisplay();
+            } catch (error) {
+                console.warn('[Timer Dashboard] Unable to restore local session stats:', error);
+            }
         };
         const phaseNames = {
             focus: 'Focus Sprint',
@@ -1107,12 +1177,16 @@ ob_start();
             });
             socket.on('SPECTER_SESSION_STATS', payload => {
                 console.log('[Timer Dashboard] Received session stats update:', payload);
-                sessionsCompleted = payload.sessionsCompleted || 0;
+                if (payload && payload.phaseCounts && typeof payload.phaseCounts === 'object') {
+                    phaseCounts = {
+                        focus: Number(payload.phaseCounts.focus) || 0,
+                        micro: Number(payload.phaseCounts.micro) || 0,
+                        recharge: Number(payload.phaseCounts.recharge) || 0
+                    };
+                }
+                sessionsCompleted = Number(payload.totalSessions ?? payload.sessionsCompleted) || 0;
                 totalTimeLogged = payload.totalTimeLogged || 0;
                 updateStatsDisplay();
-                // Update the UI display elements
-                overlaySessionsCountEl.textContent = sessionsCompleted;
-                overlayTotalTimeEl.textContent = formatTotalTime(totalTimeLogged);
             });
             socket.on('SPECTER_TIMER_UPDATE', payload => {
                 console.log('[Timer Dashboard] Received timer update:', payload);
@@ -1132,6 +1206,7 @@ ob_start();
                 if (payload && typeof payload.message === 'string' && payload.message.toLowerCase().includes('registration')) {
                     socketReady = true;
                     console.log('[Timer Dashboard] Registration acknowledged by server');
+                    socket.emit('SPECTER_STATS_REQUEST', { code: apiKey });
                 }
             });
             if (dashboardDebug) {
@@ -1141,6 +1216,7 @@ ob_start();
             }
         };
         connect();
+        restoreStatsDisplay();
         // Initialize button states
         updateButtonStates();
         // Copy overlay link button
