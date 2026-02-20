@@ -173,6 +173,7 @@ ob_end_clean();
             border-radius: 10px;
             min-width: 200px;
             max-width: 340px;
+            height: 470px;
             overflow: hidden;
             flex-shrink: 0;
         }
@@ -197,7 +198,8 @@ ob_end_clean();
             list-style: none;
             margin: 0;
             padding: 6px 0;
-            max-height: 420px;
+            height: 428px;
+            max-height: 428px;
             overflow-y: auto;
         }
         .task-sys-card__list:empty::after {
