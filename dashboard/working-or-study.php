@@ -483,6 +483,17 @@ ob_start();
                             </div>
                         </div>
                     </div>
+                    <div class="field mt-2">
+                        <div class="control">
+                            <button type="button" class="button is-link" id="updateOverlaySettingsBtn">
+                                <span class="icon">
+                                    <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                                </span>
+                                <span>Update Overlay</span>
+                            </button>
+                        </div>
+                        <p class="help">Pushes current duration values to the overlay immediately.</p>
+                    </div>
                 </div>
                 <div class="column is-half">
                     <h3 class="title is-6">
@@ -812,6 +823,7 @@ ob_start();
         const focusLengthInput = document.getElementById('focusLengthMinutes');
         const microBreakInput = document.getElementById('microBreakMinutes');
         const breakLengthInput = document.getElementById('breakLengthMinutes');
+        const updateOverlaySettingsBtn = document.getElementById('updateOverlaySettingsBtn');
         const toastArea = document.getElementById('toastArea');
         const startBtn = document.querySelector('[data-specter-control="start"]');
         const pauseBtn = document.querySelector('[data-specter-control="pause"]');
@@ -1192,6 +1204,9 @@ ob_start();
         });
         // Initialize by loading from database
         loadSettingsFromDatabase();
+        updateOverlaySettingsBtn?.addEventListener('click', async () => {
+            await saveSettingsToDatabase();
+        });
         buttonsPhase.forEach(button => {
             button.addEventListener('click', async () => {
                 const phase = button.getAttribute('data-specter-phase');
