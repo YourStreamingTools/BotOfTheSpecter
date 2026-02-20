@@ -398,6 +398,7 @@ ob_end_clean();
                 durations: { ...defaultDurations }
             };
             const timerStateStorageKey = `specter:working-study:timer:${overlayApiKey}`;
+            const timerStatsStorageKey = `specter:working-study:stats:${overlayApiKey}`;
             let hasRestoredTimerState = false;
             const formatDuration = seconds => {
                 const mins = Math.floor(seconds / 60);
@@ -509,6 +510,43 @@ ob_end_clean();
                 sessionsCompletedEl.textContent = timerState.sessionsCompleted;
                 totalTimeLoggedEl.textContent = formatTotalTime(timerState.totalTimeLogged);
             };
+            const saveSessionStats = () => {
+                try {
+                    if (typeof window === 'undefined' || !window.localStorage) {
+                        return;
+                    }
+                    window.localStorage.setItem(timerStatsStorageKey, JSON.stringify({
+                        sessionsCompleted: timerState.sessionsCompleted,
+                        totalTimeLogged: timerState.totalTimeLogged,
+                        lastUpdatedAt: Date.now()
+                    }));
+                } catch (error) {
+                    console.warn('[Overlay] Unable to persist timer stats:', error);
+                }
+            };
+            const restoreSavedSessionStats = () => {
+                try {
+                    if (typeof window === 'undefined' || !window.localStorage) {
+                        return;
+                    }
+                    const raw = window.localStorage.getItem(timerStatsStorageKey);
+                    if (!raw) {
+                        return;
+                    }
+                    const savedStats = JSON.parse(raw);
+                    if (!savedStats || typeof savedStats !== 'object') {
+                        return;
+                    }
+                    if (Number.isFinite(savedStats.sessionsCompleted) && savedStats.sessionsCompleted >= 0) {
+                        timerState.sessionsCompleted = Math.round(savedStats.sessionsCompleted);
+                    }
+                    if (Number.isFinite(savedStats.totalTimeLogged) && savedStats.totalTimeLogged >= 0) {
+                        timerState.totalTimeLogged = Math.round(savedStats.totalTimeLogged);
+                    }
+                } catch (error) {
+                    console.warn('[Overlay] Unable to restore timer stats:', error);
+                }
+            };
             const saveTimerState = () => {
                 try {
                     if (typeof window === 'undefined' || !window.localStorage) {
@@ -526,6 +564,7 @@ ob_end_clean();
                         durations: timerState.durations,
                         lastUpdatedAt: Date.now()
                     }));
+                    saveSessionStats();
                 } catch (error) {
                     console.warn('[Overlay] Unable to persist timer state:', error);
                 }
@@ -620,6 +659,7 @@ ob_end_clean();
                 clearInterruptedFocus();
                 timerState.sessionsCompleted += 1;
                 timerState.totalTimeLogged += timerState.totalDuration;
+                saveSessionStats();
                 clearSavedTimerState();
                 updateStatsDisplay();
                 emitSessionStats();
@@ -746,6 +786,7 @@ ob_end_clean();
                     timerState.totalTimeLogged = Number.isFinite(saved.totalTimeLogged) && saved.totalTimeLogged >= 0
                         ? Math.round(saved.totalTimeLogged)
                         : 0;
+                    saveSessionStats();
 
                     if (saved.interruptedFocus && typeof saved.interruptedFocus === 'object') {
                         const interruptedRemaining = Number(saved.interruptedFocus.remainingSeconds);
@@ -778,6 +819,7 @@ ob_end_clean();
                             timerState.remainingSeconds = 0;
                             timerState.sessionsCompleted += 1;
                             timerState.totalTimeLogged += timerState.totalDuration;
+                            saveSessionStats();
                             clearSavedTimerState();
                             updateStatsDisplay();
                             updateDisplay();
@@ -1165,9 +1207,11 @@ ob_end_clean();
                     if (typeof payload.totalTimeLogged === 'number') {
                         timerState.totalTimeLogged = payload.totalTimeLogged;
                     }
+                    saveSessionStats();
                     updateStatsDisplay();
                 });
             };
+            restoreSavedSessionStats();
             hasRestoredTimerState = restoreSavedTimerState();
             connect();
             updateStatsDisplay();
