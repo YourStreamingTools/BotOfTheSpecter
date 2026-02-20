@@ -394,8 +394,8 @@ ob_end_clean();
             };
             const phases = {
                 focus: { label: 'Focus Sprint', status: 'Flow mode on', accent: '#ff9161' },
-                micro: { label: 'Micro Break', status: 'Reignite energy', accent: '#6be9ff' },
-                recharge: { label: 'Recharge Stretch', status: 'Stretch & hydrate', accent: '#b483ff' }
+                micro: { label: 'Micro Break', status: 'Reignite energy', accent: '#48c78e' },
+                recharge: { label: 'Recharge Stretch', status: 'Stretch & hydrate', accent: '#7c5cff' }
             };
             const timerState = {
                 currentPhase: 'focus',
@@ -517,7 +517,7 @@ ob_end_clean();
                 phaseLabel.textContent = phases[phase].label;
                 timerDisplay.textContent = formatDuration(timerState.remainingSeconds);
                 statusText.textContent = getStatusLabel();
-                document.documentElement.style.setProperty('--accent-color', phases[phase].accent);
+                overlayRoot.style.setProperty('--accent-color', phases[phase].accent);
                 const progress = timerState.totalDuration > 0 ? timerState.remainingSeconds / timerState.totalDuration : 0;
                 const offset = circumference * (1 - progress);
                 ringElement.style.strokeDashoffset = isNaN(offset) ? circumference : offset;
