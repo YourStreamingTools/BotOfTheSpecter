@@ -86,14 +86,20 @@ $error_message = ''; // Initialize error message
 $subscription_message = ''; // Initialize subscription message
 
 // Make internal request to check subscription
-$checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
+$checkUrl = "https://dashboard.botofthespecter.com/check_subscription.php";
+$sessionCookie = session_name() . '=' . session_id();
+session_write_close();
 $ch = curl_init($checkUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
+curl_setopt($ch, CURLOPT_COOKIE, $sessionCookie);
 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 $subResponse = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
 curl_close($ch);
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if ($subResponse !== false && $httpCode === 200) {
     $subData = json_decode($subResponse, true);
@@ -124,6 +130,14 @@ if ($subResponse !== false && $httpCode === 200) {
     // API call failed
     if (!$betaAccess) {
         $error_message = "Unable to determine your subscription status.";
+        if ($subResponse !== false) {
+            $subData = json_decode($subResponse, true);
+            if (is_array($subData) && !empty($subData['error'])) {
+                $error_message .= " Details: " . $subData['error'];
+            }
+        } elseif (!empty($curlError)) {
+            $error_message .= " Details: $curlError";
+        }
     }
 }
 
@@ -174,7 +188,7 @@ ob_start();
 <div class="container">
     <div class="columns is-multiline is-variable is-5">
         <!-- Free Plan Card -->
-        <div class="column is-12-mobile is-6-tablet is-3-desktop">
+        <div class="column is-12-mobile is-12-tablet is-6-desktop is-4-widescreen is-3-fullhd">
             <div class="card has-shadow is-shadowless-mobile" style="height: 100%; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; <?php echo ($currentPlan === 'free') ? 'border: 3px solid #00d1b2; box-shadow: 0 8px 16px rgba(0, 209, 178, 0.2);' : ''; ?> position: relative;">
                 <?php if ($currentPlan === 'free'): ?>
                     <div class="ribbon is-primary" style="position: absolute; top: 15px; right: -10px; background: linear-gradient(45deg, #00d1b2, #00c4a7); color: white; padding: 8px 20px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; transform: rotate(12deg); z-index: 10; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); border-radius: 4px;">
@@ -247,7 +261,7 @@ ob_start();
             $planIcons = ['1000' => 'fas fa-star', '2000' => 'fas fa-crown', '3000' => 'fas fa-gem'];
             $planColors = ['1000' => 'has-text-info', '2000' => 'has-text-warning', '3000' => 'has-text-danger'];
             ?>
-            <div class="column is-12-mobile is-6-tablet is-3-desktop">
+            <div class="column is-12-mobile is-12-tablet is-6-desktop is-4-widescreen is-3-fullhd">
                 <div class="card has-shadow is-shadowless-mobile" style="height: 100%; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; <?php echo $isCurrentPlan ? 'border: 3px solid #00d1b2; box-shadow: 0 8px 16px rgba(0, 209, 178, 0.2);' : ''; ?> position: relative;">
                     <?php if ($isCurrentPlan): ?>
                         <div class="ribbon is-primary" style="position: absolute; top: 15px; right: -10px; background: linear-gradient(45deg, #00d1b2, #00c4a7); color: white; padding: 8px 20px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; transform: rotate(12deg); z-index: 10; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); border-radius: 4px;">
@@ -329,7 +343,7 @@ ob_start();
     <!-- Special Beta Plan Card (if beta user) -->
     <?php if ($betaAccess): ?>
     <div class="columns is-centered mt-5">
-        <div class="column is-12-mobile is-6-tablet is-3-desktop">
+        <div class="column is-12-mobile is-12-tablet is-6-desktop is-4-widescreen is-3-fullhd">
             <div class="card has-shadow is-shadowless-mobile" style="height: 100%; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; position: relative; border: 3px solid #00d1b2; box-shadow: 0 8px 16px rgba(0, 209, 178, 0.2);">
                 <div class="ribbon is-primary" style="position: absolute; top: 15px; right: -10px; background: linear-gradient(45deg, #00d1b2, #00c4a7); color: white; padding: 8px 20px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; transform: rotate(12deg); z-index: 10; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); border-radius: 4px;">
                     CURRENT
