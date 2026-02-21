@@ -922,7 +922,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     .filter(Boolean)
                     .filter(name => name !== currentUser)
                     .sort((a, b) => a.localeCompare(b));
-                if (names.length === 0) return null;
+                if (names.length === 0) return 'Currently in chat (0)';
                 const maxNamesToShow = 20;
                 const visible = names.slice(0, maxNamesToShow).join(', ');
                 const remaining = names.length - maxNamesToShow;
@@ -1034,6 +1034,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 if (initialPresenceBootstrapActive || initialPresenceBootstrapDone) return;
                 initialPresenceBootstrapActive = true;
                 initialIrcNamesBatch.clear();
+                setPresenceMessage(buildInitialPresenceSummaryText());
                 if (initialPresenceBootstrapTimeoutHandle) {
                     clearTimeout(initialPresenceBootstrapTimeoutHandle);
                 }
@@ -2401,6 +2402,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 console.log('IRC WebSocket connected');
                 ircAuthenticated = false;
                 ircJoined = false;
+                // Start presence bootstrap immediately; JOIN path will reset/re-run if needed
+                bootstrapInitialPresence();
                 // Validate token before attempting IRC auth
                 if (!CONFIG.ACCESS_TOKEN) {
                     console.error('No access token available for IRC authentication');
@@ -2762,6 +2765,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         clearPlaceholderOnly();
                         // Bootstrap current chatters as the first post-connect API action
                         bootstrapInitialPresence();
+                        // Force immediate IRC roster snapshot for fast fallback when Helix is unavailable
+                        if (ircWs && ircWs.readyState === WebSocket.OPEN) {
+                            ircWs.send(`NAMES #${CONFIG.USER_LOGIN.toLowerCase()}`);
+                        }
                         // Fetch badges for the channel
                         fetchBadges();
                         // Setup ping timeout
@@ -3959,6 +3966,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             } catch (e) {
                 console.error('Error initializing presence setting', e);
             }
+            // Render presence summary immediately (before websocket/bootstrap work)
+            setPresenceMessage(buildInitialPresenceSummaryText());
             // Connect both IRC and EventSub WebSockets
             connectIRCWebSocket();
             connectEventSubWebSocket();
