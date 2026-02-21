@@ -3130,16 +3130,29 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             enforceMessageCap();
             // Scroll to bottom
             overlay.scrollTop = overlay.scrollHeight;
-            // Add to activity feed
-            const activityFeed = document.getElementById('activity-feed-scroll');
-            if (activityFeed) {
-                const activityElement = document.createElement('div');
-                activityElement.className = `activity-item activity-${noticeType}`;
-                activityElement.innerHTML = `
-                    <span class="activity-time">${new Date().toLocaleTimeString()}</span>
-                    <span class="activity-text">${noticeHtml}</span>
-                `;
-                activityFeed.insertBefore(activityElement, activityFeed.firstChild);
+            // Add to unified activity feed model
+            const actorName = displayName || username || 'Anonymous';
+            if (msgId === 'raid') {
+                const viewers = parseInt(tags['msg-param-viewerCount'] || '0', 10) || 0;
+                addActivity('raid', {
+                    name: actorName,
+                    avatar: null
+                }, {
+                    viewers: viewers
+                });
+            } else if (msgId === 'sub' || msgId === 'resub' || msgId === 'subgift' || msgId === 'anonsubgift' || msgId === 'submysterygift' || msgId === 'anonsubmysterygift') {
+                const tierRaw = tags['msg-param-sub-plan'] || tags['msg-param-sub_tier'] || '1000';
+                const tier = tierRaw.startsWith('tier_') ? tierRaw.replace('tier_', '') : tierRaw;
+                const cumulativeMonths = parseInt(tags['msg-param-cumulative-months'] || '1', 10) || 1;
+                const isGift = msgId.includes('gift');
+                addActivity('subscription', {
+                    name: actorName,
+                    avatar: null
+                }, {
+                    is_gift: isGift,
+                    tier: tier,
+                    cumulative_months: cumulativeMonths
+                });
             }
         }
         // Log raw chat event data to server for debugging
