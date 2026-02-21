@@ -233,6 +233,7 @@ ad_settings_cache = None                                # Global cache for ad se
 ad_settings_cache_time = 0                              # Last time the ad settings were cached
 CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
 ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
+ad_upcoming_last_notified_next_ad_at = None            # Tracks which next_ad_at already triggered a notice
 AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
 last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
 pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
@@ -12356,11 +12357,12 @@ async def handle_ad_break_start(duration_seconds):
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
-    global CHANNEL_NAME, stream_online, ad_upcoming_notified
+    global CHANNEL_NAME, stream_online, ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at
     last_notification_time = None
     last_ad_time = None
     last_snooze_count = None
     ad_upcoming_notified = False  # Initialize flag to prevent duplicate notifications
+    ad_upcoming_last_notified_next_ad_at = None
     while stream_online:
         try:
             last_notification_time, last_ad_time, last_snooze_count = await check_and_handle_ads(
@@ -12372,7 +12374,7 @@ async def handle_upcoming_ads():
             await sleep(10)
 
 async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze_count=None):
-    global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH, ad_upcoming_notified
+    global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH, ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at
     ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
     headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
     if not stream_online:
@@ -12428,7 +12430,8 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                         # Notify if ad is coming up in exactly 5 minutes and we haven't notified recently
                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                         if 270 <= time_until_ad <= 330:
-                            if not ad_upcoming_notified and last_notification_time != next_ad_at:
+                            if ad_upcoming_last_notified_next_ad_at != next_ad_at and last_notification_time != next_ad_at:
+                                ad_upcoming_last_notified_next_ad_at = next_ad_at
                                 minutes_until = 5
                                 duration_text = format_duration(duration)
                                 settings = await get_ad_settings()
@@ -12460,7 +12463,6 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                     api_logger.info("Ad break completed, checking for next scheduled ad")
                     last_notification_time = None
                     last_ad_time = last_ad_at
-                    ad_upcoming_notified = False  # Reset flag for next ad
                     # Schedule a check for the next ad after a brief delay
                     create_task(check_next_ad_after_completion(ads_api_url, headers))
                 # Log preroll free time for debugging
@@ -12472,7 +12474,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
         return last_notification_time, last_ad_time, last_snooze_count
 
 async def check_next_ad_after_completion(ads_api_url, headers):
-    global ad_upcoming_notified
+    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at
     # Poll for up to 5 minutes (check every 10 seconds) to find the next ad and send timely notifications.
     timeout = 300
     interval = 10
@@ -12510,7 +12512,8 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
                                         api_logger.info(f"Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
                                         if time_until_ad <= 300:  # 5 minutes or less
-                                            if not ad_upcoming_notified:
+                                            if ad_upcoming_last_notified_next_ad_at != next_ad_at:
+                                                ad_upcoming_last_notified_next_ad_at = next_ad_at
                                                 minutes_until = max(1, int(time_until_ad / 60))
                                                 duration_text = format_duration(duration)
                                                 settings = await get_ad_settings()
