@@ -709,6 +709,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let tokenValidatedAt = null;
             let tokenScopes = []; // Store token scopes
             let tokenUserId = CONFIG.USER_ID ? String(CONFIG.USER_ID) : null;
+            let serverSessionAuthenticated = true;
+            let tokenTimerIntervalHandle = null;
+            let tokenValidationIntervalHandle = null;
             let ircReconnectAttempts = 0;
             let eventSubReconnectAttempts = 0;
             let maxReconnectAttempts = 5;
@@ -719,6 +722,24 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let badgeCache = {};
             let messageBuffer = [];
             let isReconnecting = false;
+            function isClientSessionActive() {
+                return !!accessToken && !!CONFIG.USER_ID && !window.__sessionExpired;
+            }
+            function shouldSkipAuthenticatedRequest(context) {
+                if (window.__sessionExpired || !serverSessionAuthenticated) {
+                    console.warn(`${context}: skipped because session is expired or unauthenticated`);
+                    return true;
+                }
+                return false;
+            }
+            async function markServerAuthLost(source) {
+                if (window.__sessionExpired) {
+                    return;
+                }
+                serverSessionAuthenticated = false;
+                console.error(`${source}: server session is no longer authenticated`);
+                await handleSessionExpiry();
+            }
             // Process buffered messages after reconnection
             function processMessageBuffer() {
                 if (messageBuffer.length === 0) {
@@ -1259,6 +1280,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             }
             async function saveSessionIdToServer(sessionId) {
+                if (shouldSkipAuthenticatedRequest('saveSessionIdToServer')) {
+                    return;
+                }
                 try {
                     const response = await fetch('index.php?action=save_session_id', {
                         method: 'POST',
@@ -1272,6 +1296,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         console.log('Session ID saved to database:', sessionId);
                     } else {
                         console.error('Failed to save session ID:', data.error || 'Unknown error');
+                        if ((data.error || '').toLowerCase().includes('not authenticated')) {
+                            await markServerAuthLost('saveSessionIdToServer');
+                        }
                     }
                 } catch (e) {
                     console.error('Failed to save session ID to server:', e);
@@ -1439,6 +1466,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Save chat history to server
             async function saveChatHistory() {
+                if (shouldSkipAuthenticatedRequest('saveChatHistory')) {
+                    return;
+                }
                 try {
                     const overlay = document.getElementById('chat-overlay');
                     const messages = Array.from(overlay.children)
@@ -1453,6 +1483,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const result = await response.json();
                     if (!result.success) {
                         console.error('Failed to save chat history:', result.error);
+                        if ((result.error || '').toLowerCase().includes('not authenticated')) {
+                            await markServerAuthLost('saveChatHistory');
+                        }
                     }
                 } catch (error) {
                     console.error('Error saving chat history:', error);
@@ -1935,6 +1968,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         // Token validation - fetch actual expires_in from Twitch API
         async function validateToken() {
+            if (!isClientSessionActive()) {
+                return false;
+            }
             try {
                 const response = await fetch('https://id.twitch.tv/oauth2/validate', {
                     method: 'GET',
@@ -1997,6 +2033,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         // Token management
         function updateTokenTimer() {
+            if (!isClientSessionActive()) {
+                const timer = document.getElementById('token-timer');
+                if (timer) {
+                    timer.textContent = 'EXPIRED';
+                }
+                return;
+            }
             let remaining;
             // If we have validated token data, use it for accurate countdown
             if (tokenExpiresIn !== null && tokenValidatedAt !== null) {
@@ -2035,6 +2078,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         let isRefreshing = false;
         let tokenRefreshToast = null;
         async function refreshToken() {
+            if (window.__sessionExpired || !serverSessionAuthenticated || !isClientSessionActive()) {
+                return;
+            }
             if (isRefreshing) {
                 console.log('Token refresh already in progress, skipping duplicate request');
                 return;
@@ -2053,11 +2099,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 duration: 3000,
                 gravity: 'bottom',
                 position: 'right',
-                backgroundColor: '#9147ff',
-                style: { fontSize: '14px', padding: '10px' }
+                style: { background: '#9147ff', fontSize: '14px', padding: '10px' }
             });
             tokenRefreshToast.showToast();
             try {
+                if (window.__sessionExpired) {
+                    return;
+                }
                 const response = await fetch('?action=refresh_token');
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -2090,8 +2138,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             duration: 2000,
                             gravity: 'bottom',
                             position: 'right',
-                            backgroundColor: '#00b09b',
-                            style: { fontSize: '14px', padding: '10px' }
+                            style: { background: '#00b09b', fontSize: '14px', padding: '10px' }
                         }).showToast();
                     } else {
                         console.warn('Token validation failed after refresh, but continuing with new token');
@@ -2110,7 +2157,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             duration: 5000,
                             gravity: 'top',
                             position: 'right',
-                            backgroundColor: '#ff9800'
+                            style: { background: '#ff9800' }
                         }).showToast();
                     }
                 }
@@ -2122,7 +2169,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     duration: 5000,
                     gravity: 'top',
                     position: 'right',
-                    backgroundColor: '#ff9800'
+                    style: { background: '#ff9800' }
                 }).showToast();
                 // Don't call handleSessionExpiry for network errors
             } finally {
@@ -2184,7 +2231,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 return;
             }
             window.__sessionExpired = true;
+            serverSessionAuthenticated = false;
+            accessToken = '';
+            CONFIG.ACCESS_TOKEN = '';
+            tokenExpiresIn = 0;
+            tokenValidatedAt = Math.floor(Date.now() / 1000);
+            tokenScopes = [];
+            isRefreshing = false;
+            isReconnecting = false;
             console.error('❌ Session expired - token is invalid and cannot be refreshed');
+            if (tokenTimerIntervalHandle) {
+                clearInterval(tokenTimerIntervalHandle);
+                tokenTimerIntervalHandle = null;
+            }
+            if (tokenValidationIntervalHandle) {
+                clearInterval(tokenValidationIntervalHandle);
+                tokenValidationIntervalHandle = null;
+            }
             // Disconnect both WebSockets
             if (ircWs) {
                 try {
@@ -2453,6 +2516,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 activeChatterLogins.clear();
                 messageBasedChatters.clear();
                 resetInitialPresenceBootstrap();
+                if (window.__sessionExpired || !serverSessionAuthenticated) {
+                    console.log('IRC reconnection suppressed due to expired/unauthenticated session');
+                    return;
+                }
                 // Attempt reconnection
                 if (ircReconnectAttempts < maxReconnectAttempts) {
                     const delay = Math.min(1000 * Math.pow(2, ircReconnectAttempts), 30000);
@@ -2465,6 +2532,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             };
         }
         function connectIRCWebSocket() {
+            if (window.__sessionExpired || !serverSessionAuthenticated || !isClientSessionActive()) {
+                console.log('Skipping IRC connect: session expired or unauthenticated');
+                return;
+            }
             // Don't create duplicate connections
             if (ircWs && (ircWs.readyState === WebSocket.CONNECTING || ircWs.readyState === WebSocket.OPEN)) {
                 console.log('IRC WebSocket already connecting or connected, skipping duplicate connection');
@@ -2542,6 +2613,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     clearTimeout(keepaliveTimeoutHandle);
                     keepaliveTimeoutHandle = null;
                 }
+                if (window.__sessionExpired || !serverSessionAuthenticated) {
+                    console.log('EventSub reconnection suppressed due to expired/unauthenticated session');
+                    return;
+                }
                 // Attempt reconnection
                 if (eventSubReconnectAttempts < maxReconnectAttempts) {
                     const delay = Math.min(1000 * Math.pow(2, eventSubReconnectAttempts), 30000);
@@ -2554,6 +2629,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             };
         }
         function connectEventSubWebSocket() {
+            if (window.__sessionExpired || !serverSessionAuthenticated || !isClientSessionActive()) {
+                console.log('Skipping EventSub connect: session expired or unauthenticated');
+                return;
+            }
             // Don't create duplicate connections
             if (eventSubWs && (eventSubWs.readyState === WebSocket.CONNECTING || eventSubWs.readyState === WebSocket.OPEN)) {
                 console.log('EventSub WebSocket already connecting or connected, skipping duplicate connection');
@@ -2738,6 +2817,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 case '376':
                 case 'GLOBALUSERSTATE':
                     // Authentication messages, just log them
+                    break;
+                case '421':
+                    // Unknown command error from IRC server; expected occasionally for unsupported commands
+                    console.warn('IRC reported unknown command (421):', message.params?.slice(1)?.join(' ') || message.command);
                     break;
                 case 'CAP':
                     // Capability acknowledgment
@@ -3164,6 +3247,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         }
         // Log raw chat event data to server for debugging
         async function logRawChatData(event) {
+            if (shouldSkipAuthenticatedRequest('logRawChatData')) {
+                return;
+            }
             try {
                 const response = await fetch('?action=log_raw_chat', {
                     method: 'POST',
@@ -3175,6 +3261,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const result = await response.json();
                 if (!result.success) {
                     console.error('Failed to log raw chat data:', result.error);
+                    if ((result.error || '').toLowerCase().includes('not authenticated')) {
+                        await markServerAuthLost('logRawChatData');
+                    }
                 }
             } catch (error) {
                 console.error('Error logging raw chat data:', error);
@@ -4001,10 +4090,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         // Start initialization
         initializeApp();
         // Update token timer every second
-        setInterval(updateTokenTimer, 1000);
+        tokenTimerIntervalHandle = setInterval(updateTokenTimer, 1000);
         // Re-validate token every 15 minutes to keep expires_in accurate and detect issues early
         // This is separate from the refresh logic - just validation to keep timer accurate
-        setInterval(async () => {
+        tokenValidationIntervalHandle = setInterval(async () => {
+            if (window.__sessionExpired || !serverSessionAuthenticated || !isClientSessionActive()) {
+                return;
+            }
             if (!isRefreshing) {
                 console.log('Periodic token validation check...');
                 await validateToken();
