@@ -878,11 +878,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             const PRESENCE_JOIN_KEY = 'notify_join_leave';
             let presenceEnabled = false;
             let activeChatters = new Set(); // Users currently in chat (tracked via IRC JOIN/PART)
+            let activeChatterLogins = new Set(); // Normalized logins currently in chat (for summary display)
             let messageBasedChatters = new Set(); // Users detected via first message only
             let initialPresenceBootstrapActive = false;
             let initialPresenceBootstrapDone = false;
             let initialIrcNamesBatch = new Set();
             let initialPresenceBootstrapTimeoutHandle = null;
+            const HELIX_CHATTERS_REQUEST_TIMEOUT_MS = 2500;
+            const HELIX_CHATTERS_TOTAL_TIMEOUT_MS = 5000;
+            const INITIAL_PRESENCE_BOOTSTRAP_TIMEOUT_MS = 5000;
             function normalizePresenceLogin(userLogin) {
                 if (!userLogin) return null;
                 return String(userLogin).trim().toLowerCase() || null;
@@ -914,11 +918,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             function buildInitialPresenceSummaryText() {
                 const currentUser = normalizePresenceLogin(CONFIG.USER_LOGIN);
-                const names = Array.from(initialIrcNamesBatch)
+                const names = Array.from(activeChatterLogins)
                     .filter(Boolean)
                     .filter(name => name !== currentUser)
                     .sort((a, b) => a.localeCompare(b));
-                if (names.length === 0) return 'Currently in chat (0): none detected yet';
+                if (names.length === 0) return null;
                 const maxNamesToShow = 20;
                 const visible = names.slice(0, maxNamesToShow).join(', ');
                 const remaining = names.length - maxNamesToShow;
@@ -926,6 +930,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     return `Currently in chat (${names.length}): ${visible}, +${remaining} more`;
                 }
                 return `Currently in chat (${names.length}): ${visible}`;
+            }
+            function refreshPresenceSummaryIfReady() {
+                if (!initialPresenceBootstrapActive && !initialPresenceBootstrapDone) return;
+                const summaryText = buildInitialPresenceSummaryText();
+                if (summaryText) {
+                    setPresenceMessage(summaryText);
+                } else {
+                    clearPresenceMessage();
+                }
             }
             function finalizeInitialPresenceBootstrap(source) {
                 if (initialPresenceBootstrapDone) return;
@@ -938,11 +951,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 const summaryText = buildInitialPresenceSummaryText();
                 if (summaryText) {
                     setPresenceMessage(summaryText);
+                } else {
+                    clearPresenceMessage();
                 }
                 console.log(`Initial presence bootstrap finalized via ${source}`);
             }
             async function loadInitialChattersFromHelix() {
-                if (!tokenScopes.includes('moderator:read:chatters')) {
+                const scopesKnown = Array.isArray(tokenScopes) && tokenScopes.length > 0;
+                if (scopesKnown && !tokenScopes.includes('moderator:read:chatters')) {
                     console.log('Skipping Helix chatters bootstrap: missing moderator:read:chatters scope');
                     return false;
                 }
@@ -954,20 +970,39 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 let loadedAny = false;
                 let cursor = null;
+                const startedAt = Date.now();
                 do {
+                    if ((Date.now() - startedAt) >= HELIX_CHATTERS_TOTAL_TIMEOUT_MS) {
+                        console.warn('Helix chatters bootstrap reached total timeout; falling back to IRC NAMES');
+                        return loadedAny;
+                    }
                     const params = new URLSearchParams({
                         broadcaster_id: broadcasterId,
                         moderator_id: moderatorId,
                         first: '1000'
                     });
                     if (cursor) params.append('after', cursor);
-                    const response = await fetch(`https://api.twitch.tv/helix/chat/chatters?${params.toString()}`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Client-Id': CONFIG.CLIENT_ID
+                    const controller = new AbortController();
+                    const timeoutHandle = setTimeout(() => controller.abort(), HELIX_CHATTERS_REQUEST_TIMEOUT_MS);
+                    let response;
+                    try {
+                        response = await fetch(`https://api.twitch.tv/helix/chat/chatters?${params.toString()}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Client-Id': CONFIG.CLIENT_ID
+                            },
+                            signal: controller.signal
+                        });
+                    } catch (error) {
+                        if (error && error.name === 'AbortError') {
+                            console.warn('Helix chatters bootstrap request timed out; falling back to IRC NAMES');
+                            return loadedAny;
                         }
-                    });
+                        throw error;
+                    } finally {
+                        clearTimeout(timeoutHandle);
+                    }
                     if (!response.ok) {
                         const errorText = await response.text();
                         console.warn('Helix chatters bootstrap failed', {
@@ -986,6 +1021,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         addPresenceMarkers(activeChatters, chatterId, chatterLogin);
                         addPresenceMarkers(messageBasedChatters, chatterId, chatterLogin);
                         if (chatterLogin) {
+                            activeChatterLogins.add(chatterLogin);
                             initialIrcNamesBatch.add(chatterLogin);
                             loadedAny = true;
                         }
@@ -1005,7 +1041,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     if (!initialPresenceBootstrapDone) {
                         finalizeInitialPresenceBootstrap('timeout');
                     }
-                }, 8000);
+                }, INITIAL_PRESENCE_BOOTSTRAP_TIMEOUT_MS);
                 try {
                     const helixLoaded = await loadInitialChattersFromHelix();
                     if (helixLoaded) {
@@ -1056,8 +1092,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             function setPresenceMessage(text) {
                 const overlay = document.getElementById('chat-overlay');
                 const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
-                // Look for an existing presence/system join message
-                const existing = overlay.querySelector('.system-message.join');
+                // Look for an existing presence summary message
+                const existing = overlay.querySelector('.system-message.presence-summary');
                 if (existing) {
                     existing.textContent = text;
                     return;
@@ -1068,10 +1104,18 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     if (exitBtn && !overlay.contains(exitBtn)) overlay.appendChild(exitBtn);
                 }
                 const div = document.createElement('div');
-                div.className = 'system-message join';
+                div.className = 'system-message join presence-summary';
                 div.textContent = text;
                 const ref = exitBtn ? exitBtn.nextSibling : overlay.firstChild;
                 overlay.insertBefore(div, ref);
+            }
+            function clearPresenceMessage() {
+                const overlay = document.getElementById('chat-overlay');
+                if (!overlay) return;
+                const existing = overlay.querySelector('.system-message.presence-summary');
+                if (existing) {
+                    existing.remove();
+                }
             }
             // Remove only placeholder/connected informational nodes from the overlay to avoid wiping live messages
             function clearPlaceholderOnly() {
@@ -2403,6 +2447,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
                 // Clear presence tracking
                 activeChatters.clear();
+                activeChatterLogins.clear();
                 messageBasedChatters.clear();
                 resetInitialPresenceBootstrap();
                 // Attempt reconnection
@@ -2430,7 +2475,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Check for required IRC scopes before attempting connection
             const hasIRCRead = tokenScopes.includes('chat:read');
             const hasIRCEdit = tokenScopes.includes('chat:edit');
-            if (!hasIRCRead || !hasIRCEdit) {
+            const scopesKnown = Array.isArray(tokenScopes) && tokenScopes.length > 0;
+            if (scopesKnown && (!hasIRCRead || !hasIRCEdit)) {
                 console.error('❌ Cannot connect to IRC: Missing required scopes (chat:read, chat:edit)');
                 console.error('Current scopes:', tokenScopes.join(', '));
                 updateStatus(false, 'IRC: Missing Scopes - Re-authenticate Required');
@@ -2447,6 +2493,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     }
                 }).showToast();
                 return;
+            }
+            if (!scopesKnown) {
+                console.warn('IRC scope validation not ready yet; attempting optimistic IRC connection');
             }
             console.log('Connecting to IRC WebSocket...');
             ircWs = new WebSocket(CONFIG.IRC_WS_URL);
@@ -2711,12 +2760,12 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             updateStatus(false, 'IRC: Connected | EventSub: Connecting...');
                         }
                         clearPlaceholderOnly();
+                        // Bootstrap current chatters as the first post-connect API action
+                        bootstrapInitialPresence();
                         // Fetch badges for the channel
                         fetchBadges();
                         // Setup ping timeout
                         setupPingTimeout();
-                        // Bootstrap current chatters as a single grouped presence event
-                        bootstrapInitialPresence();
                     } else {
                         // Another user joined
                         const userId = message.tags && message.tags['user-id'];
@@ -2727,11 +2776,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         if (initialPresenceBootstrapActive && !initialPresenceBootstrapDone) {
                             const normalizedJoinUser = normalizePresenceLogin(joinUser);
                             if (normalizedJoinUser) {
+                                activeChatterLogins.add(normalizedJoinUser);
                                 initialIrcNamesBatch.add(normalizedJoinUser);
                             }
                             addPresenceMarkers(messageBasedChatters, userId, joinUser);
+                            refreshPresenceSummaryIfReady();
                             break;
                         }
+                        refreshPresenceSummaryIfReady();
                         // Show join message if presence notifications enabled and user hasn't sent a message yet
                         if (presenceEnabled && !alreadyMarkedByMessage) {
                             showSystemMessage(`${displayName} joined the chat`, 'join');
@@ -2751,8 +2803,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         names.forEach(name => {
                             addPresenceMarkers(activeChatters, null, name);
                             addPresenceMarkers(messageBasedChatters, null, name);
+                            activeChatterLogins.add(name);
                             initialIrcNamesBatch.add(name);
                         });
+                        refreshPresenceSummaryIfReady();
                     }
                     break;
                 }
@@ -2768,6 +2822,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const partDisplayName = (message.tags && message.tags['display-name']) || partUser;
                     removePresenceMarkers(activeChatters, partUserId, partUser);
                     removePresenceMarkers(messageBasedChatters, partUserId, partUser);
+                    const normalizedPartUser = normalizePresenceLogin(partUser);
+                    if (normalizedPartUser) {
+                        activeChatterLogins.delete(normalizedPartUser);
+                    }
+                    refreshPresenceSummaryIfReady();
                     // Show leave message if presence notifications enabled
                     if (presenceEnabled) {
                         showSystemMessage(`${partDisplayName} left the chat`, 'leave');
@@ -2818,6 +2877,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                                 // Remove from presence sets
                                 removePresenceMarkers(messageBasedChatters, null, normalized);
                                 removePresenceMarkers(activeChatters, null, normalized);
+                                if (normalized) {
+                                    activeChatterLogins.delete(normalized);
+                                }
+                                refreshPresenceSummaryIfReady();
                                 // If target user-id is present, remove by id too
                                 if (message.tags && message.tags['target-user-id']) {
                                     const targetId = message.tags['target-user-id'];
@@ -2839,10 +2902,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             recentRedemptions = [];
                             recentBitsEvents = [];
                             activeChatters.clear();
+                            activeChatterLogins.clear();
                             messageBasedChatters.clear();
                             // Remove presence summary if present
                             if (overlay) {
-                                const presenceEl = overlay.querySelector('.system-message.join');
+                                const presenceEl = overlay.querySelector('.system-message.presence-summary');
                                 if (presenceEl) presenceEl.remove();
                             }
                         } catch (e) {
@@ -2990,6 +3054,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             // Track presence
             addPresenceMarkers(activeChatters, userId, username);
             addPresenceMarkers(messageBasedChatters, userId, username);
+            const normalizedUsername = normalizePresenceLogin(username);
+            if (normalizedUsername) {
+                activeChatterLogins.add(normalizedUsername);
+            }
+            refreshPresenceSummaryIfReady();
             // Apply filters
             if (isMessageFiltered(event)) {
                 return;
@@ -3859,16 +3928,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
         });
         // Initialize
         async function initializeApp() {
-            // Load settings from server first
-            await loadSettingsFromServer();
-            // Load chat history (only once, and only if overlay is empty)
-            await loadChatHistory();
-            // Load activity feed
-            await loadActivityFeed();
-            // Initialize UI with server settings
-            migrateOldFilters();
-            renderFilters();
-            renderNicknames();
+            // Initialize UI immediately with current/default settings (non-blocking startup)
             initFilterCollapse();
             initImportExportUI();
             // Initialize presence checkbox and state (IRC-based) before connecting sockets
@@ -3886,13 +3946,35 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             } catch (e) {
                 console.error('Error initializing presence setting', e);
             }
-            await fetchBadges(); // Fetch badge data (wait so badges are available before connecting)
-            // Validate token on startup to get accurate expires_in
-            await validateToken();
             // Connect both IRC and EventSub WebSockets
             connectIRCWebSocket();
             connectEventSubWebSocket();
             updateTokenTimer();
+
+            // Continue startup data hydration in background
+            (async () => {
+                try {
+                    await loadSettingsFromServer();
+                    migrateOldFilters();
+                    renderFilters();
+                    renderNicknames();
+
+                    const checkbox = document.getElementById('notify-joins-checkbox');
+                    presenceEnabled = loadPresenceSetting();
+                    if (checkbox) {
+                        checkbox.checked = presenceEnabled;
+                    }
+
+                    await Promise.allSettled([
+                        loadChatHistory(),
+                        loadActivityFeed(),
+                        validateToken(),
+                        fetchBadges()
+                    ]);
+                } catch (startupError) {
+                    console.error('Background startup hydration failed', startupError);
+                }
+            })();
         }
         // Start initialization
         initializeApp();
