@@ -5,6 +5,7 @@
 session_start();
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
+require_once "userdata.php";
 
 // Ensure user is logged in
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['twitchUserId'])) {
