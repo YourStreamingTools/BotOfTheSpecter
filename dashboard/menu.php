@@ -82,6 +82,7 @@ function getMenuItems($role = 'default')
         [ 'label' => 'Dashboard', 'icon' => 'fas fa-tachometer-alt', 'href' => 'index.php' ],
         [ 'label' => 'User Management', 'icon' => 'fas fa-users-cog', 'href' => 'users.php' ],
         [ 'label' => 'Start User Bots', 'icon' => 'fas fa-play-circle', 'href' => 'start_bots.php' ],
+        [ 'label' => 'EventSub Connections', 'icon' => 'fas fa-bell', 'href' => 'event_sub.php' ],
         [ 'label' => 'Log Management', 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],
         [ 'label' => 'Feedback', 'icon' => 'fas fa-comments', 'href' => 'feedback.php' ],
         [ 'label' => 'Twitch Tokens', 'icon' => 'fab fa-twitch', 'href' => 'twitch_tokens.php' ],
