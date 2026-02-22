@@ -16,7 +16,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 $profileUsername = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8') : (isset($user['username']) ? htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') : '');
 $profileNavLabel = t('navbar_profile') . ' | ' . $profileUsername;
-$showAdminPanelLink = !empty($is_admin) || (!empty($_SESSION['is_admin']) && $_SESSION['is_admin']);
+$showAdminPanelLink = isset($is_admin) && $is_admin === true;
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /moderator, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {

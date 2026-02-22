@@ -74,7 +74,6 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
     if (!$decoded && isset($_GET['auth_data'])) {
         $decoded = json_decode(base64_decode($_GET['auth_data']), true);
     }
-
     if (!is_array($decoded) || empty($decoded['success'])) {
         $info = "Authentication failed or was cancelled.";
     } elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
@@ -94,10 +93,8 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $_SESSION['twitch_user_id'] = $twitchUserId;
             $_SESSION['profile_image'] = $profileImageUrl;
             $_SESSION['display_name'] = $twitchDisplayName;
-
             // Database connect
             require_once "/var/www/config/db_connect.php";
-
             // Check if the user is in the restricted list
             $restrictedQuery = "SELECT id FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
             $stmt = mysqli_prepare($conn, $restrictedQuery);
@@ -108,12 +105,12 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                 $_SESSION = array();
                 session_destroy();
                 // User is in the restricted list
+                $accessMode = 'restricted';
                 $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at support@botofthespecter.com.";
                 include 'restricted.php';
                 exit;
             }
             mysqli_stmt_close($stmt);
-
             // Check if the user already exists
             $checkQuery = "SELECT id, api_key FROM users WHERE twitch_user_id = ?";
             $stmt = mysqli_prepare($conn, $checkQuery);
@@ -291,6 +288,7 @@ if (isset($_GET['code'])) {
             $_SESSION = array();
             session_destroy();
             // User is in the restricted list
+            $accessMode = 'restricted';
             $info = "Your account has been banned from using this system. If you believe this is a mistake, please contact us at support@botofthespecter.com.";
             // Render the page with the message
             include 'restricted.php';

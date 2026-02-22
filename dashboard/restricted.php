@@ -1,15 +1,24 @@
 <?php
-// If we don't have an info message, set a default one
-if (!isset($info)) {
-    $info = "Your account has been restricted from accessing BotOfTheSpecter. If you believe this is a mistake, please contact support.";
+$accessMode = isset($accessMode) ? (string) $accessMode : 'restricted';
+$isAccessDenied = ($accessMode === 'denied');
+
+if (!isset($info) || trim((string) $info) === '') {
+    if ($isAccessDenied) {
+        $info = 'Access denied.';
+    } else {
+        $info = "Your account has been restricted from accessing BotOfTheSpecter. If you believe this is a mistake, please contact support.";
+    }
 }
+
+$pageTitle = $isAccessDenied ? 'Access Denied - BotOfTheSpecter' : 'Access Restricted - BotOfTheSpecter';
+$headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Restricted - BotOfTheSpecter</title>
+    <title><?php echo htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
     <!-- Bulma CSS 1.0.0 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
     <!-- Font Awesome -->
@@ -55,20 +64,22 @@ if (!isset($info)) {
                     <span class="icon mr-2">
                         <i class="fas fa-exclamation-triangle has-text-danger"></i>
                     </span>
-                    Access Restricted
+                    <?php echo htmlspecialchars($headingTitle, ENT_QUOTES, 'UTF-8'); ?>
                 </p>
             </header>
             <div class="card-content">
                 <div class="content has-text-centered">
                     <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" width="100" class="mb-4">
-                    <p class="mb-4"><?php echo $info; ?></p>
+                    <p class="mb-4"><?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?></p>
                     <div class="buttons is-centered">
-                        <a href="mailto:support@botofthespecter.com" class="button is-link">
-                            <span class="icon">
-                                <i class="fas fa-envelope"></i>
-                            </span>
-                            <span>Contact Support</span>
-                        </a>
+                        <?php if (!$isAccessDenied): ?>
+                            <a href="mailto:support@botofthespecter.com" class="button is-link">
+                                <span class="icon">
+                                    <i class="fas fa-envelope"></i>
+                                </span>
+                                <span>Contact Support</span>
+                            </a>
+                        <?php endif; ?>
                         <a href="https://botofthespecter.com" class="button is-light">
                             <span class="icon">
                                 <i class="fas fa-home"></i>

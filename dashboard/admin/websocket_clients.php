@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';
 $pageTitle = t('admin_websocket_clients_title');
