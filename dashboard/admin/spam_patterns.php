@@ -4,6 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 session_start();
+require_once __DIR__ . '/admin_access.php';
 header('Content-Type: text/html; charset=utf-8');
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';

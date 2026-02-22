@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/admin_access.php';
 
 // Include necessary files to get user data
 require_once '/var/www/config/db_connect.php';
