@@ -9,47 +9,72 @@ include '/var/www/config/twitch.php';
 include '../userdata.php';
 
 function fetchUserEventSubSummary($accessToken, $clientID) {
-	$ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
-	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-	curl_setopt($ch, CURLOPT_HTTPHEADER, [
-		'Authorization: Bearer ' . $accessToken,
-		'Client-Id: ' . $clientID
-	]);
-	curl_setopt($ch, CURLOPT_TIMEOUT, 8);
-	$response = curl_exec($ch);
-	$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	$curlError = curl_error($ch);
-	curl_close($ch);
-	if (!empty($curlError)) {
-		return [
-			'ok' => false,
-			'http_code' => 0,
-			'error' => 'cURL error: ' . $curlError
-		];
-	}
-	if ($httpCode !== 200 || !$response) {
-		$errMsg = 'HTTP ' . $httpCode;
-		if (!empty($response)) {
-			$decodedErr = json_decode($response, true);
-			if (is_array($decodedErr) && !empty($decodedErr['message'])) {
-				$errMsg .= ' - ' . $decodedErr['message'];
-			}
+	$allSubscriptions = [];
+	$after = null;
+	$total = 0;
+	$totalCost = 0;
+	$maxCost = 0;
+	do {
+		$url = 'https://api.twitch.tv/helix/eventsub/subscriptions?first=100';
+		if (!empty($after)) {
+			$url .= '&after=' . urlencode($after);
 		}
-		return [
-			'ok' => false,
-			'http_code' => $httpCode,
-			'error' => $errMsg
-		];
-	}
-	$payload = json_decode($response, true);
-	if (!is_array($payload)) {
-		return [
-			'ok' => false,
-			'http_code' => $httpCode,
-			'error' => 'Invalid JSON from Twitch'
-		];
-	}
-	$subscriptions = $payload['data'] ?? [];
+		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, [
+			'Authorization: Bearer ' . $accessToken,
+			'Client-Id: ' . $clientID
+		]);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+		$response = curl_exec($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$curlError = curl_error($ch);
+		curl_close($ch);
+		if (!empty($curlError)) {
+			return [
+				'ok' => false,
+				'http_code' => 0,
+				'error' => 'cURL error: ' . $curlError
+			];
+		}
+		if ($httpCode !== 200 || !$response) {
+			$errMsg = 'HTTP ' . $httpCode;
+			if (!empty($response)) {
+				$decodedErr = json_decode($response, true);
+				if (is_array($decodedErr) && !empty($decodedErr['message'])) {
+					$errMsg .= ' - ' . $decodedErr['message'];
+				}
+			}
+			return [
+				'ok' => false,
+				'http_code' => $httpCode,
+				'error' => $errMsg
+			];
+		}
+		$payload = json_decode($response, true);
+		if (!is_array($payload)) {
+			return [
+				'ok' => false,
+				'http_code' => $httpCode,
+				'error' => 'Invalid JSON from Twitch'
+			];
+		}
+		if (isset($payload['total'])) {
+			$total = (int) $payload['total'];
+		}
+		if (isset($payload['total_cost'])) {
+			$totalCost = (int) $payload['total_cost'];
+		}
+		if (isset($payload['max_total_cost'])) {
+			$maxCost = (int) $payload['max_total_cost'];
+		}
+		$pageSubscriptions = $payload['data'] ?? [];
+		if (is_array($pageSubscriptions) && !empty($pageSubscriptions)) {
+			$allSubscriptions = array_merge($allSubscriptions, $pageSubscriptions);
+		}
+		$after = $payload['pagination']['cursor'] ?? null;
+	} while (!empty($after));
+	$subscriptions = $allSubscriptions;
 	$enabledWs = 0;
 	$disabledWs = 0;
 	$webhookSubs = 0;
@@ -79,9 +104,9 @@ function fetchUserEventSubSummary($accessToken, $clientID) {
 		'ok' => true,
 		'http_code' => 200,
 		'error' => null,
-		'total' => $payload['total'] ?? count($subscriptions),
-		'total_cost' => $payload['total_cost'] ?? 0,
-		'max_cost' => $payload['max_total_cost'] ?? 0,
+		'total' => $total > 0 ? $total : count($subscriptions),
+		'total_cost' => $totalCost,
+		'max_cost' => $maxCost,
 		'enabled_ws_subs' => $enabledWs,
 		'disabled_ws_subs' => $disabledWs,
 		'webhook_subs' => $webhookSubs,
