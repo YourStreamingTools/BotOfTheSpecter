@@ -78,6 +78,75 @@ function removeTokenCacheEntry($filePath, $twitchId)
     return true;
 }
 
+function format_admin_elapsed_seconds($seconds)
+{
+    if (!is_numeric($seconds) || $seconds < 0)
+        return 'Unknown';
+    $seconds = (int) $seconds;
+    if ($seconds < 60)
+        return $seconds . 's';
+    $days = intdiv($seconds, 86400);
+    $hours = intdiv($seconds % 86400, 3600);
+    $minutes = intdiv($seconds % 3600, 60);
+    if ($days > 0)
+        return $days . 'd ' . $hours . 'h ' . $minutes . 'm';
+    if ($hours > 0)
+        return $hours . 'h ' . $minutes . 'm';
+    return $minutes . 'm';
+}
+
+function get_admin_bot_uptime_from_version_file($username, $botType)
+{
+    try {
+        if (empty($username) || !class_exists('SSHConnectionManager')) {
+            return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
+        }
+
+        global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
+        if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
+            return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
+        }
+
+        $versionFilePath = "/home/botofthespecter/logs/version";
+        if ($botType === 'beta' || $botType === 'custom') {
+            $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
+        } elseif ($botType === 'v6') {
+            $versionFilePath .= "/v6/{$username}_v6_version_control.txt";
+        } else {
+            $versionFilePath .= "/{$username}_version_control.txt";
+        }
+
+        $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+        if (!$connection) {
+            return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
+        }
+
+        $mtimeCmd = "stat -c %Y " . escapeshellarg($versionFilePath) . " 2>/dev/null";
+        $mtimeOutput = SSHConnectionManager::executeCommand($connection, $mtimeCmd);
+        if (function_exists('sanitizeSSHOutput')) {
+            $mtimeOutput = sanitizeSSHOutput($mtimeOutput);
+        } else {
+            $mtimeOutput = preg_replace('/\\s*\\[exit_code:\\s*-?\\d+\\]\\s*$/', '', (string) $mtimeOutput);
+            $mtimeOutput = trim((string) $mtimeOutput);
+        }
+
+        if ($mtimeOutput !== false && $mtimeOutput !== null && is_numeric(trim((string) $mtimeOutput))) {
+            $mtime = (int) trim((string) $mtimeOutput);
+            if ($mtime > 0) {
+                $elapsed = max(0, time() - $mtime);
+                return [
+                    'uptime_seconds' => $elapsed,
+                    'uptime_human' => format_admin_elapsed_seconds($elapsed)
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        client_console_log('admin uptime lookup failed for ' . $username . ': ' . $e->getMessage(), 'warn');
+    }
+
+    return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
+}
+
 // Lightweight wrapper to provide a start_bot_for_user() function when missing.
 // This uses the central performBotAction() implementation in dashboard/bot_control_functions.php.
 if (!function_exists('start_bot_for_user')) {
@@ -176,31 +245,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
                     // Check for stable bot first
                     $stableStatus = checkBotRunning($uname, 'stable');
                     if (isset($stableStatus['running']) && $stableStatus['running']) {
+                        $uptime = get_admin_bot_uptime_from_version_file($uname, 'stable');
                         $running_bots[] = [
                             'username' => $uname,
                             'pid' => $stableStatus['pid'] ?? 'unknown',
                             'bot_type' => 'stable',
-                            'version' => $stableStatus['version'] ?? ''
+                            'version' => $stableStatus['version'] ?? '',
+                            'uptime_seconds' => $uptime['uptime_seconds'],
+                            'uptime_human' => $uptime['uptime_human']
                         ];
                     } else {
                         // If stable is not running, check for beta bot
                         $betaStatus = checkBotRunning($uname, 'beta');
                         if (isset($betaStatus['running']) && $betaStatus['running']) {
+                            $uptime = get_admin_bot_uptime_from_version_file($uname, 'beta');
                             $running_bots[] = [
                                 'username' => $uname,
                                 'pid' => $betaStatus['pid'] ?? 'unknown',
                                 'bot_type' => 'beta',
-                                'version' => $betaStatus['version'] ?? ''
+                                'version' => $betaStatus['version'] ?? '',
+                                'uptime_seconds' => $uptime['uptime_seconds'],
+                                'uptime_human' => $uptime['uptime_human']
                             ];
                         } else {
                             // If neither, check for custom bot
                             $customStatus = checkBotRunning($uname, 'custom');
                             if (isset($customStatus['running']) && $customStatus['running']) {
+                                $uptime = get_admin_bot_uptime_from_version_file($uname, 'custom');
                                 $running_bots[] = [
                                     'username' => $uname,
                                     'pid' => $customStatus['pid'] ?? 'unknown',
                                     'bot_type' => 'custom',
-                                    'version' => $customStatus['version'] ?? ''
+                                    'version' => $customStatus['version'] ?? '',
+                                    'uptime_seconds' => $uptime['uptime_seconds'],
+                                    'uptime_human' => $uptime['uptime_human']
                                 ];
                             }
                         }
@@ -819,6 +897,7 @@ ob_start();
                     <th>Twitch ID</th>
                     <th>Bot Status</th>
                     <th>Bot Type</th>
+                    <th>Running For</th>
                     <th>Token Status</th>
                     <th>Mod Status</th>
                     <th>Actions</th>
@@ -848,6 +927,11 @@ ob_start();
                         <td>
                             <span class="tag is-warning bot-type-tag">
                                 <span>Unknown</span>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="tag is-dark running-time-tag">
+                                <span>—</span>
                             </span>
                         </td>
                         <td>
@@ -924,6 +1008,17 @@ ob_start();
         if (!str) return '';
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
+    function formatUptime(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return 'Unknown';
+        const total = Math.floor(seconds);
+        if (total < 60) return `${total}s`;
+        const days = Math.floor(total / 86400);
+        const hours = Math.floor((total % 86400) / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+        if (hours > 0) return `${hours}h ${minutes}m`;
+        return `${minutes}m`;
+    }
     document.addEventListener('DOMContentLoaded', function () {
         // Load running bots status on page load
         refreshBotStatus();
@@ -982,6 +1077,7 @@ ob_start();
                         const startBetaBtn = row.querySelector('.start-beta-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
+                        const runningTimeTag = row.querySelector('.running-time-tag');
                         if (isRunning) {
                             // Determine bot type once for use in multiple places
                             const isBeta = isRunning.bot_type === 'beta';
@@ -1001,6 +1097,15 @@ ob_start();
                                 else if (bt === 'v6') { className = 'tag is-dark bot-type-tag'; label = 'v6'; }
                                 botTypeTag.className = className;
                                 botTypeTag.innerHTML = '<span>' + label + '</span>';
+                            }
+                            if (runningTimeTag) {
+                                const rawUptime = isRunning.uptime_seconds;
+                                const hasNumericUptime = rawUptime !== null && rawUptime !== undefined && rawUptime !== '' && Number.isFinite(Number(rawUptime));
+                                const uptimeLabel = hasNumericUptime
+                                    ? formatUptime(Number(rawUptime))
+                                    : (isRunning.uptime_human || 'Unknown');
+                                runningTimeTag.className = 'tag is-link running-time-tag';
+                                runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
                             }
                             // Hide both start buttons for running bots
                             if (startStableBtn) {
@@ -1041,6 +1146,10 @@ ob_start();
                             if (botTypeTag) {
                                 botTypeTag.className = 'tag is-dark bot-type-tag';
                                 botTypeTag.innerHTML = '<span>Bot Not Running</span>';
+                            }
+                            if (runningTimeTag) {
+                                runningTimeTag.className = 'tag is-dark running-time-tag';
+                                runningTimeTag.innerHTML = '<span>—</span>';
                             }
                             // Show both start buttons and hide restart button for non-running bots
                             if (startStableBtn) {
@@ -1106,6 +1215,7 @@ ob_start();
                         const startBetaBtn = row.querySelector('.start-beta-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
+                        const runningTimeTag = row.querySelector('.running-time-tag');
                         if (isRunning) {
                             const isBeta = isRunning.bot_type === 'beta';
                             if (botTag) {
@@ -1123,6 +1233,15 @@ ob_start();
                                 botTypeTag.className = className;
                                 botTypeTag.innerHTML = '<span>' + label + '</span>';
                             }
+                            if (runningTimeTag) {
+                                const rawUptime = isRunning.uptime_seconds;
+                                const hasNumericUptime = rawUptime !== null && rawUptime !== undefined && rawUptime !== '' && Number.isFinite(Number(rawUptime));
+                                const uptimeLabel = hasNumericUptime
+                                    ? formatUptime(Number(rawUptime))
+                                    : (isRunning.uptime_human || 'Unknown');
+                                runningTimeTag.className = 'tag is-link running-time-tag';
+                                runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
+                            }
                             if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
@@ -1130,6 +1249,7 @@ ob_start();
                         } else {
                             if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
+                            if (runningTimeTag) { runningTimeTag.className = 'tag is-dark running-time-tag'; runningTimeTag.innerHTML = '<span>—</span>'; }
                             if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
                             if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
@@ -1520,13 +1640,13 @@ ob_start();
                 botTag.className = 'tag is-danger bot-status-tag';
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Start Failed</span>';
                 const msg = (startData && startData.message) ? startData.message : 'Could not start bot';
-                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Start failed: ${msg}`, showConfirmButton: false, timer: 3000 });
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Start failed for ${username}: ${msg}`, showConfirmButton: false, timer: 3000 });
             }
         } catch (error) {
             botTag.className = 'tag is-danger bot-status-tag';
             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
             console.error('Error starting bot:', error);
-            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error starting bot', showConfirmButton: false, timer: 3000 });
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Error starting bot for ${username}`, showConfirmButton: false, timer: 3000 });
         } finally {
             if (currentBtn) {
                 currentBtn.disabled = false;
@@ -1571,7 +1691,7 @@ ob_start();
                     toast: true,
                     position: 'top-end',
                     icon: 'info',
-                    title: 'Restarting ' + botType + ' bot...',
+                    title: 'Restarting ' + botType + ' bot for ' + username + '...',
                     showConfirmButton: false,
                     timer: 2000
                 });
@@ -1594,21 +1714,23 @@ ob_start();
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
+                            const successMessage = data.message || 'Bot restarted successfully';
                             Swal.fire({
                                 toast: true,
                                 position: 'top-end',
                                 icon: 'success',
-                                title: data.message || 'Bot restarted successfully',
+                                title: username + ': ' + successMessage,
                                 html: 'Click "Refresh Status" to update PID',
                                 showConfirmButton: false,
                                 timer: 3000
                             });
                         } else {
+                            const failureMessage = data.message || 'Failed to restart bot';
                             Swal.fire({
                                 toast: true,
                                 position: 'top-end',
                                 icon: 'error',
-                                title: data.message || 'Failed to restart bot',
+                                title: username + ': ' + failureMessage,
                                 showConfirmButton: false,
                                 timer: 3000
                             });
@@ -1620,7 +1742,7 @@ ob_start();
                             toast: true,
                             position: 'top-end',
                             icon: 'error',
-                            title: 'Network error restarting bot',
+                            title: 'Network error restarting ' + username,
                             showConfirmButton: false,
                             timer: 3000
                         });
