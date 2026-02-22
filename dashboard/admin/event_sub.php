@@ -95,7 +95,6 @@ function fetchAllEventSubConnections($conn, $clientID) {
 	$query = "SELECT u.id, u.username, u.twitch_display_name, u.twitch_user_id, tba.twitch_access_token
 			  FROM users u
 			  LEFT JOIN twitch_bot_access tba ON u.twitch_user_id = tba.twitch_user_id
-			  WHERE tba.twitch_access_token IS NOT NULL AND tba.twitch_access_token != ''
 			  ORDER BY u.username ASC";
 	$result = $conn->query($query);
 	if (!$result) {
@@ -117,7 +116,24 @@ function fetchAllEventSubConnections($conn, $clientID) {
 	];
 	while ($row = $result->fetch_assoc()) {
 		$summary['users_scanned']++;
-		$scan = fetchUserEventSubSummary($row['twitch_access_token'], $clientID);
+		$token = trim((string)($row['twitch_access_token'] ?? ''));
+		if ($token === '') {
+			$scan = [
+				'ok' => true,
+				'http_code' => 200,
+				'error' => null,
+				'total' => 0,
+				'total_cost' => 0,
+				'max_cost' => 0,
+				'enabled_ws_subs' => 0,
+				'disabled_ws_subs' => 0,
+				'webhook_subs' => 0,
+				'enabled_connections' => 0,
+				'disabled_connections' => 0
+			];
+		} else {
+			$scan = fetchUserEventSubSummary($token, $clientID);
+		}
 		$item = [
 			'id' => (int) $row['id'],
 			'username' => $row['username'] ?? '',
@@ -299,7 +315,7 @@ function statusTag(user) {
 	if ((user.enabled_connections || 0) > 0) {
 		return '<span class="tag is-success">Connected</span>';
 	}
-	return '<span class="tag is-light">No Active WS</span>';
+	return '<span class="tag is-info">No Active Connections</span>';
 }
 
 function renderEventSubData(data) {
@@ -326,7 +342,7 @@ function renderEventSubData(data) {
 	}
 	const users = Array.isArray(data.users) ? data.users : [];
 	if (users.length === 0) {
-		body.innerHTML = '<tr><td colspan="9" class="has-text-centered has-text-grey">No users with Twitch bot tokens found.</td></tr>';
+		body.innerHTML = '<tr><td colspan="9" class="has-text-centered has-text-grey">No users found.</td></tr>';
 		return;
 	}
 	const rows = users.map(user => {
