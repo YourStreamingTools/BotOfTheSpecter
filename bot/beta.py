@@ -629,6 +629,7 @@ async def subscribe_to_events(session_id):
         {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.bits.use", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.raid", "version": "1", "condition": {"to_broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.raid", "version": "1", "condition": {"from_broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.ad_break.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.charity_campaign.donate", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.channel_points_custom_reward_redemption.add", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -1208,50 +1209,7 @@ async def process_twitch_eventsub_message(message):
                         ))
                         event_logger.info(f"Prime paid upgrade: {event_data['chatter_user_name']} upgraded from Prime Gaming to paid {tier_name} subscription")
                     elif notice_type == "raid":
-                        # Detect outgoing raid initiated by broadcaster (sent)
-                        chatter_user_id = event_data.get("chatter_user_id")
-                        if chatter_user_id == CHANNEL_ID:
-                            system_msg = event_data.get("system_message", "") or ""
-                            target = None
-                            m = re.search(r'raiding\s+@?([A-Za-z0-9_\-]+)', system_msg, re.IGNORECASE)
-                            if m:
-                                target = m.group(1)
-                            else:
-                                # try message fragments
-                                fragments = event_data.get("message", {}).get("fragments", [])
-                                text = "".join([f.get("text","") for f in fragments if f.get("type") == "text"])
-                                m2 = re.search(r'raiding\s+@?([A-Za-z0-9_\-]+)', text, re.IGNORECASE)
-                                if m2:
-                                    target = m2.group(1)
-                                else:
-                                    # last resort, look for raid subobject
-                                    raid_obj = event_data.get("raid") or {}
-                                    target = raid_obj.get("user_name") or raid_obj.get("user_login") or "<unknown>"
-                            viewers_sent = 0
-                            try:
-                                async with httpClientSession() as session:
-                                    headers = {'Client-ID': CLIENT_ID, 'Authorization': f'Bearer {CHANNEL_AUTH}'}
-                                    async with session.get(f'https://api.twitch.tv/helix/streams?user_login={CHANNEL_NAME}&type=live', headers=headers) as resp:
-                                        data = await resp.json()
-                                        if data.get('data'):
-                                            viewers_sent = int(data['data'][0].get('viewer_count', 0))
-                            except Exception as e:
-                                event_logger.error(f"Failed to fetch viewer count for outgoing raid: {e}")
-                            pending_outgoing_raid = {'target': target, 'viewers': viewers_sent, 'timestamp': time.time()}
-                            event_logger.info(f"Held outgoing raid to {target} with {viewers_sent} viewers until stream offline.")
-                            # Start (or restart) a background task that waits until the stream goes offline and persists the raid
-                            try:
-                                if outgoing_raid_task and not outgoing_raid_task.done():
-                                    try:
-                                        outgoing_raid_task.cancel()
-                                    except Exception:
-                                        pass
-                                outgoing_raid_task = create_task(wait_and_persist_outgoing_raid())
-                            except Exception as e:
-                                event_logger.error(f"Failed to start outgoing raid persistence task: {e}")
-                        else:
-                            # an incoming raid that is also delivered through chat notification; handled by channel.raid
-                            pass
+                        event_logger.info("Ignoring chat notification raid notice; using channel.raid EventSub event as source of truth.")
                     elif notice_type == "unraid":
                         # If broadcaster canceled outgoing raid
                         chatter_user_id = event_data.get("chatter_user_id")
@@ -1273,11 +1231,47 @@ async def process_twitch_eventsub_message(message):
                     ))
                 # Raid Event
                 elif event_type == "channel.raid":
-                    create_task(process_raid_event(
-                        event_data["from_broadcaster_user_id"],
-                        event_data["from_broadcaster_user_name"],
-                        event_data["viewers"]
-                    ))
+                    from_broadcaster_user_id = event_data.get("from_broadcaster_user_id")
+                    from_broadcaster_user_name = event_data.get("from_broadcaster_user_name")
+                    from_broadcaster_user_login = (event_data.get("from_broadcaster_user_login") or "").strip().lower()
+                    to_broadcaster_user_id = event_data.get("to_broadcaster_user_id")
+                    to_broadcaster_user_name = event_data.get("to_broadcaster_user_name")
+                    viewers = int(event_data.get("viewers", 0) or 0)
+                    channel_name_normalized = (CHANNEL_NAME or "").strip().lower()
+                    from_name_normalized = (from_broadcaster_user_name or "").strip().lower()
+                    # Incoming raid to this channel
+                    if to_broadcaster_user_id == CHANNEL_ID:
+                        create_task(process_raid_event(
+                            from_broadcaster_user_id,
+                            from_broadcaster_user_name,
+                            viewers
+                        ))
+                    # Outgoing raid from this channel (must match both our channel ID and channel name/login)
+                    elif from_broadcaster_user_id == CHANNEL_ID and (
+                        from_broadcaster_user_login == channel_name_normalized or
+                        from_name_normalized == channel_name_normalized
+                    ):
+                        pending_outgoing_raid = {
+                            'target': to_broadcaster_user_name or event_data.get("to_broadcaster_user_login") or "<unknown>",
+                            'viewers': viewers,
+                            'timestamp': time.time()
+                        }
+                        event_logger.info(
+                            f"Held outgoing raid to {pending_outgoing_raid['target']} with {viewers} viewers until stream offline (from EventSub channel.raid)."
+                        )
+                        try:
+                            if outgoing_raid_task and not outgoing_raid_task.done():
+                                try:
+                                    outgoing_raid_task.cancel()
+                                except Exception:
+                                    pass
+                            outgoing_raid_task = create_task(wait_and_persist_outgoing_raid())
+                        except Exception as e:
+                            event_logger.error(f"Failed to start outgoing raid persistence task: {e}")
+                    else:
+                        event_logger.info(
+                            f"Ignoring channel.raid event not matching channel context: from={from_broadcaster_user_id}/{from_broadcaster_user_login} to={to_broadcaster_user_id}"
+                        )
                 # Hype Train Begin Event
                 elif event_type == "channel.hype_train.begin":
                     event_logger.info(f"Hype Train Start Event Data: {event_data}")
