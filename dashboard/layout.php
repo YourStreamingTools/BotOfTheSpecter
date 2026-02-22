@@ -176,6 +176,13 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                         <span class="sidebar-user-text">User Dashboard</span>
                     </a>
                 <?php endif; ?>
+                <?php if ($layoutMode === 'admin'): ?>
+                    <a href="event_sub.php" class="sidebar-user-item"
+                        style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
+                        <span class="sidebar-user-icon"><i class="fas fa-bell"></i></span>
+                        <span class="sidebar-user-text">EventSub Connections</span>
+                    </a>
+                <?php endif; ?>
                 <a href="../mod_channels.php" class="sidebar-user-item"
                     style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                     <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
@@ -219,6 +226,12 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                     <a href="../dashboard.php" class="sidebar-user-item">
                         <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
                         <span class="sidebar-user-text">User Dashboard</span>
+                    </a>
+                <?php endif; ?>
+                <?php if ($layoutMode === 'admin'): ?>
+                    <a href="event_sub.php" class="sidebar-user-item">
+                        <span class="sidebar-user-icon"><i class="fas fa-bell"></i></span>
+                        <span class="sidebar-user-text">EventSub Connections</span>
                     </a>
                 <?php endif; ?>
                 <a href="../mod_channels.php" class="sidebar-user-item">
