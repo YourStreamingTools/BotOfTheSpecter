@@ -3,12 +3,12 @@ $accessMode = isset($accessMode) ? (string) $accessMode : 'restricted';
 $isAccessDenied = ($accessMode === 'denied');
 
 $restrictedDetails = [
-    'This account restriction is applied when security, abuse-prevention, or platform policy checks detect behavior that puts services, users, or integrations at risk.',
-    'While restricted, you may be blocked from dashboard pages, bot command controls, token or integration management, and other account-level actions.',
-    'Restrictions can be temporary or permanent depending on severity, frequency, and prior account history.',
+    'Restrictions are applied when security, abuse-prevention, or platform policy checks detect behavior that puts services, users, or integrations at risk.',
+    'While restricted, access to dashboard pages, bot command controls, token and integration management, and other account-level actions may be blocked.',
+    'Restrictions may be temporary or permanent based on severity, frequency, and prior account history.',
     'Repeated login attempts, API misuse, automation abuse, or attempts to bypass limits may delay or prevent restoration of access.',
-    'Do not create alternate accounts to avoid this restriction. Circumvention attempts may result in broader enforcement actions.',
-    'If you believe this is an error, contact support with your Twitch username, approximate time of your last successful login, and any relevant context so we can review your case quickly.'
+    'Do not create alternate accounts to bypass this restriction. Circumvention attempts may result in broader enforcement actions.',
+    'If you believe this is an error, contact support with your Twitch username, the approximate time of your last successful login, and any relevant context so we can review your case quickly.'
 ];
 
 if (!isset($info) || trim((string) $info) === '') {
@@ -46,7 +46,8 @@ $headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
             align-items: center;
         }
         .container {
-            max-width: 600px;
+            max-width: 1100px;
+            width: 100%;
             padding: 2rem;
         }
         .card {
@@ -66,10 +67,20 @@ $headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
         .restricted-details {
             text-align: left;
             margin: 0 auto 1.25rem auto;
-            max-width: 520px;
+            max-width: 100%;
+            padding-left: 1.25rem;
+            list-style-position: outside;
+            line-height: 1.55;
         }
         .restricted-details li {
-            margin-bottom: 0.6rem;
+            margin-bottom: 0.7rem;
+            padding-left: 0.2rem;
+        }
+        .restricted-details li:last-child {
+            margin-bottom: 0;
+        }
+        .restricted-details li::marker {
+            color: #b5b5b5;
         }
     </style>
 </head>
