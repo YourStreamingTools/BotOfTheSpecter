@@ -96,7 +96,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             // Database connect
             require_once "/var/www/config/db_connect.php";
             // Check if the user is in the restricted list
-            $restrictedQuery = "SELECT id FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
+            $restrictedQuery = "SELECT * FROM restricted_users WHERE twitch_user_id = ? OR username = ?";
             $stmt = mysqli_prepare($conn, $restrictedQuery);
             mysqli_stmt_bind_param($stmt, 'ss', $twitchUserId, $twitchUsername);
             mysqli_stmt_execute($stmt);
