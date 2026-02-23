@@ -2,6 +2,18 @@
 require_once "/var/www/config/twitch.php";
 require_once "/var/www/config/database.php";
 
+// Keep PHP session active for long streams (24h)
+$sessionLifetime = 86400;
+session_set_cookie_params([
+    'lifetime' => $sessionLifetime,
+    'path' => '/',
+    'secure' => true,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
+ini_set('session.gc_maxlifetime', (string)$sessionLifetime);
+ini_set('session.cookie_lifetime', (string)$sessionLifetime);
+
 session_start();
 
 // Handle OAuth callback from StreamersConnect
@@ -86,7 +98,7 @@ if (isset($_GET['error'])) {
 // Handle token refresh via AJAX
 if (isset($_GET['action']) && $_GET['action'] === 'refresh_token') {
     header('Content-Type: application/json');
-    if (!isset($_SESSION['refresh_token'])) {
+    if (!isset($_SESSION['refresh_token']) || empty($_SESSION['refresh_token'])) {
         echo json_encode(['success' => false, 'error' => 'No refresh token']);
         exit;
     }
@@ -120,13 +132,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'refresh_token') {
         exit;
     }
     if (isset($token_response['access_token'])) {
+        $existingRefreshToken = $_SESSION['refresh_token'];
         $_SESSION['access_token'] = $token_response['access_token'];
-        $_SESSION['refresh_token'] = $token_response['refresh_token'];
+        // Twitch may not always return a new refresh_token. Keep existing one if omitted.
+        if (isset($token_response['refresh_token']) && !empty($token_response['refresh_token'])) {
+            $_SESSION['refresh_token'] = $token_response['refresh_token'];
+        } else {
+            $_SESSION['refresh_token'] = $existingRefreshToken;
+        }
         $_SESSION['token_created_at'] = time();
         echo json_encode([
             'success' => true,
             'access_token' => $token_response['access_token'],
-            'created_at' => $_SESSION['token_created_at']
+            'created_at' => $_SESSION['token_created_at'],
+            'refresh_token_updated' => isset($token_response['refresh_token']) && !empty($token_response['refresh_token'])
         ]);
     } else {
         echo json_encode(['success' => false, 'error' => 'Token refresh failed']);
@@ -148,6 +167,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'expire_session') {
     }
     session_destroy();
     echo json_encode(['success' => true, 'message' => 'Session expired']);
+    exit;
+}
+
+// Keep session alive for long-running overlay sessions
+if (isset($_GET['action']) && $_GET['action'] === 'keepalive') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id']) || !isset($_SESSION['access_token'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $_SESSION['last_activity'] = time();
+    $_SESSION['token_created_at'] = $_SESSION['token_created_at'] ?? time();
+    echo json_encode(['success' => true, 'server_time' => time()]);
     exit;
 }
 
@@ -712,6 +744,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let serverSessionAuthenticated = true;
             let tokenTimerIntervalHandle = null;
             let tokenValidationIntervalHandle = null;
+            let sessionKeepAliveIntervalHandle = null;
             let ircReconnectAttempts = 0;
             let eventSubReconnectAttempts = 0;
             let maxReconnectAttempts = 5;
@@ -739,6 +772,26 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 serverSessionAuthenticated = false;
                 console.error(`${source}: server session is no longer authenticated`);
                 await handleSessionExpiry();
+            }
+            async function keepServerSessionAlive() {
+                if (window.__sessionExpired || !serverSessionAuthenticated || !isClientSessionActive()) {
+                    return;
+                }
+                try {
+                    const response = await fetch('?action=keepalive', {
+                        method: 'GET',
+                        cache: 'no-store'
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        console.error('Session keepalive failed:', result.error || 'Unknown error');
+                        if ((result.error || '').toLowerCase().includes('not authenticated')) {
+                            await markServerAuthLost('keepServerSessionAlive');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Session keepalive network error:', error);
+                }
             }
             // Process buffered messages after reconnection
             function processMessageBuffer() {
@@ -2247,6 +2300,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (tokenValidationIntervalHandle) {
                 clearInterval(tokenValidationIntervalHandle);
                 tokenValidationIntervalHandle = null;
+            }
+            if (sessionKeepAliveIntervalHandle) {
+                clearInterval(sessionKeepAliveIntervalHandle);
+                sessionKeepAliveIntervalHandle = null;
             }
             // Disconnect both WebSockets
             if (ircWs) {
@@ -4102,6 +4159,10 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 await validateToken();
             }
         }, 15 * 60 * 1000); // 15 minutes
+        // Keep PHP session alive during long streams
+        sessionKeepAliveIntervalHandle = setInterval(async () => {
+            await keepServerSessionAlive();
+        }, 5 * 60 * 1000); // 5 minutes
     </script>
     <?php endif; ?>
     </div>
