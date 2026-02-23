@@ -303,3 +303,24 @@
     text-align: center;
     white-space: nowrap;
 }
+
+.admin-users-table tr.is-restricted-row {
+    background-color: rgba(255, 221, 87, 0.08);
+}
+
+.admin-users-table tr.is-restricted-row td {
+    text-decoration: none !important;
+    opacity: 1 !important;
+}
+
+.admin-users-table .restricted-label {
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+
+.admin-users-table .actions-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+}
