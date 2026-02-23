@@ -27,6 +27,152 @@ if ($isLoggedIn) {
     include_once 'usr_database.php';
     include 'user_db.php';
     include 'storage_used.php';
+
+    // Channel info metrics (followers, subscribers, raids)
+    $followerCount = 0;
+    $subscriberCount = null;
+    $subscriberSubtext = 'Live Twitch subscriptions';
+    $raidCount = 0;
+    $raidViewersTotal = 0;
+    $raidUniqueRaiders = 0;
+
+    if (isset($db) && $db instanceof mysqli) {
+        $followersResult = $db->query("SELECT COUNT(*) AS total FROM followers_data");
+        if ($followersResult) {
+            $followersRow = $followersResult->fetch_assoc();
+            $followerCount = (int)($followersRow['total'] ?? 0);
+        }
+
+        $raidsResult = $db->query("SELECT
+            COALESCE(SUM(CASE WHEN raid_count IS NULL OR raid_count < 1 THEN 1 ELSE raid_count END), 0) AS total_raids,
+            COALESCE(SUM(viewers), 0) AS total_viewers,
+            COUNT(DISTINCT raider_id) AS unique_raiders
+            FROM raid_data");
+        if ($raidsResult) {
+            $raidsRow = $raidsResult->fetch_assoc();
+            $raidCount = (int)($raidsRow['total_raids'] ?? 0);
+            $raidViewersTotal = (int)($raidsRow['total_viewers'] ?? 0);
+            $raidUniqueRaiders = (int)($raidsRow['unique_raiders'] ?? 0);
+        }
+    }
+
+    // Twitch subscriber count (live from Twitch API)
+    if (!empty($broadcasterID) && !empty($authToken) && !empty($clientID)) {
+        $usersUrl = "https://api.twitch.tv/helix/users?id=" . rawurlencode((string)$broadcasterID);
+        $usersCurl = curl_init($usersUrl);
+        curl_setopt($usersCurl, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $authToken,
+            'Client-ID: ' . $clientID,
+        ]);
+        curl_setopt($usersCurl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($usersCurl, CURLOPT_TIMEOUT, 8);
+        $usersResponse = curl_exec($usersCurl);
+        $usersHttpCode = curl_getinfo($usersCurl, CURLINFO_HTTP_CODE);
+        curl_close($usersCurl);
+
+        $isEligibleForSubs = false;
+        if ($usersResponse !== false && $usersHttpCode === 200) {
+            $usersData = json_decode($usersResponse, true);
+            $broadcasterType = (string)($usersData['data'][0]['broadcaster_type'] ?? '');
+            $isEligibleForSubs = ($broadcasterType !== '');
+        }
+
+        if ($isEligibleForSubs) {
+            $subsUrl = "https://api.twitch.tv/helix/subscriptions?broadcaster_id=" . rawurlencode((string)$broadcasterID);
+            $subsCurl = curl_init($subsUrl);
+            curl_setopt($subsCurl, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $authToken,
+                'Client-ID: ' . $clientID,
+            ]);
+            curl_setopt($subsCurl, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($subsCurl, CURLOPT_TIMEOUT, 8);
+            $subsResponse = curl_exec($subsCurl);
+            $subsHttpCode = curl_getinfo($subsCurl, CURLINFO_HTTP_CODE);
+            curl_close($subsCurl);
+
+            if ($subsResponse !== false && $subsHttpCode === 200) {
+                $subsData = json_decode($subsResponse, true);
+                if (isset($subsData['total'])) {
+                    $subscriberCount = (int)$subsData['total'];
+                    $subscriberSubtext = 'Live Twitch subscriptions';
+                } else {
+                    $subscriberSubtext = 'Unable to read subscriber total from Twitch';
+                }
+            } else {
+                $subscriberSubtext = 'Unable to fetch subscribers from Twitch right now';
+            }
+        } else {
+            $subscriberSubtext = 'Channel is not Affiliate/Partner (no Twitch subs endpoint access)';
+        }
+    } else {
+        $subscriberSubtext = 'Missing Twitch auth/config for live subscriber count';
+    }
+
+    // Dashboard metrics (real data only)
+    $stableRunning = !empty($botSystemStatus);
+    $betaRunning = !empty($betaBotSystemStatus);
+    $v6Running = !empty($v6BotSystemStatus);
+    $botsOnlineCount = (int)$stableRunning + (int)$betaRunning + (int)$v6Running;
+    $storagePercent = max(0, min(100, (float)$storage_percentage));
+    $storageUsedMb = round(((float)$current_storage_used / 1024 / 1024), 2);
+    $storageMaxMb = round(((float)$max_storage_size / 1024 / 1024), 2);
+    $customCommandCount = is_array($commands) ? count($commands) : 0;
+    $builtinCommandCount = is_array($builtinCommands) ? count($builtinCommands) : 0;
+    $builtinEnabledCount = 0;
+    if (is_array($builtinCommands)) {
+        foreach ($builtinCommands as $builtinCommand) {
+            if (isset($builtinCommand['status']) && strcasecmp((string)$builtinCommand['status'], 'Enabled') === 0) {
+                $builtinEnabledCount++;
+            }
+        }
+    }
+    $rewardsCount = is_array($channelPointRewards) ? count($channelPointRewards) : 0;
+    $quotesCount = is_array($quotesData) ? count($quotesData) : 0;
+    $knownUsersCount = is_array($seenUsersData) ? count($seenUsersData) : 0;
+    $modChannelCount = is_array($modChannels) ? count($modChannels) : 0;
+    $liveLurkersCount = is_array($lurkers) ? count($lurkers) : 0;
+    $watchUsersCount = is_array($watchTimeData) ? count($watchTimeData) : 0;
+    $todoTotalCount = is_array($todos) ? count($todos) : 0;
+    $todoCompletedCount = 0;
+    if (is_array($todos)) {
+        foreach ($todos as $todoItem) {
+            if (isset($todoItem['completed']) && strcasecmp((string)$todoItem['completed'], 'Yes') === 0) {
+                $todoCompletedCount++;
+            }
+        }
+    }
+    $todoOpenCount = max(0, $todoTotalCount - $todoCompletedCount);
+    $stableRunningVersion = $stableRunning ? ($versionRunning ?? 'Unknown') : 'Not Running';
+    $betaRunningVersion = $betaRunning ? ($betaVersionRunning ?? 'Unknown') : 'Not Running';
+    $v6RunningVersion = $v6Running ? ($v6VersionRunning ?? 'Unknown') : 'Not Running';
+    $stableLatestVersion = $newVersion ?? 'N/A';
+    $betaLatestVersion = $betaNewVersion ?? 'N/A';
+    $v6LatestVersion = $v6NewVersion ?? 'N/A';
+    // Determine single active bot runtime (only one should run at a time)
+    $activeBotSystem = 'none';
+    $activeBotLabel = 'Not Running';
+    $activeBotRunning = false;
+    $activeBotCurrentVersion = 'Not Running';
+    $activeBotLatestVersion = 'N/A';
+    if ($stableRunning) {
+        $activeBotSystem = 'stable';
+        $activeBotLabel = 'Stable';
+        $activeBotRunning = true;
+        $activeBotCurrentVersion = (string)$stableRunningVersion;
+        $activeBotLatestVersion = (string)$stableLatestVersion;
+    } elseif ($betaRunning) {
+        $activeBotSystem = 'beta';
+        $activeBotLabel = 'Beta';
+        $activeBotRunning = true;
+        $activeBotCurrentVersion = (string)$betaRunningVersion;
+        $activeBotLatestVersion = (string)$betaLatestVersion;
+    } elseif ($v6Running) {
+        $activeBotSystem = 'v6';
+        $activeBotLabel = 'v6';
+        $activeBotRunning = true;
+        $activeBotCurrentVersion = (string)$v6RunningVersion;
+        $activeBotLatestVersion = (string)$v6LatestVersion;
+    }
     // Start output buffering for layout system
     ob_start();
     ?>
@@ -37,13 +183,161 @@ if ($isLoggedIn) {
                 <h1 class="title is-2 has-text-white">
                     <i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($twitchDisplayName); ?>!
                 </h1>
+                <p class="subtitle is-6 has-text-grey-light mt-2 mb-0">Live overview of your bot systems, storage, and community activity.</p>
             </div>
         </div>
     </div>
+    <!-- Channel Info Section -->
+    <section class="section pt-4 pb-2">
+        <div class="container">
+            <h2 class="title is-4 has-text-white mb-3">Channel Info</h2>
+            <div class="columns is-multiline dashboard-metrics-row">
+                <div class="column is-12-mobile is-6-tablet is-4-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">Followers</p>
+                            <p class="dashboard-metric-value"><?php echo number_format($followerCount); ?></p>
+                            <p class="dashboard-metric-subtext">Tracked follower records</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-12-mobile is-6-tablet is-4-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">Subscribers</p>
+                            <p class="dashboard-metric-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : 'N/A'; ?></p>
+                            <p class="dashboard-metric-subtext"><?php echo htmlspecialchars($subscriberSubtext); ?></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-12-mobile is-6-tablet is-4-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">Raids</p>
+                            <p class="dashboard-metric-value"><?php echo number_format($raidCount); ?></p>
+                            <p class="dashboard-metric-subtext"><?php echo number_format($raidViewersTotal); ?> total raider viewers · <?php echo number_format($raidUniqueRaiders); ?> unique raiders</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- Dashboard Metrics Section -->
+    <section class="section pt-4 pb-2">
+        <div class="container">
+            <div class="columns is-multiline dashboard-metrics-row">
+                <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">Active Bot Runtime</p>
+                            <p class="dashboard-metric-subtext">
+                                <?php if ($activeBotRunning): ?>
+                                    Running version <?php echo htmlspecialchars($activeBotCurrentVersion); ?>&nbsp;<?php echo htmlspecialchars($activeBotLabel); ?>
+                                <?php else: ?>
+                                    No active bot runtime detected
+                                <?php endif; ?>
+                            </p>
+                            <p class="dashboard-metric-value">&nbsp;</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">Storage Usage <span class="dashboard-metric-value"><?php echo number_format($storagePercent, 1); ?>%</span></p>
+                            <p class="dashboard-metric-subtext"><?php echo number_format($storageUsedMb, 2); ?> MB of <?php echo number_format($storageMaxMb, 2); ?> MB</p>
+                            <progress class="progress is-info mt-2" value="<?php echo (int)round($storagePercent); ?>" max="100"></progress>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">Commands</p>
+                            <p class="dashboard-metric-value"><?php echo $customCommandCount + $builtinEnabledCount; ?> Total</p>
+                            <p class="dashboard-metric-subtext"><?php echo $customCommandCount; ?> Custom · <?php echo $builtinEnabledCount; ?>/<?php echo $builtinCommandCount; ?> Built-in Enabled</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-12-mobile is-6-tablet is-3-desktop">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-content">
+                            <p class="dashboard-metric-label">To-Do Progress</p>
+                            <span class="dashboard-metric-value">&nbsp;</span>
+                            <p class="dashboard-metric-subtext"><?php echo $todoCompletedCount; ?> completed · <?php echo $todoTotalCount; ?> total tasks</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- Runtime + Activity Section -->
+    <section class="section pt-2 pb-2">
+        <div class="container">
+            <div class="columns is-multiline">
+                <div class="column is-12-tablet is-7-desktop">
+                    <div class="card dashboard-panel-card">
+                        <header class="card-header">
+                            <p class="card-header-title"><i class="fas fa-server mr-2"></i> Bot Runtime</p>
+                            <span class="card-header-icon">
+                                <span class="tag <?php echo $activeBotRunning ? 'is-success' : 'is-danger'; ?> is-light"><?php echo $activeBotRunning ? 'Running' : 'Stopped'; ?></span>
+                            </span>
+                        </header>
+                        <div class="card-content">
+                            <div class="dashboard-runtime-item">
+                                <p class="has-text-weight-semibold mb-2">System: <?php echo htmlspecialchars($activeBotLabel); ?></p>
+                                <p class="is-size-7 has-text-grey-light mb-1">Current: <?php echo htmlspecialchars($activeBotCurrentVersion); ?></p>
+                                <p class="is-size-7 has-text-grey-light">Latest: <?php echo htmlspecialchars($activeBotLatestVersion); ?></p>
+                            </div>
+                            <div class="mt-4">
+                                <a href="bot.php" class="button is-info">
+                                    <span class="icon"><i class="fas fa-cogs"></i></span>
+                                    <span>Open Bot Control</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-12-tablet is-5-desktop">
+                    <div class="card dashboard-panel-card">
+                        <header class="card-header">
+                            <p class="card-header-title"><i class="fas fa-chart-line mr-2"></i> Activity Snapshot</p>
+                        </header>
+                        <div class="card-content">
+                            <div class="dashboard-snapshot-item">
+                                <span>Known Users</span>
+                                <strong><?php echo number_format($knownUsersCount); ?></strong>
+                            </div>
+                            <div class="dashboard-snapshot-item">
+                                <span>Live Lurkers</span>
+                                <strong><?php echo number_format($liveLurkersCount); ?></strong>
+                            </div>
+                            <div class="dashboard-snapshot-item">
+                                <span>Watch Time Profiles</span>
+                                <strong><?php echo number_format($watchUsersCount); ?></strong>
+                            </div>
+                            <div class="dashboard-snapshot-item">
+                                <span>Rewards Configured</span>
+                                <strong><?php echo number_format($rewardsCount); ?></strong>
+                            </div>
+                            <div class="dashboard-snapshot-item">
+                                <span>Quotes Saved</span>
+                                <strong><?php echo number_format($quotesCount); ?></strong>
+                            </div>
+                            <div class="dashboard-snapshot-item">
+                                <span>Moderator Channels</span>
+                                <strong><?php echo number_format($modChannelCount); ?></strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
     <!-- Quick Actions Section -->
     <div class="section quick-actions">
         <div class="container">
-            <h2 class="title is-3">Quick Actions</h2>
+            <h2 class="title is-3">Quick Links</h2>
             <div class="columns is-multiline">
                 <div class="column is-6-tablet is-3-desktop">
                     <div class="card">
