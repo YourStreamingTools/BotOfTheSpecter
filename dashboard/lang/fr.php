@@ -618,6 +618,8 @@ return [
     'subscribers_tier_label' => 'Niveau',
     'subscribers_tier_unknown' => 'Inconnu',
     'subscribers_gifted_by' => 'Offert par {gifter}',
+    'subscribers_normal_broadcaster_owner' => 'Vous êtes actuellement un diffuseur normal sur Twitch et les informations sur les abonnés ne sont disponibles que pour les chaînes Affilié ou Partenaire.',
+    'subscribers_normal_broadcaster_other' => ':channel est actuellement un diffuseur normal sur Twitch et les informations sur les abonnés ne sont disponibles que pour les chaînes Affilié ou Partenaire.',
     // Moderators Page
     'mods_page_title' => 'Données Twitch - Modérateurs',
     'mods_heading' => 'Vos modérateurs :',

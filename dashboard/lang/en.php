@@ -675,6 +675,8 @@ return [
     'subscribers_tier_label' => 'Tier',
     'subscribers_tier_unknown' => 'Unknown',
     'subscribers_gifted_by' => 'Gifted by {gifter}',
+    'subscribers_normal_broadcaster_owner' => 'You are currently a normal broadcaster on Twitch and subscriber data is only available for Affiliate or Partner channels.',
+    'subscribers_normal_broadcaster_other' => ':channel is currently a normal broadcaster on Twitch and subscriber data is only available for Affiliate or Partner channels.',
     // Moderators Page
     'mods_page_title' => 'Twitch Data - Mods',
     'mods_heading' => 'Your Moderators:',
