@@ -2749,6 +2749,67 @@ body.sidebar-open #mobileSidebarOverlay {
     }
 }
 
+    /* Logged-in Dashboard (dashboard.php) */
+    .dashboard-metric-card,
+    .dashboard-panel-card {
+        height: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+    }
+
+    .dashboard-metric-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #b5b5b5;
+        margin-bottom: 0.35rem;
+    }
+
+    .dashboard-metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1.1;
+        color: #ffffff;
+        margin-bottom: 0.3rem;
+    }
+
+    .dashboard-metric-subtext {
+        font-size: 0.85rem;
+        color: #b5b5b5;
+    }
+
+    .dashboard-runtime-item {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 0.9rem;
+        background: rgba(255, 255, 255, 0.02);
+        min-height: 150px;
+    }
+
+    .dashboard-snapshot-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        color: #f5f5f5;
+    }
+
+    .dashboard-snapshot-item:last-child {
+        border-bottom: none;
+    }
+
+    .dashboard-snapshot-item strong {
+        color: #ffffff;
+        font-size: 1.05rem;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-metric-value {
+            font-size: 1.6rem;
+        }
+    }
+
 .quick-actions .card {
     height: 100%;
 }
