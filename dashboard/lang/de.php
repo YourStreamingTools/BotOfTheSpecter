@@ -617,6 +617,8 @@ return [
     'subscribers_tier_label' => 'Stufe',
     'subscribers_tier_unknown' => 'Unbekannt',
     'subscribers_gifted_by' => 'Geschenkt von {gifter}',
+    'subscribers_normal_broadcaster_owner' => 'Du bist derzeit ein normaler Broadcaster auf Twitch und Abonnentendaten sind nur für Affiliate- oder Partner-Kanäle verfügbar.',
+    'subscribers_normal_broadcaster_other' => ':channel ist derzeit ein normaler Broadcaster auf Twitch und Abonnentendaten sind nur für Affiliate- oder Partner-Kanäle verfügbar.',
     // Moderators Page
     'mods_page_title' => 'Twitch-Daten - Moderatoren',
     'mods_heading' => 'Deine Moderatoren:',
