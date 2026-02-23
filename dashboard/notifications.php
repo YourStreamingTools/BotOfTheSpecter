@@ -115,6 +115,11 @@ ob_start();
             <i class="fas fa-bell"></i> EventSub Notifications
         </h1>
         <p class="subtitle">Monitor and manage your Twitch EventSub subscriptions <span id="auto-refresh-indicator" style="font-size: 12px; color: #aaa;">(Auto-refreshing every 10s)</span></p>
+        <div style="margin-bottom:12px;">
+            <button id="refresh-my-ws-btn" class="button is-small" onclick="refreshInternalWebsocket(this)">
+                <i class="fas fa-plug"></i>&nbsp; Refresh Internal Websocket
+            </button>
+        </div>
         <div id="notification-messages">
             <?php if ($error): ?>
                 <div class="error-box">
@@ -124,6 +129,28 @@ ob_start();
         </div>
         <div id="subscription-content">
             <?php include 'notifications_content.php'; ?>
+        </div>
+
+        <div class="box" id="internal-ws-box">
+            <h2 class="title is-4"><i class="fas fa-plug"></i> Internal Websocket Connections</h2>
+            <p class="mb-3">This shows websocket clients connected to your API key on the internal BotOfTheSpecter websocket service.</p>
+            <div id="internal-ws-summary" class="info-box">Loading internal websocket status...</div>
+            <div class="table-container" style="margin-top:10px;">
+                <table class="data-table" id="internal-ws-table">
+                    <thead>
+                        <tr>
+                            <th>SID</th>
+                            <th>IP</th>
+                            <th>User Agent</th>
+                            <th>Connected</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="internal-ws-tbody">
+                        <tr><td colspan="5" class="has-text-centered">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -178,6 +205,7 @@ async function refreshSubscriptions() {
         }
         // Render the content using the API data
         renderSubscriptions(result.data);
+        await refreshInternalWebsocket();
         // Update indicator
         const indicator = document.getElementById('auto-refresh-indicator');
         if (indicator) {
@@ -577,11 +605,82 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+async function refreshInternalWebsocket(button = null) {
+    const summary = document.getElementById('internal-ws-summary');
+    const tbody = document.getElementById('internal-ws-tbody');
+    if (!summary || !tbody) return;
+
+    let originalButtonHtml = null;
+    if (button) {
+        originalButtonHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...';
+    }
+
+    try {
+        const res = await fetch('notifications_api.php?action=fetch_internal_websocket', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'No data');
+        const clients = (data.data && Array.isArray(data.data.clients)) ? data.data.clients : [];
+
+        summary.innerHTML = `<strong>${clients.length}</strong> active internal websocket client(s) for your API key.`;
+
+        if (clients.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="has-text-centered">No active websocket clients for your API key.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        clients.forEach(c => {
+            const sid = escapeHtml(c.sid || c.id || '');
+            const ip = escapeHtml(c.ip || c.remoteAddr || '');
+            const ua = escapeHtml(c.ua || c.user_agent || '');
+            const connected = escapeHtml(c.connected_at || c.connected || c.connectedAt || '');
+            html += `<tr><td>${sid}</td><td style="font-size:12px;color:#aaa;">${ip}</td><td style="font-size:12px;color:#555;">${ua}</td><td style="font-size:12px;color:#aaa;">${connected}</td><td><button class="button is-small is-danger" onclick="disconnectWs('${sid}', this)"><i class="fas fa-times"></i> Disconnect</button></td></tr>`;
+        });
+        tbody.innerHTML = html;
+    } catch (err) {
+        console.error('refreshInternalWebsocket error', err);
+        summary.innerHTML = `<span style="color:#e74c3c;">Failed to load internal websocket data: ${escapeHtml(err.message || String(err))}</span>`;
+        tbody.innerHTML = '<tr><td colspan="5" class="has-text-centered">Unable to load data.</td></tr>';
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalButtonHtml;
+        }
+    }
+}
+
+async function disconnectWs(sid, btn) {
+    if (!confirm('Disconnect this websocket client?')) return;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Disconnecting...'; }
+    try {
+        const form = new FormData();
+        form.append('disconnect_client', '1');
+        form.append('sid', sid);
+        form.append('action', 'disconnect_internal_websocket');
+        const res = await fetch('notifications_api.php', { method: 'POST', body: form, credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed');
+        // refresh list
+        await refreshInternalWebsocket();
+    } catch (err) {
+        console.error('disconnectWs error', err);
+        alert('Failed to disconnect client: ' + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times"></i> Disconnect'; }
+    }
+}
+
 // Initialize auto-refresh on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Start auto-refresh every 10 seconds
     autoRefreshInterval = setInterval(refreshSubscriptions, 10000);
     console.log('Auto-refresh initialized (10 seconds)');
+
+    // Load internal websocket status immediately
+    refreshInternalWebsocket();
 
     // Run an immediate cleanup shortly after load, then every 5 minutes
     setTimeout(() => {

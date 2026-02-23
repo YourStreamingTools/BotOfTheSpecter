@@ -24,6 +24,7 @@ if (!isset($_SESSION['access_token'])) {
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
+@include '/var/www/config/admin_actions.php';
 include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
@@ -64,6 +65,19 @@ try {
         case 'cleanup_sessions':
             // Remove session rows from the user's DB that no longer exist in Twitch subscriptions
             cleanupSessions($accessToken, $clientID, $db);
+            break;
+
+        case 'fetch_internal_websocket':
+            fetchInternalWebsocketClients($user['api_key'] ?? '');
+            break;
+
+        case 'disconnect_internal_websocket':
+            if (!isset($_POST['sid'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Missing sid']);
+                exit();
+            }
+            disconnectInternalWebsocketClient($_POST['sid'], $user['api_key'] ?? '', $admin_key ?? '');
             break;
         
         default:
@@ -320,5 +334,148 @@ function cleanupSessions($accessToken, $clientID, $db) {
         'success' => true,
         'deleted' => $deleted,
         'deleted_sessions' => $deletedSessions
+    ]);
+}
+
+function fetchInternalWebsocketClients($userApiKey) {
+    if (empty($userApiKey)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'API key not found for user']);
+        return;
+    }
+
+    $url = 'https://websocket.botofthespecter.com/clients';
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 10,
+            'method' => 'GET',
+            'header' => [
+                'User-Agent: BotOfTheSpecter Dashboard',
+                'Accept: application/json'
+            ]
+        ]
+    ]);
+
+    $response = @file_get_contents($url, false, $context);
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['success' => false, 'error' => 'Failed to contact internal websocket server']);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data) || !isset($data['clients']) || !is_array($data['clients'])) {
+        http_response_code(502);
+        echo json_encode(['success' => false, 'error' => 'Unexpected response from internal websocket server']);
+        return;
+    }
+
+    $clients = [];
+    if (isset($data['clients'][$userApiKey]) && is_array($data['clients'][$userApiKey])) {
+        $clients = $data['clients'][$userApiKey];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data' => [
+            'clientCount' => count($clients),
+            'clients' => $clients
+        ]
+    ]);
+}
+
+function disconnectInternalWebsocketClient($sid, $userApiKey, $adminKey) {
+    if (empty($sid)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Socket ID is required']);
+        return;
+    }
+
+    if (empty($userApiKey)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'API key not found for user']);
+        return;
+    }
+
+    if (empty($adminKey)) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Server is not configured for disconnect']);
+        return;
+    }
+
+    // Verify the SID belongs to this user before disconnecting
+    $url = 'https://websocket.botofthespecter.com/clients';
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 10,
+            'method' => 'GET',
+            'header' => [
+                'User-Agent: BotOfTheSpecter Dashboard',
+                'Accept: application/json'
+            ]
+        ]
+    ]);
+    $response = @file_get_contents($url, false, $context);
+    if ($response === false) {
+        http_response_code(502);
+        echo json_encode(['success' => false, 'error' => 'Failed to contact internal websocket server']);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $ownedClients = $data['clients'][$userApiKey] ?? [];
+    $owned = false;
+    if (is_array($ownedClients)) {
+        foreach ($ownedClients as $client) {
+            $clientSid = '';
+            if (is_array($client)) {
+                $clientSid = $client['sid'] ?? $client['id'] ?? $client['connectionId'] ?? '';
+            }
+            if (!empty($clientSid) && $clientSid === $sid) {
+                $owned = true;
+                break;
+            }
+        }
+    }
+
+    if (!$owned) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Socket ID not found for your API key']);
+        return;
+    }
+
+    $disconnectUrl = 'https://websocket.botofthespecter.com/admin/disconnect?admin_key=' . urlencode($adminKey);
+    $postData = json_encode(['sid' => $sid]);
+    $disconnectContext = stream_context_create([
+        'http' => [
+            'timeout' => 10,
+            'method' => 'POST',
+            'header' => [
+                'Content-Type: application/json',
+                'User-Agent: BotOfTheSpecter Dashboard'
+            ],
+            'content' => $postData
+        ]
+    ]);
+    $disconnectResponse = @file_get_contents($disconnectUrl, false, $disconnectContext);
+    if ($disconnectResponse === false) {
+        http_response_code(502);
+        echo json_encode(['success' => false, 'error' => 'Failed to send disconnect request']);
+        return;
+    }
+
+    $disconnectResult = json_decode($disconnectResponse, true);
+    if (!is_array($disconnectResult) || empty($disconnectResult['success'])) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => $disconnectResult['message'] ?? 'Disconnect failed'
+        ]);
+        return;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Client disconnected successfully'
     ]);
 }
