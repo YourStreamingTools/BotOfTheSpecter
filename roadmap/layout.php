@@ -136,6 +136,10 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     <div>
                         <h4 class="title is-6">Description</h4>
                         <p id="detailsMeta" class="is-size-7 has-text-grey" style="margin-bottom:0.5rem;"></p>
+                        <button type="button" class="button is-small is-link is-light" id="copyShareLinkBtn" style="margin-bottom:0.75rem;">
+                            <span class="icon is-small"><i class="fas fa-link"></i></span>
+                            <span>Copy Share Link</span>
+                        </button>
                         <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
                     </div>
                     <div>
@@ -743,7 +747,41 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             const legendModal = document.getElementById('legendModal');
             const closeLegendModal = document.getElementById('closeLegendModal');
             const closeLegendBtn = document.getElementById('closeLegendBtn');
+            const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
             let currentItemId = null;
+            function buildItemShareUrl(itemId) {
+                const shareUrl = new URL(window.location.href);
+                shareUrl.searchParams.delete('search');
+                shareUrl.searchParams.delete('category');
+                shareUrl.searchParams.set('item', String(itemId));
+                return shareUrl.toString();
+            }
+            function setShareButtonCopiedState() {
+                if (!copyShareLinkBtn) return;
+                const label = copyShareLinkBtn.querySelector('span:last-child');
+                if (!label) return;
+                const originalText = label.textContent;
+                label.textContent = 'Copied!';
+                window.setTimeout(() => {
+                    label.textContent = originalText;
+                }, 1400);
+            }
+            async function copyTextToClipboard(text) {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                    return;
+                }
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.top = '-1000px';
+                textArea.style.left = '-1000px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
             // File input change handler
             if (attachmentFileInput) {
                 attachmentFileInput.addEventListener('change', function () {
@@ -886,6 +924,13 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     const createdAt = this.dataset.createdAt || '';
                     const updatedAt = this.dataset.updatedAt || '';
                     currentItemId = this.getAttribute('data-item-id');
+                    if (currentItemId) {
+                        const stateUrl = new URL(window.location.href);
+                        stateUrl.searchParams.delete('search');
+                        stateUrl.searchParams.delete('category');
+                        stateUrl.searchParams.set('item', String(currentItemId));
+                        window.history.replaceState({}, '', stateUrl.toString());
+                    }
                     document.getElementById('detailsTitle').textContent = title;
                     // Parse markdown and sanitize the description
                     const dirtyHtml = marked.parse(description || '');
@@ -920,6 +965,30 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     detailsModal.classList.add('is-active');
                 });
             });
+            if (copyShareLinkBtn) {
+                copyShareLinkBtn.addEventListener('click', async function (e) {
+                    e.preventDefault();
+                    if (!currentItemId) return;
+                    const shareUrl = buildItemShareUrl(currentItemId);
+                    try {
+                        await copyTextToClipboard(shareUrl);
+                        setShareButtonCopiedState();
+                    } catch (error) {
+                        console.error('Error copying share link:', error);
+                        window.prompt('Copy this share link:', shareUrl);
+                    }
+                });
+            }
+            const deepLinkItemRaw = new URLSearchParams(window.location.search).get('item');
+            if (deepLinkItemRaw) {
+                const deepLinkItemId = parseInt(deepLinkItemRaw, 10);
+                if (!Number.isNaN(deepLinkItemId)) {
+                    const deepLinkBtn = Array.from(detailsBtns).find(btn => btn.getAttribute('data-item-id') === String(deepLinkItemId));
+                    if (deepLinkBtn) {
+                        deepLinkBtn.click();
+                    }
+                }
+            }
             // Add comment trigger button (for admins)
             const addCommentTrigger = document.getElementById('addCommentTrigger');
             if (addCommentTrigger) {
