@@ -164,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
         </div>
     </div>
     <div class="table-container">
-        <table class="table is-fullwidth">
+        <table class="table is-fullwidth admin-users-table">
             <thead>
                 <tr>
                     <th class="has-text-centered">ID</th>
@@ -200,13 +200,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                         (isset($user['username']) && isset($restricted_users[$user['username']]))
                         || (isset($user['twitch_user_id']) && isset($restricted_users[$user['twitch_user_id']]));
                 ?>
-                <tr<?php if ($is_restricted) echo ' style="text-decoration: line-through; opacity: 0.6;"'; ?>>
+                <tr<?php if ($is_restricted) echo ' class="is-restricted-row"'; ?>>
                     <td class="has-text-centered" style="vertical-align: middle;"><?php echo htmlspecialchars($user['id']); ?></td>
                     <td style="vertical-align: middle;">
                         <figure class="image is-32x32 is-inline-block mr-2" style="vertical-align:middle;">
                             <img class="is-rounded" src="<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
                         </figure>
                         <span style="vertical-align:middle;"><?php echo htmlspecialchars($user['username']); ?></span>
+                        <?php if ($is_restricted): ?>
+                            <span class="tag is-warning is-light restricted-label">Restricted</span>
+                        <?php endif; ?>
                     </td>
                     <td class="has-text-centered" style="vertical-align: middle;">
                         <?php if ($user['is_admin']): ?>
@@ -243,23 +246,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                     <td class="has-text-centered" style="vertical-align: middle;"><?php echo format_pretty_date($user['signup_date']); ?></td>
                     <td class="has-text-centered" style="vertical-align: middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
                     <td class="has-text-centered" style="vertical-align: middle;">
-                        <button class="button is-small is-light" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
-                            <span class="icon"><i class="fas fa-eye"></i></span>
-                        </button>
-                        <button class="button is-small is-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
-                            <span class="icon"><i class="fas fa-trash"></i></span>
-                        </button>
-                        <?php if ($is_restricted): ?>
-                            <button class="button is-small is-warning" onclick="toggleRestrictUser('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
-                                <span class="icon"><i class="fas fa-user-lock"></i></span>
-                                <span>Unrestrict</span>
+                        <div class="actions-wrap">
+                            <button class="button is-small is-light" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
+                                <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
-                        <?php else: ?>
-                            <button class="button is-small is-dark" onclick="toggleRestrictUser('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)">
-                                <span class="icon"><i class="fas fa-user-lock"></i></span>
-                                <span>Restrict</span>
+                            <button class="button is-small is-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
+                                <span class="icon"><i class="fas fa-trash"></i></span>
                             </button>
-                        <?php endif; ?>
+                            <?php if ($is_restricted): ?>
+                                <button class="button is-small is-warning" onclick="toggleRestrictUser('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
+                                    <span class="icon"><i class="fas fa-user-lock"></i></span>
+                                    <span>Unrestrict</span>
+                                </button>
+                            <?php else: ?>
+                                <button class="button is-small is-dark" onclick="toggleRestrictUser('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)">
+                                    <span class="icon"><i class="fas fa-user-lock"></i></span>
+                                    <span>Restrict</span>
+                                </button>
+                            <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
