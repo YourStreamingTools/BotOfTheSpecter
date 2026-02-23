@@ -46,6 +46,33 @@ $stmt->close();
 date_default_timezone_set($timezone);
 $syncMessage = "";
 
+// By default assume channel-points are available; check broadcaster_type to be sure.
+$showNoChannelPoints = false;
+$channelDisplayName = 'This channel';
+$isOwner = false;
+$channelTwitchId = '';
+// Try to fetch user info to determine broadcaster_type
+$usersUrl = "https://api.twitch.tv/helix/users?id={$broadcasterID}";
+$curl = curl_init($usersUrl);
+curl_setopt($curl, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . ($_SESSION['access_token'] ?? ''),
+    'Client-ID: ' . ($clientID ?? '')
+]);
+curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+$usersResponse = curl_exec($curl);
+if ($usersResponse !== false) {
+    $usersHttpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    if ($usersHttpCode === 200) {
+        $usersData = json_decode($usersResponse, true);
+        $channelDisplayName = $usersData['data'][0]['display_name'] ?? ($usersData['data'][0]['login'] ?? $channelDisplayName);
+        $channelTwitchId = $usersData['data'][0]['id'] ?? '';
+        $broadcasterType = $usersData['data'][0]['broadcaster_type'] ?? '';
+        $isOwner = (isset($twitchUserId) && $twitchUserId === $channelTwitchId);
+        $showNoChannelPoints = ($broadcasterType === '');
+    }
+}
+curl_close($curl);
+
 require_once '/var/www/config/database.php';
 $dbname = $_SESSION['username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
@@ -227,7 +254,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['syncRewards'])) {
 
 // On-load: ensure Twitch 'manageable' rewards are present in the DB so they show up immediately
 $syncErrors = [];
-if (isset($_SESSION['access_token']) && !empty($clientID)) {
+if (!$showNoChannelPoints && isset($_SESSION['access_token']) && !empty($clientID)) {
     $ch = curl_init();
     $after = null;
     do {
@@ -301,6 +328,17 @@ ob_start();
                     <pre id="sync-output" class="mb-0"
                         style="white-space: pre-wrap; max-height: 220px; overflow:auto; font-family: monospace;"></pre>
                 </div>
+                <?php if ($showNoChannelPoints) : ?>
+                    <div class="notification is-info mb-4" style="background:#1f2a36;border-radius:10px;">
+                        <div class="message-body has-text-white">
+                            <?php if (!empty($isOwner)) : ?>
+                                <?php echo t('channel_rewards_no_channel_points_owner'); ?>
+                            <?php else : ?>
+                                <?php echo t('channel_rewards_no_channel_points_other', ['channel' => htmlspecialchars($channelDisplayName)]); ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <div class="notification is-info mb-4">
                     <form method="POST" id="sync-form"
                         style="display: flex; align-items: flex-start; justify-content: space-between;">
@@ -314,7 +352,7 @@ ob_start();
                         </div>
                         <div style="margin-left: 24px;">
                             <button class="button is-primary" id="sync-btn" style="margin-top: 0;"
-                                onclick="syncRewards()">
+                                <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_sync_disabled') . '"' : 'onclick="syncRewards()"'; ?>>
                                 <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
                                     <i class="fas fa-spinner fa-spin"></i>
                                 </span>
@@ -429,45 +467,48 @@ ob_start();
                                 foreach ($dbRewardsList as $r) {
                                     $dbRewardsMap[$r['reward_id']] = $r;
                                 }
-                                // 2. Fetch Twitch Rewards
+                                // 2. Fetch Twitch Rewards (skip for normal broadcasters)
                                 $twitchRewards = [];
                                 $twitchError = false;
-                                $tToken = $_SESSION['access_token'];
-                                $tBroadcasterId = $_SESSION['twitchUserId'];
-                                // Get Client ID from config/twitch.php
-                                $tClientId = '';
-                                include '/var/www/config/twitch.php';
-                                if (isset($clientID))
-                                    $tClientId = $clientID;
-                                if (!empty($tToken) && !empty($tBroadcasterId)) {
-                                    $ch = curl_init();
-                                    curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=" . $tBroadcasterId);
-                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                        "Authorization: Bearer $tToken",
-                                        "Client-Id: $tClientId"
-                                    ]);
-                                    $resp = curl_exec($ch);
-                                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                    curl_close($ch);
-                                    if ($httpCode == 200) {
-                                        $json = json_decode($resp, true);
-                                        $twitchRewards = $json['data'] ?? [];
-                                    } else {
-                                        $twitchError = true;
-                                        foreach ($dbRewardsList as $dbItem) {
-                                            $twitchRewards[] = [
-                                                'id' => $dbItem['reward_id'],
-                                                'title' => $dbItem['reward_title'],
-                                                'cost' => $dbItem['reward_cost'],
-                                                'managed_by' => $dbItem['managed_by'] ?? 'twitch',
-                                                // 'fallback' => true
-                                            ];
+                                if (!$showNoChannelPoints) {
+                                    $tToken = $_SESSION['access_token'];
+                                    $tBroadcasterId = $_SESSION['twitchUserId'];
+                                    // Get Client ID from config/twitch.php
+                                    $tClientId = '';
+                                    include '/var/www/config/twitch.php';
+                                    if (isset($clientID))
+                                        $tClientId = $clientID;
+                                    if (!empty($tToken) && !empty($tBroadcasterId)) {
+                                        $ch = curl_init();
+                                        curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=" . $tBroadcasterId);
+                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                            "Authorization: Bearer $tToken",
+                                            "Client-Id: $tClientId"
+                                        ]);
+                                        $resp = curl_exec($ch);
+                                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                                        curl_close($ch);
+                                        if ($httpCode == 200) {
+                                            $json = json_decode($resp, true);
+                                            $twitchRewards = $json['data'] ?? [];
+                                        } else {
+                                            $twitchError = true;
+                                            foreach ($dbRewardsList as $dbItem) {
+                                                $twitchRewards[] = [
+                                                    'id' => $dbItem['reward_id'],
+                                                    'title' => $dbItem['reward_title'],
+                                                    'cost' => $dbItem['reward_cost'],
+                                                    'managed_by' => $dbItem['managed_by'] ?? 'twitch',
+                                                ];
+                                            }
                                         }
                                     }
                                 }
                                 // 3. Display Loop
-                                if (empty($twitchRewards)) {
+                                if ($showNoChannelPoints) {
+                                    echo '<tr><td colspan="7" class="has-text-centered">' . t('channel_rewards_no_channel_points') . '</td></tr>';
+                                } elseif (empty($twitchRewards)) {
                                     echo '<tr><td colspan="7" class="has-text-centered">' . t('channel_rewards_no_rewards') . '</td></tr>';
                                 } else {
                                     // Sort by cost
@@ -764,7 +805,7 @@ ob_start();
                         </div>
                         <div class="field is-grouped is-grouped-right mt-5">
                             <p class="control">
-                                <button class="button is-primary" id="create_reward_submit">
+                                <button class="button is-primary" id="create_reward_submit" <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_create_disabled') . '"' : ''; ?>>
                                     <?php echo t('channel_rewards_create_btn'); ?>
                                 </button>
                             </p>
@@ -780,6 +821,10 @@ ob_start();
 <?php
 // Prepare reward IDs for JS
 $rewardMap = [];
+if ($showNoChannelPoints) {
+    // Prevent JS from attempting to fetch redemptions for channels without channel-points
+    $channelPointRewards = [];
+}
 if (!empty($channelPointRewards)) {
     foreach ($channelPointRewards as $r) {
         // Only fetch redemptions for managed rewards to avoid 403s
