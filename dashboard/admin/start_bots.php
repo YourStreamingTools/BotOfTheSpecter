@@ -771,6 +771,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
             client_console_log("Bot restart error: " . $e->getMessage());
         }
     }
+    admin_audit_log(
+        'start_bots_restart_bot',
+        $success ? 'success' : 'failed',
+        [
+            'username' => $username,
+            'bot_type' => $botType,
+            'pid' => $pid,
+            'message' => $message
+        ],
+        'username',
+        $username
+    );
     $debug = ob_get_clean();
     echo json_encode(['success' => $success, 'message' => $message, 'debug' => $debug]);
     exit;
@@ -818,10 +830,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
                 $ok = $result['success'] ?? false;
                 $msg = $result['message'] ?? '';
                 $pid = $result['pid'] ?? null;
+                admin_audit_log(
+                    'start_bots_start_user_bot',
+                    $ok ? 'success' : 'failed',
+                    ['username' => $username, 'bot_type' => $botType, 'pid' => $pid, 'message' => $msg],
+                    'username',
+                    $username
+                );
                 echo json_encode(['success' => $ok, 'message' => $msg, 'pid' => $pid, 'debug' => $debug, 'details' => $result]);
             } elseif ($result === true) {
+                admin_audit_log(
+                    'start_bots_start_user_bot',
+                    'success',
+                    ['username' => $username, 'bot_type' => $botType, 'message' => 'Bot started successfully'],
+                    'username',
+                    $username
+                );
                 echo json_encode(['success' => true, 'message' => 'Bot started successfully', 'debug' => $debug]);
             } else {
+                admin_audit_log(
+                    'start_bots_start_user_bot',
+                    'failed',
+                    ['username' => $username, 'bot_type' => $botType, 'message' => (string) $result],
+                    'username',
+                    $username
+                );
                 echo json_encode(['success' => false, 'message' => $result, 'debug' => $debug]);
             }
         } catch (Throwable $e) {
@@ -829,10 +862,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
             if (ob_get_level())
                 $debug = ob_get_clean();
             $handledShutdown = true;
+            admin_audit_log(
+                'start_bots_start_user_bot',
+                'failed',
+                ['username' => $username, 'bot_type' => $botType, 'error' => $e->getMessage()],
+                'username',
+                $username
+            );
             echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'debug' => $debug, 'error_details' => ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]]);
         }
     } catch (Exception $e) {
         $debug = ob_get_clean();
+        admin_audit_log(
+            'start_bots_start_user_bot',
+            'failed',
+            ['username' => $username, 'bot_type' => $botType, 'error' => $e->getMessage()],
+            'username',
+            $username
+        );
         echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage(), 'debug' => $debug]);
     }
     exit;

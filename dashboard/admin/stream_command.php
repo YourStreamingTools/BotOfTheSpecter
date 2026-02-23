@@ -49,6 +49,13 @@ if (!isset($mapping[$script_key])) {
 }
 
 $script = $mapping[$script_key];
+admin_audit_log(
+    'stream_command_start',
+    'request',
+    ['script_key' => $script_key, 'script' => $script],
+    'script',
+    $script
+);
 
 // Prepare SSE
 @ini_set('output_buffering', 'off');
@@ -79,6 +86,7 @@ try {
     global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
     $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
     if (!$connection) {
+        admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => 'Failed to connect to bot server'], 'script', $script);
         sse_send('Failed to connect to bot server', 'error');
         sse_send(json_encode(['success' => false]), 'done');
         exit;
@@ -86,6 +94,7 @@ try {
     $cmd = "cd /home/botofthespecter && python3 " . escapeshellarg($script);
     $streams = SSHConnectionManager::executeCommandStream($connection, $cmd);
     if (!$streams || !isset($streams['stdout'])) {
+        admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => 'Failed to start remote command'], 'script', $script);
         sse_send('Failed to start remote command', 'error');
         sse_send(json_encode(['success' => false]), 'done');
         exit;
@@ -114,8 +123,10 @@ try {
         if ($stdout_eof && $stderr_eof) break;
     }
     // Final summary
+    admin_audit_log('stream_command', 'success', ['script' => $script], 'script', $script);
     sse_send(json_encode(['success' => true]), 'done');
 } catch (Exception $e) {
+    admin_audit_log('stream_command', 'failed', ['script' => $script, 'error' => $e->getMessage()], 'script', $script);
     sse_send('Exception: ' . $e->getMessage(), 'error');
     sse_send(json_encode(['success' => false]), 'done');
 }

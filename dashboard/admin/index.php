@@ -214,6 +214,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     }
     // Log the result server-side to aid debugging (will appear in PHP error log)
     @client_console_log("[admin service control] service={$service} action={$action} success=" . ($success ? '1' : '0') . " exit_status=" . (SSHConnectionManager::$last_exit_status ?? 'null') . " output=" . str_replace("\n", "\\n", substr($output ?? '', 0, 1000)));
+    admin_audit_log(
+        'service_control',
+        $success ? 'success' : 'failed',
+        [
+            'action' => $action,
+            'service' => $service,
+            'exit_status' => SSHConnectionManager::$last_exit_status ?? null,
+            'output_preview' => mb_substr((string) ($output ?? ''), 0, 300)
+        ],
+        'service',
+        $service
+    );
     header('Content-Type: application/json');
     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
     // Include helpful diagnostics for the browser to show
@@ -243,6 +255,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_spotify_tokens
         $output = "Error: " . $e->getMessage();
         $success = false;
     }
+    admin_audit_log(
+        'refresh_spotify_tokens',
+        $success ? 'success' : 'failed',
+        ['output_preview' => mb_substr((string) ($output ?? ''), 0, 300)],
+        'script',
+        'refresh_spotify_tokens.py'
+    );
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'output' => $output]);
     exit;
@@ -264,6 +283,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_streamelements
         $output = "Error: " . $e->getMessage();
         $success = false;
     }
+    admin_audit_log(
+        'refresh_streamelements_tokens',
+        $success ? 'success' : 'failed',
+        ['output_preview' => mb_substr((string) ($output ?? ''), 0, 300)],
+        'script',
+        'refresh_streamelements_tokens.py'
+    );
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'output' => $output]);
     exit;
@@ -285,6 +311,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens
         $output = "Error: " . $e->getMessage();
         $success = false;
     }
+    admin_audit_log(
+        'refresh_discord_tokens',
+        $success ? 'success' : 'failed',
+        ['output_preview' => mb_substr((string) ($output ?? ''), 0, 300)],
+        'script',
+        'refresh_discord_tokens.py'
+    );
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'output' => $output]);
     exit;
@@ -293,15 +326,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens
 // Handle bot stop action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($_POST['pid'])) {
     $pid = intval($_POST['pid']);
+    $stopSuccess = false;
+    $stopError = '';
     if ($pid > 0) {
         try {
             $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
                 if ($connection) {
                     // Use SIGKILL explicitly to force-stop the process on the bots server
                     SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
+                    $stopSuccess = true;
+                } else {
+                    $stopError = 'Connection failed';
                 }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+            $stopError = $e->getMessage();
+        }
+    } else {
+        $stopError = 'Invalid PID';
     }
+    admin_audit_log(
+        'stop_bot',
+        $stopSuccess ? 'success' : 'failed',
+        ['pid' => $pid, 'error' => $stopError],
+        'bot_pid',
+        (string) $pid
+    );
     header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
@@ -384,6 +433,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
             client_console_log("Bot restart error: " . $e->getMessage());
         }
     }
+    admin_audit_log(
+        'restart_bot',
+        $success ? 'success' : 'failed',
+        [
+            'username' => $username,
+            'requested_bot_type' => $originalBotType,
+            'started_bot_type' => $botType,
+            'pid' => $pid,
+            'message' => $message
+        ],
+        'username',
+        $username
+    );
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'message' => $message]);
     exit;
@@ -453,6 +515,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     } else {
         $error_message = "Message and channel are required.";
     }
+    admin_audit_log(
+        'send_chat_message',
+        isset($success_message) ? 'success' : 'failed',
+        [
+            'channel_id' => $channel_id ?? '',
+            'message_length' => isset($message) ? strlen($message) : 0,
+            'message_preview' => isset($message) ? mb_substr($message, 0, 120) : '',
+            'result' => $success_message ?? ($error_message ?? 'Unknown error')
+        ],
+        'channel_id',
+        (string) ($channel_id ?? '')
+    );
     // Return JSON response for AJAX
     header('Content-Type: application/json');
     echo json_encode([
