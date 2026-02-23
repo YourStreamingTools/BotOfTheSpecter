@@ -291,6 +291,91 @@ function highlight_apache2_logs($text, $logType) {
     return implode("<br>", $lines);
 }
 
+function highlight_admin_audit_logs($rows) {
+    if (!is_array($rows) || empty($rows)) {
+        return '(no audit records found)';
+    }
+    $html = [];
+    foreach ($rows as $row) {
+        $createdAt = htmlspecialchars($row['created_at'] ?? '');
+        $actor = htmlspecialchars($row['actor_username'] ?? 'unknown');
+        $action = htmlspecialchars($row['action'] ?? 'unknown');
+        $status = htmlspecialchars($row['status'] ?? 'info');
+        $targetType = htmlspecialchars($row['target_type'] ?? '');
+        $targetValue = htmlspecialchars($row['target_value'] ?? '');
+        $requestMethod = htmlspecialchars($row['request_method'] ?? '');
+        $requestPath = htmlspecialchars($row['request_path'] ?? '');
+        $detailsRaw = $row['details_json'] ?? '';
+        $detailsSummary = '';
+        if (!empty($detailsRaw)) {
+            $decoded = json_decode($detailsRaw, true);
+            if (is_array($decoded)) {
+                $flattened = [];
+                foreach ($decoded as $key => $value) {
+                    if (is_array($value) || is_object($value)) {
+                        $value = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    }
+                    $flattened[] = $key . '=' . (string) $value;
+                }
+                $detailsSummary = implode(' | ', $flattened);
+            } else {
+                $detailsSummary = (string) $detailsRaw;
+            }
+        }
+        if (strlen($detailsSummary) > 500) {
+            $detailsSummary = substr($detailsSummary, 0, 500) . '...';
+        }
+        $line = '[' . $createdAt . '] '
+            . '<span style="color:#9cdcfe;">actor=' . $actor . '</span> '
+            . '<span style="color:#ce9178;">action=' . $action . '</span> '
+            . '<span style="color:#b5cea8;">status=' . $status . '</span> '
+            . '<span style="color:#dcdcaa;">request=' . $requestMethod . ' ' . $requestPath . '</span>';
+        if ($targetType !== '' || $targetValue !== '') {
+            $line .= ' <span style="color:#c586c0;">target=' . $targetType . ':' . $targetValue . '</span>';
+        }
+        if ($detailsSummary !== '') {
+            $line .= '<br>&nbsp;&nbsp;<span style="color:#d4d4d4;">details=' . htmlspecialchars($detailsSummary) . '</span>';
+        }
+        $html[] = $line;
+    }
+    return implode('<br><br>', $html);
+}
+
+if (isset($_GET['admin_audit_log'])) {
+    header('Content-Type: application/json');
+    $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 300;
+    if ($limit < 1) {
+        $limit = 1;
+    }
+    if ($limit > 1000) {
+        $limit = 1000;
+    }
+    $tableCheck = $conn->query("SHOW TABLES LIKE 'admin_audit_log'");
+    if (!$tableCheck || $tableCheck->num_rows === 0) {
+        echo json_encode(['data' => '(admin audit log table has not been created yet)']);
+        exit();
+    }
+    $stmt = $conn->prepare("SELECT created_at, actor_username, action, status, target_type, target_value, details_json, request_method, request_path FROM admin_audit_log ORDER BY id DESC LIMIT ?");
+    if (!$stmt) {
+        echo json_encode(['error' => 'query_failed']);
+        exit();
+    }
+    $stmt->bind_param('i', $limit);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = [];
+    while ($r = $res->fetch_assoc()) {
+        $rows[] = $r;
+    }
+    $stmt->close();
+    if (empty($rows)) {
+        echo json_encode(['data' => '(no audit records found)', 'empty' => true]);
+        exit();
+    }
+    echo json_encode(['data' => highlight_admin_audit_logs($rows)]);
+    exit();
+}
+
 // Handle AJAX log fetch for admin (always via SSH)
 if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     header('Content-Type: application/json');
@@ -720,6 +805,7 @@ ob_start();
                     <div class="select">
                         <select id="admin-log-category-select">
                             <option value="">Select Log Category</option>
+                            <option value="audit">Admin Audit Log</option>
                             <option value="system">System Logs</option>
                             <option value="user">User Logs</option>
                             <option value="token">Token Logs</option>
@@ -839,7 +925,16 @@ document.addEventListener('DOMContentLoaded', function() {
         tokenTypeSelect.disabled = true;
         reloadBtn.disabled = true;
         autoRefreshBtn.disabled = true; // Reset auto refresh button
-        if (adminLogCategory === 'user') {
+        if (adminLogCategory === 'audit') {
+            userSelectControl.style.display = 'none';
+            userLogTypeControl.style.display = 'none';
+            systemLogTypeControl.style.display = 'none';
+            tokenLogTypeControl.style.display = 'none';
+            systemTypeSelect.disabled = true;
+            fetchAuditLog();
+            reloadBtn.disabled = false;
+            autoRefreshBtn.disabled = false;
+        } else if (adminLogCategory === 'user') {
             userSelectControl.style.display = '';
             userSelect.disabled = false;
             userLogTypeControl.style.display = 'block';
@@ -931,7 +1026,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     reloadBtn.addEventListener('click', function() {
-        if (adminLogCategory === 'user') {
+        if (adminLogCategory === 'audit') {
+            fetchAuditLog();
+        } else if (adminLogCategory === 'user') {
             fetchAdminLog();
         } else if (adminLogCategory === 'system') {
             fetchSystemLog();
@@ -953,13 +1050,19 @@ document.addEventListener('DOMContentLoaded', function() {
     function startAutoRefresh() {
         if (autoRefreshInterval) return; // Already running
         // Only start if we have a valid log selection
-        if ((adminLogCategory === 'user' && adminLogUser && adminLogType) || 
-            (adminLogCategory === 'system' && adminLogType)) {
+        if ((adminLogCategory === 'audit') ||
+            (adminLogCategory === 'user' && adminLogUser && adminLogType) ||
+            (adminLogCategory === 'system' && adminLogType) ||
+            (adminLogCategory === 'token' && adminLogType)) {
             autoRefreshInterval = setInterval(function() {
-                if (adminLogCategory === 'user') {
+                if (adminLogCategory === 'audit') {
+                    fetchAuditLog();
+                } else if (adminLogCategory === 'user') {
                     fetchAdminLog();
                 } else if (adminLogCategory === 'system') {
                     fetchSystemLog();
+                } else if (adminLogCategory === 'token') {
+                    fetchTokenLog();
                 }
             }, 10000); // 10 seconds
             // Update button state
@@ -1016,6 +1119,27 @@ document.addEventListener('DOMContentLoaded', function() {
             scrollLogToBottom();
         } catch (e) {
             logTextarea.innerHTML = "Unable to connect to the logging system.";
+            console.error(e);
+        }
+    }
+    async function fetchAuditLog() {
+        try {
+            const resp = await fetch('logs.php?admin_audit_log=1');
+            const json = await resp.json();
+            if (json.error) {
+                logTextarea.innerHTML = 'Unable to load audit log.';
+                return;
+            }
+            if (json.empty) {
+                logTextarea.innerHTML = '(no audit records found)';
+            } else if (!json.data || json.data.trim() === '') {
+                logTextarea.innerHTML = '(audit log is empty)';
+            } else {
+                logTextarea.innerHTML = json.data;
+            }
+            logTextarea.scrollTop = 0;
+        } catch (e) {
+            logTextarea.innerHTML = 'Unable to connect to the logging system.';
             console.error(e);
         }
     }
