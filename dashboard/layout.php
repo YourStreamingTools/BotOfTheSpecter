@@ -22,8 +22,7 @@ $actingAsDisplayName = isset($_SESSION['admin_act_as_target_display_name']) ? (s
 $actingAsUsername = isset($_SESSION['admin_act_as_target_username']) ? (string) $_SESSION['admin_act_as_target_username'] : '';
 $actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $actingAsUsername);
 $actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : 'selected user', ENT_QUOTES, 'UTF-8');
-$actingAsActorRole = isset($_SESSION['admin_act_as_actor_role']) ? (string) $_SESSION['admin_act_as_actor_role'] : 'admin';
-$actingAsReturnLabel = ($actingAsActorRole === 'moderator') ? 'Return to Mod Channels' : 'Return to Admin Panel';
+$actingAsReturnLabel = 'Stop Acting As';
 $stopActAsHref = 'stop_act_as.php';
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /todolist -> respective modes; otherwise 'default'
