@@ -610,6 +610,7 @@ return [
     'followers_page_title' => 'Données Twitch - Abonnés',
     'followers_heading' => 'Vos abonnés :',
     'followers_loading' => 'Chargement des abonnés...',
+    'followers_no_followers_found' => 'Aucun follower trouvé.',
     'followers_failed' => "Échec du chargement des abonnés.",
     'total_followers' => 'Followers totaux',
     'new_followers_today' => 'Nouveaux followers aujourd\'hui',

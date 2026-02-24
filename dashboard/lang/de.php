@@ -609,6 +609,7 @@ return [
     'followers_page_title' => 'Twitch-Daten - Follower',
     'followers_heading' => 'Deine Follower:',
     'followers_loading' => 'Follower werden geladen...',
+    'followers_no_followers_found' => 'Keine Follower gefunden.',
     'followers_failed' => "Follower konnten nicht geladen werden.",
     'total_followers' => 'Gesamt Follower',
     'new_followers_today' => 'Neue Follower heute',
