@@ -30,12 +30,6 @@ if (!$targetUser) {
     exit;
 }
 
-if (empty($targetUser['access_token'])) {
-    admin_audit_log('act_as_user', 'warning', ['reason' => 'missing_access_token', 'target_user_id' => $targetUserId, 'target_username' => $targetUser['username'] ?? ''], 'user', (string) ($targetUser['username'] ?? $targetUserId));
-    header('Location: users.php?act_as=no_token');
-    exit;
-}
-
 if (!isset($_SESSION['admin_act_as_original']) || !is_array($_SESSION['admin_act_as_original'])) {
     $_SESSION['admin_act_as_original'] = [
         'user_id' => $_SESSION['user_id'] ?? null,
@@ -65,18 +59,7 @@ unset(
     $_SESSION['editing_api_key']
 );
 
-$_SESSION['user_id'] = (int) ($targetUser['id'] ?? 0);
-$_SESSION['username'] = $targetUser['username'] ?? '';
-$_SESSION['twitchUserId'] = $targetUser['twitch_user_id'] ?? '';
-$_SESSION['access_token'] = $targetUser['access_token'] ?? '';
-$_SESSION['refresh_token'] = $targetUser['refresh_token'] ?? '';
-$_SESSION['api_key'] = $targetUser['api_key'] ?? '';
-$_SESSION['is_admin'] = ((int) ($targetUser['is_admin'] ?? 0) === 1);
-$_SESSION['beta_access'] = ((int) ($targetUser['beta_access'] ?? 0) === 1);
-$_SESSION['use_custom'] = $targetUser['use_custom'] ?? 0;
-$_SESSION['use_self'] = $targetUser['use_self'] ?? 0;
-$_SESSION['user_data'] = $targetUser;
-
+$_SESSION['user_data'] = null;
 $_SESSION['admin_act_as_active'] = true;
 $_SESSION['admin_act_as_started_at'] = time();
 $_SESSION['admin_act_as_actor_user_id'] = $actorUserId;
