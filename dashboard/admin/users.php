@@ -7,6 +7,35 @@ require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include '../userdata.php';
 $pageTitle = t('admin_user_management_title');
+$currentAdminUserId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
+
+$actAsNotice = null;
+$actAsNoticeClass = 'is-info';
+if (isset($_GET['act_as'])) {
+    $actAsState = (string) $_GET['act_as'];
+    switch ($actAsState) {
+        case 'invalid':
+            $actAsNotice = 'Invalid user selected for Act As.';
+            $actAsNoticeClass = 'is-danger';
+            break;
+        case 'not_found':
+            $actAsNotice = 'The selected user could not be found.';
+            $actAsNoticeClass = 'is-danger';
+            break;
+        case 'no_token':
+            $actAsNotice = 'Cannot Act As this user because no access token is available.';
+            $actAsNoticeClass = 'is-warning';
+            break;
+        case 'error':
+            $actAsNotice = 'Unable to start Act As mode due to an internal error.';
+            $actAsNoticeClass = 'is-danger';
+            break;
+        case 'started':
+            $actAsNotice = 'Act As mode started.';
+            $actAsNoticeClass = 'is-success';
+            break;
+    }
+}
 ob_start();
 
 function getTwitchSubTier($twitch_user_id) {
@@ -147,6 +176,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
     exit;
 }
 ?>
+<?php if ($actAsNotice): ?>
+    <div class="notification <?php echo $actAsNoticeClass; ?> is-light">
+        <?php echo htmlspecialchars($actAsNotice); ?>
+    </div>
+<?php endif; ?>
 <div class="box">
     <div class="level mb-4">
         <div class="level-left">
@@ -263,6 +297,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                     <span>Restrict</span>
                                 </button>
+                            <?php endif; ?>
+                            <?php if ((int) $user['id'] !== $currentAdminUserId): ?>
+                                <a class="button is-small is-info" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="Open dashboard as this user">
+                                    <span class="icon"><i class="fas fa-user-secret"></i></span>
+                                    <span>Act As</span>
+                                </a>
                             <?php endif; ?>
                         </div>
                     </td>
