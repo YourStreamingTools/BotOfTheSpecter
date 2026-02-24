@@ -17,6 +17,18 @@ include_once __DIR__ . '/lang/i18n.php';
 $profileUsername = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8') : (isset($user['username']) ? htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') : '');
 $profileNavLabel = t('navbar_profile') . ' | ' . $profileUsername;
 $showAdminPanelLink = isset($is_admin) && $is_admin === true;
+$isActingAsUser = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
+$actingAsDisplayName = isset($_SESSION['admin_act_as_target_display_name']) ? (string) $_SESSION['admin_act_as_target_display_name'] : '';
+$actingAsUsername = isset($_SESSION['admin_act_as_target_username']) ? (string) $_SESSION['admin_act_as_target_username'] : '';
+$actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $actingAsUsername);
+$actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : 'selected user', ENT_QUOTES, 'UTF-8');
+$isModeratorActAs = isset($_SESSION['mod_act_as_active']) && $_SESSION['mod_act_as_active'] === true;
+$moderatorActAsDisplayName = isset($_SESSION['mod_act_as_target_display_name']) ? (string) $_SESSION['mod_act_as_target_display_name'] : '';
+$moderatorActAsUsername = isset($_SESSION['mod_act_as_target_username']) ? (string) $_SESSION['mod_act_as_target_username'] : '';
+$moderatorActAsLabelRaw = trim($moderatorActAsDisplayName !== '' ? $moderatorActAsDisplayName : $moderatorActAsUsername);
+$moderatorActAsLabel = htmlspecialchars($moderatorActAsLabelRaw !== '' ? $moderatorActAsLabelRaw : 'selected channel', ENT_QUOTES, 'UTF-8');
+$stopActAsHref = 'admin/stop_act_as.php';
+$stopModActAsHref = 'moderator/mod_return_home.php';
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /moderator, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {
@@ -71,6 +83,16 @@ switch ($layoutMode) {
     default:
         $brandText = 'BotOfTheSpecter';
         $brandHref = 'dashboard.php';
+}
+if ($layoutMode === 'admin') {
+    $stopActAsHref = 'stop_act_as.php';
+} elseif ($layoutMode === 'moderator' || $layoutMode === 'todolist') {
+    $stopActAsHref = '../admin/stop_act_as.php';
+}
+if ($layoutMode === 'moderator') {
+    $stopModActAsHref = 'mod_return_home.php';
+} elseif ($layoutMode === 'admin' || $layoutMode === 'todolist') {
+    $stopModActAsHref = '../moderator/mod_return_home.php';
 }
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
@@ -282,6 +304,24 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             <!-- Dev Stream Online Banner -->
             <div style="background:rgb(138, 43, 226); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><span><i class="fas fa-video"></i> Dev Stream Online - Watch live at <a href="https://twitch.tv/gfaundead" target="_blank" style="color: #fff; text-decoration: underline;">twitch.tv/gfaundead</a></span></div>
         <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($isActingAsUser): ?>
+        <div style="background:rgb(184, 134, 11); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.4px;">
+            <span>
+                <i class="fas fa-user-secret"></i>
+                ACT AS mode active &mdash; currently viewing dashboard as <strong><?php echo $actingAsLabel; ?></strong>
+                <a href="<?php echo $stopActAsHref; ?>" style="color:#fff; text-decoration:underline; margin-left:8px;">Return to Admin Panel</a>
+            </span>
+        </div>
+    <?php endif; ?>
+    <?php if ($isModeratorActAs): ?>
+        <div style="background:rgb(184, 134, 11); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.4px;">
+            <span>
+                <i class="fas fa-user-secret"></i>
+                ACT AS mode active &mdash; currently moderating as <strong><?php echo $moderatorActAsLabel; ?></strong>
+                <a href="<?php echo $stopModActAsHref; ?>" style="color:#fff; text-decoration:underline; margin-left:8px;">Return to Mod Channels</a>
+            </span>
+        </div>
     <?php endif; ?>
     <?php if ($maintenanceMode):
         $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>

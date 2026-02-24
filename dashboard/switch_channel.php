@@ -29,7 +29,15 @@ if ($row = $result->fetch_assoc()) {
     $_SESSION['editing_refresh_token'] = $row['refresh_token'];
     $_SESSION['editing_api_key'] = $row['api_key'];
 
-    // Redirect to dashboard (bot.php or any page)
+    // Moderator Act As context (mirrors admin Act As UX semantics)
+    $_SESSION['mod_act_as_active'] = true;
+    $_SESSION['mod_act_as_started_at'] = time();
+    $_SESSION['mod_act_as_actor_username'] = $_SESSION['username'] ?? '';
+    $_SESSION['mod_act_as_target_user_id'] = $row['twitch_user_id'];
+    $_SESSION['mod_act_as_target_username'] = $row['username'];
+    $_SESSION['mod_act_as_target_display_name'] = $row['twitch_display_name'];
+
+    // Redirect to moderator dashboard in Act As mode
     header('Location: moderator/index.php');
     exit();
 } else {

@@ -66,6 +66,11 @@ ob_start();
 <div class="container">
     <h1 class="title is-2">Mod Channels</h1>
     <p class="subtitle">Channels you can moderate for</p>
+    <?php if (isset($_GET['act_as']) && $_GET['act_as'] === 'stopped'): ?>
+        <div class="notification is-info is-light">
+            Moderator Act As mode has been stopped.
+        </div>
+    <?php endif; ?>
     <?php if ($showSearch): ?>
         <div class="field">
             <label class="label">Search channels</label>
@@ -99,9 +104,9 @@ ob_start();
                             <div class="content">
                                 <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="button is-primary is-fullwidth">
                                     <span class="icon">
-                                        <i class="fas fa-exchange-alt"></i>
+                                        <i class="fas fa-user-secret"></i>
                                     </span>
-                                    <span>Switch to this Channel</span>
+                                    <span>Act As This Channel</span>
                                 </a>
                             </div>
                         </div>
