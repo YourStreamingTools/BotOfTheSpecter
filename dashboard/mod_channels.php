@@ -70,6 +70,14 @@ ob_start();
         <div class="notification is-info is-light">
             Moderator Act As mode has been stopped.
         </div>
+    <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'denied'): ?>
+        <div class="notification is-danger is-light">
+            You do not have permission to Act As that channel.
+        </div>
+    <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'not_found'): ?>
+        <div class="notification is-warning is-light">
+            The selected channel could not be found.
+        </div>
     <?php endif; ?>
     <?php if ($showSearch): ?>
         <div class="field">

@@ -8,6 +8,8 @@ if (!isset($_SESSION['admin_act_as_active']) || $_SESSION['admin_act_as_active']
     exit;
 }
 
+$actorRole = isset($_SESSION['admin_act_as_actor_role']) ? (string) $_SESSION['admin_act_as_actor_role'] : 'admin';
+
 $original = $_SESSION['admin_act_as_original'] ?? null;
 if (!is_array($original) || empty($original['access_token'])) {
     unset(
@@ -15,6 +17,7 @@ if (!is_array($original) || empty($original['access_token'])) {
         $_SESSION['admin_act_as_started_at'],
         $_SESSION['admin_act_as_actor_user_id'],
         $_SESSION['admin_act_as_actor_username'],
+        $_SESSION['admin_act_as_actor_role'],
         $_SESSION['admin_act_as_target_user_id'],
         $_SESSION['admin_act_as_target_username'],
         $_SESSION['admin_act_as_target_display_name'],
@@ -41,6 +44,7 @@ unset(
     $_SESSION['admin_act_as_started_at'],
     $_SESSION['admin_act_as_actor_user_id'],
     $_SESSION['admin_act_as_actor_username'],
+    $_SESSION['admin_act_as_actor_role'],
     $_SESSION['admin_act_as_target_user_id'],
     $_SESSION['admin_act_as_target_username'],
     $_SESSION['admin_act_as_target_display_name'],
@@ -51,8 +55,19 @@ unset(
     $_SESSION['editing_profile_image'],
     $_SESSION['editing_access_token'],
     $_SESSION['editing_refresh_token'],
-    $_SESSION['editing_api_key']
+    $_SESSION['editing_api_key'],
+    $_SESSION['mod_act_as_active'],
+    $_SESSION['mod_act_as_started_at'],
+    $_SESSION['mod_act_as_actor_username'],
+    $_SESSION['mod_act_as_target_user_id'],
+    $_SESSION['mod_act_as_target_username'],
+    $_SESSION['mod_act_as_target_display_name']
 );
+
+if ($actorRole === 'moderator') {
+    header('Location: ../mod_channels.php?act_as=stopped');
+    exit;
+}
 
 header('Location: index.php?act_as=stopped');
 exit;

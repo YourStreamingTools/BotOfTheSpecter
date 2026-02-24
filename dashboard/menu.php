@@ -1,6 +1,6 @@
 <?php
 // Single menu renderer used by both mobile and desktop layouts
-// Usage: include_once __DIR__ . '/menu.php'; renderMenu('mobile'|'desktop', 'default'|'admin'|'moderator'|'todolist');
+// Usage: include_once __DIR__ . '/menu.php'; renderMenu('mobile'|'desktop', 'default'|'admin'|'todolist');
 
 function getMenuItems($role = 'default')
 {
@@ -55,28 +55,6 @@ function getMenuItems($role = 'default')
         [ 'label' => t('navbar_todo_list'), 'icon' => 'fas fa-list-check', 'href' => 'todolist/index.php' ],
     ];
 
-    // moderator (mod panel) menu
-    $moderator = [
-        [ 'label' => 'Mod Dashboard', 'icon' => 'fas fa-shield-alt', 'href' => 'index.php' ],
-        [ 'label' => t('navbar_commands'), 'icon' => 'fas fa-terminal', 'submenu' => [
-            [ 'label' => t('navbar_view_custom_commands'), 'icon' => 'fas fa-terminal', 'href' => 'commands.php' ],
-            [ 'label' => t('navbar_view_builtin_commands'), 'icon' => 'fas fa-terminal', 'href' => 'builtin.php' ],
-            [ 'label' => t('navbar_manage_user_commands'), 'icon' => 'fas fa-user-cog', 'href' => 'manage_custom_commands.php' ],
-        ]],
-        [ 'label' => t('navbar_timed_messages'), 'icon' => 'fas fa-clock', 'href' => 'timed_messages.php' ],
-        [ 'label' => t('navbar_points_system'), 'icon' => 'fas fa-coins', 'href' => 'bot_points.php' ],
-        [ 'label' => t('navbar_counters'), 'icon' => 'fas fa-calculator', 'submenu' => [
-            [ 'label' => t('navbar_counters'), 'icon' => 'fas fa-calculator', 'href' => 'counters.php' ],
-            [ 'label' => t('navbar_edit_counters'), 'icon' => 'fas fa-edit', 'href' => 'edit_counters.php' ],
-        ]],
-        [ 'label' => t('known_users_title'), 'icon' => 'fas fa-users', 'href' => 'known_users.php' ],
-        [ 'label' => t('navbar_alerts'), 'icon' => 'fas fa-bell', 'submenu' => [
-            [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
-            [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
-            [ 'label' => t('navbar_walkon_alerts'), 'icon' => 'fas fa-door-open', 'href' => 'walkons.php' ],
-        ]],
-    ];
-
     // admin menu (admin panel)
     $admin = [
         [ 'label' => 'Dashboard', 'icon' => 'fas fa-tachometer-alt', 'href' => 'index.php' ],
@@ -112,8 +90,6 @@ function getMenuItems($role = 'default')
     switch ($role) {
         case 'admin':
             return $admin;
-        case 'moderator':
-            return $moderator;
         case 'todolist':
             return $todolist;
         default:
