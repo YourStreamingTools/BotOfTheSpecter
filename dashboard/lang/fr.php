@@ -975,6 +975,7 @@ return [
     'modules_joke_explicit' => 'Explicite',
     'modules_joke_command_control' => 'Contrôle de la commande',
     'modules_joke_command_control_description' => 'Vous pouvez contrôler la commande de blague avec le bouton suivant.',
+    'modules_joke_command_status_updated' => 'Le statut de la commande de blague a été mis à jour avec succès.',
     'modules_save_blacklist_settings' => 'Enregistrer la liste noire',
     'modules_custom_welcome_title' => 'Messages de bienvenue personnalisés',
     'modules_welcome_variable_info' => 'Vous pouvez utiliser la variable <code>(user)</code> dans le message de bienvenue. Elle sera remplacée par le nom d\'utilisateur entrant dans le chat.',
