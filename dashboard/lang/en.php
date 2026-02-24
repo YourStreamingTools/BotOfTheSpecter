@@ -1033,6 +1033,7 @@ return [
     'modules_joke_explicit' => 'Explicit',
     'modules_joke_command_control' => 'Command Control',
     'modules_joke_command_control_description' => 'You can control the joke command with the following toggle.',
+    'modules_joke_command_status_updated' => 'Joke command status updated successfully.',
     'modules_save_blacklist_settings' => 'Save Blacklist Settings',
     'modules_custom_welcome_title' => 'Custom Welcome Messages',
     'modules_welcome_variable_info' => 'You can use the <code>(user)</code> variable in the welcome message. It will be replaced with the username of the user entering the chat.',

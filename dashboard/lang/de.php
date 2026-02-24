@@ -975,6 +975,7 @@ return [
     'modules_joke_explicit' => 'Explizit',
     'modules_joke_command_control' => 'Befehlskontrolle',
     'modules_joke_command_control_description' => 'Sie können den Witz-Befehl mit dem folgenden Schalter steuern.',
+    'modules_joke_command_status_updated' => 'Der Status des Witz-Befehls wurde erfolgreich aktualisiert.',
     'modules_save_blacklist_settings' => 'Blacklist speichern',
     'modules_custom_welcome_title' => 'Benutzerdefinierte Willkommensnachrichten',
     'modules_welcome_variable_info' => 'Sie können die Variable <code>(user)</code> im Willkommensnachricht verwenden. Sie wird durch den Benutzernamen ersetzt.',
