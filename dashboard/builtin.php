@@ -386,14 +386,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) {
         var query = localStorage.getItem('searchQuery') || '';
         searchInput.value = query;
-        // Use setTimeout to ensure table is fully rendered before searching
-        setTimeout(function() {
-            if (typeof searchFunction === "function") {
-                searchFunction();
-            }
-        }, 100);
         searchInput.addEventListener('input', function() {
             localStorage.setItem('searchQuery', this.value);
+            applyTableFilters();
         });
     }
     // Attach event listeners for filter checkboxes
@@ -401,18 +396,18 @@ document.addEventListener('DOMContentLoaded', function() {
     var showDisabled = document.getElementById('showDisabled');
     if (showEnabled) {
         showEnabled.addEventListener('change', function() {
-            toggleFilter();
+            applyTableFilters();
             setCookie('show_enabled_commands', this.checked ? 'true' : 'false', 30);
         });
     }
     if (showDisabled) {
         showDisabled.addEventListener('change', function() {
-            toggleFilter();
+            applyTableFilters();
             setCookie('show_disabled_commands', this.checked ? 'true' : 'false', 30);
         });
     }
-    // Initial filter
-    toggleFilter();
+    // Initial filter pass (search + status)
+    applyTableFilters();
     // Add keyboard support for modal
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape') {
@@ -430,23 +425,41 @@ function setCookie(name, value, days) {
 }
 
 function searchFunction() {
+    applyTableFilters();
+}
+
+function applyTableFilters() {
     const input = document.getElementById('searchInput');
-    const filter = input.value.toLowerCase();
+    const filter = input ? input.value.toLowerCase() : '';
+    const showEnabledElem = document.getElementById('showEnabled');
+    const showDisabledElem = document.getElementById('showDisabled');
+    const showEnabled = showEnabledElem ? showEnabledElem.checked : true;
+    const showDisabled = showDisabledElem ? showDisabledElem.checked : true;
     const table = document.getElementById('commandsTable');
+    if (!table) return;
     const rows = table.getElementsByTagName('tr');
+
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (row.classList.contains('commandRow')) {
+            const status = row.getAttribute('data-status');
+            const statusAllowed = (showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled');
             const cells = row.getElementsByTagName('td');
-            let found = false;
-            for (let j = 0; j < cells.length; j++) {
-                const cellText = cells[j].textContent || cells[j].innerText;
-                if (cellText.toLowerCase().indexOf(filter) > -1) {
-                    found = true;
-                    break;
+            let matchesSearch = false;
+
+            if (!filter) {
+                matchesSearch = true;
+            } else {
+                for (let j = 0; j < cells.length; j++) {
+                    const cellText = cells[j].textContent || cells[j].innerText;
+                    if (cellText.toLowerCase().indexOf(filter) > -1) {
+                        matchesSearch = true;
+                        break;
+                    }
                 }
             }
-            if (found) {
+
+            if (statusAllowed && matchesSearch) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
@@ -456,17 +469,7 @@ function searchFunction() {
 }
 
 function toggleFilter() {
-    const showEnabled = document.getElementById('showEnabled').checked;
-    const showDisabled = document.getElementById('showDisabled').checked;
-    const rows = document.querySelectorAll('.commandRow');
-    rows.forEach(row => {
-        const status = row.getAttribute('data-status');
-        if ((showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled')) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
+    applyTableFilters();
 }
 
 function toggleStatus(commandName, isChecked, toggleElem) {
