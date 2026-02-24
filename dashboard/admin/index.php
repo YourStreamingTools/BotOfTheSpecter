@@ -536,6 +536,180 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
     exit;
 }
 
+// Handle send shoutout action
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
+    $from_broadcaster_id = trim((string)($_POST['channel_id'] ?? ''));
+    $target_login_raw = trim((string)($_POST['shoutout_username'] ?? ''));
+    $target_login = ltrim(strtolower($target_login_raw), '@');
+    $moderator_id = '971436498';
+    $success = false;
+    $response_message = 'Unknown error';
+    $resolved_target_id = '';
+    $resolved_target_game = '';
+    $chat_message_sent = false;
+    if (empty($from_broadcaster_id) || empty($target_login)) {
+        $response_message = 'Channel and shoutout username are required.';
+    } elseif (!preg_match('/^[a-z0-9_]{3,25}$/', $target_login)) {
+        $response_message = 'Invalid Twitch username format.';
+    } else {
+        $lookup_url = 'https://api.twitch.tv/helix/users?login=' . rawurlencode($target_login);
+        $headers = [
+            'Authorization: Bearer ' . $oauth,
+            'Client-Id: ' . $clientID,
+            'Content-Type: application/json'
+        ];
+        $lookup_ch = curl_init($lookup_url);
+        curl_setopt($lookup_ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($lookup_ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($lookup_ch, CURLOPT_TIMEOUT, 10);
+        $lookup_response = curl_exec($lookup_ch);
+        $lookup_http_code = curl_getinfo($lookup_ch, CURLINFO_HTTP_CODE);
+        $lookup_curl_errno = curl_errno($lookup_ch);
+        $lookup_curl_error = curl_error($lookup_ch);
+        curl_close($lookup_ch);
+        if ($lookup_curl_errno) {
+            $response_message = 'Failed to validate user: ' . $lookup_curl_error;
+        } elseif ($lookup_http_code !== 200) {
+            $response_message = 'Failed to validate user. HTTP ' . $lookup_http_code;
+            $lookup_error_json = json_decode((string)$lookup_response, true);
+            if (is_array($lookup_error_json) && !empty($lookup_error_json['message'])) {
+                $response_message .= ': ' . $lookup_error_json['message'];
+            }
+        } else {
+            $lookup_data = json_decode((string)$lookup_response, true);
+            $resolved_user = (is_array($lookup_data) && isset($lookup_data['data'][0]) && is_array($lookup_data['data'][0])) ? $lookup_data['data'][0] : null;
+            if (!$resolved_user || empty($resolved_user['id'])) {
+                $response_message = 'Twitch user not found for username: ' . $target_login;
+            } else {
+                $resolved_target_id = (string)$resolved_user['id'];
+                $resolved_target_login = (string)($resolved_user['login'] ?? $target_login);
+                $resolved_target_display = (string)($resolved_user['display_name'] ?? $resolved_target_login);
+                if ($resolved_target_id === $from_broadcaster_id) {
+                    $response_message = 'You cannot send a shoutout to the same broadcaster.';
+                } else {
+                    $shoutout_query = http_build_query([
+                        'from_broadcaster_id' => $from_broadcaster_id,
+                        'to_broadcaster_id' => $resolved_target_id,
+                        'moderator_id' => $moderator_id
+                    ]);
+                    $shoutout_url = 'https://api.twitch.tv/helix/chat/shoutouts?' . $shoutout_query;
+                    $shoutout_ch = curl_init($shoutout_url);
+                    curl_setopt($shoutout_ch, CURLOPT_POST, true);
+                    curl_setopt($shoutout_ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($shoutout_ch, CURLOPT_HTTPHEADER, $headers);
+                    curl_setopt($shoutout_ch, CURLOPT_TIMEOUT, 10);
+                    $shoutout_response = curl_exec($shoutout_ch);
+                    $shoutout_http_code = curl_getinfo($shoutout_ch, CURLINFO_HTTP_CODE);
+                    $shoutout_curl_errno = curl_errno($shoutout_ch);
+                    $shoutout_curl_error = curl_error($shoutout_ch);
+                    curl_close($shoutout_ch);
+                    if ($shoutout_curl_errno) {
+                        $response_message = 'Failed to send shoutout: ' . $shoutout_curl_error;
+                    } elseif ($shoutout_http_code === 204) {
+                        $channels_url = 'https://api.twitch.tv/helix/channels?broadcaster_id=' . rawurlencode($resolved_target_id);
+                        $channels_ch = curl_init($channels_url);
+                        curl_setopt($channels_ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($channels_ch, CURLOPT_HTTPHEADER, $headers);
+                        curl_setopt($channels_ch, CURLOPT_TIMEOUT, 10);
+                        $channels_response = curl_exec($channels_ch);
+                        $channels_http_code = curl_getinfo($channels_ch, CURLINFO_HTTP_CODE);
+                        $channels_curl_errno = curl_errno($channels_ch);
+                        curl_close($channels_ch);
+                        if (!$channels_curl_errno && $channels_http_code === 200) {
+                            $channels_data = json_decode((string)$channels_response, true);
+                            if (is_array($channels_data) && isset($channels_data['data'][0]) && is_array($channels_data['data'][0])) {
+                                $resolved_target_game = trim((string)($channels_data['data'][0]['game_name'] ?? ''));
+                            }
+                        }
+                        if (!empty($resolved_target_game)) {
+                            $shoutout_message = 'Hey, huge shoutout to @' . $resolved_target_login . '! '
+                                . 'You should go give them a follow over at '
+                                . 'https://www.twitch.tv/' . $resolved_target_login . ' where they were playing: ' . $resolved_target_game;
+                        } else {
+                            $shoutout_message = 'Hey, huge shoutout to @' . $resolved_target_login . '! '
+                                . 'You should go give them a follow over at '
+                                . 'https://www.twitch.tv/' . $resolved_target_login;
+                        }
+                        $chat_url = 'https://api.twitch.tv/helix/chat/messages';
+                        $chat_payload = [
+                            'broadcaster_id' => $from_broadcaster_id,
+                            'sender_id' => $moderator_id,
+                            'message' => $shoutout_message
+                        ];
+                        $chat_ch = curl_init($chat_url);
+                        curl_setopt($chat_ch, CURLOPT_POST, true);
+                        curl_setopt($chat_ch, CURLOPT_POSTFIELDS, json_encode($chat_payload));
+                        curl_setopt($chat_ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chat_ch, CURLOPT_HTTPHEADER, $headers);
+                        curl_setopt($chat_ch, CURLOPT_TIMEOUT, 10);
+                        $chat_response = curl_exec($chat_ch);
+                        $chat_http_code = curl_getinfo($chat_ch, CURLINFO_HTTP_CODE);
+                        $chat_curl_errno = curl_errno($chat_ch);
+                        $chat_curl_error = curl_error($chat_ch);
+                        curl_close($chat_ch);
+                        $success = true;
+                        $chat_message_error = null;
+                        if ($chat_curl_errno) {
+                            $chat_message_error = 'Failed to send chat shoutout message: ' . $chat_curl_error;
+                        } elseif ($chat_http_code === 200) {
+                            $chat_response_data = json_decode((string)$chat_response, true);
+                            if (is_array($chat_response_data) && isset($chat_response_data['data'][0]) && is_array($chat_response_data['data'][0])) {
+                                $chat_message_sent = !empty($chat_response_data['data'][0]['is_sent']);
+                                if (!$chat_message_sent) {
+                                    $drop_reason = $chat_response_data['data'][0]['drop_reason'] ?? null;
+                                    $chat_message_error = 'Shoutout chat message was not sent' . ($drop_reason ? (': ' . $drop_reason) : '.');
+                                }
+                            } else {
+                                $chat_message_error = 'Shoutout sent but chat message response was invalid.';
+                            }
+                        } else {
+                            $chat_message_error = 'Shoutout sent but failed to send chat message. HTTP ' . $chat_http_code;
+                            $chat_error_json = json_decode((string)$chat_response, true);
+                            if (is_array($chat_error_json) && !empty($chat_error_json['message'])) {
+                                $chat_message_error .= ': ' . $chat_error_json['message'];
+                            }
+                        }
+                        if ($chat_message_error) {
+                            $response_message = 'Shoutout sent to ' . $resolved_target_display . ' successfully. ' . $chat_message_error;
+                        } else {
+                            $response_message = 'Shoutout sent to ' . $resolved_target_display . ' successfully and message posted in chat.';
+                        }
+                    } else {
+                        $response_message = 'Failed to send shoutout. HTTP ' . $shoutout_http_code;
+                        $shoutout_error_json = json_decode((string)$shoutout_response, true);
+                        if (is_array($shoutout_error_json) && !empty($shoutout_error_json['message'])) {
+                            $response_message .= ': ' . $shoutout_error_json['message'];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    admin_audit_log(
+        'send_shoutout',
+        $success ? 'success' : 'failed',
+        [
+            'channel_id' => $from_broadcaster_id,
+            'target_login' => $target_login,
+            'target_user_id' => $resolved_target_id,
+            'target_game' => $resolved_target_game,
+            'chat_message_sent' => $chat_message_sent ? 1 : 0,
+            'result' => $response_message
+        ],
+        'channel_id',
+        (string)$from_broadcaster_id
+    );
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => $success,
+        'message' => $response_message,
+        'target_user_id' => $resolved_target_id,
+        'target_game' => $resolved_target_game,
+        'chat_message_sent' => $chat_message_sent
+    ]);
+    exit;
+}
+
 // Function to check if a channel is online
 function isOnline($user_id, $client_id, $bearer) {
     $url = "https://api.twitch.tv/helix/streams?user_id=" . urlencode($user_id);
@@ -687,6 +861,62 @@ if (isset($_GET['ajax'])) {
             }
         }
         echo json_encode(['channels' => $channels]);
+        exit;
+    } elseif ($ajax === 'validate_shoutout_user') {
+        $login_raw = trim((string)($_GET['login'] ?? ''));
+        $login = ltrim(strtolower($login_raw), '@');
+        if (empty($login)) {
+            echo json_encode(['valid' => false, 'message' => 'Username is required.']);
+            exit;
+        }
+        if (!preg_match('/^[a-z0-9_]{3,25}$/', $login)) {
+            echo json_encode(['valid' => false, 'message' => 'Invalid Twitch username format.']);
+            exit;
+        }
+
+        $lookup_url = 'https://api.twitch.tv/helix/users?login=' . rawurlencode($login);
+        $headers = [
+            'Authorization: Bearer ' . $oauth,
+            'Client-Id: ' . $clientID,
+            'Content-Type: application/json'
+        ];
+        $lookup_ch = curl_init($lookup_url);
+        curl_setopt($lookup_ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($lookup_ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($lookup_ch, CURLOPT_TIMEOUT, 10);
+        $lookup_response = curl_exec($lookup_ch);
+        $lookup_http_code = curl_getinfo($lookup_ch, CURLINFO_HTTP_CODE);
+        $lookup_curl_errno = curl_errno($lookup_ch);
+        $lookup_curl_error = curl_error($lookup_ch);
+        curl_close($lookup_ch);
+
+        if ($lookup_curl_errno) {
+            echo json_encode(['valid' => false, 'message' => 'Validation request failed: ' . $lookup_curl_error]);
+            exit;
+        }
+        if ($lookup_http_code !== 200) {
+            $error_message = 'Validation failed. HTTP ' . $lookup_http_code;
+            $lookup_error_json = json_decode((string)$lookup_response, true);
+            if (is_array($lookup_error_json) && !empty($lookup_error_json['message'])) {
+                $error_message .= ': ' . $lookup_error_json['message'];
+            }
+            echo json_encode(['valid' => false, 'message' => $error_message]);
+            exit;
+        }
+
+        $lookup_data = json_decode((string)$lookup_response, true);
+        $resolved_user = (is_array($lookup_data) && isset($lookup_data['data'][0]) && is_array($lookup_data['data'][0])) ? $lookup_data['data'][0] : null;
+        if (!$resolved_user || empty($resolved_user['id'])) {
+            echo json_encode(['valid' => false, 'message' => 'Twitch user not found.']);
+            exit;
+        }
+
+        echo json_encode([
+            'valid' => true,
+            'user_id' => (string)$resolved_user['id'],
+            'login' => (string)($resolved_user['login'] ?? $login),
+            'display_name' => (string)($resolved_user['display_name'] ?? $login)
+        ]);
         exit;
     } elseif ($ajax === 'bot_message_counts') {
         // Fetch bot message counts and last updated times
@@ -1564,6 +1794,19 @@ ob_start();
                     </div>
                 </div>
             </form>
+            <hr>
+            <div class="field">
+                <label class="label">Shoutout Username</label>
+                <div class="control">
+                    <input class="input" type="text" id="shoutout-username" placeholder="Enter Twitch username (for example: BotOfTheSpecter)">
+                </div>
+                <small id="shoutout-helper-text" class="has-text-grey">Please select a channel above</small>
+            </div>
+            <div class="field">
+                <div class="control">
+                    <button class="button is-link" type="button" id="send-shoutout" disabled>Send Shoutout</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -2441,6 +2684,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const channelSelect = document.getElementById('channel-select');
     const includeOfflineCheckbox = document.getElementById('include-offline');
     const charCountElement = document.getElementById('char-count');
+    const shoutoutUsernameInput = document.getElementById('shoutout-username');
+    const sendShoutoutButton = document.getElementById('send-shoutout');
+    const shoutoutHelperText = document.getElementById('shoutout-helper-text');
+    let shoutoutUsernameValid = false;
+    let shoutoutValidationTimer = null;
+    let shoutoutValidationRequestId = 0;
     // Templates map injected from server
     const templatesMap = <?php echo json_encode($message_templates, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>;
     const templateSelect = document.getElementById('message-template-select');
@@ -2478,6 +2727,94 @@ document.addEventListener('DOMContentLoaded', function() {
         const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
         sendButton.disabled = !(hasMessage && hasChannel);
     }
+    function updateShoutoutButtonState() {
+        if (!sendShoutoutButton) return;
+        const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
+        sendShoutoutButton.disabled = !(hasChannel && shoutoutUsernameValid);
+    }
+    function updateShoutoutHelperText() {
+        if (!shoutoutHelperText) return;
+        const hasChannel = channelSelect && channelSelect.value && channelSelect.value !== '';
+        const username = shoutoutUsernameInput ? shoutoutUsernameInput.value.trim() : '';
+        if (!hasChannel) {
+            shoutoutHelperText.textContent = 'Please select a channel above';
+            return;
+        }
+        if (!username) {
+            shoutoutHelperText.textContent = 'The selected channel above will send this shoutout';
+            return;
+        }
+        if (shoutoutUsernameValid) {
+            shoutoutHelperText.textContent = 'Username validated. Ready to send shoutout.';
+        }
+    }
+    function setShoutoutInputState(state) {
+        if (!shoutoutUsernameInput) return;
+        shoutoutUsernameInput.classList.remove('is-success', 'is-danger', 'is-warning');
+        if (state === 'success') {
+            shoutoutUsernameInput.classList.add('is-success');
+        } else if (state === 'error') {
+            shoutoutUsernameInput.classList.add('is-danger');
+        } else if (state === 'loading') {
+            shoutoutUsernameInput.classList.add('is-warning');
+        }
+    }
+    function validateShoutoutUsernameDebounced() {
+        if (!shoutoutUsernameInput) return;
+        if (shoutoutValidationTimer) {
+            clearTimeout(shoutoutValidationTimer);
+        }
+
+        const username = shoutoutUsernameInput.value.trim();
+        shoutoutUsernameValid = false;
+        setShoutoutInputState('idle');
+
+        if (!username) {
+            updateShoutoutButtonState();
+            updateShoutoutHelperText();
+            return;
+        }
+        if (!/^[a-z0-9_]{3,25}$/i.test(username.replace(/^@+/, ''))) {
+            setShoutoutInputState('error');
+            if (shoutoutHelperText) shoutoutHelperText.textContent = 'Invalid Twitch username format.';
+            updateShoutoutButtonState();
+            return;
+        }
+
+        setShoutoutInputState('loading');
+        if (shoutoutHelperText) shoutoutHelperText.textContent = 'Validating username...';
+
+        const currentRequestId = ++shoutoutValidationRequestId;
+        shoutoutValidationTimer = setTimeout(() => {
+            const normalized = username.replace(/^@+/, '').toLowerCase();
+            const base = window.location.href.split('?')[0];
+            const url = base + '?ajax=validate_shoutout_user&login=' + encodeURIComponent(normalized);
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (currentRequestId !== shoutoutValidationRequestId) return;
+                    shoutoutUsernameValid = !!data.valid;
+                    if (shoutoutUsernameValid) {
+                        setShoutoutInputState('success');
+                    } else {
+                        setShoutoutInputState('error');
+                        if (shoutoutHelperText) {
+                            shoutoutHelperText.textContent = data.message || 'Username validation failed.';
+                        }
+                    }
+                    updateShoutoutButtonState();
+                    updateShoutoutHelperText();
+                })
+                .catch(err => {
+                    if (currentRequestId !== shoutoutValidationRequestId) return;
+                    console.error('Shoutout username validation failed:', err);
+                    shoutoutUsernameValid = false;
+                    setShoutoutInputState('error');
+                    if (shoutoutHelperText) shoutoutHelperText.textContent = 'Unable to validate username right now.';
+                    updateShoutoutButtonState();
+                });
+        }, 1000);
+    }
     // Fetch channels via AJAX (deferred heavy work)
     function fetchChannels() {
         const includeOffline = includeOfflineCheckbox && includeOfflineCheckbox.checked;
@@ -2510,6 +2847,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     channelSelect.disabled = false;
                 }
                 updateSendButtonState();
+                updateShoutoutButtonState();
+                updateShoutoutHelperText();
             })
             .catch(err => {
                 console.error('Failed to load channels:', err);
@@ -2522,6 +2861,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     channelSelect.disabled = true;
                 }
                 updateSendButtonState();
+                updateShoutoutButtonState();
+                updateShoutoutHelperText();
             });
     }
     // Initial fetch
@@ -2537,11 +2878,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     if (channelSelect) {
-        channelSelect.addEventListener('change', updateSendButtonState);
+        channelSelect.addEventListener('change', function() {
+            updateSendButtonState();
+            updateShoutoutButtonState();
+            updateShoutoutHelperText();
+        });
+    }
+    if (shoutoutUsernameInput) {
+        shoutoutUsernameInput.addEventListener('input', function() {
+            validateShoutoutUsernameDebounced();
+        });
     }
     // Initial updates
     updateCharCount();
     updateSendButtonState();
+    updateShoutoutButtonState();
+    updateShoutoutHelperText();
     // Handle form submission via AJAX
     const sendMessageForm = document.getElementById('send-message-form');
     if (sendMessageForm) {
@@ -2610,6 +2962,74 @@ document.addEventListener('DOMContentLoaded', function() {
             .finally(() => {
                 sendButton.disabled = false;
                 sendButton.innerHTML = originalText;
+                updateSendButtonState();
+                updateShoutoutButtonState();
+            });
+        });
+    }
+    if (sendShoutoutButton) {
+        sendShoutoutButton.addEventListener('click', function() {
+            const channelId = channelSelect ? channelSelect.value : '';
+            const username = shoutoutUsernameInput ? shoutoutUsernameInput.value.trim() : '';
+            if (!channelId || !username) {
+                return;
+            }
+            const formData = new FormData();
+            formData.append('send_shoutout', '1');
+            formData.append('channel_id', channelId);
+            formData.append('shoutout_username', username);
+            const originalText = sendShoutoutButton.innerHTML;
+            sendShoutoutButton.disabled = true;
+            sendShoutoutButton.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Sending...</span>';
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (shoutoutUsernameInput) {
+                        shoutoutUsernameInput.value = '';
+                    }
+                    shoutoutUsernameValid = false;
+                    setShoutoutInputState('idle');
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                        icon: 'success',
+                        title: data.message
+                    });
+                } else {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 5000,
+                        timerProgressBar: true,
+                        icon: 'error',
+                        title: data.message || 'Failed to send shoutout'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error sending shoutout:', error);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true,
+                    icon: 'error',
+                    title: 'Network error: ' + error.message
+                });
+            })
+            .finally(() => {
+                sendShoutoutButton.innerHTML = originalText;
+                updateShoutoutButtonState();
+                updateShoutoutHelperText();
             });
         });
     }
