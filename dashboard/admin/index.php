@@ -129,6 +129,191 @@ function parse_openai_grouped_usage($data) {
     return $map;
 }
 
+function openai_normalize_model_name($model) {
+    $name = strtolower(trim((string)$model));
+    if ($name === '') return 'unknown';
+    $name = preg_replace('/\s+/', '', $name);
+    return $name;
+}
+
+function openai_get_default_pricing_per_million() {
+    return [
+        'gpt-4o' => ['input' => 2.50, 'output' => 10.00],
+        'gpt-4o-mini' => ['input' => 0.15, 'output' => 0.60],
+        'gpt-4.1' => ['input' => 2.00, 'output' => 8.00],
+        'gpt-4.1-mini' => ['input' => 0.40, 'output' => 1.60],
+        'gpt-4.1-nano' => ['input' => 0.10, 'output' => 0.40],
+        'o3' => ['input' => 10.00, 'output' => 40.00],
+        'o3-mini' => ['input' => 1.10, 'output' => 4.40],
+        'o1' => ['input' => 15.00, 'output' => 60.00],
+        'o1-mini' => ['input' => 3.00, 'output' => 12.00]
+    ];
+}
+
+function openai_resolve_pricing_for_model($model, $openai_config = null) {
+    $defaults = openai_get_default_pricing_per_million();
+    $configured = [];
+    if (is_array($openai_config) && isset($openai_config['pricing_per_million']) && is_array($openai_config['pricing_per_million'])) {
+        foreach ($openai_config['pricing_per_million'] as $k => $v) {
+            if (!is_array($v)) continue;
+            $nk = openai_normalize_model_name($k);
+            $configured[$nk] = [
+                'input' => isset($v['input']) ? floatval($v['input']) : 0.0,
+                'output' => isset($v['output']) ? floatval($v['output']) : 0.0
+            ];
+        }
+    }
+    $priceMap = !empty($configured) ? $configured : $defaults;
+    $source = !empty($configured) ? 'config' : 'default';
+    $normalizedModel = openai_normalize_model_name($model);
+    if (isset($priceMap[$normalizedModel])) {
+        return [
+            'input' => max(0, floatval($priceMap[$normalizedModel]['input'] ?? 0)),
+            'output' => max(0, floatval($priceMap[$normalizedModel]['output'] ?? 0)),
+            'matched_model' => $normalizedModel,
+            'source' => $source
+        ];
+    }
+    $bestKey = null;
+    foreach (array_keys($priceMap) as $candidate) {
+        if ($candidate === 'default') continue;
+        if ($candidate !== '' && strpos($normalizedModel, $candidate) === 0) {
+            if ($bestKey === null || strlen($candidate) > strlen($bestKey)) {
+                $bestKey = $candidate;
+            }
+        }
+    }
+    if ($bestKey !== null) {
+        return [
+            'input' => max(0, floatval($priceMap[$bestKey]['input'] ?? 0)),
+            'output' => max(0, floatval($priceMap[$bestKey]['output'] ?? 0)),
+            'matched_model' => $bestKey,
+            'source' => $source
+        ];
+    }
+    $defaultInput = 0.0;
+    $defaultOutput = 0.0;
+    if (isset($priceMap['default']) && is_array($priceMap['default'])) {
+        $defaultInput = max(0, floatval($priceMap['default']['input'] ?? 0));
+        $defaultOutput = max(0, floatval($priceMap['default']['output'] ?? 0));
+    } elseif (is_array($openai_config) && isset($openai_config['default_pricing_per_million']) && is_array($openai_config['default_pricing_per_million'])) {
+        $defaultInput = max(0, floatval($openai_config['default_pricing_per_million']['input'] ?? 0));
+        $defaultOutput = max(0, floatval($openai_config['default_pricing_per_million']['output'] ?? 0));
+    }
+    return [
+        'input' => $defaultInput,
+        'output' => $defaultOutput,
+        'matched_model' => $defaultInput > 0 || $defaultOutput > 0 ? 'default' : 'unpriced',
+        'source' => $source
+    ];
+}
+
+function openai_estimate_model_cost($model, $input_tokens, $output_tokens, $openai_config = null) {
+    $pricing = openai_resolve_pricing_for_model($model, $openai_config);
+    $inputTokens = max(0, intval($input_tokens));
+    $outputTokens = max(0, intval($output_tokens));
+    $inputCost = ($inputTokens / 1000000) * floatval($pricing['input']);
+    $outputCost = ($outputTokens / 1000000) * floatval($pricing['output']);
+    return [
+        'total' => $inputCost + $outputCost,
+        'input_cost' => $inputCost,
+        'output_cost' => $outputCost,
+        'input_rate_per_million' => floatval($pricing['input']),
+        'output_rate_per_million' => floatval($pricing['output']),
+        'matched_model' => $pricing['matched_model'] ?? 'unpriced',
+        'source' => $pricing['source'] ?? 'default'
+    ];
+}
+
+function render_ai_platform_stats_content($ai_model_stats, $ai_model_cost_stats, $ai_total_estimated_cost, $ai_cost_pricing_source, $ai_cost_window_label, $ai_has_priced_models, $ai_total_requests, $ai_requests_per_day) {
+    $sorted_model_stats = is_array($ai_model_stats) ? $ai_model_stats : [];
+    $total_input_tokens = 0;
+    $total_output_tokens = 0;
+    foreach ($sorted_model_stats as $mvals) {
+        $total_input_tokens += isset($mvals['input']) ? intval($mvals['input']) : 0;
+        $total_output_tokens += isset($mvals['output']) ? intval($mvals['output']) : 0;
+    }
+    $total_efficiency_ratio = $total_input_tokens > 0 ? ($total_output_tokens / $total_input_tokens) : null;
+    uasort($sorted_model_stats, function($a, $b) {
+        $ain = $a['input'] ?? 0; $bin = $b['input'] ?? 0;
+        if ($bin !== $ain) return $bin <=> $ain;
+        $aout = $a['output'] ?? 0; $bout = $b['output'] ?? 0;
+        return $bout <=> $aout;
+    });
+ob_start();
+?>
+<div style="display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-bottom: 0.5rem;">
+    <div style="flex: 1 1 170px; min-width: 170px;">
+        <p class="heading">Total Input Tokens</p>
+        <p class="title is-5"><?php echo number_format($total_input_tokens); ?></p>
+    </div>
+    <div style="flex: 1 1 170px; min-width: 170px;">
+        <p class="heading">Total Output Tokens</p>
+        <p class="title is-5"><?php echo number_format($total_output_tokens); ?></p>
+    </div>
+    <div style="flex: 1 1 170px; min-width: 170px;">
+        <p class="heading">Estimated Cost</p>
+        <p class="title is-5">$<?php echo number_format($ai_total_estimated_cost, 4); ?></p>
+    </div>
+    <div style="flex: 1 1 170px; min-width: 170px;">
+        <p class="heading">Token Efficiency (Out/In)</p>
+        <p class="title is-5"><?php echo $total_efficiency_ratio !== null ? number_format($total_efficiency_ratio, 2) . 'x' : 'N/A'; ?></p>
+    </div>
+    <div style="flex: 1 1 170px; min-width: 170px;">
+        <p class="heading">Total Requests</p>
+        <p class="title is-5"><?php echo number_format((int)$ai_total_requests); ?></p>
+    </div>
+    <div style="flex: 1 1 170px; min-width: 170px;">
+        <p class="heading">Requests/Day</p>
+        <p class="title is-5"><?php echo $ai_requests_per_day !== null ? number_format($ai_requests_per_day, 1) : 'N/A'; ?></p>
+    </div>
+</div>
+<p class="is-size-7 has-text-grey" style="margin-bottom: 0.75rem;">
+    Based on <?php echo htmlspecialchars((string)$ai_cost_pricing_source); ?> for <?php echo htmlspecialchars((string)$ai_cost_window_label); ?>.
+    <?php if (!$ai_has_priced_models): ?>
+        Add <code>pricing_per_million</code> in <code>/var/www/config/openai.php</code> for model-specific pricing.
+    <?php endif; ?>
+</p>
+<br>
+<div style="overflow:auto;">
+    <table class="table is-fullwidth is-striped is-narrow">
+        <thead>
+            <tr>
+                <th>Model</th>
+                <th>Input Tokens</th>
+                <th>Output Tokens</th>
+                <th>Token Efficiency</th>
+                <th>Estimated Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php if (!empty($sorted_model_stats)): ?>
+            <?php foreach ($sorted_model_stats as $mname => $vals): ?>
+                <?php
+                    $model_input_tokens = isset($vals['input']) ? intval($vals['input']) : 0;
+                    $model_output_tokens = isset($vals['output']) ? intval($vals['output']) : 0;
+                    $model_efficiency = $model_input_tokens > 0 ? ($model_output_tokens / $model_input_tokens) : null;
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars((string)$mname); ?></td>
+                    <td><?php echo number_format($model_input_tokens); ?></td>
+                    <td><?php echo number_format($model_output_tokens); ?></td>
+                    <td><?php echo $model_efficiency !== null ? number_format($model_efficiency, 2) . 'x' : 'N/A'; ?></td>
+                    <td>$<?php echo number_format($ai_model_cost_stats[$mname]['total'] ?? 0, 4); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <tr>
+                <td colspan="5" class="has-text-grey">No AI usage data available for this window.</td>
+            </tr>
+        <?php endif; ?>
+        </tbody>
+    </table>
+</div>
+<?php
+return (string)ob_get_clean();
+}
+
 // Handle service control actions
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_POST['service'])) {
     $action = $_POST['action'];
@@ -758,6 +943,7 @@ function getOnlineUserIds($user_ids, $client_id, $bearer) {
 
 // Prepare an empty placeholder for the online channels — they'll be populated by JS via AJAX.
 $online_channels = [];
+$return_ai_stats_json = false;
 // AJAX handlers: bot_overview and online_channels
 if (isset($_GET['ajax'])) {
     $ajax = $_GET['ajax'];
@@ -934,6 +1120,8 @@ if (isset($_GET['ajax'])) {
         }
         echo json_encode(['botMessageStats' => $botMessageStats]);
         exit;
+    } elseif ($ajax === 'ai_platform_stats') {
+        $return_ai_stats_json = true;
     }
 }
 
@@ -1086,6 +1274,17 @@ $message_templates = [
 $ai_model = 'N/A';
 $ai_input_tokens = 'N/A';
 $ai_output_tokens = 'N/A';
+$ai_model_stats = [];
+$ai_model_cost_stats = [];
+$ai_total_estimated_cost = 0.0;
+$ai_has_priced_models = false;
+$ai_cost_window_label = 'N/A';
+$ai_cost_pricing_source = 'Default pricing table';
+$ai_total_requests = 0;
+$ai_requests_per_day = null;
+$ai_window_days = null;
+$ai_model_request_stats = [];
+$openai_debug_info = [];
 $openai_config = null;
 $configPath = '/var/www/config/openai.php';
 if (file_exists($configPath)) {
@@ -1096,7 +1295,7 @@ if (is_array($openai_config)) {
     $openai_key = $openai_config['admin_key'] ?? null;
 }
 // NOTE: do not fallback to environment variables; rely on config file per project conventions
-if (!empty($openai_key)) {
+if (!empty($openai_key) && $return_ai_stats_json) {
     // Determine bucket width (config only) and map to defaults and caps per API docs
     $bucket_width = is_array($openai_config) ? ($openai_config['bucket_width'] ?? '1d') : '1d';
     if (!in_array($bucket_width, ['1m','1h','1d'])) $bucket_width = '1d';
@@ -1140,6 +1339,11 @@ if (!empty($openai_key)) {
         $end_time = time();
         $limit = min(30, $max_limit);
         @client_console_log('[openai override] forcing 30-day window start_time=' . $start_time . ' limit=' . $limit);
+    }
+    if (is_numeric($start_time) && is_numeric($end_time)) {
+        $ai_cost_window_label = date('M j, Y', intval($start_time)) . ' - ' . date('M j, Y', intval($end_time));
+        $windowSeconds = max(0, intval($end_time) - intval($start_time));
+        $ai_window_days = max(1, (int)ceil($windowSeconds / 86400));
     }
     $base = 'https://api.openai.com/v1';
     // Build query params using documented fields. Only include optional params if present in config.
@@ -1235,17 +1439,30 @@ if (!empty($openai_key)) {
         }
         // Explicit parsing for documented page/bucket/results shape
         $explicit_map = [];
+        $fallback_result_count = 0;
         if (isset($data['data']) && is_array($data['data'])) {
             foreach ($data['data'] as $bucket) {
                 if (!is_array($bucket)) continue;
                 if (isset($bucket['results']) && is_array($bucket['results'])) {
                     foreach ($bucket['results'] as $res) {
                         if (!is_array($res)) continue;
+                        $fallback_result_count++;
                         $mname = $res['model'] ?? ($res['model_name'] ?? null);
                         if (empty($mname)) $mname = 'unknown';
-                        if (!isset($explicit_map[$mname])) $explicit_map[$mname] = ['input' => 0, 'output' => 0];
+                        if (!isset($explicit_map[$mname])) $explicit_map[$mname] = ['input' => 0, 'output' => 0, 'requests' => 0];
                         if (!empty($res['input_tokens'])) $explicit_map[$mname]['input'] += intval($res['input_tokens']);
                         if (!empty($res['output_tokens'])) $explicit_map[$mname]['output'] += intval($res['output_tokens']);
+                        $requestCount = 0;
+                        if (isset($res['num_model_requests']) && is_numeric($res['num_model_requests'])) {
+                            $requestCount = intval($res['num_model_requests']);
+                        } elseif (isset($res['requests']) && is_numeric($res['requests'])) {
+                            $requestCount = intval($res['requests']);
+                        } elseif (isset($res['request_count']) && is_numeric($res['request_count'])) {
+                            $requestCount = intval($res['request_count']);
+                        } elseif (isset($res['total_requests']) && is_numeric($res['total_requests'])) {
+                            $requestCount = intval($res['total_requests']);
+                        }
+                        $explicit_map[$mname]['requests'] += max(0, $requestCount);
                         // audio output tokens omitted (audio endpoint disabled)
                     }
                 }
@@ -1257,7 +1474,23 @@ if (!empty($openai_key)) {
                 if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0];
                 $ai_model_stats[$mname]['input'] += $vals['input'];
                 $ai_model_stats[$mname]['output'] += $vals['output'];
+                $modelRequests = intval($vals['requests'] ?? 0);
+                $ai_total_requests += $modelRequests;
+                if (!isset($ai_model_request_stats[$mname])) $ai_model_request_stats[$mname] = 0;
+                $ai_model_request_stats[$mname] += $modelRequests;
             }
+        }
+        if ($ai_total_requests <= 0 && $fallback_result_count > 0) {
+            $ai_total_requests = $fallback_result_count;
+        }
+        if (!empty($ai_model_stats) && empty($ai_model_request_stats) && $ai_total_requests > 0) {
+            $split = intdiv($ai_total_requests, max(1, count($ai_model_stats)));
+            foreach ($ai_model_stats as $mname => $_unused) {
+                $ai_model_request_stats[$mname] = $split;
+            }
+        }
+        if (!empty($ai_window_days) && $ai_total_requests > 0) {
+            $ai_requests_per_day = $ai_total_requests / $ai_window_days;
         }
         // Aggregate grouped usage into model stats
         $map = parse_openai_grouped_usage($data);
@@ -1265,6 +1498,17 @@ if (!empty($openai_key)) {
             if (!isset($ai_model_stats[$mname])) $ai_model_stats[$mname] = ['input' => 0, 'output' => 0];
             $ai_model_stats[$mname]['input'] += $vals['input'];
             $ai_model_stats[$mname]['output'] += $vals['output'];
+        }
+        foreach ($ai_model_stats as $mname => $vals) {
+            $estimate = openai_estimate_model_cost($mname, $vals['input'] ?? 0, $vals['output'] ?? 0, $openai_config);
+            $ai_model_cost_stats[$mname] = $estimate;
+            $ai_total_estimated_cost += $estimate['total'];
+            if (($estimate['input_rate_per_million'] ?? 0) > 0 || ($estimate['output_rate_per_million'] ?? 0) > 0) {
+                $ai_has_priced_models = true;
+            }
+        }
+        if (is_array($openai_config) && isset($openai_config['pricing_per_million']) && is_array($openai_config['pricing_per_million'])) {
+            $ai_cost_pricing_source = 'Custom pricing from openai.php';
         }
     } else {
         client_console_log('OpenAI completions: no data returned');
@@ -1296,8 +1540,30 @@ if (!empty($openai_key)) {
         'query_params' => $queryParams
     ];
     @client_console_log(sprintf('[openai debug] url=%s pages=%s', $completions_url, var_export($pages_fetched, true)));
+} elseif (!empty($openai_key)) {
+    // OpenAI stats are intentionally deferred to the ai_platform_stats AJAX endpoint.
 } else {
     // No API key available in config or environment
+}
+
+if ($return_ai_stats_json) {
+    if (!headers_sent()) {
+        header('Content-Type: application/json');
+    }
+    echo json_encode([
+        'success' => true,
+        'html' => render_ai_platform_stats_content(
+            $ai_model_stats,
+            $ai_model_cost_stats,
+            $ai_total_estimated_cost,
+            $ai_cost_pricing_source,
+            $ai_cost_window_label,
+            $ai_has_priced_models,
+            $ai_total_requests,
+            $ai_requests_per_day
+        )
+    ]);
+    exit;
 }
 
 // Helper: perform multiple OpenAI HTTP requests in parallel using curl_multi
@@ -1689,59 +1955,8 @@ ob_start();
     <div class="column is-half">
         <div class="box" style="height: 100%">
             <h2 class="title is-4"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
-            <?php
-                $total_input_tokens = 0;
-                $total_output_tokens = 0;
-                if (is_array($ai_model_stats)) {
-                    foreach ($ai_model_stats as $mvals) {
-                        $total_input_tokens += isset($mvals['input']) ? intval($mvals['input']) : 0;
-                        $total_output_tokens += isset($mvals['output']) ? intval($mvals['output']) : 0;
-                    }
-                    // Sort models: most input tokens first, then most output tokens
-                    uasort($ai_model_stats, function($a, $b) {
-                        $ain = $a['input'] ?? 0; $bin = $b['input'] ?? 0;
-                        if ($bin !== $ain) return $bin <=> $ain; // descending input
-                        $aout = $a['output'] ?? 0; $bout = $b['output'] ?? 0;
-                        return $bout <=> $aout; // descending output
-                    });
-                }
-            ?>
-            <div class="level" style="margin-bottom: 0.5rem;">
-                <div class="level-left">
-                    <div class="level-item">
-                        <div>
-                            <p class="heading">Total Input Tokens</p>
-                            <p class="title is-5"><?php echo number_format($total_input_tokens); ?></p>
-                        </div>
-                    </div>
-                    <div class="level-item">
-                        <div>
-                            <p class="heading">Total Output Tokens</p>
-                            <p class="title is-5"><?php echo number_format($total_output_tokens); ?></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <br>
-            <div style="overflow:auto;">
-                <table class="table is-fullwidth is-striped is-narrow">
-                    <thead>
-                        <tr>
-                            <th>Model</th>
-                            <th>Input Tokens</th>
-                            <th>Output Tokens</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($ai_model_stats as $mname => $vals): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($mname); ?></td>
-                            <td><?php echo isset($vals['input']) ? number_format($vals['input']) : '0'; ?></td>
-                            <td><?php echo isset($vals['output']) ? number_format($vals['output']) : '0'; ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
+            <div id="ai-platform-stats-content">
+                <p class="has-text-grey">Loading AI platform stats…</p>
             </div>
         </div>
     </div>
@@ -2678,6 +2893,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update bot message counts immediately and every 60 seconds
     updateBotMessageCounts();
     setInterval(updateBotMessageCounts, 60000);
+    // Load AI platform stats after the page has rendered.
+    function loadAiPlatformStats() {
+        const aiStatsContainer = document.getElementById('ai-platform-stats-content');
+        if (!aiStatsContainer) return;
+        fetch('index.php?ajax=ai_platform_stats', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.success && typeof data.html === 'string') {
+                    aiStatsContainer.innerHTML = data.html;
+                } else {
+                    aiStatsContainer.innerHTML = '<p class="has-text-danger">Failed to load AI platform stats.</p>';
+                }
+            })
+            .catch(err => {
+                console.error('Error loading AI platform stats:', err);
+                aiStatsContainer.innerHTML = '<p class="has-text-danger">Failed to load AI platform stats.</p>';
+            });
+    }
+    window.addEventListener('load', function() {
+        // Intentionally defer AI stats until everything else is fully loaded.
+        setTimeout(loadAiPlatformStats, 1500);
+    });
     // Populate online channels asynchronously and enable send button only when both a channel is selected and a message is entered.
     const messageTextarea = document.getElementById('message');
     const sendButton = document.getElementById('send');
