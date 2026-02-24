@@ -30,21 +30,25 @@ date_default_timezone_set($timezone);
 // Fetch analytics data
 $recentReceivedRaids = [];
 $recentSentRaids = [];
+$latestSentRaid = null;
 $topRaiders = [];
 $avgViewers = null;
 try {
     // Recent received raids (includes NULL source for historical rows)
-    $recentReceivedRes = $db->query("SELECT id, raider_name, viewers, created_at FROM analytic_raids WHERE source = 'received' OR source IS NULL ORDER BY created_at DESC LIMIT 25");
+    $recentReceivedRes = $db->query("SELECT raider_name, viewers, created_at FROM analytic_raids WHERE source = 'received' OR source IS NULL ORDER BY created_at DESC LIMIT 25");
     if ($recentReceivedRes) {
         $recentReceivedRaids = $recentReceivedRes->fetch_all(MYSQLI_ASSOC);
     }
-    // Recent sent raids
-    $recentSentRes = $db->query("SELECT id, raider_name, viewers, created_at FROM analytic_raids WHERE source = 'sent' ORDER BY created_at DESC LIMIT 25");
+    // Recent sent raids (for latest + modal history)
+    $recentSentRes = $db->query("SELECT raider_name, viewers, created_at FROM analytic_raids WHERE source = 'sent' ORDER BY created_at DESC LIMIT 5");
     if ($recentSentRes) {
         $recentSentRaids = $recentSentRes->fetch_all(MYSQLI_ASSOC);
+      if (!empty($recentSentRaids)) {
+        $latestSentRaid = $recentSentRaids[0];
+      }
     }
     // Top raiders (overall)
-    $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids GROUP BY raider_name ORDER BY raids DESC LIMIT 10");
+    $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids GROUP BY raider_name ORDER BY raids DESC LIMIT 5");
     if ($topRes) {
         $topRaiders = $topRes->fetch_all(MYSQLI_ASSOC);
     }
@@ -78,54 +82,93 @@ ob_start();
                   <p class="has-text-grey-light is-size-5">No received raid data available yet.</p>
                 </div>
               <?php else: ?>
-                <table class="table is-fullwidth is-striped is-hoverable has-text-white">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Raider</th>
-                      <th>Viewers</th>
-                      <th>Date / Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($recentReceivedRaids as $r): ?>
+                <div class="table-container">
+                  <table class="table is-fullwidth has-background-dark has-text-white">
+                    <thead class="has-background-grey-darker">
                       <tr>
-                        <td><?php echo htmlspecialchars($r['id']); ?></td>
-                        <td><?php echo htmlspecialchars($r['raider_name']); ?></td>
-                        <td><?php echo htmlspecialchars($r['viewers']); ?></td>
-                        <td><?php echo htmlspecialchars($r['created_at']); ?></td>
+                        <th class="has-text-white">Raider</th>
+                        <th class="has-text-white">Viewers</th>
+                        <th class="has-text-white">Date / Time</th>
                       </tr>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($recentReceivedRaids as $r): ?>
+                        <tr>
+                          <td class="has-text-white"><?php echo htmlspecialchars($r['raider_name']); ?></td>
+                          <td class="has-text-white"><?php echo htmlspecialchars($r['viewers']); ?></td>
+                          <td class="has-text-white"><?php echo htmlspecialchars($r['created_at']); ?></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
               <?php endif; ?>
             </div>
             <div class="column">
-              <h3 class="title is-5 has-text-white">Recent Raids — Sent</h3>
-              <?php if (empty($recentSentRaids)): ?>
+              <div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
+                <h3 class="title is-5 has-text-white mb-0">Latest Raid — Sent</h3>
+                <button class="button is-small is-info" id="showLastFiveSentRaidsBtn" <?php echo empty($recentSentRaids) ? 'disabled' : ''; ?>>
+                  Show Last 5
+                </button>
+              </div>
+              <?php if (empty($latestSentRaid)): ?>
                 <p class="has-text-grey-light">No sent raid data available yet.</p>
               <?php else: ?>
-                <table class="table is-fullwidth is-striped is-hoverable has-text-white">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Target</th>
-                      <th>Viewers</th>
-                      <th>Date / Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($recentSentRaids as $s): ?>
+                <div class="table-container">
+                  <table class="table is-fullwidth has-background-dark has-text-white">
+                    <thead class="has-background-grey-darker">
                       <tr>
-                        <td><?php echo htmlspecialchars($s['id']); ?></td>
-                        <td><?php echo htmlspecialchars($s['raider_name']); ?></td>
-                        <td><?php echo htmlspecialchars($s['viewers']); ?></td>
-                        <td><?php echo htmlspecialchars($s['created_at']); ?></td>
+                        <th class="has-text-white">Target</th>
+                        <th class="has-text-white">Viewers</th>
+                        <th class="has-text-white">Date / Time</th>
                       </tr>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="has-text-white"><?php echo htmlspecialchars($latestSentRaid['raider_name']); ?></td>
+                        <td class="has-text-white"><?php echo htmlspecialchars($latestSentRaid['viewers']); ?></td>
+                        <td class="has-text-white"><?php echo htmlspecialchars($latestSentRaid['created_at']); ?></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               <?php endif; ?>
+
+              <div class="modal" id="lastFiveSentRaidsModal">
+                <div class="modal-background"></div>
+                <div class="modal-card" style="background-color: #23272f; color: #fff; width: min(900px, 95vw);">
+                  <header class="modal-card-head" style="background-color: #1a1a1a; border-bottom: 1px solid #23272f;">
+                    <p class="modal-card-title has-text-white">Last 5 Sent Raids</p>
+                    <button class="delete" aria-label="close" id="closeLastFiveSentRaidsModal"></button>
+                  </header>
+                  <section class="modal-card-body" style="background-color: #23272f;">
+                    <?php if (empty($recentSentRaids)): ?>
+                      <p class="has-text-grey-light">No sent raid data available yet.</p>
+                    <?php else: ?>
+                      <div class="table-container">
+                        <table class="table is-fullwidth has-background-dark has-text-white">
+                          <thead class="has-background-grey-darker">
+                            <tr>
+                              <th class="has-text-white">Target</th>
+                              <th class="has-text-white">Viewers</th>
+                              <th class="has-text-white">Date / Time</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <?php foreach ($recentSentRaids as $s): ?>
+                              <tr>
+                                <td class="has-text-white"><?php echo htmlspecialchars($s['raider_name']); ?></td>
+                                <td class="has-text-white"><?php echo htmlspecialchars($s['viewers']); ?></td>
+                                <td class="has-text-white"><?php echo htmlspecialchars($s['created_at']); ?></td>
+                              </tr>
+                            <?php endforeach; ?>
+                          </tbody>
+                        </table>
+                      </div>
+                    <?php endif; ?>
+                  </section>
+                </div>
+              </div>
 
               <hr>
               <h3 class="title is-5 has-text-white">Top Raiders</h3>
@@ -156,7 +199,34 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script>
-// Placeholder for future client-side interactivity
+document.addEventListener('DOMContentLoaded', function () {
+  const openBtn = document.getElementById('showLastFiveSentRaidsBtn');
+  const modal = document.getElementById('lastFiveSentRaidsModal');
+  const closeBtn = document.getElementById('closeLastFiveSentRaidsModal');
+
+  if (!openBtn || !modal) {
+    return;
+  }
+
+  const closeModal = function () {
+    modal.classList.remove('is-active');
+  };
+
+  openBtn.addEventListener('click', function () {
+    if (!openBtn.disabled) {
+      modal.classList.add('is-active');
+    }
+  });
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeModal);
+  }
+
+  const modalBackground = modal.querySelector('.modal-background');
+  if (modalBackground) {
+    modalBackground.addEventListener('click', closeModal);
+  }
+});
 </script>
 <?php
 $scripts = ob_get_clean();
