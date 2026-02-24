@@ -81,9 +81,19 @@ $_SESSION['admin_act_as_active'] = true;
 $_SESSION['admin_act_as_started_at'] = time();
 $_SESSION['admin_act_as_actor_user_id'] = $actorUserId;
 $_SESSION['admin_act_as_actor_username'] = $actorUsername;
+$_SESSION['admin_act_as_actor_role'] = 'admin';
 $_SESSION['admin_act_as_target_user_id'] = (int) ($targetUser['id'] ?? 0);
 $_SESSION['admin_act_as_target_username'] = $targetUser['username'] ?? '';
 $_SESSION['admin_act_as_target_display_name'] = $targetUser['twitch_display_name'] ?? '';
+
+unset(
+    $_SESSION['mod_act_as_active'],
+    $_SESSION['mod_act_as_started_at'],
+    $_SESSION['mod_act_as_actor_username'],
+    $_SESSION['mod_act_as_target_user_id'],
+    $_SESSION['mod_act_as_target_username'],
+    $_SESSION['mod_act_as_target_display_name']
+);
 
 admin_audit_log(
     'act_as_user',

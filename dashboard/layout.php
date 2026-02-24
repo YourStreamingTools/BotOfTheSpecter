@@ -22,15 +22,11 @@ $actingAsDisplayName = isset($_SESSION['admin_act_as_target_display_name']) ? (s
 $actingAsUsername = isset($_SESSION['admin_act_as_target_username']) ? (string) $_SESSION['admin_act_as_target_username'] : '';
 $actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $actingAsUsername);
 $actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : 'selected user', ENT_QUOTES, 'UTF-8');
-$isModeratorActAs = isset($_SESSION['mod_act_as_active']) && $_SESSION['mod_act_as_active'] === true;
-$moderatorActAsDisplayName = isset($_SESSION['mod_act_as_target_display_name']) ? (string) $_SESSION['mod_act_as_target_display_name'] : '';
-$moderatorActAsUsername = isset($_SESSION['mod_act_as_target_username']) ? (string) $_SESSION['mod_act_as_target_username'] : '';
-$moderatorActAsLabelRaw = trim($moderatorActAsDisplayName !== '' ? $moderatorActAsDisplayName : $moderatorActAsUsername);
-$moderatorActAsLabel = htmlspecialchars($moderatorActAsLabelRaw !== '' ? $moderatorActAsLabelRaw : 'selected channel', ENT_QUOTES, 'UTF-8');
+$actingAsActorRole = isset($_SESSION['admin_act_as_actor_role']) ? (string) $_SESSION['admin_act_as_actor_role'] : 'admin';
+$actingAsReturnLabel = ($actingAsActorRole === 'moderator') ? 'Return to Mod Channels' : 'Return to Admin Panel';
 $stopActAsHref = 'admin/stop_act_as.php';
-$stopModActAsHref = 'moderator/mod_return_home.php';
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
-// If not set, infer from the request URI path segments: /admin, /moderator, /todolist -> respective modes; otherwise 'default'
+// If not set, infer from the request URI path segments: /admin, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {
     $layoutMode = 'default';
     $candidatePaths = [];
@@ -56,10 +52,6 @@ if (!isset($layoutMode)) {
             $layoutMode = 'admin';
             break;
         }
-        if (strpos($norm, '/moderator') !== false) {
-            $layoutMode = 'moderator';
-            break;
-        }
         if (strpos($norm, '/todolist') !== false) {
             $layoutMode = 'todolist';
             break;
@@ -72,10 +64,6 @@ switch ($layoutMode) {
         $brandText = 'Admin Panel';
         $brandHref = 'index.php';
         break;
-    case 'moderator':
-        $brandText = 'Moderator Panel';
-        $brandHref = 'index.php';
-        break;
     case 'todolist':
         $brandText = 'To Do List';
         $brandHref = 'index.php';
@@ -86,13 +74,8 @@ switch ($layoutMode) {
 }
 if ($layoutMode === 'admin') {
     $stopActAsHref = 'stop_act_as.php';
-} elseif ($layoutMode === 'moderator' || $layoutMode === 'todolist') {
+} elseif ($layoutMode === 'todolist') {
     $stopActAsHref = '../admin/stop_act_as.php';
-}
-if ($layoutMode === 'moderator') {
-    $stopModActAsHref = 'mod_return_home.php';
-} elseif ($layoutMode === 'admin' || $layoutMode === 'todolist') {
-    $stopModActAsHref = '../moderator/mod_return_home.php';
 }
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
@@ -208,7 +191,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
             <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile', $layoutMode); ?>
             <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
-                <?php if ($layoutMode === 'admin' || $layoutMode === 'moderator' || $layoutMode === 'todolist'): ?>
+                <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
                     <a href="../dashboard.php" class="sidebar-user-item"
                         style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
                         <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
@@ -254,7 +237,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         <div class="sidebar-content-wrapper">
             <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop', $layoutMode); ?>
             <div class="sidebar-user-section">
-                <?php if ($layoutMode === 'admin' || $layoutMode === 'moderator' || $layoutMode === 'todolist'): ?>
+                <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
                     <a href="../dashboard.php" class="sidebar-user-item">
                         <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
                         <span class="sidebar-user-text">User Dashboard</span>
@@ -288,17 +271,6 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <?php if ($layoutMode === 'admin'): ?>
         <!-- Admin Banner -->
         <div style="background:rgb(0, 0, 0); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;"><span><strong>ADMIN DASHBOARD</strong> &mdash; Restricted Access</span></div>
-    <?php elseif ($layoutMode === 'moderator'):
-        $modDisplay = isset($_SESSION['editing_display_name']) ? htmlspecialchars($_SESSION['editing_display_name'], ENT_QUOTES, 'UTF-8') : null;
-        $modUsername = isset($_SESSION['editing_username']) ? htmlspecialchars($_SESSION['editing_username'], ENT_QUOTES, 'UTF-8') : null; ?>
-        <!-- Moderator Banner -->
-        <div style="background:rgb(0, 123, 255); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;">
-            <?php if ($modDisplay || $modUsername): ?>
-                <span>You are moderating: <strong><?php echo $modDisplay ? $modDisplay : $modUsername; ?></strong><?php echo ($modDisplay && $modUsername) ? ' (@' . $modUsername . ')' : ''; ?></span>
-            <?php else: ?>
-                <span>You are using the <strong>MODERATOR</strong> dashboard. No channel selected — <a href="../mod_channels.php" style="color:#fff; text-decoration:underline;">select a channel to moderate</a>.</span>
-            <?php endif; ?>
-        </div>
     <?php else: ?>
         <?php if ($layoutMode === 'default' && $devStreamOnline): ?>
             <!-- Dev Stream Online Banner -->
@@ -310,16 +282,7 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             <span>
                 <i class="fas fa-user-secret"></i>
                 ACT AS mode active &mdash; currently viewing dashboard as <strong><?php echo $actingAsLabel; ?></strong>
-                <a href="<?php echo $stopActAsHref; ?>" style="color:#fff; text-decoration:underline; margin-left:8px;">Return to Admin Panel</a>
-            </span>
-        </div>
-    <?php endif; ?>
-    <?php if ($isModeratorActAs): ?>
-        <div style="background:rgb(184, 134, 11); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.4px;">
-            <span>
-                <i class="fas fa-user-secret"></i>
-                ACT AS mode active &mdash; currently moderating as <strong><?php echo $moderatorActAsLabel; ?></strong>
-                <a href="<?php echo $stopModActAsHref; ?>" style="color:#fff; text-decoration:underline; margin-left:8px;">Return to Mod Channels</a>
+                <a href="<?php echo $stopActAsHref; ?>" style="color:#fff; text-decoration:underline; margin-left:8px;"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a>
             </span>
         </div>
     <?php endif; ?>

@@ -12,37 +12,100 @@ if (!isset($_GET['user_id'])) {
     exit();
 }
 
-$targetUserId = $_GET['user_id'];
+$targetUserId = (string) $_GET['user_id'];
 
-// Fetch user info for the selected channel
-$stmt = $conn->prepare("SELECT username, twitch_display_name, profile_image, twitch_user_id, access_token, refresh_token, api_key FROM users WHERE twitch_user_id = ?");
+// Use original actor context when already acting as another user
+$actorContext = (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original']))
+    ? $_SESSION['admin_act_as_original']
+    : [
+        'user_id' => $_SESSION['user_id'] ?? null,
+        'username' => $_SESSION['username'] ?? '',
+        'twitchUserId' => $_SESSION['twitchUserId'] ?? '',
+        'access_token' => $_SESSION['access_token'] ?? null,
+        'refresh_token' => $_SESSION['refresh_token'] ?? null,
+        'api_key' => $_SESSION['api_key'] ?? null,
+        'is_admin' => $_SESSION['is_admin'] ?? false,
+        'beta_access' => $_SESSION['beta_access'] ?? false,
+        'use_custom' => $_SESSION['use_custom'] ?? 0,
+        'use_self' => $_SESSION['use_self'] ?? 0,
+        'user_data' => $_SESSION['user_data'] ?? null,
+    ];
+
+$actorUsername = strtolower(trim((string) ($actorContext['username'] ?? '')));
+$actorTwitchUserId = trim((string) ($actorContext['twitchUserId'] ?? ''));
+$actorIsAdmin = !empty($actorContext['is_admin']);
+$hasAccess = $actorIsAdmin || $actorUsername === 'botofthespecter';
+
+if (!$hasAccess && $actorTwitchUserId !== '' && $targetUserId !== '') {
+    $accessStmt = $conn->prepare("SELECT 1 FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ? LIMIT 1");
+    if ($accessStmt) {
+        $accessStmt->bind_param("ss", $actorTwitchUserId, $targetUserId);
+        $accessStmt->execute();
+        $accessResult = $accessStmt->get_result();
+        $hasAccess = ($accessResult && $accessResult->num_rows > 0);
+        $accessStmt->close();
+    }
+}
+
+if (!$hasAccess) {
+    header('Location: mod_channels.php?act_as=denied');
+    exit();
+}
+
+// Fetch target user info for Act As
+$stmt = $conn->prepare("SELECT id, username, twitch_display_name, profile_image, twitch_user_id, access_token, refresh_token, api_key, is_admin, beta_access, use_custom, use_self, email FROM users WHERE twitch_user_id = ? LIMIT 1");
 $stmt->bind_param("s", $targetUserId);
 $stmt->execute();
 $result = $stmt->get_result();
 if ($row = $result->fetch_assoc()) {
-    // Set session variables for mod context (for moderator dashboard compatibility)
-    $_SESSION['editing_user'] = $row['twitch_user_id'];
-    $_SESSION['editing_username'] = $row['username'];
-    $_SESSION['editing_display_name'] = $row['twitch_display_name'];
-    $_SESSION['editing_profile_image'] = $row['profile_image'];
-    $_SESSION['editing_access_token'] = $row['access_token'];
-    $_SESSION['editing_refresh_token'] = $row['refresh_token'];
-    $_SESSION['editing_api_key'] = $row['api_key'];
+    if (!isset($_SESSION['admin_act_as_original']) || !is_array($_SESSION['admin_act_as_original'])) {
+        $_SESSION['admin_act_as_original'] = $actorContext;
+    }
 
-    // Moderator Act As context (mirrors admin Act As UX semantics)
-    $_SESSION['mod_act_as_active'] = true;
-    $_SESSION['mod_act_as_started_at'] = time();
-    $_SESSION['mod_act_as_actor_username'] = $_SESSION['username'] ?? '';
-    $_SESSION['mod_act_as_target_user_id'] = $row['twitch_user_id'];
-    $_SESSION['mod_act_as_target_username'] = $row['username'];
-    $_SESSION['mod_act_as_target_display_name'] = $row['twitch_display_name'];
+    unset(
+        $_SESSION['editing_user'],
+        $_SESSION['editing_username'],
+        $_SESSION['editing_display_name'],
+        $_SESSION['editing_profile_image'],
+        $_SESSION['editing_access_token'],
+        $_SESSION['editing_refresh_token'],
+        $_SESSION['editing_api_key'],
+        $_SESSION['mod_act_as_active'],
+        $_SESSION['mod_act_as_started_at'],
+        $_SESSION['mod_act_as_actor_username'],
+        $_SESSION['mod_act_as_target_user_id'],
+        $_SESSION['mod_act_as_target_username'],
+        $_SESSION['mod_act_as_target_display_name']
+    );
 
-    // Redirect to moderator dashboard in Act As mode
-    header('Location: moderator/index.php');
+    // Switch active dashboard session to target user
+    $_SESSION['user_id'] = (int) ($row['id'] ?? 0);
+    $_SESSION['username'] = $row['username'] ?? '';
+    $_SESSION['twitchUserId'] = $row['twitch_user_id'] ?? '';
+    $_SESSION['access_token'] = $row['access_token'] ?? '';
+    $_SESSION['refresh_token'] = $row['refresh_token'] ?? '';
+    $_SESSION['api_key'] = $row['api_key'] ?? '';
+    $_SESSION['is_admin'] = ((int) ($row['is_admin'] ?? 0) === 1);
+    $_SESSION['beta_access'] = ((int) ($row['beta_access'] ?? 0) === 1);
+    $_SESSION['use_custom'] = $row['use_custom'] ?? 0;
+    $_SESSION['use_self'] = $row['use_self'] ?? 0;
+    $_SESSION['user_data'] = $row;
+
+    // Shared Act As context for banner/restore
+    $_SESSION['admin_act_as_active'] = true;
+    $_SESSION['admin_act_as_started_at'] = time();
+    $_SESSION['admin_act_as_actor_user_id'] = $actorContext['user_id'] ?? null;
+    $_SESSION['admin_act_as_actor_username'] = $actorContext['username'] ?? '';
+    $_SESSION['admin_act_as_actor_role'] = $actorIsAdmin ? 'admin' : 'moderator';
+    $_SESSION['admin_act_as_target_user_id'] = (int) ($row['id'] ?? 0);
+    $_SESSION['admin_act_as_target_username'] = $row['username'] ?? '';
+    $_SESSION['admin_act_as_target_display_name'] = $row['twitch_display_name'] ?? '';
+
+    header('Location: dashboard.php');
     exit();
 } else {
     // Invalid user/channel
-    header('Location: bot.php');
+    header('Location: mod_channels.php?act_as=not_found');
     exit();
 }
 ?>
