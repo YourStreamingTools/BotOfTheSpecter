@@ -1,5 +1,5 @@
 <?php
-$dashboardVersion = '4.0.0';
+$dashboardVersion = '4.1.0';
 $maintenanceMode = false; // Set to true to enable maintenance mode
 $streamersconnect_api_key = '';
 return [
