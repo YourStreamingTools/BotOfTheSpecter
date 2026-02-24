@@ -8,8 +8,6 @@ if (!isset($_SESSION['admin_act_as_active']) || $_SESSION['admin_act_as_active']
     exit;
 }
 
-$actorRole = isset($_SESSION['admin_act_as_actor_role']) ? (string) $_SESSION['admin_act_as_actor_role'] : 'admin';
-
 $original = $_SESSION['admin_act_as_original'] ?? null;
 if (!is_array($original) || empty($original['access_token'])) {
     unset(
@@ -64,10 +62,5 @@ unset(
     $_SESSION['mod_act_as_target_display_name']
 );
 
-if ($actorRole === 'moderator') {
-    header('Location: mod_channels.php?act_as=stopped');
-    exit;
-}
-
-header('Location: admin/index.php?act_as=stopped');
+header('Location: dashboard.php?act_as=stopped');
 exit;
