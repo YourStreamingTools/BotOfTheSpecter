@@ -667,6 +667,7 @@ return [
     'followers_page_title' => 'Twitch Data - Followers',
     'followers_heading' => 'Your Followers:',
     'followers_loading' => 'Loading followers...',
+    'followers_no_followers_found' => 'No followers found.',
     'followers_failed' => 'Failed to load followers.',
     'total_followers' => 'Total Followers',
     'new_followers_today' => 'New Followers Today',
