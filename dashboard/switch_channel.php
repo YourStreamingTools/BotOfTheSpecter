@@ -61,7 +61,6 @@ if ($row = $result->fetch_assoc()) {
     if (!isset($_SESSION['admin_act_as_original']) || !is_array($_SESSION['admin_act_as_original'])) {
         $_SESSION['admin_act_as_original'] = $actorContext;
     }
-
     unset(
         $_SESSION['editing_user'],
         $_SESSION['editing_username'],
@@ -77,20 +76,7 @@ if ($row = $result->fetch_assoc()) {
         $_SESSION['mod_act_as_target_username'],
         $_SESSION['mod_act_as_target_display_name']
     );
-
-    // Switch active dashboard session to target user
-    $_SESSION['user_id'] = (int) ($row['id'] ?? 0);
-    $_SESSION['username'] = $row['username'] ?? '';
-    $_SESSION['twitchUserId'] = $row['twitch_user_id'] ?? '';
-    $_SESSION['access_token'] = $row['access_token'] ?? '';
-    $_SESSION['refresh_token'] = $row['refresh_token'] ?? '';
-    $_SESSION['api_key'] = $row['api_key'] ?? '';
-    $_SESSION['is_admin'] = ((int) ($row['is_admin'] ?? 0) === 1);
-    $_SESSION['beta_access'] = ((int) ($row['beta_access'] ?? 0) === 1);
-    $_SESSION['use_custom'] = $row['use_custom'] ?? 0;
-    $_SESSION['use_self'] = $row['use_self'] ?? 0;
-    $_SESSION['user_data'] = $row;
-
+    $_SESSION['user_data'] = null;
     // Shared Act As context for banner/restore
     $_SESSION['admin_act_as_active'] = true;
     $_SESSION['admin_act_as_started_at'] = time();
@@ -100,7 +86,6 @@ if ($row = $result->fetch_assoc()) {
     $_SESSION['admin_act_as_target_user_id'] = (int) ($row['id'] ?? 0);
     $_SESSION['admin_act_as_target_username'] = $row['username'] ?? '';
     $_SESSION['admin_act_as_target_display_name'] = $row['twitch_display_name'] ?? '';
-
     header('Location: dashboard.php');
     exit();
 } else {
