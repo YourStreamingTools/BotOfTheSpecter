@@ -324,3 +324,31 @@
     gap: 0.4rem;
     flex-wrap: nowrap;
 }
+
+.admin-users-table .actions-wrap > .button,
+.admin-users-table .actions-wrap > a.button {
+    justify-content: center;
+}
+
+.admin-users-table .actions-wrap > .button:not(.is-light):not(.is-danger),
+.admin-users-table .actions-wrap > a.button:not(.is-light):not(.is-danger) {
+    min-width: 7.5rem;
+}
+
+.admin-users-table .actions-wrap > .button.is-light,
+.admin-users-table .actions-wrap > .button.is-danger {
+    min-width: 2.25rem;
+    width: 2.25rem;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.admin-users-table .admin-date-cell {
+    min-width: 7.5rem;
+}
+
+.admin-users-table .admin-date-line,
+.admin-users-table .admin-time-line {
+    display: inline-block;
+    white-space: nowrap;
+}

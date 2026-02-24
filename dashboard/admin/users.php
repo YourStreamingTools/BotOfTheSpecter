@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -8,6 +12,18 @@ include '/var/www/config/twitch.php';
 include '../userdata.php';
 $pageTitle = t('admin_user_management_title');
 $currentAdminUserId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
+$currentAdminIsSuperAdmin = false;
+
+if ($currentAdminUserId > 0) {
+    $stmt = $conn->prepare("SELECT super_admin FROM users WHERE id = ? LIMIT 1");
+    $stmt->bind_param("i", $currentAdminUserId);
+    $stmt->execute();
+    $stmt->bind_result($currentSuperAdminFlag);
+    if ($stmt->fetch()) {
+        $currentAdminIsSuperAdmin = ((int) $currentSuperAdminFlag === 1);
+    }
+    $stmt->close();
+}
 
 $actAsNotice = null;
 $actAsNoticeClass = 'is-info';
@@ -158,8 +174,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
     $action = $_POST['restrict_action'];
     $username = $_POST['username'] ?? '';
     $twitch_user_id = $_POST['twitch_user_id'] ?? '';
+    $target_user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
     $response = ['success' => false, 'msg' => ''];
+    $targetIsAdmin = false;
+    $targetIsSuperAdmin = false;
+    if ($target_user_id > 0) {
+        $targetStmt = $conn->prepare("SELECT is_admin, super_admin FROM users WHERE id = ? LIMIT 1");
+        $targetStmt->bind_param("i", $target_user_id);
+    } else {
+        $targetStmt = $conn->prepare("SELECT is_admin, super_admin FROM users WHERE username = ? OR twitch_user_id = ? LIMIT 1");
+        $targetStmt->bind_param("ss", $username, $twitch_user_id);
+    }
+    $targetStmt->execute();
+    $targetStmt->bind_result($targetIsAdminRaw, $targetIsSuperAdminRaw);
+    if ($targetStmt->fetch()) {
+        $targetIsAdmin = ((int) $targetIsAdminRaw === 1);
+        $targetIsSuperAdmin = ((int) $targetIsSuperAdminRaw === 1);
+    }
+    $targetStmt->close();
     if ($action === 'restrict') {
+        if ($targetIsSuperAdmin) {
+            $response['msg'] = 'Super admins cannot be restricted.';
+            echo json_encode($response);
+            exit;
+        }
+        if ($targetIsAdmin && !$currentAdminIsSuperAdmin) {
+            $response['msg'] = 'Only super admins can restrict admins.';
+            echo json_encode($response);
+            exit;
+        }
         $stmt = $conn->prepare("INSERT IGNORE INTO restricted_users (username, twitch_user_id) VALUES (?, ?)");
         $stmt->bind_param("ss", $username, $twitch_user_id);
         $response['success'] = $stmt->execute();
@@ -172,6 +215,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
         $stmt->close();
         if (!$response['success']) $response['msg'] = 'Could not unrestrict user.';
     }
+    echo json_encode($response);
+    exit;
+}
+
+// Handle AJAX beta access grant request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_action'])) {
+    $action = $_POST['beta_action'];
+    $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+    $response = ['success' => false, 'msg' => ''];
+    if (($action !== 'grant_beta' && $action !== 'remove_beta') || $user_id <= 0) {
+        $response['msg'] = 'Invalid beta access request.';
+        echo json_encode($response);
+        exit;
+    }
+    $betaValue = ($action === 'grant_beta') ? 1 : 0;
+    $stmt = $conn->prepare("UPDATE users SET beta_access = ? WHERE id = ?");
+    $stmt->bind_param("ii", $betaValue, $user_id);
+    if ($stmt->execute()) {
+        $response['success'] = true;
+    } else {
+        $response['msg'] = 'Could not update beta access.';
+    }
+    $stmt->close();
+    echo json_encode($response);
+    exit;
+}
+
+// Handle AJAX admin grant request (super admins only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
+    $action = $_POST['admin_action'];
+    $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+    $response = ['success' => false, 'msg' => ''];
+    if (!$currentAdminIsSuperAdmin) {
+        $response['msg'] = 'Only super admins can grant admin access.';
+        echo json_encode($response);
+        exit;
+    }
+    if (($action !== 'grant_admin' && $action !== 'remove_admin') || $user_id <= 0) {
+        $response['msg'] = 'Invalid admin access request.';
+        echo json_encode($response);
+        exit;
+    }
+    $adminValue = ($action === 'grant_admin') ? 1 : 0;
+    $stmt = $conn->prepare("UPDATE users SET is_admin = ? WHERE id = ?");
+    $stmt->bind_param("ii", $adminValue, $user_id);
+    if ($stmt->execute()) {
+        $response['success'] = true;
+    } else {
+        $response['msg'] = 'Could not update admin access.';
+    }
+    $stmt->close();
     echo json_encode($response);
     exit;
 }
@@ -204,6 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                     <th class="has-text-centered">ID</th>
                     <th class="has-text-centered">User</th>
                     <th class="has-text-centered">Admin</th>
+                    <th class="has-text-centered">Super Admin</th>
                     <th class="has-text-centered">Beta Access</th>
                     <th class="has-text-centered">Premium Access</th>
                     <th class="has-text-centered">Signup Date</th>
@@ -227,12 +322,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                             default: $suffix = 'th';
                         }
                     }
-                    return $day . $suffix . ' ' . $dt->format('M Y g:ia');
+                    return '<span class="admin-date-line">' . $day . $suffix . ' ' . $dt->format('M Y') . '</span><br><span class="admin-time-line">' . $dt->format('g:ia') . '</span>';
                 }
                 foreach ($users as $user):
                     $is_restricted =
                         (isset($user['username']) && isset($restricted_users[$user['username']]))
                         || (isset($user['twitch_user_id']) && isset($restricted_users[$user['twitch_user_id']]));
+                    $is_super_admin = isset($user['super_admin']) && (int) $user['super_admin'] === 1;
+                    $is_admin_user = isset($user['is_admin']) && (int) $user['is_admin'] === 1;
+                    $can_restrict_user = !$is_super_admin && (!$is_admin_user || $currentAdminIsSuperAdmin);
                 ?>
                 <tr<?php if ($is_restricted) echo ' class="is-restricted-row"'; ?>>
                     <td class="has-text-centered" style="vertical-align: middle;"><?php echo htmlspecialchars($user['id']); ?></td>
@@ -247,6 +345,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                     </td>
                     <td class="has-text-centered" style="vertical-align: middle;">
                         <?php if ($user['is_admin']): ?>
+                            <span class="tag is-success">True</span>
+                        <?php else: ?>
+                            <span class="tag is-danger">False</span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="has-text-centered" style="vertical-align: middle;">
+                        <?php if ($is_super_admin): ?>
                             <span class="tag is-success">True</span>
                         <?php else: ?>
                             <span class="tag is-danger">False</span>
@@ -277,8 +382,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                         }
                         ?>
                     </td>
-                    <td class="has-text-centered" style="vertical-align: middle;"><?php echo format_pretty_date($user['signup_date']); ?></td>
-                    <td class="has-text-centered" style="vertical-align: middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
+                    <td class="has-text-centered admin-date-cell" style="vertical-align: middle;"><?php echo format_pretty_date($user['signup_date']); ?></td>
+                    <td class="has-text-centered admin-date-cell" style="vertical-align: middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
                     <td class="has-text-centered" style="vertical-align: middle;">
                         <div class="actions-wrap">
                             <button class="button is-small is-light" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
@@ -287,13 +392,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                             <button class="button is-small is-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
                                 <span class="icon"><i class="fas fa-trash"></i></span>
                             </button>
+                            <?php if ((int) $user['is_admin']): ?>
+                                <button
+                                    class="button is-small is-warning"
+                                    onclick="removeAdminAccess(<?php echo (int) $user['id']; ?>)"
+                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled title="Only super admins can remove admin access"<?php endif; ?>
+                                >
+                                    <span class="icon"><i class="fas fa-user-shield"></i></span>
+                                    <span>Remove Admin</span>
+                                </button>
+                            <?php else: ?>
+                                <button
+                                    class="button is-small is-link"
+                                    onclick="grantAdminAccess(<?php echo (int) $user['id']; ?>)"
+                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled title="Only super admins can grant admin access"<?php endif; ?>
+                                >
+                                    <span class="icon"><i class="fas fa-user-shield"></i></span>
+                                    <span>Give Admin</span>
+                                </button>
+                            <?php endif; ?>
+                            <?php if ((int) $user['beta_access']): ?>
+                                <button class="button is-small is-warning" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)">
+                                    <span class="icon"><i class="fas fa-flask"></i></span>
+                                    <span>Remove Beta</span>
+                                </button>
+                            <?php else: ?>
+                                <button class="button is-small is-primary" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)">
+                                    <span class="icon"><i class="fas fa-flask"></i></span>
+                                    <span>Give Beta</span>
+                                </button>
+                            <?php endif; ?>
                             <?php if ($is_restricted): ?>
-                                <button class="button is-small is-warning" onclick="toggleRestrictUser('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
+                                <button class="button is-small is-warning" onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                     <span>Unrestrict</span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-dark" onclick="toggleRestrictUser('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)">
+                                <button class="button is-small is-dark"
+                                    onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)"
+                                    <?php if (!$can_restrict_user): ?>disabled title="Only super admins can restrict admins. Super admins cannot be restricted."<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                     <span>Restrict</span>
                                 </button>
@@ -303,6 +440,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
                                     <span class="icon"><i class="fas fa-user-secret"></i></span>
                                     <span>Act As</span>
                                 </a>
+                            <?php else: ?>
+                                <button class="button is-small is-info" type="button" disabled title="You are already viewing your own dashboard">
+                                    <span class="icon"><i class="fas fa-user-secret"></i></span>
+                                    <span>Act As</span>
+                                </button>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -588,13 +730,24 @@ function deleteUser(userId) {
     });
 }
 
-function toggleRestrictUser(username, twitch_user_id, restrict) {
+function toggleRestrictUser(userId, username, twitch_user_id, restrict) {
     const action = restrict ? 'restrict' : 'unrestrict';
     const actionText = restrict ? 'restrict' : 'remove restriction for';
     const confirmText = restrict ? 'Restrict' : 'Unrestrict';
+    const restrictInfoHtml = `
+        <div class="has-text-left" style="margin-top:0.75rem;">
+            <p class="mb-2 has-text-weight-bold">Admin note:</p>
+            <p class="mb-2">Restricting a user blocks dashboard access.</p>
+            <p class="mb-2">They will not be able to use dashboard controls, including starting or stopping the bot.</p>
+            <p class="mb-0">This can be temporary — you can restore access anytime by clicking <span class="has-text-weight-bold">Unrestrict</span>.</p>
+        </div>
+    `;
+    const modalHtml = restrict
+        ? `Are you sure you want to ${actionText} <b>${username}</b>?${restrictInfoHtml}`
+        : `Are you sure you want to ${actionText} <b>${username}</b>?`;
     Swal.fire({
         title: restrict ? 'Restrict User?' : 'Remove Restriction?',
-        html: `Are you sure you want to ${actionText} <b>${username}</b>?`,
+        html: modalHtml,
         icon: restrict ? 'warning' : 'info',
         showCancelButton: true,
         confirmButtonText: confirmText,
@@ -603,6 +756,7 @@ function toggleRestrictUser(username, twitch_user_id, restrict) {
         if (result.isConfirmed) {
             $.post('', {
                 restrict_action: action,
+                user_id: userId,
                 username: username,
                 twitch_user_id: twitch_user_id
             }, function(resp) {
@@ -615,6 +769,114 @@ function toggleRestrictUser(username, twitch_user_id, restrict) {
                 }
             });
         }
+    });
+}
+
+function grantBetaAccess(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    Swal.fire({
+        title: 'Grant Beta Access?',
+        html: `Give <b>${user.username}</b> beta access? This sets beta_access to <b>1</b>.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Grant',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', {
+            beta_action: 'grant_beta',
+            user_id: userId
+        }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Updated', 'Beta access granted.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not update beta access.', 'error');
+            }
+        });
+    });
+}
+
+function removeBetaAccess(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    Swal.fire({
+        title: 'Remove Beta Access?',
+        html: `Remove beta access for <b>${user.username}</b>? This sets beta_access to <b>0</b>.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remove',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', {
+            beta_action: 'remove_beta',
+            user_id: userId
+        }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Updated', 'Beta access removed.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not update beta access.', 'error');
+            }
+        });
+    });
+}
+
+function grantAdminAccess(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    Swal.fire({
+        title: 'Grant Admin Access?',
+        html: `Give <b>${user.username}</b> admin access? This sets is_admin to <b>1</b>.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Grant',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', {
+            admin_action: 'grant_admin',
+            user_id: userId
+        }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Updated', 'Admin access granted.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not update admin access.', 'error');
+            }
+        });
+    });
+}
+
+function removeAdminAccess(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    Swal.fire({
+        title: 'Remove Admin Access?',
+        html: `Remove admin access for <b>${user.username}</b>? This sets is_admin to <b>0</b>.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remove',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', {
+            admin_action: 'remove_admin',
+            user_id: userId
+        }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Updated', 'Admin access removed.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not update admin access.', 'error');
+            }
+        });
     });
 }
 
