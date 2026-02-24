@@ -183,7 +183,6 @@ function getUserMusicFiles($dir) {
 $userMusicFiles = [];
 if (isset($user_music_path)) {
     $userMusicFiles = getUserMusicFiles($user_music_path);
-
     // Reconcile public user music directory so existing uploads are reachable at
     // https://music.botspecter.com/<username>/<file.mp3>
     if (isset($public_user_music_path) && is_dir($public_user_music_path)) {
@@ -683,7 +682,6 @@ ob_start();
             DOM.updateNowPlaying(title, true);
             DOM.highlightCurrentSong(index);
             const audio = MusicPlayer.elements.audioPlayer;
-
             // Build songData to broadcast to overlays (include public URL for user uploads)
             let songData = { title };
             if (typeof song === 'string' && song.startsWith('USER:')) {
@@ -697,14 +695,12 @@ ob_start();
                 audio.src = `https://cdn.botofthespecter.com/music/${encodeURIComponent(song)}`;
                 songData.file = song;
             }
-
             // Emit NOW_PLAYING so overlays/controllers receive the full song info (including .url for user songs)
             try {
                 if (MusicPlayer.socket && MusicPlayer.socket.connected) {
                     MusicPlayer.socket.emit('NOW_PLAYING', { song: songData });
                 }
             } catch (e) { console.warn('Failed to emit NOW_PLAYING', e); }
-
             audio.volume = MusicPlayer.state.volume / 100;
             audio.play().catch(err => console.error('Playback error:', err));
         },
@@ -886,7 +882,6 @@ ob_start();
             this.initAudioEvents();
             this.initSearchEvents();
             this.initUploadEvents();
-
             // File input preview for user uploads
             const userFileInput = document.getElementById('userMusicFiles');
             const userFileList = document.getElementById('user-music-file-list');
@@ -896,7 +891,6 @@ ob_start();
                     userFileList.textContent = files || 'No files selected';
                 });
             }
-
             MusicPlayer.listenersInitialized = true;
         },
         initPlaylistEvents() {
@@ -918,7 +912,6 @@ ob_start();
                     this.playSongAtIndex(index);
                 });
             });
-
             // Delete user-uploaded music (only visible to uploader)
             document.querySelectorAll('.delete-user-music').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
@@ -947,24 +940,22 @@ ob_start();
             } else {
                 const song = MusicPlayer.state.playlist[index];
                 const title = Utils.formatTitle(song);
-
-                // If this is a user-uploaded track, send a NOW_PLAYING with a public URL so overlays can fetch it directly.
+                // Use file-based NOW_PLAYING for all tracks to avoid index mismatches
+                // between dashboard and overlay playlist ordering.
+                const songPayload = {
+                    title: title,
+                    file: song
+                };
                 if (typeof song === 'string' && song.startsWith('USER:')) {
                     const userFile = song.replace(/^USER:/, '');
-                    const songPayload = {
-                        title: title,
-                        file: userFile
-                    };
+                    songPayload.file = userFile;
                     if (uploaderName) {
                         songPayload.url = `https://music.botspecter.com/${encodeURIComponent(uploaderName)}/${encodeURIComponent(userFile)}`;
                     }
-                    if (MusicPlayer.socket && MusicPlayer.socket.connected) {
-                        MusicPlayer.socket.emit('NOW_PLAYING', { song: songPayload });
-                    }
-                } else {
-                    WebSocket.sendCommand('play_index', { index });
                 }
-
+                if (MusicPlayer.socket && MusicPlayer.socket.connected) {
+                    MusicPlayer.socket.emit('NOW_PLAYING', { song: songPayload });
+                }
                 DOM.updateNowPlaying(title, true);
                 DOM.highlightCurrentSong(index);
             }
@@ -977,7 +968,6 @@ ob_start();
                     WebSocket.sendCommand('MUSIC_SETTINGS');
                 }
             });
-
             // Persisted music source selector (built-in vs user uploads)
             const musicSourceSelect = document.getElementById('music-source-select');
             if (musicSourceSelect) {
@@ -1005,7 +995,6 @@ ob_start();
                             toast.innerText = 'Music source saved';
                             document.body.appendChild(toast);
                             setTimeout(() => toast.remove(), 2200);
-
                             // Update the playlist display immediately for the new source
                             if (typeof DOM !== 'undefined' && DOM.updatePlaylistForSource) {
                                 DOM.updatePlaylistForSource(val);
@@ -1148,7 +1137,6 @@ ob_start();
             const progressPercent = document.getElementById('userUploadProgressPercent');
             const responseEl = document.getElementById('userUploadResponse');
             if (!form || !fileInput) return;
-
             form.addEventListener('submit', (ev) => {
                 ev.preventDefault();
                 const files = fileInput.files;
@@ -1156,22 +1144,18 @@ ob_start();
                     alert('Please select one or more MP3 files to upload.');
                     return;
                 }
-
                 const fd = new FormData();
                 for (let i = 0; i < files.length; i++) {
                     fd.append('userMusicFiles[]', files[i]);
                 }
-
                 // UI: disable submit, show progress
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.remove('is-primary'); submitBtn.classList.add('is-loading'); }
                 progressContainer.style.display = 'flex';
                 progressBar.value = 0; progressPercent.textContent = '0%';
                 responseEl.style.display = 'none'; responseEl.innerHTML = '';
-
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', window.location.pathname, true);
-
                 xhr.upload.onprogress = function(e) {
                     if (e.lengthComputable) {
                         const percentComplete = Math.round((e.loaded / e.total) * 100);
@@ -1179,7 +1163,6 @@ ob_start();
                         progressPercent.textContent = percentComplete + '%';
                     }
                 };
-
                 xhr.onload = function() {
                     if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); submitBtn.classList.add('is-primary'); }
                     progressContainer.style.display = 'none';
