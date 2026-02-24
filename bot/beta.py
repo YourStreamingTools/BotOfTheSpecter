@@ -12046,6 +12046,17 @@ def can_send_ad_message():
     except Exception:
         return True
 
+def clear_ad_break_chat_history(context=""):
+    try:
+        chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+        if chat_file.exists():
+            with chat_file.open('w', encoding='utf-8') as f:
+                json.dump([], f)
+            if context:
+                event_logger.info(f"Cleared ad break chat history ({context})")
+    except Exception as e:
+        event_logger.error(f"Error clearing ad break chat history ({context or 'unknown'}): {e}")
+
 async def get_remote_instruction_messages(discord=False, ad_messages=False, home_ai=False):
     global OPENAI_INSTRUCTIONS_ENDPOINT, INSTRUCTIONS_CACHE_TTL
     global _cached_instructions, _cached_instructions_time
@@ -12275,6 +12286,8 @@ async def handle_ad_break_start(duration_seconds):
                             sent_ok = await send_chat_message(f"/me {ai_text}")
                             if sent_ok:
                                 try_mark_ad_message_sent_after(True)
+                                # Prevent the first AI ad message from becoming stale context for later ad breaks
+                                clear_ad_break_chat_history("post-first-ai-ad-start-message")
                             else:
                                 api_logger.error(f"AI Ad start message reported not sent: {ai_text}")
                         else:
@@ -12305,148 +12318,23 @@ async def handle_ad_break_start(duration_seconds):
                 api_logger.error(f"Exception while sending ad start message: {e}")
     @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
     async def handle_ad_break_end():
-        ai_message_sent = False
-        enable_ai = settings.get('enable_ai_ad_breaks', 0)
-        premium_tier = await check_premium_feature(CHANNEL_NAME)
-        ai_enabled_for_end = bool(enable_ai and premium_tier >= 2000)
         end_notice_sent = False
-        # Send immediate plain-text ad-end message first, then optionally AI follow-up
+        # Send immediate plain-text ad-end message only
         if settings.get('enable_end_ad_message', True):
             try:
                 if can_send_ad_message():
                     sent_ok = await send_chat_message(settings['ad_end_message'])
                     if sent_ok:
                         end_notice_sent = True
-                        # If AI is disabled, this is the final message and should begin dedupe cooldown
-                        if not ai_enabled_for_end:
-                            try_mark_ad_message_sent_after(True)
+                        try_mark_ad_message_sent_after(True)
                     else:
                         api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
                 else:
                     api_logger.info("Skipped ad end immediate message due to cooldown")
             except Exception as e:
                 api_logger.error(f"Exception while sending immediate ad end message: {e}")
-        # Pre-read and clear ad-break chat history so old messages don't persist when AI is disabled/permission missing
-        chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-        chat_history = []
-        try:
-            if chat_file.exists():
-                try:
-                    with chat_file.open('r', encoding='utf-8') as f:
-                        content = f.read()
-                        if content:
-                            chat_history = json.loads(content)
-                            timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
-                            chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
-                except Exception as e:
-                    event_logger.error(f"Error reading ad break chat history (pre-clear ad end): {e}")
-            # Clear file after reading so future ad breaks start fresh
-            try:
-                if chat_file.exists():
-                    with chat_file.open('w', encoding='utf-8') as f:
-                        json.dump([], f)
-            except Exception as e:
-                event_logger.error(f"Error clearing ad break chat history file (pre-clear ad end): {e}")
-        except Exception as e:
-            event_logger.debug(f"No ad break chat file to pre-clear: {e}")
-        if ai_enabled_for_end:
-            try:
-                system_prompt = (
-                    "You are the witty and entertaining assistant for a Twitch stream. "
-                    "The ad break has JUST FINISHED. "
-                    "Your goal is to write a message welcoming viewers back to the stream. "
-                    "IMPORTANT: "
-                    "1. Keep your response under 500 characters. "
-                    "2. Be kind, warm, and welcoming; keep language inclusive and respectful. "
-                    "3. Do not shame, mock, insult, or use snark toward viewers. "
-                    "4. DO NOT use the phrase 'Chaos Crew' (or misspellings like 'Chasos Crew') ever."
-                )
-                try:
-                    recent_activity = ""
-                    if 'stream_title' in globals() and stream_title:
-                        recent_activity += f"Stream title: {stream_title}. "
-                    if 'current_game' in globals() and current_game:
-                        recent_activity += f"Current category: {current_game}. "
-                except Exception:
-                    recent_activity = ""
-                user_content = "Ads are done. Welcome everyone back to the stream! Get them hyped for more content."
-                if recent_activity:
-                    user_content += f" Recent activity: {recent_activity}"
-                if chat_history:
-                    user_content += " Recent chat (brief): "
-                    # Include only a few recent chat lines to keep prompt concise
-                    for entry in chat_history[-6:]:
-                        user_content += f"{entry.get('user','User')}: {entry.get('message','')}\n"
-                # Clear the ad-break chat file after reading so future ad-breaks start fresh
-                try:
-                    if chat_history and chat_file.exists():
-                        with chat_file.open('w', encoding='utf-8') as f:
-                            json.dump([], f)
-                except Exception as e:
-                    event_logger.error(f"Error clearing ad break chat history after ad end read: {e}")
-                # Analyze chat vibe and include guidance so the model doesn't invent unrelated activities
-                try:
-                    vibe = analyze_chat_vibe(chat_history)
-                    user_content += f"\nVibe summary: {vibe.get('summary')}\n"
-                    if vibe.get('topics'):
-                        user_content += f"Detected topics: {', '.join(vibe.get('topics'))}."
-                    # Strong instruction: prefer detected topics and do not invent unrelated events
-                    user_content += "\nInstruction: Prefer referencing detected topics/tone. Do not invent activities not present in the recent chat or stream title."
-                except Exception as e:
-                    event_logger.debug(f"Could not analyze chat vibe for ad end: {e}")
-                messages = await get_remote_instruction_messages(ad_messages=True)
-                if not messages:
-                    raise RuntimeError("Ad AI instructions unavailable from API endpoint")
-                messages.append({"role": "user", "content": user_content})
-                try:
-                    chat_client = getattr(openai_client, 'chat', None)
-                    ai_text = None
-                    if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                        resp = await chat_client.completions.create(model="gpt-5-nano", messages=messages)
-                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                            choice = resp['choices'][0]
-                            if 'message' in choice and 'content' in choice['message']:
-                                ai_text = choice['message']['content']
-                            elif 'text' in choice:
-                                ai_text = choice['text']
-                        else:
-                            choices = getattr(resp, 'choices', None)
-                            if choices and len(choices) > 0:
-                                ai_text = getattr(choices[0].message, 'content', None)
-                    elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                        resp = await openai_client.chat_completions.create(model="gpt-5-nano", messages=messages)
-                        if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                            ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
-                        else:
-                            choices = getattr(resp, 'choices', None)
-                            if choices and len(choices) > 0:
-                                ai_text = getattr(choices[0].message, 'content', None)
-                    if ai_text:
-                        ai_text = ai_text.strip()
-                        filtered_ai_text = re.sub(r"(?i)\b(?:chaos|chasos)\s+crew\b", "Stream Team", ai_text)
-                        if filtered_ai_text != ai_text:
-                            ai_text = filtered_ai_text
-                            api_logger.info("Filtered blocked crew phrase variant from AI response")
-                        # Allow AI follow-up for this same ad-end event after immediate plain-text message
-                        try:
-                            if end_notice_sent or can_send_ad_message():
-                                sent_ok = await send_chat_message(f"/me {ai_text}")
-                                if sent_ok:
-                                    try_mark_ad_message_sent_after(True)
-                                else:
-                                    api_logger.error(f"AI Ad end message reported not sent: {ai_text}")
-                            else:
-                                api_logger.info("Skipped AI ad end message due to cooldown")
-                        except Exception as e:
-                            api_logger.error(f"Error sending AI ad end message: {e}")
-                        ai_message_sent = True
-                        api_logger.info(f"Sent AI Ad Break End message: {ai_text}")
-                except Exception as e:
-                    api_logger.error(f"Error calling chat completion API for ad break end: {e}")
-            except Exception as e:
-                api_logger.error(f"Error in AI Ad Break End logic: {e}")
-        # Fallback for cases where immediate send failed/skipped and AI message was not sent
-        if not ai_message_sent and not end_notice_sent and settings.get('enable_end_ad_message', True):
+        # Fallback for cases where immediate send failed/skipped
+        if not end_notice_sent and settings.get('enable_end_ad_message', True):
             try:
                 if can_send_ad_message():
                     sent_ok = await send_chat_message(settings['ad_end_message'])
