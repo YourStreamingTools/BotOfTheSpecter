@@ -268,12 +268,6 @@ ob_start();
         <p class="title is-5"><?php echo $ai_requests_per_day !== null ? number_format($ai_requests_per_day, 1) : 'N/A'; ?></p>
     </div>
 </div>
-<p class="is-size-7 has-text-grey" style="margin-bottom: 0.75rem;">
-    Based on <?php echo htmlspecialchars((string)$ai_cost_pricing_source); ?> for <?php echo htmlspecialchars((string)$ai_cost_window_label); ?>.
-    <?php if (!$ai_has_priced_models): ?>
-        Add <code>pricing_per_million</code> in <code>/var/www/config/openai.php</code> for model-specific pricing.
-    <?php endif; ?>
-</p>
 <br>
 <div style="overflow:auto;">
     <table class="table is-fullwidth is-striped is-narrow">
@@ -1954,7 +1948,13 @@ ob_start();
     </div>
     <div class="column is-half">
         <div class="box" style="height: 100%">
-            <h2 class="title is-4"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem;">
+                <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
+                <button id="refresh-ai-stats" type="button" class="button is-small is-light">
+                    <span class="icon is-small"><i class="fas fa-sync-alt"></i></span>
+                    <span>Refresh</span>
+                </button>
+            </div>
             <div id="ai-platform-stats-content">
                 <p class="has-text-grey">Loading AI platform stats…</p>
             </div>
@@ -2893,10 +2893,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update bot message counts immediately and every 60 seconds
     updateBotMessageCounts();
     setInterval(updateBotMessageCounts, 60000);
+    const refreshAiStatsButton = document.getElementById('refresh-ai-stats');
+    let aiStatsLoading = false;
     // Load AI platform stats after the page has rendered.
     function loadAiPlatformStats() {
+        if (aiStatsLoading) return;
         const aiStatsContainer = document.getElementById('ai-platform-stats-content');
         if (!aiStatsContainer) return;
+        aiStatsLoading = true;
+        if (refreshAiStatsButton) {
+            refreshAiStatsButton.disabled = true;
+            refreshAiStatsButton.classList.add('is-loading');
+        }
         fetch('index.php?ajax=ai_platform_stats', {
             method: 'GET',
             headers: { 'Accept': 'application/json' }
@@ -2912,7 +2920,17 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(err => {
                 console.error('Error loading AI platform stats:', err);
                 aiStatsContainer.innerHTML = '<p class="has-text-danger">Failed to load AI platform stats.</p>';
+            })
+            .finally(() => {
+                aiStatsLoading = false;
+                if (refreshAiStatsButton) {
+                    refreshAiStatsButton.disabled = false;
+                    refreshAiStatsButton.classList.remove('is-loading');
+                }
             });
+    }
+    if (refreshAiStatsButton) {
+        refreshAiStatsButton.addEventListener('click', loadAiPlatformStats);
     }
     window.addEventListener('load', function() {
         // Intentionally defer AI stats until everything else is fully loaded.
