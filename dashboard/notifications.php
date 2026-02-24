@@ -130,8 +130,7 @@ ob_start();
         <div id="subscription-content">
             <?php include 'notifications_content.php'; ?>
         </div>
-
-        <div class="box" id="internal-ws-box">
+        <div class="box" id="internal-ws-box" style="margin-top: 16px;">
             <h2 class="title is-4"><i class="fas fa-plug"></i> Internal Websocket Connections</h2>
             <p class="mb-3">This shows websocket clients connected to your API key on the internal BotOfTheSpecter websocket service.</p>
             <div id="internal-ws-summary" class="info-box">Loading internal websocket status...</div>
@@ -139,15 +138,14 @@ ob_start();
                 <table class="data-table" id="internal-ws-table">
                     <thead>
                         <tr>
-                            <th>SID</th>
-                            <th>IP</th>
-                            <th>User Agent</th>
-                            <th>Connected</th>
-                            <th>Action</th>
+                            <th>Client Name</th>
+                            <th>Socket ID</th>
+                            <th>Admin</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="internal-ws-tbody">
-                        <tr><td colspan="5" class="has-text-centered">Loading...</td></tr>
+                        <tr><td colspan="4" class="has-text-centered">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -622,28 +620,34 @@ async function refreshInternalWebsocket(button = null) {
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'No data');
-        const clients = (data.data && Array.isArray(data.data.clients)) ? data.data.clients : [];
+        const clientsRaw = (data.data && data.data.clients) ? data.data.clients : [];
+        const clients = Array.isArray(clientsRaw) ? clientsRaw : Object.values(clientsRaw);
+        const clientCount = (data.data && typeof data.data.clientCount === 'number') ? data.data.clientCount : clients.length;
 
-        summary.innerHTML = `<strong>${clients.length}</strong> active internal websocket client(s) for your API key.`;
+        summary.innerHTML = `<strong>${clientCount}</strong> active internal websocket client(s) for your API key.`;
 
         if (clients.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="has-text-centered">No active websocket clients for your API key.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">No active websocket clients for your API key.</td></tr>';
             return;
         }
 
         let html = '';
         clients.forEach(c => {
-            const sid = escapeHtml(c.sid || c.id || '');
-            const ip = escapeHtml(c.ip || c.remoteAddr || '');
-            const ua = escapeHtml(c.ua || c.user_agent || '');
-            const connected = escapeHtml(c.connected_at || c.connected || c.connectedAt || '');
-            html += `<tr><td>${sid}</td><td style="font-size:12px;color:#aaa;">${ip}</td><td style="font-size:12px;color:#555;">${ua}</td><td style="font-size:12px;color:#aaa;">${connected}</td><td><button class="button is-small is-danger" onclick="disconnectWs('${sid}', this)"><i class="fas fa-times"></i> Disconnect</button></td></tr>`;
+            const sidRaw = c.sid || c.id || c.connectionId || '';
+            const name = escapeHtml(c.name || c.client_name || c.clientName || 'Unknown Client');
+            const sid = escapeHtml(sidRaw || 'N/A');
+            const isAdmin = !!(c.is_admin || c.isAdmin || c.admin);
+            const adminBadge = isAdmin
+                ? '<span class="tag is-danger">Admin</span>'
+                : '<span class="tag is-info">User</span>';
+
+            html += `<tr><td>${name}</td><td><code>${sid}</code></td><td>${adminBadge}</td><td><button class="button is-small is-danger" onclick='disconnectWs(${JSON.stringify(sidRaw)}, this)'><i class="fas fa-times"></i> Disconnect</button></td></tr>`;
         });
         tbody.innerHTML = html;
     } catch (err) {
         console.error('refreshInternalWebsocket error', err);
         summary.innerHTML = `<span style="color:#e74c3c;">Failed to load internal websocket data: ${escapeHtml(err.message || String(err))}</span>`;
-        tbody.innerHTML = '<tr><td colspan="5" class="has-text-centered">Unable to load data.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">Unable to load data.</td></tr>';
     } finally {
         if (button) {
             button.disabled = false;
