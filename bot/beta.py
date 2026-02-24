@@ -2474,11 +2474,15 @@ class TwitchBot(commands.Bot):
             # Ignore messages from the bot itself
             if message.echo:
                 return
-            # Handle commands
-            await self.handle_commands(message)
-            messageContent = str(message.content).strip().lower() if message.content else ""
             messageAuthor = message.author.name if message.author else ""
             messageAuthorID = message.author.id if message.author else ""
+            messageContentRaw = str(message.content).strip() if message.content else ""
+            if await self.should_block_first_message_command(messageAuthor, messageAuthorID, messageContentRaw, message.author):
+                return
+            await self.send_first_command_welcome_if_needed(messageAuthor, messageAuthorID, messageContentRaw)
+            # Handle commands
+            await self.handle_commands(message)
+            messageContent = messageContentRaw.lower()
             AuthorMessage = str(message.content) if message.content else ""
             # Check if the message matches the spam pattern (Has its own DB logic internally)
             spam_pattern = await get_spam_patterns()
@@ -2548,25 +2552,6 @@ class TwitchBot(commands.Bot):
                                 }
                 # Process Command Logic (Using captured data)
                 if command_data:
-                    # Protection: block custom commands when user hasn't sent a message this stream
-                    try:
-                        block_first_message_setting = False
-                        async with await mysql_handler.get_connection() as connection:
-                            async with connection.cursor(DictCursor) as cursor:
-                                await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
-                                protection_row = await cursor.fetchone()
-                                if protection_row and protection_row.get("block_first_message_commands") == 'True':
-                                    block_first_message_setting = True
-                        if block_first_message_setting and not await command_permissions("mod", message.author) and messageAuthor.lower() != CHANNEL_NAME.lower():
-                            async with await mysql_handler.get_connection() as connection:
-                                async with connection.cursor(DictCursor) as cursor:
-                                    await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
-                                    seen_today_res = await cursor.fetchone()
-                                    if not seen_today_res and stream_online:
-                                        await send_chat_message("Sorry, you cannot use this command because: you haven't sent a chat message recently")
-                                        command_data = None
-                    except Exception as e:
-                        bot_logger.error(f"Error checking first-message protection: {e}")
                     if command_data['type'] == 'custom':
                         response = command_data['response']
                         cc_status = command_data['status']
@@ -2848,6 +2833,124 @@ class TwitchBot(commands.Bot):
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
             await handle_chat_message(messageAuthor, messageContent)
+
+    async def send_first_command_welcome_if_needed(self, messageAuthor, messageAuthorID, messageContent=""):
+        global stream_online
+        if not messageContent or not messageContent.startswith('!'):
+            return
+        if not stream_online:
+            return
+        if not messageAuthor or messageAuthor.lower() in [BOT_USERNAME.lower(), CHANNEL_NAME.lower()]:
+            return
+        send_shoutout = False
+        shoutout_message = None
+        try:
+            connection = await mysql_handler.get_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
+                protection_row = await cursor.fetchone()
+                if protection_row and protection_row.get("block_first_message_commands") == 'True':
+                    return
+                await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
+                seen_today_result = await cursor.fetchone()
+                if seen_today_result is not None:
+                    return
+                is_vip = await is_user_vip(messageAuthorID)
+                is_mod = await is_user_mod(messageAuthorID)
+                await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
+                user_data = await cursor.fetchone()
+                if user_data:
+                    has_welcome_message = user_data.get("welcome_message")
+                    user_status_enabled = user_data.get("status", 'True') == 'True'
+                else:
+                    has_welcome_message = None
+                    user_status_enabled = True
+                await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
+                preferences = await cursor.fetchone()
+                if not preferences:
+                    send_welcome_messages = 1
+                    new_default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
+                    new_default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
+                    new_default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
+                    default_welcome_message = "Welcome back (user), glad to see you again!"
+                    default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
+                    default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
+                else:
+                    send_welcome_messages = int(preferences["send_welcome_messages"])
+                    new_default_welcome_message = preferences["new_default_welcome_message"]
+                    new_default_vip_welcome_message = preferences["new_default_vip_welcome_message"]
+                    new_default_mod_welcome_message = preferences["new_default_mod_welcome_message"]
+                    default_welcome_message = preferences["default_welcome_message"]
+                    default_vip_welcome_message = preferences["default_vip_welcome_message"]
+                    default_mod_welcome_message = preferences["default_mod_welcome_message"]
+                await cursor.execute(
+                    'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
+                    (messageAuthorID, messageAuthor)
+                )
+                await connection.commit()
+                chat_logger.info(f"Marked {messageAuthor} as seen today from first-command welcome flow.")
+                if user_status_enabled and send_welcome_messages:
+                    if not user_data:
+                        if is_vip:
+                            message_to_send = new_default_vip_welcome_message.replace("(user)", messageAuthor)
+                        elif is_mod:
+                            message_to_send = new_default_mod_welcome_message.replace("(user)", messageAuthor)
+                        else:
+                            message_to_send = new_default_welcome_message.replace("(user)", messageAuthor)
+                    else:
+                        if has_welcome_message:
+                            message_to_send = has_welcome_message
+                        else:
+                            if is_vip:
+                                message_to_send = default_vip_welcome_message.replace("(user)", messageAuthor)
+                            elif is_mod:
+                                message_to_send = default_mod_welcome_message.replace("(user)", messageAuthor)
+                            else:
+                                message_to_send = default_welcome_message.replace("(user)", messageAuthor)
+                    if '(shoutout)' in message_to_send:
+                        send_shoutout = True
+                        message_to_send = message_to_send.replace('(shoutout)', '')
+                        user_id = messageAuthorID
+                        user_to_shoutout = messageAuthor
+                        shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
+                    if message_to_send.strip():
+                        await send_chat_message(message_to_send)
+                    if send_shoutout and shoutout_message:
+                        queued = await add_shoutout(user_to_shoutout, user_id, is_automated=True)
+                        if queued:
+                            await send_chat_message(shoutout_message)
+                        else:
+                            twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_to_shoutout} (user_id: {user_id}) [source=welcome_message].")
+                    chat_logger.info(f"Sent first-command welcome message to {messageAuthor}")
+                    create_task(self.safe_walkon(messageAuthor))
+        except Exception as e:
+            chat_logger.error(f"Error in send_first_command_welcome_if_needed for {messageAuthor}: {e}")
+
+    async def should_block_first_message_command(self, messageAuthor, messageAuthorID, messageContent="", message_author=None):
+        global stream_online
+        if not messageContent or not messageContent.startswith('!'):
+            return False
+        if not stream_online:
+            return False
+        try:
+            if message_author and await command_permissions("mod", message_author):
+                return False
+            if messageAuthor and messageAuthor.lower() == CHANNEL_NAME.lower():
+                return False
+            async with await mysql_handler.get_connection() as connection:
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
+                    protection_row = await cursor.fetchone()
+                    if not protection_row or protection_row.get("block_first_message_commands") != 'True':
+                        return False
+                    await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
+                    seen_today_res = await cursor.fetchone()
+                    if not seen_today_res:
+                        await send_chat_message("Sorry, you cannot use this command because: you haven't sent a chat message recently")
+                        return True
+        except Exception as e:
+            bot_logger.error(f"Error checking pre-command first-message protection: {e}")
+        return False
 
     async def safe_walkon(self, user):
         try:
