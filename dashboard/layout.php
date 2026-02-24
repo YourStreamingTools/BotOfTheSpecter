@@ -21,19 +21,36 @@ $showAdminPanelLink = isset($is_admin) && $is_admin === true;
 // If not set, infer from the request URI path segments: /admin, /moderator, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {
     $layoutMode = 'default';
+    $candidatePaths = [];
     if (isset($_SERVER['REQUEST_URI'])) {
-        $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        $path = strtolower($path);
+        $candidatePaths[] = (string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    }
+    if (isset($_SERVER['SCRIPT_NAME'])) {
+        $candidatePaths[] = (string) $_SERVER['SCRIPT_NAME'];
+    }
+    if (isset($_SERVER['PHP_SELF'])) {
+        $candidatePaths[] = (string) $_SERVER['PHP_SELF'];
+    }
+    if (isset($_SERVER['SCRIPT_FILENAME'])) {
+        $candidatePaths[] = (string) $_SERVER['SCRIPT_FILENAME'];
+    }
+    foreach ($candidatePaths as $candidatePath) {
+        $path = strtolower(str_replace('\\', '/', trim($candidatePath)));
         $norm = rtrim($path, '/');
-        // Detect role by path segment anywhere in the request path (robust for nested locations)
-        if ($norm !== '') {
-            if (strpos($norm, '/admin') !== false) {
-                $layoutMode = 'admin';
-            } elseif (strpos($norm, '/moderator') !== false) {
-                $layoutMode = 'moderator';
-            } elseif (strpos($norm, '/todolist') !== false) {
-                $layoutMode = 'todolist';
-            }
+        if ($norm === '') {
+            continue;
+        }
+        if (strpos($norm, '/admin') !== false) {
+            $layoutMode = 'admin';
+            break;
+        }
+        if (strpos($norm, '/moderator') !== false) {
+            $layoutMode = 'moderator';
+            break;
+        }
+        if (strpos($norm, '/todolist') !== false) {
+            $layoutMode = 'todolist';
+            break;
         }
     }
 }

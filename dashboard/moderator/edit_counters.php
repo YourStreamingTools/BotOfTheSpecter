@@ -2650,5 +2650,5 @@ function populateQuoteEdit() {
 <?php
 $scripts = ob_get_clean();
 // Render layout
-include "layout.php";
+include_once __DIR__ . '/../layout.php';
 ?>
