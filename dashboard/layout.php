@@ -24,7 +24,7 @@ $actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $a
 $actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : 'selected user', ENT_QUOTES, 'UTF-8');
 $actingAsActorRole = isset($_SESSION['admin_act_as_actor_role']) ? (string) $_SESSION['admin_act_as_actor_role'] : 'admin';
 $actingAsReturnLabel = ($actingAsActorRole === 'moderator') ? 'Return to Mod Channels' : 'Return to Admin Panel';
-$stopActAsHref = 'admin/stop_act_as.php';
+$stopActAsHref = 'stop_act_as.php';
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {
@@ -72,10 +72,8 @@ switch ($layoutMode) {
         $brandText = 'BotOfTheSpecter';
         $brandHref = 'dashboard.php';
 }
-if ($layoutMode === 'admin') {
-    $stopActAsHref = 'stop_act_as.php';
-} elseif ($layoutMode === 'todolist') {
-    $stopActAsHref = '../admin/stop_act_as.php';
+if ($layoutMode === 'admin' || $layoutMode === 'todolist') {
+    $stopActAsHref = '../stop_act_as.php';
 }
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];
