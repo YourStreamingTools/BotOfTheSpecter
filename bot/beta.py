@@ -236,6 +236,7 @@ ad_upcoming_notified = False                            # Flag to prevent duplic
 ad_upcoming_last_notified_next_ad_at = None            # Tracks which next_ad_at already triggered a notice
 AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
 last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
+stream_session_started_at = 0.0                         # UTC timestamp when the current stream session started
 pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                               # asyncio.Task that waits for stream end to persist outgoing raid
 
@@ -1611,12 +1612,14 @@ async def process_twitch_eventsub_message(message):
                     message_text = event_data["message"]["text"]
                     # Capture chat for AI Ad Breaks
                     try:
+                        # Skip bot-authored messages so ad AI context only contains viewer chat
+                        is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
                         # Skip if it matches an auto-posted timed message
                         is_auto_message = False
                         auto_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
                         if message_text in auto_messages:
                             is_auto_message = True
-                        if not is_auto_message:
+                        if not is_auto_message and not is_bot_message:
                             Path(AD_BREAK_CHAT_DIR).mkdir(parents=True, exist_ok=True)
                             chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
                             chat_entry = {
@@ -9333,8 +9336,16 @@ async def process_weather_websocket(data):
 
 # Function to process the stream being online
 async def process_stream_online_websocket():
-    global stream_online, current_game, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
+    global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
+    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at
+    was_offline = not stream_online
     stream_online = True
+    if was_offline:
+        stream_session_started_at = datetime.now(timezone.utc).timestamp()
+        ad_upcoming_notified = False
+        ad_upcoming_last_notified_next_ad_at = None
+        last_ad_message_ts = 0.0
+        clear_ad_break_chat_history("stream-online-session-reset")
     looped_tasks["timed_message"] = create_task(timed_message())
     looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
@@ -9353,8 +9364,10 @@ async def process_stream_online_websocket():
     # Extract necessary data from the API response
     if data.get('data'):
         current_game = data['data'][0].get('game_name')
+        stream_title = data['data'][0].get('title')
     else:
         current_game = "Unknown"
+        stream_title = None
     # Send a message to the chat announcing the stream is online
     message = f"Stream is now online! Streaming {current_game}" if current_game else "Stream is now online!"
     await send_chat_message(message)
@@ -10762,7 +10775,9 @@ async def wait_and_persist_outgoing_raid():
 
 async def check_stream_online():
     global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
+    global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at
     try:
+        was_online = stream_online
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
             async with httpClientSession() as session:
@@ -10791,6 +10806,12 @@ async def check_stream_online():
                                 stream_title = channel_data['data'][0].get('title', None)
                     else:
                         stream_online = True
+                        if not was_online:
+                            stream_session_started_at = datetime.now(timezone.utc).timestamp()
+                            ad_upcoming_notified = False
+                            ad_upcoming_last_notified_next_ad_at = None
+                            last_ad_message_ts = 0.0
+                            clear_ad_break_chat_history("stream-online-status-check-reset")
                         # Extract game and title from streams data
                         stream_data = data['data'][0]
                         current_game = stream_data.get('game_name', None)
@@ -12119,6 +12140,7 @@ async def get_remote_instruction_messages(discord=False, ad_messages=False, home
         return []
 
 async def handle_ad_break_start(duration_seconds):
+    global stream_session_started_at
     settings = await get_ad_settings()
     # Honor global ad-notice toggle — if disabled, do nothing (same behavior as main bot)
     if not settings.get('enable_ad_notice', True):
@@ -12137,7 +12159,7 @@ async def handle_ad_break_start(duration_seconds):
                 ad_break_count = result['ad_break_count']
     except Exception as e:
         api_logger.error(f"Error updating ad break count in handle_ad_break_start: {e}")
-    # Pre-read ad-break chat file and clear it immediately so old messages don't pile up (even if AI is disabled/permission not granted)
+    # Pre-read ad-break chat file (clearing is intentionally deferred until the first AI response is returned)
     chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
     chat_history = []
     if chat_file.exists():
@@ -12149,15 +12171,14 @@ async def handle_ad_break_start(duration_seconds):
                     # Filter out only timed messages for AI context (keep command responses)
                     timed_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
                     chat_history = [entry for entry in chat_history if entry.get('message', '') not in timed_messages]
+                    # Limit AI context to current stream session only
+                    if stream_session_started_at > 0:
+                        chat_history = [
+                            entry for entry in chat_history
+                            if isinstance(entry.get('timestamp'), (int, float)) and entry['timestamp'] >= stream_session_started_at
+                        ]
         except Exception as e:
-            event_logger.error(f"Error reading ad break chat history (pre-clear): {e}")
-    # Clear the file IMMEDIATELY after reading so future ad-breaks don't process stale logs
-    try:
-        if chat_file.exists():
-            with chat_file.open('w', encoding='utf-8') as f:
-                json.dump([], f)
-    except Exception as e:
-        event_logger.error(f"Error clearing ad break chat history file (pre-clear): {e}")
+            event_logger.error(f"Error reading ad break chat history: {e}")
     # 2. Send immediate plain-text start notice, then optionally follow with AI message
     enable_ai = settings.get('enable_ai_ad_breaks', 0)
     premium_tier = await check_premium_feature(CHANNEL_NAME)
@@ -12275,6 +12296,8 @@ async def handle_ad_break_start(duration_seconds):
                     api_logger.error(f"Chat completion returned no usable text for ad break: {resp if 'resp' in locals() else 'No response'}")
                 else:
                     ai_text = ai_text.strip()
+                    # Clear captured ad-break chat as soon as the first AI response is returned
+                    clear_ad_break_chat_history("first-ai-ad-response-received")
                     # Filter out blocked phrase variants
                     filtered_ai_text = re.sub(r"(?i)\b(?:chaos|chasos)\s+crew\b", "Stream Team", ai_text)
                     if filtered_ai_text != ai_text:
@@ -12286,8 +12309,6 @@ async def handle_ad_break_start(duration_seconds):
                             sent_ok = await send_chat_message(f"/me {ai_text}")
                             if sent_ok:
                                 try_mark_ad_message_sent_after(True)
-                                # Prevent the first AI ad message from becoming stale context for later ad breaks
-                                clear_ad_break_chat_history("post-first-ai-ad-start-message")
                             else:
                                 api_logger.error(f"AI Ad start message reported not sent: {ai_text}")
                         else:
