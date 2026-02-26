@@ -25,6 +25,7 @@ function getMenuItems($role = 'default')
             [ 'label' => 'EventSub Notifications', 'icon' => 'fas fa-bell', 'href' => 'notifications.php' ],
             [ 'label' => t('navbar_counters'), 'icon' => 'fas fa-calculator', 'href' => 'counters.php' ],
             [ 'label' => 'Schedule', 'icon' => 'fas fa-calendar-days', 'href' => 'schedule.php' ],
+            [ 'label' => 'Videos', 'icon' => 'fas fa-photo-video', 'href' => 'videos.php' ],
             [ 'label' => t('navbar_followers'), 'icon' => 'fas fa-user-plus', 'href' => 'followers.php' ],
             [ 'label' => t('navbar_subscribers'), 'icon' => 'fas fa-star', 'href' => 'subscribers.php' ],
             [ 'label' => t('navbar_moderators'), 'icon' => 'fas fa-user-shield', 'href' => 'mods.php' ],
