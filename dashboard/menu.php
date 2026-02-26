@@ -41,13 +41,13 @@ function getMenuItems($role = 'default')
         ]],
         [ 'label' => t('navbar_integrations'), 'icon' => 'fas fa-plug', 'submenu' => [
             [ 'label' => t('navbar_specter_modules'), 'icon' => 'fa fa-puzzle-piece', 'href' => 'modules.php' ],
-            [ 'label' => t('navbar_discord_bot'), 'icon' => 'fab fa-discord', 'href' => 'discordbot.php' ],
-            [ 'label' => t('navbar_spotify'), 'icon' => 'fab fa-spotify', 'href' => 'spotifylink.php' ],
-            [ 'label' => t('navbar_streamelements'), 'icon' => 'fas fa-globe', 'href' => 'streamelements.php' ],
+            [ 'label' => t('navbar_discord_bot'), 'icon' => 'fab fa-discord', 'icon_img' => 'https://cdn.brandfetch.io/idM8Hlme1a/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668075051777', 'href' => 'discordbot.php' ],
+            [ 'label' => t('navbar_spotify'), 'icon' => 'fab fa-spotify', 'icon_img' => 'https://cdn.brandfetch.io/id20mQyGeY/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1737597212873', 'href' => 'spotifylink.php' ],
+            [ 'label' => t('navbar_streamelements'), 'icon' => 'fas fa-globe', 'icon_img' => 'https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B', 'href' => 'streamelements.php' ],
+            [ 'label' => t('navbar_streamlabs'), 'icon' => 'fas fa-gift', 'icon_img' => 'https://cdn.brandfetch.io/idIDKnQFO2/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1767309079648', 'href' => 'streamlabs.php' ],
             [ 'label' => t('navbar_obsconnector'), 'icon' => 'fas fa-plug', 'href' => 'controllerapp.php' ],
             [ 'label' => t('navbar_stream_bingo'), 'icon' => 'fas fa-trophy', 'href' => 'bingo.php' ],
             [ 'label' => 'Tanggle', 'icon' => 'fas fa-puzzle-piece', 'href' => 'tanggle.php' ],
-            [ 'label' => t('navbar_streamlabs'), 'icon' => 'fas fa-gift', 'href' => 'streamlabs.php' ],
             [ 'label' => t('navbar_platform_integrations'), 'icon' => 'fas fa-globe', 'href' => 'integrations.php' ],
         ]],
         [ 'label' => t('navbar_premium'), 'icon' => 'fas fa-crown', 'href' => 'premium.php' ],
@@ -120,9 +120,17 @@ function renderMenu($mode = 'desktop', $role = 'default')
             }
             echo "        <ul class=\"sidebar-submenu\">\n";
             foreach ($item['submenu'] as $sub) {
+                $subIcon = isset($sub['icon']) ? $sub['icon'] : 'fas fa-circle';
+                $subIconImg = isset($sub['icon_img']) ? $sub['icon_img'] : '';
                 echo "            <li>\n";
                 echo "                <a href=\"{$sub['href']}\" class=\"sidebar-submenu-link\">\n";
-                echo "                    <span class=\"sidebar-submenu-icon\"><i class=\"{$sub['icon']}\"></i></span>\n";
+                if ($subIconImg !== '') {
+                    $safeAlt = htmlspecialchars(strip_tags((string)$sub['label']), ENT_QUOTES, 'UTF-8');
+                    $safeSrc = htmlspecialchars((string)$subIconImg, ENT_QUOTES, 'UTF-8');
+                    echo "                    <span class=\"sidebar-submenu-icon\"><img src=\"{$safeSrc}\" alt=\"{$safeAlt}\" style=\"width:1em;height:1em;object-fit:contain;display:block;filter:grayscale(1) brightness(1.6) contrast(0.9);opacity:0.85;\"></span>\n";
+                } else {
+                    echo "                    <span class=\"sidebar-submenu-icon\"><i class=\"{$subIcon}\"></i></span>\n";
+                }
                 echo "                    <span class=\"sidebar-menu-text\">{$sub['label']}</span>\n";
                 echo "                </a>\n";
                 echo "            </li>\n";
