@@ -318,6 +318,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = t('streamelements_disconnect_error') . ': No Twitch user ID found';
             $alertClass = 'is-danger';
         }
+    } elseif ($action === 'disconnect_streamlabs') {
+        if (isset($_SESSION['twitchUserId'])) {
+            $deleteQuery = "DELETE FROM streamlabs_tokens WHERE twitch_user_id = ?";
+            $stmt = mysqli_prepare($conn, $deleteQuery);
+            mysqli_stmt_bind_param($stmt, 's', $_SESSION['twitchUserId']);
+            if (mysqli_stmt_execute($stmt)) {
+                $message = t('streamlabs_disconnected_success');
+                $alertClass = 'is-success';
+            } else {
+                $message = t('streamlabs_disconnect_error') . ': ' . mysqli_error($conn);
+                $alertClass = 'is-danger';
+            }
+        } else {
+            $message = t('streamlabs_disconnect_error') . ': No Twitch user ID found';
+            $alertClass = 'is-danger';
+        }
     } elseif ($action === 'disconnect_twitch') {
         // Twitch disconnect is essentially a logout since it's the primary auth
         // Clear all session data and redirect to logout
@@ -470,6 +486,16 @@ if (isset($_SESSION['twitchUserId'])) {
             $streamelementsLinked = true;
         }
     }
+}
+
+// Check if StreamLabs is linked
+$streamlabsLinked = false;
+if (isset($_SESSION['twitchUserId'])) {
+    $streamlabsSTMT = $conn->prepare("SELECT 1 FROM streamlabs_tokens WHERE twitch_user_id = ?");
+    $streamlabsSTMT->bind_param("s", $_SESSION['twitchUserId']);
+    $streamlabsSTMT->execute();
+    $streamlabsResult = $streamlabsSTMT->get_result();
+    $streamlabsLinked = ($streamlabsResult->num_rows > 0);
 }
 
 // Calculate total storage used and max storage using storage_used.php
@@ -988,6 +1014,42 @@ ob_start();
                                         </button>
                                     <?php else: ?>
                                         <a href="streamelements.php" class="button is-small">
+                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
+                                            <span><?php echo t('connect'); ?></span>
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-3-desktop is-6-tablet is-12-mobile">
+                    <div class="box has-background-dark">
+                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
+                            <div class="level-left">
+                                <div class="level-item">
+                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
+                                        <img src="https://cdn.brandfetch.io/idIDKnQFO2/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1767309079648" alt="StreamLabs" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
+                                        <?php if ($streamlabsLinked): ?>
+                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
+                                <div class="level-item">
+                                    <div>
+                                        <p class="heading"><?php echo t('streamlabs'); ?></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="level-right" style="margin-left:auto;">
+                                <div class="level-item">
+                                    <?php if ($streamlabsLinked): ?>
+                                        <button type="button" class="button is-danger is-small" onclick="disconnectStreamlabs()">
+                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
+                                            <span><?php echo t('disconnect'); ?></span>
+                                        </button>
+                                    <?php else: ?>
+                                        <a href="streamlabs.php" class="button is-small">
                                             <span class="icon is-small"><i class="fas fa-link"></i></span>
                                             <span><?php echo t('connect'); ?></span>
                                         </a>
@@ -1551,6 +1613,32 @@ function disconnectStreamelements() {
             input.type = 'hidden';
             input.name = 'action';
             input.value = 'disconnect_streamelements';
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function disconnectStreamlabs() {
+    Swal.fire({
+        title: <?php echo json_encode(t('confirm_disconnect_streamlabs_title')); ?>,
+        text: <?php echo json_encode(t('confirm_disconnect_streamlabs_text')); ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?php echo json_encode(t('yes_disconnect')); ?>,
+        cancelButtonText: <?php echo json_encode(t('cancel')); ?>,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'action';
+            input.value = 'disconnect_streamlabs';
             form.appendChild(input);
             document.body.appendChild(form);
             form.submit();
