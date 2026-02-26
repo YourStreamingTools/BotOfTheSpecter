@@ -894,7 +894,7 @@ ob_start();
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <i class="fab fa-twitch fa-2x has-text-primary" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <img src="https://cdn.brandfetch.io/idIwZCwD2f/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668070397594" alt="Twitch" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
                                         <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                     </span>
                                 </div>
@@ -921,7 +921,7 @@ ob_start();
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <i class="fab fa-discord fa-2x has-text-info" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <img src="https://cdn.brandfetch.io/idM8Hlme1a/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668075051777" alt="Discord" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
                                         <?php if ($discordLinked): ?>
                                             <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                         <?php endif; ?>
@@ -957,7 +957,7 @@ ob_start();
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <i class="fab fa-spotify fa-2x has-text-success" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <img src="https://cdn.brandfetch.io/id20mQyGeY/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1737597212873" alt="Spotify" style="width:2.5em;height:2.5em;object-fit:contain;border-radius:50%;background:#222;display:block;">
                                         <?php if ($spotifyLinked): ?>
                                             <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
                                         <?php endif; ?>
@@ -1065,7 +1065,7 @@ ob_start();
                             <div class="level-left">
                                 <div class="level-item">
                                     <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <i class="fab fa-youtube fa-2x has-text-danger" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                        <img src="https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041" alt="YouTube" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
                                     </span>
                                 </div>
                                 <div class="level-item">
