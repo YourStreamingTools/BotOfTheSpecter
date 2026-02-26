@@ -1059,6 +1059,32 @@ ob_start();
                         </div>
                     </div>
                 </div>
+                <div class="column is-3-desktop is-6-tablet is-12-mobile">
+                    <div class="box has-background-dark">
+                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
+                            <div class="level-left">
+                                <div class="level-item">
+                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
+                                        <i class="fab fa-youtube fa-2x has-text-danger" style="font-size:2.5em;width:2.5em;height:2.5em;line-height:2.5em;text-align:center;"></i>
+                                    </span>
+                                </div>
+                                <div class="level-item">
+                                    <div>
+                                        <p class="heading"><?php echo t('youtube'); ?></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="level-right" style="margin-left:auto;">
+                                <div class="level-item">
+                                    <button type="button" class="button is-warning is-small" disabled>
+                                        <span class="icon is-small"><i class="fas fa-clock"></i></span>
+                                        <span><?php echo t('coming_soon'); ?></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <!-- Example for a 4th account slot, add more as needed -->
                 <!--
                 <div class="column is-3">
