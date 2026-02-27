@@ -11,7 +11,7 @@
 <div class="notification is-darker has-text-light" style="margin-bottom: 2rem;">
     <span class="has-text-weight-bold">Note:</span> Variables colored in <span style="color: #c813e0ff;">purple</span> are for the beta bot only and are currently in testing.
 </div>
-<div class="columns is-desktop is-multiline">
+<div class="columns is-desktop is-multiline help-variable-grid">
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
@@ -217,6 +217,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const closeTop = document.getElementById('closeCustomApiInfoTop');
     const closeBottom = document.getElementById('closeCustomApiInfoBottom');
     const modalBackground = modal ? modal.querySelector('.modal-background') : null;
+
+    const equalizeVariableCardHeights = () => {
+        const cards = document.querySelectorAll('.help-variable-grid .card .card-content');
+        if (!cards.length) {
+            return;
+        }
+        cards.forEach(card => {
+            card.style.height = 'auto';
+        });
+        let tallest = 0;
+        cards.forEach(card => {
+            tallest = Math.max(tallest, card.scrollHeight);
+        });
+        cards.forEach(card => {
+            card.style.height = `${tallest}px`;
+        });
+    };
+
+    equalizeVariableCardHeights();
+    window.addEventListener('resize', equalizeVariableCardHeights);
+
     if (!openButton || !modal) {
         return;
     }
