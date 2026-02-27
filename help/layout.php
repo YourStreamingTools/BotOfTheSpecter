@@ -23,6 +23,7 @@ if (!function_exists('uuidv4')) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.css">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
+    <link rel="stylesheet" href="custom.css?v=<?php echo uuidv4(); ?>">
     <!-- CUSTOM -->
     <script src="navbar.js?v=<?php echo uuidv4(); ?>" defer></script>
     <script src="search.js?v=<?php echo uuidv4(); ?>" defer></script>

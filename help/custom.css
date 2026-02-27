@@ -1,0 +1,16 @@
+.help-variable-grid > .column {
+    display: flex;
+}
+
+.help-variable-grid > .column > .card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.help-variable-grid > .column > .card > .card-content {
+    height: auto !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
