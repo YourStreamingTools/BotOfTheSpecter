@@ -8864,7 +8864,7 @@ async def process_custom_command_variables(
                             api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
                             if api_response == "Error":
                                 json_context = None
-                                response = response.replace(full_placeholder, "Error")
+                                response = response.replace(full_placeholder, "")
                             else:
                                 json_context = api_response
                                 response = response.replace(full_placeholder, "")
@@ -11109,7 +11109,7 @@ async def process_channel_point_rewards(event_data, event_type):
                                     api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
                                     if api_response == "Error":
                                         json_context = None
-                                        replacements[full_placeholder] = "Error"
+                                        replacements[full_placeholder] = ""
                                     else:
                                         json_context = api_response
                                         replacements[full_placeholder] = ""
