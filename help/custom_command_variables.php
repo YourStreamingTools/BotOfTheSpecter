@@ -18,11 +18,27 @@
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(customapi.URL)</span>
                 <span id="openCustomApiInfo" class="ml-2 has-text-info" role="button" tabindex="0" aria-label="Show more information about customapi variable" style="cursor: pointer; vertical-align: middle;"><i class="fas fa-circle-info" aria-hidden="true"></i></span><br>
                 Fetches data from a custom API endpoint. Replace URL with your API endpoint.<br>
-                Use <code>json.URL</code> to parse the response as JSON, otherwise returns raw text.<br>
+                Use <code>(customapi.json.URL)</code> to fetch JSON into temporary context (silent fetch).<br>
                 <span class="has-text-weight-bold">Quick Example:</span><br>
                 <code>(customapi.https://api.example.com/data)</code> - Raw response<br>
+                <code>(customapi.json.https://api.example.com/userdata)</code> - JSON context fetch<br>
                 <br><span class="has-text-weight-bold">In Chat:</span><br>
-                <code>API Response: {"status": "success"}</code>
+                <code>User: (json.username) | Email: (json.email_address)</code>
+            </div>
+        </div>
+    </div>
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(json.*)</span><br>
+                Reads values from the most recent <code>(customapi.json.URL)</code> fetch in the same command response.<br>
+                Supports nested keys and array indexes.<br>
+                <span class="has-text-weight-bold">Examples:</span><br>
+                <code>(json.username)</code><br>
+                <code>(json.last_sign_in.today)</code><br>
+                <code>(json.items.0.name)</code><br>
+                <span class="has-text-weight-bold">In Chat:</span><br>
+                <code>Last sign-in: (json.last_sign_in.today)</code>
             </div>
         </div>
     </div>
@@ -180,11 +196,13 @@
         </header>
         <section class="modal-card-body has-background-dark has-text-light" style="word-break: break-word;">
             Fetches data from a custom API endpoint. Replace URL with your API endpoint.<br><br>
-            Use <code>json.URL</code> to parse the response as JSON, otherwise returns raw text.<br><br>
+            Use <code>(customapi.json.URL)</code> to fetch JSON into temporary context for <code>(json.*)</code> placeholders.<br><br>
+            <span class="has-text-weight-bold">Important:</span> <code>(customapi.json.URL)</code> is fetch-only and does not print JSON payload to chat by itself.<br><br>
             As of version 5.8, you can use supported command variables inside the URL (for example <code>(user)</code>), and they will be resolved before the API request is sent.<br><br>
             <span class="has-text-weight-bold">Examples:</span><br>
             <code>(customapi.https://api.example.com/data)</code> - Raw response<br>
-            <code>(customapi.json.https://api.example.com/data)</code> - JSON parsed<br>
+            <code>(customapi.json.https://api.example.com/userdata) User: (json.username)</code><br>
+            <code>(customapi.json.https://api.example.com/userdata) Last login: (json.last_sign_in.today)</code><br>
             <code>(customapi.https://yourapiserver.com/user.php?user=(user))</code> - Passes the variable <code>(user)</code> into the API call
         </section>
         <footer class="modal-card-foot has-background-dark">
