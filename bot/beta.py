@@ -8510,13 +8510,15 @@ async def user_is_seen(username):
         pass
 
 # Function to fetch custom API responses
-async def fetch_api_response(url, json_flag=False):
+async def fetch_api_response(url, json_flag=False, return_json_obj=False):
     try:
         async with httpClientSession() as session:
             async with session.get(url) as resp:
                 if json_flag:
                     data = await resp.json()
-                    return str(data)
+                    if return_json_obj:
+                        return data
+                    return json.dumps(data, ensure_ascii=False)
                 else:
                     return await resp.text()
     except Exception:
@@ -8566,6 +8568,45 @@ def extract_customapi_placeholders(text: str):
         placeholders.append((full_placeholder, url))
         search_start = end_index + 1
     return placeholders
+
+def extract_json_placeholders(text: str):
+    placeholders = []
+    for match in re.finditer(r'\(json\.([^)]+)\)', text):
+        placeholders.append((match.group(0), match.group(1)))
+    return placeholders
+
+def resolve_json_path(data, path: str):
+    current = data
+    for key in path.split('.'):
+        if isinstance(current, dict):
+            if key not in current:
+                return None
+            current = current[key]
+        elif isinstance(current, list):
+            if key.isdigit():
+                index = int(key)
+                if index < 0 or index >= len(current):
+                    return None
+                current = current[index]
+            else:
+                next_value = None
+                for item in current:
+                    if isinstance(item, dict) and key in item:
+                        next_value = item[key]
+                        break
+                if next_value is None:
+                    return None
+                current = next_value
+        else:
+            return None
+    return current
+
+def format_json_placeholder_value(value):
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
 
 # Function to update custom counts
 async def update_custom_count(command, count):
@@ -8664,6 +8705,7 @@ async def process_custom_command_variables(
     if _visited_commands is None:
         _visited_commands = set()
     _visited_commands.add(command)
+    json_context = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8681,7 +8723,7 @@ async def process_custom_command_variables(
                 '(command.', '(user)', '(author)', 
                 '(random.percent)', '(random.number)', '(random.percent.',
                 '(random.number.', '(random.pick.', '(math.',
-                '(usercount)', '(timeuntil.', '(game)'
+                '(usercount)', '(timeuntil.', '(game)', '(json.'
             ]
             # Process variables in a loop until none remain
             responses_to_send = []
@@ -8818,8 +8860,26 @@ async def process_custom_command_variables(
                         if url.startswith('json.'):
                             json_flag = True
                             url = url[5:]
-                        api_response = await fetch_api_response(url, json_flag=json_flag)
-                        response = response.replace(full_placeholder, api_response)
+                        if json_flag:
+                            api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
+                            if api_response == "Error":
+                                json_context = None
+                                response = response.replace(full_placeholder, "Error")
+                            else:
+                                json_context = api_response
+                                response = response.replace(full_placeholder, "")
+                        else:
+                            api_response = await fetch_api_response(url, json_flag=False)
+                            response = response.replace(full_placeholder, api_response)
+                # Handle (json.path.to.value)
+                if '(json.' in response:
+                    json_placeholders = extract_json_placeholders(response)
+                    for full_placeholder, json_path in json_placeholders:
+                        if json_context is None:
+                            replacement = ""
+                        else:
+                            replacement = format_json_placeholder_value(resolve_json_path(json_context, json_path))
+                        response = response.replace(full_placeholder, replacement)
             # Send the main response to chat if requested
             if send_to_chat:
                 await send_chat_message(response)
@@ -10952,15 +11012,17 @@ async def process_channel_point_rewards(event_data, event_type):
             if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
+                    json_context = None
                     # Apply all replacements in a loop until no more variables are found
                     max_iterations = 8
                     iteration = 0
-                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(customapi.']
+                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(customapi.', '(json.']
                     while iteration < max_iterations:
                         iteration += 1
-                        has_vars = any(var in custom_message for var in vars_to_replace if var != '(customapi.')
+                        has_vars = any(var in custom_message for var in vars_to_replace if var not in ('(customapi.', '(json.'))
                         has_customapi = '(customapi.' in custom_message
-                        if not (has_vars or has_customapi):
+                        has_json = '(json.' in custom_message
+                        if not (has_vars or has_customapi or has_json):
                             break
                         # Re-populate replacements for this iteration
                         replacements = {}
@@ -11043,8 +11105,25 @@ async def process_channel_point_rewards(event_data, event_type):
                                 if url.startswith('json.'):
                                     json_flag = True
                                     url = url[5:]
-                                api_response = await fetch_api_response(url, json_flag=json_flag)
-                                replacements[full_placeholder] = api_response
+                                if json_flag:
+                                    api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
+                                    if api_response == "Error":
+                                        json_context = None
+                                        replacements[full_placeholder] = "Error"
+                                    else:
+                                        json_context = api_response
+                                        replacements[full_placeholder] = ""
+                                else:
+                                    api_response = await fetch_api_response(url, json_flag=False)
+                                    replacements[full_placeholder] = api_response
+                        # Handle (json.path.to.value)
+                        if '(json.' in custom_message:
+                            json_placeholders = extract_json_placeholders(custom_message)
+                            for full_placeholder, json_path in json_placeholders:
+                                if json_context is None:
+                                    replacements[full_placeholder] = ""
+                                else:
+                                    replacements[full_placeholder] = format_json_placeholder_value(resolve_json_path(json_context, json_path))
                         # Handle (vip) and (vip.today) - grant VIP via Twitch Helix API
                         if '(vip)' in custom_message or '(vip.today)' in custom_message:
                             try:
