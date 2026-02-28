@@ -57,7 +57,7 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
 
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 WEATHER_API = os.getenv('WEATHER_API')
-DISCORD_TWITCH_LINK_BASE_URL = os.getenv('DISCORD_TWITCH_LINK_BASE_URL', 'https://botofthespecter.com/home/discord_twitch_link.php')
+DISCORD_TWITCH_LINK_BASE_URL = os.getenv('DISCORD_TWITCH_LINK_BASE_URL', 'https://botofthespecter.com/discord_twitch_link.php')
 DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES = int(os.getenv('DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES', '30'))
 
 # Setup Logger with rotation
