@@ -129,41 +129,42 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 <p class="modal-card-title" id="detailsTitle">Item Details</p>
                 <button class="delete"></button>
             </header>
-            <section class="modal-card-body"
-                style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; flex: 1; overflow: hidden; padding: 1.5rem;">
-                <!-- Left Column: Description and Attachments -->
-                <div style="overflow-y: auto; padding-right: 1rem; display: flex; flex-direction: column; gap: 1.5rem;">
-                    <div>
-                        <h4 class="title is-6">Description</h4>
-                        <p id="detailsMeta" class="is-size-7 has-text-grey" style="margin-bottom:0.5rem;"></p>
-                        <button type="button" class="button is-small is-link is-light" id="copyShareLinkBtn" style="margin-bottom:0.75rem;">
-                            <span class="icon is-small"><i class="fas fa-link"></i></span>
-                            <span>Copy Share Link</span>
-                        </button>
-                        <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
+            <section class="modal-card-body" style="flex: 1; overflow: hidden; padding: 1.25rem; display: flex; flex-direction: column;">
+                <div class="tabs is-toggle is-small" id="detailsTabs" style="margin-bottom: 0.75rem; flex-shrink: 0;">
+                    <ul>
+                        <li class="is-active" data-details-tab="description"><a>Description</a></li>
+                        <li data-details-tab="attachments"><a>Attachments</a></li>
+                        <li data-details-tab="activity"><a>Activity</a></li>
+                    </ul>
+                </div>
+
+                <div id="detailsPanelDescription" class="details-tab-panel" style="flex: 1; overflow-y: auto;">
+                    <h4 class="title is-6">Description</h4>
+                    <p id="detailsMeta" class="is-size-7 has-text-grey" style="margin-bottom:0.5rem;"></p>
+                    <button type="button" class="button is-small is-link is-light" id="copyShareLinkBtn" style="margin-bottom:0.75rem;">
+                        <span class="icon is-small"><i class="fas fa-link"></i></span>
+                        <span>Copy Share Link</span>
+                    </button>
+                    <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
+                </div>
+
+                <div id="detailsPanelAttachments" class="details-tab-panel" style="display: none; flex: 1; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 class="title is-6" style="margin: 0;">Attachments</h4>
+                        <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
+                            <button class="button is-small is-success" id="addAttachmentTrigger" style="flex-shrink: 0;">
+                                <span class="icon is-small"><i class="fas fa-plus"></i></span>
+                                <span>Add</span>
+                            </button>
+                        <?php endif; ?>
                     </div>
-                    <div>
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                            <h4 class="title is-6" style="margin: 0;">Attachments</h4>
-                            <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-                                <button class="button is-small is-success" id="addAttachmentTrigger"
-                                    style="flex-shrink: 0;">
-                                    <span class="icon is-small"><i class="fas fa-plus"></i></span>
-                                    <span>Add</span>
-                                </button>
-                            <?php endif; ?>
-                        </div>
-                        <div id="attachmentsSection" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <!-- Attachments will load here -->
-                        </div>
+                    <div id="attachmentsSection" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <!-- Attachments will load here -->
                     </div>
                 </div>
-                <!-- Right Column: Comments -->
-                <div
-                    style="display: flex; flex-direction: column; border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 1.5rem; overflow: hidden;">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
+
+                <div id="detailsPanelActivity" class="details-tab-panel" style="display: none; flex: 1; overflow: hidden;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h4 class="title is-6" style="margin: 0;">Activity</h4>
                         <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
                             <button class="button is-small is-primary" id="addCommentTrigger" style="flex-shrink: 0;">
@@ -172,8 +173,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                             </button>
                         <?php endif; ?>
                     </div>
-                    <div id="commentsSection"
-                        style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div id="commentsSection" style="height: calc(100% - 3rem); overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
                         <!-- Comments will load here -->
                     </div>
                 </div>
@@ -733,6 +733,12 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             }
             const detailsBtns = document.querySelectorAll('.details-btn');
             const detailsModal = document.getElementById('detailsModal');
+            const detailsTabButtons = document.querySelectorAll('[data-details-tab]');
+            const detailsTabPanels = {
+                description: document.getElementById('detailsPanelDescription'),
+                attachments: document.getElementById('detailsPanelAttachments'),
+                activity: document.getElementById('detailsPanelActivity')
+            };
             const addCommentModal = document.getElementById('addCommentModal');
             const cancelCommentBtn = document.getElementById('cancelCommentBtn');
             const addCommentForm = document.getElementById('addCommentForm');
@@ -749,6 +755,23 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             const closeLegendBtn = document.getElementById('closeLegendBtn');
             const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
             let currentItemId = null;
+            function setDetailsTab(activeTab) {
+                detailsTabButtons.forEach(tab => {
+                    tab.classList.toggle('is-active', tab.getAttribute('data-details-tab') === activeTab);
+                });
+                Object.entries(detailsTabPanels).forEach(([name, panel]) => {
+                    if (!panel) return;
+                    panel.style.display = (name === activeTab) ? '' : 'none';
+                });
+            }
+            detailsTabButtons.forEach(tab => {
+                tab.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const targetTab = this.getAttribute('data-details-tab');
+                    if (!targetTab) return;
+                    setDetailsTab(targetTab);
+                });
+            });
             function buildItemShareUrl(itemId) {
                 const shareUrl = new URL(window.location.href);
                 shareUrl.searchParams.delete('search');
@@ -924,6 +947,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     const createdAt = this.dataset.createdAt || '';
                     const updatedAt = this.dataset.updatedAt || '';
                     currentItemId = this.getAttribute('data-item-id');
+                    setDetailsTab('description');
                     if (currentItemId) {
                         const stateUrl = new URL(window.location.href);
                         stateUrl.searchParams.delete('search');
