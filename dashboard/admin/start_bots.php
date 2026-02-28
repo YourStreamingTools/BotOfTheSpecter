@@ -241,7 +241,9 @@ if (!function_exists('start_bot_for_user')) {
                 'api_key' => $finalApiKey
             ];
             if ($actionBotType === 'beta') {
-                $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $useCustom, $useSelf);
+                $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
+                $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
+                $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $effectiveUseCustom, $effectiveUseSelf);
                 $params = array_merge($params, $betaModeParams);
             }
             $res = performBotAction('run', $actionBotType, $params);
@@ -793,7 +795,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     ];
                     $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
                     if ($actionBotType === 'beta') {
-                        $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $useCustom, $useSelf);
+                        $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
+                        $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
+                        $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $effectiveUseCustom, $effectiveUseSelf);
                         $params = array_merge($params, $betaModeParams);
                     }
                     client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$actionBotType}', ...) for {$username}");
