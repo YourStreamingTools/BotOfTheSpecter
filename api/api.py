@@ -3,6 +3,8 @@ import os
 import random
 import json
 import copy
+import secrets
+import hashlib
 import logging
 from logging.handlers import RotatingFileHandler
 import asyncio
@@ -29,7 +31,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Any
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
-from urllib.parse import urlencode, parse_qsl
+from urllib.parse import urlencode, parse_qsl, quote
 from contextlib import asynccontextmanager
 import ipaddress
 
@@ -55,6 +57,8 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
 
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 WEATHER_API = os.getenv('WEATHER_API')
+DISCORD_TWITCH_LINK_BASE_URL = os.getenv('DISCORD_TWITCH_LINK_BASE_URL', 'https://botofthespecter.com/home/discord_twitch_link.php')
+DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES = int(os.getenv('DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES', '30'))
 
 # Setup Logger with rotation
 log_file = "/home/botofthespecter/log.txt" if os.path.exists("/home/botofthespecter") else "/home/fastapi/log.txt"
@@ -426,6 +430,10 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/checkkey",
     "/streamonline",
     "/discord/linked",
+    "/discord/twitch-link",
+    "/discord/twitch-link/request",
+    "/discord/twitch-link/unlink",
+    "/discord/twitch-link/confirm",
     "/bot/status",
 ]
 _V2_API_KEY_REQUIRED_PATHS_SET = set(_V2_API_KEY_REQUIRED_PATHS)
@@ -788,6 +796,42 @@ async def get_mysql_connection_user(username):
         port=SQL_PORT,
         db=username
     )
+
+async def ensure_discord_twitch_link_tables(conn):
+    async with conn.cursor() as cur:
+        await cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS discord_twitch_links (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                discord_user_id VARCHAR(64) NOT NULL,
+                twitch_user_id VARCHAR(64) NOT NULL,
+                twitch_username VARCHAR(255) DEFAULT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_discord_user_id (discord_user_id),
+                UNIQUE KEY uq_twitch_user_id (twitch_user_id),
+                KEY idx_twitch_username (twitch_username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        )
+        await cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS discord_twitch_link_tokens (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                discord_user_id VARCHAR(64) NOT NULL,
+                token_hash CHAR(64) NOT NULL,
+                token_expires_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                used_at DATETIME DEFAULT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_token_hash (token_hash),
+                KEY idx_discord_user_id (discord_user_id),
+                KEY idx_token_expires_at (token_expires_at),
+                KEY idx_used_at (used_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        )
 
 # Check if a host is reachable via ICMP ping
 async def check_icmp_ping(host: str) -> bool:
@@ -3218,6 +3262,221 @@ async def discord_linked(api_key: str = Query(...), user_id: str = Query(...)):
     except Exception as e:
         logging.error(f"Error checking Discord user link status: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking Discord user link status: {str(e)}")
+
+@app.get(
+    "/discord/twitch-link",
+    summary="Get Discord to Twitch link",
+    tags=["Admin Only"]
+)
+async def discord_twitch_link_status(api_key: str = Query(...), discord_user_id: str = Query(...)):
+    key_info = await verify_key(api_key)
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    try:
+        conn = await get_mysql_connection()
+        try:
+            await ensure_discord_twitch_link_tables(conn)
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    """
+                    SELECT discord_user_id, twitch_user_id, twitch_username, created_at, updated_at
+                    FROM discord_twitch_links
+                    WHERE discord_user_id = %s
+                    """,
+                    (str(discord_user_id),)
+                )
+                row = await cur.fetchone()
+                return {
+                    "discord_user_id": str(discord_user_id),
+                    "linked": row is not None,
+                    "link": row
+                }
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error checking Discord/Twitch link status: {e}")
+        raise HTTPException(status_code=500, detail="Error checking Discord/Twitch link status")
+
+@app.post(
+    "/discord/twitch-link/request",
+    summary="Create one-time Twitch link token for a Discord user",
+    tags=["Admin Only"]
+)
+async def discord_twitch_link_request(api_key: str = Query(...), discord_user_id: str = Query(...)):
+    key_info = await verify_key(api_key)
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    discord_user_id = str(discord_user_id).strip()
+    if not discord_user_id:
+        raise HTTPException(status_code=400, detail="discord_user_id is required")
+    try:
+        conn = await get_mysql_connection()
+        try:
+            await ensure_discord_twitch_link_tables(conn)
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM discord_twitch_link_tokens WHERE discord_user_id = %s AND used_at IS NULL",
+                    (discord_user_id,)
+                )
+                await cur.execute(
+                    "DELETE FROM discord_twitch_link_tokens WHERE token_expires_at < UTC_TIMESTAMP()"
+                )
+                await cur.execute(
+                    """
+                    INSERT INTO discord_twitch_link_tokens (discord_user_id, token_hash, token_expires_at)
+                    VALUES (%s, %s, DATE_ADD(UTC_TIMESTAMP(), INTERVAL %s MINUTE))
+                    """,
+                    (discord_user_id, token_hash, DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES)
+                )
+            await conn.commit()
+            link_url = f"{DISCORD_TWITCH_LINK_BASE_URL}?token={quote(raw_token, safe='')}"
+            return {
+                "discord_user_id": discord_user_id,
+                "link_url": link_url,
+                "expires_in_minutes": DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES
+            }
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error creating Discord/Twitch link token: {e}")
+        raise HTTPException(status_code=500, detail="Error creating link token")
+
+@app.post(
+    "/discord/twitch-link/unlink",
+    summary="Unlink Discord user from Twitch account",
+    tags=["Admin Only"]
+)
+async def discord_twitch_unlink(api_key: str = Query(...), discord_user_id: str = Query(...)):
+    key_info = await verify_key(api_key)
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    discord_user_id = str(discord_user_id).strip()
+    if not discord_user_id:
+        raise HTTPException(status_code=400, detail="discord_user_id is required")
+    try:
+        conn = await get_mysql_connection()
+        try:
+            await ensure_discord_twitch_link_tables(conn)
+            async with conn.cursor() as cur:
+                await cur.execute("DELETE FROM discord_twitch_links WHERE discord_user_id = %s", (discord_user_id,))
+                unlinked_rows = cur.rowcount
+                await cur.execute(
+                    "DELETE FROM discord_twitch_link_tokens WHERE discord_user_id = %s AND used_at IS NULL",
+                    (discord_user_id,)
+                )
+                cleared_pending_tokens = cur.rowcount
+            await conn.commit()
+            return {
+                "discord_user_id": discord_user_id,
+                "unlinked": unlinked_rows > 0,
+                "unlinked_rows": unlinked_rows,
+                "cleared_pending_tokens": cleared_pending_tokens
+            }
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error unlinking Discord/Twitch link: {e}")
+        raise HTTPException(status_code=500, detail="Error unlinking Discord/Twitch link")
+
+@app.post(
+    "/discord/twitch-link/confirm",
+    summary="Confirm Discord to Twitch link using one-time token",
+    tags=["User Account"]
+)
+async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Query(...)):
+    key_info = await verify_key(api_key)
+    if not key_info or key_info["type"] != "user":
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    token = (token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    username = key_info["username"]
+    try:
+        conn = await get_mysql_connection()
+        try:
+            await ensure_discord_twitch_link_tables(conn)
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, discord_user_id
+                    FROM discord_twitch_link_tokens
+                    WHERE token_hash = %s
+                      AND used_at IS NULL
+                      AND token_expires_at >= UTC_TIMESTAMP()
+                    """,
+                    (token_hash,)
+                )
+                token_row = await cur.fetchone()
+                if not token_row:
+                    raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+                await cur.execute(
+                    "SELECT id, username, twitch_user_id, twitch_display_name FROM users WHERE username = %s",
+                    (username,)
+                )
+                user_row = await cur.fetchone()
+                if not user_row:
+                    raise HTTPException(status_code=404, detail="User account not found")
+
+                twitch_user_id = str(user_row.get("twitch_user_id") or "").strip()
+                if not twitch_user_id:
+                    raise HTTPException(status_code=400, detail="Twitch account is missing for this user")
+
+                twitch_username = user_row.get("twitch_display_name") or user_row.get("username")
+                discord_user_id = str(token_row["discord_user_id"])
+
+                await cur.execute(
+                    """
+                    SELECT discord_user_id
+                    FROM discord_twitch_links
+                    WHERE twitch_user_id = %s AND discord_user_id <> %s
+                    """,
+                    (twitch_user_id, discord_user_id)
+                )
+                conflict = await cur.fetchone()
+                if conflict:
+                    raise HTTPException(status_code=409, detail="This Twitch account is already linked to another Discord user")
+
+                await cur.execute(
+                    """
+                    INSERT INTO discord_twitch_links (discord_user_id, twitch_user_id, twitch_username)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        twitch_user_id = VALUES(twitch_user_id),
+                        twitch_username = VALUES(twitch_username),
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (discord_user_id, twitch_user_id, twitch_username)
+                )
+
+                await cur.execute(
+                    "UPDATE discord_twitch_link_tokens SET used_at = UTC_TIMESTAMP() WHERE id = %s",
+                    (token_row["id"],)
+                )
+
+            await conn.commit()
+            return {
+                "success": True,
+                "discord_user_id": discord_user_id,
+                "twitch_user_id": twitch_user_id,
+                "twitch_username": twitch_username
+            }
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error confirming Discord/Twitch link: {e}")
+        raise HTTPException(status_code=500, detail="Error confirming Discord/Twitch link")
 
 # Function to check bot status via SSH
 async def get_bot_status_via_ssh(username: str) -> dict:

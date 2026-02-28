@@ -2004,7 +2004,9 @@ class BotOfTheSpecter(commands.Bot):
             # Utility commands
             'quote', 'ticket', 'setuptickets', 'settings',
             # Admin commands
-            'checklinked'
+            'checklinked',
+            # Twitch link commands
+            'linktwitch', 'unlinktwitch'
         }
         # Ensure the log directory and file exist
         messages_dir = os.path.dirname(self.processed_messages_file)
@@ -3874,6 +3876,89 @@ class UtilityCog(commands.Cog, name='Utility'):
     def __init__(self, bot: commands.Bot, logger=None):
         self.bot = bot
         self.logger = logger
+        self.api_base_url = config.api_base_url
+        self.admin_key = config.admin_key
+
+    async def _create_twitch_link_request(self, discord_user_id: int):
+        url = f"{self.api_base_url}/discord/twitch-link/request"
+        params = {
+            "api_key": self.admin_key,
+            "discord_user_id": str(discord_user_id)
+        }
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, params=params) as response:
+                data = await response.json(content_type=None)
+                if response.status != 200:
+                    detail = data.get("detail") if isinstance(data, dict) else None
+                    raise RuntimeError(detail or f"API error {response.status}")
+                return data
+
+    async def _unlink_twitch_link(self, discord_user_id: int):
+        url = f"{self.api_base_url}/discord/twitch-link/unlink"
+        params = {
+            "api_key": self.admin_key,
+            "discord_user_id": str(discord_user_id)
+        }
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, params=params) as response:
+                data = await response.json(content_type=None)
+                if response.status != 200:
+                    detail = data.get("detail") if isinstance(data, dict) else None
+                    raise RuntimeError(detail or f"API error {response.status}")
+                return data
+
+    @commands.command(name="linktwitch")
+    async def sync_twitch(self, ctx):
+        if not self.admin_key:
+            return await ctx.send("❌ Twitch sync is not configured right now. Please try again later.")
+        try:
+            result = await self._create_twitch_link_request(ctx.author.id)
+            link_url = result.get("link_url")
+            expires_in = int(result.get("expires_in_minutes", 30))
+            if not link_url:
+                raise RuntimeError("Missing link URL from API response")
+            embed = discord.Embed(
+                title="🔗 Link Your Twitch Account",
+                description=(
+                    "Click the link below to connect your Discord user to your Twitch account.\n\n"
+                    f"{link_url}"
+                ),
+                color=config.bot_color
+            )
+            embed.add_field(
+                name="⏳ Link Expiry",
+                value=f"This link expires in **{expires_in} minutes**.",
+                inline=False
+            )
+            embed.set_footer(text="If this expires, run !linktwitch again.")
+            await ctx.author.send(embed=embed)
+            await ctx.send("✅ I sent you a DM with your Twitch linking URL.")
+            self.logger.info(f"Created Twitch link token for Discord user {ctx.author.id}")
+        except discord.Forbidden:
+            await ctx.send("❌ I can't DM you. Please enable DMs from server members and run `!linktwitch` again.")
+        except Exception as e:
+            self.logger.error(f"Error in linktwitch for user {ctx.author.id}: {e}")
+            await ctx.send("❌ I couldn't create your Twitch link right now. Please try again shortly.")
+
+    @commands.command(name="unlinktwitch")
+    async def unlink_twitch(self, ctx):
+        if not self.admin_key:
+            return await ctx.send("❌ Twitch unlink is not configured right now. Please try again later.")
+        try:
+            result = await self._unlink_twitch_link(ctx.author.id)
+            unlinked = bool(result.get("unlinked"))
+            if unlinked:
+                await ctx.send("✅ Your Discord to Twitch link has been removed.")
+            else:
+                await ctx.send("ℹ️ No Twitch link was found for your Discord user.")
+            self.logger.info(
+                f"Unlink request processed for Discord user {ctx.author.id} (unlinked={unlinked}, cleared_pending={result.get('cleared_pending_tokens', 0)})"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in unlinktwitch for user {ctx.author.id}: {e}")
+            await ctx.send("❌ I couldn't remove your Twitch link right now. Please try again shortly.")
 
     @commands.command(name="timestamp", aliases=["ts", "discordtime"])
     async def convert_to_timestamp(self, ctx, *, time_input: str):
