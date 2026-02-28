@@ -233,7 +233,7 @@ try {
                 term_blocking VARCHAR(500) DEFAULT 'False',
                 block_first_message_commands VARCHAR(10) DEFAULT 'False',
                 block_first_message_command_mode VARCHAR(20) DEFAULT 'all',
-                block_first_message_selected_commands TEXT DEFAULT '[]'
+                block_first_message_selected_commands VARCHAR(500) DEFAULT '[]'
             ) ENGINE=InnoDB",
         'link_whitelist' => "
             CREATE TABLE IF NOT EXISTS link_whitelist (
