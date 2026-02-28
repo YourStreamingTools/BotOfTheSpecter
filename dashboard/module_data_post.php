@@ -556,8 +556,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     elseif (isset($_POST['block_first_message_commands'])) {
         $activeTab = "chat-protection";
         $val = $_POST['block_first_message_commands'] == 'True' ? 'True' : 'False';
-        $stmt = $db->prepare("UPDATE protection SET block_first_message_commands = ?");
-        $stmt->bind_param("s", $val);
+        $modeRaw = isset($_POST['block_first_message_command_mode']) ? strtolower(trim($_POST['block_first_message_command_mode'])) : 'all';
+        $mode = $modeRaw === 'selected' ? 'selected' : 'all';
+        $selectedCommandsInput = isset($_POST['block_first_message_selected_commands']) && is_array($_POST['block_first_message_selected_commands'])
+            ? $_POST['block_first_message_selected_commands']
+            : [];
+        $selectedCommandsMap = [];
+        foreach ($selectedCommandsInput as $cmd) {
+            $normalized = ltrim(strtolower(trim((string) $cmd)), '!');
+            if ($normalized !== '') {
+                $selectedCommandsMap[$normalized] = true;
+            }
+        }
+        $selectedCommandsJson = json_encode(array_keys($selectedCommandsMap), JSON_UNESCAPED_UNICODE);
+        $stmt = $db->prepare("UPDATE protection SET block_first_message_commands = ?, block_first_message_command_mode = ?, block_first_message_selected_commands = ?");
+        $stmt->bind_param("sss", $val, $mode, $selectedCommandsJson);
         if ($stmt->execute()) {
             $_SESSION['update_message'] = "First-message command blocking setting updated successfully.";
         } else {

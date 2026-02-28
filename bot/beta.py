@@ -2842,6 +2842,12 @@ class TwitchBot(commands.Bot):
         global stream_online
         if not messageContent or not messageContent.startswith('!'):
             return
+        command_parts = messageContent.strip().split()
+        if not command_parts:
+            return
+        command = command_parts[0][1:].strip().lower()
+        if not command:
+            return
         if not stream_online:
             return
         if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() == CHANNEL_NAME.lower():
@@ -2851,9 +2857,7 @@ class TwitchBot(commands.Bot):
         try:
             connection = await mysql_handler.get_connection()
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
-                protection_row = await cursor.fetchone()
-                if protection_row and protection_row.get("block_first_message_commands") == 'True':
+                if await self.is_first_message_command_blocked_by_settings(cursor, command):
                     return
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 seen_today_result = await cursor.fetchone()
@@ -2930,6 +2934,53 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"Error in send_first_command_welcome_if_needed for {messageAuthor}: {e}")
 
+    async def is_managed_bot_command(self, cursor, command):
+        if not command:
+            return False
+        if command in builtin_commands or command in mod_commands or command in builtin_aliases:
+            return True
+        await cursor.execute('SELECT 1 FROM custom_commands WHERE command = %s LIMIT 1', (command,))
+        custom_result = await cursor.fetchone()
+        if custom_result:
+            return True
+        await cursor.execute('SELECT 1 FROM custom_user_commands WHERE command = %s LIMIT 1', (command,))
+        custom_user_result = await cursor.fetchone()
+        return custom_user_result is not None
+
+    async def is_first_message_command_blocked_by_settings(self, cursor, command):
+        is_managed_command = await self.is_managed_bot_command(cursor, command)
+        if not is_managed_command:
+            return False
+        await cursor.execute("SELECT block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands FROM protection LIMIT 1")
+        protection_row = await cursor.fetchone()
+        if not protection_row or protection_row.get("block_first_message_commands") != 'True':
+            return False
+        block_mode = str(protection_row.get("block_first_message_command_mode") or "all").strip().lower()
+        if block_mode != "selected":
+            return True
+        selected_commands_raw = protection_row.get("block_first_message_selected_commands")
+        if not selected_commands_raw:
+            return False
+        try:
+            selected_commands = json.loads(selected_commands_raw)
+        except Exception:
+            selected_commands = []
+        if not isinstance(selected_commands, list):
+            return False
+        selected_commands_set = {
+            lstrip_cmd
+            for lstrip_cmd in (
+                lstrip_candidate.lstrip('!')
+                for lstrip_candidate in (
+                    str(item).strip().lower()
+                    for item in selected_commands
+                    if item is not None
+                )
+            )
+            if lstrip_cmd
+        }
+        return command in selected_commands_set
+
     async def should_block_first_message_command(self, messageAuthor, messageAuthorID, messageContent="", message_author=None):
         global stream_online
         if not messageContent or not messageContent.startswith('!'):
@@ -2949,25 +3000,7 @@ class TwitchBot(commands.Bot):
                 return False
             async with await mysql_handler.get_connection() as connection:
                 async with connection.cursor(DictCursor) as cursor:
-                    is_managed_command = (
-                        command in builtin_commands
-                        or command in mod_commands
-                        or command in builtin_aliases
-                    )
-                    if not is_managed_command:
-                        await cursor.execute('SELECT 1 FROM custom_commands WHERE command = %s LIMIT 1', (command,))
-                        custom_result = await cursor.fetchone()
-                        if custom_result:
-                            is_managed_command = True
-                        else:
-                            await cursor.execute('SELECT 1 FROM custom_user_commands WHERE command = %s LIMIT 1', (command,))
-                            custom_user_result = await cursor.fetchone()
-                            is_managed_command = custom_user_result is not None
-                    if not is_managed_command:
-                        return False
-                    await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
-                    protection_row = await cursor.fetchone()
-                    if not protection_row or protection_row.get("block_first_message_commands") != 'True':
+                    if not await self.is_first_message_command_blocked_by_settings(cursor, command):
                         return False
                     await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                     seen_today_res = await cursor.fetchone()
