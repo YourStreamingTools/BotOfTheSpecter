@@ -244,6 +244,9 @@ if (!function_exists('start_bot_for_user')) {
                 $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
                 $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
                 $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $effectiveUseCustom, $effectiveUseSelf);
+                if ($botType === 'custom' && empty($betaModeParams['use_custom_bot'])) {
+                    return ['success' => false, 'message' => 'Custom bot is not enabled/verified for this user'];
+                }
                 $params = array_merge($params, $betaModeParams);
             }
             $res = performBotAction('run', $actionBotType, $params);
@@ -798,6 +801,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                         $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
                         $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
                         $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $effectiveUseCustom, $effectiveUseSelf);
+                        if ($botType === 'custom' && empty($betaModeParams['use_custom_bot'])) {
+                            $message = 'Custom bot is not enabled/verified for this user';
+                            $success = false;
+                            $stmt2->close();
+                            $stmt->close();
+                            $debug = ob_get_clean();
+                            echo json_encode(['success' => false, 'message' => $message, 'debug' => $debug]);
+                            exit;
+                        }
                         $params = array_merge($params, $betaModeParams);
                     }
                     client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$actionBotType}', ...) for {$username}");
@@ -938,7 +950,7 @@ include '../userdata.php';
 
 // Fetch all users from database
 $users = [];
-$stmt = $conn->prepare("SELECT id, username, twitch_user_id, twitch_display_name, profile_image FROM users ORDER BY id");
+$stmt = $conn->prepare("SELECT u.id, u.username, u.twitch_user_id, u.twitch_display_name, u.profile_image, u.use_custom, CASE WHEN u.use_custom = 1 AND EXISTS (SELECT 1 FROM custom_bots cb WHERE cb.channel_id = u.twitch_user_id AND cb.is_verified = 1 AND COALESCE(cb.bot_username, '') <> '') THEN 1 ELSE 0 END AS custom_bot_enabled FROM users u ORDER BY u.id");
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
@@ -1001,8 +1013,10 @@ ob_start();
             </thead>
             <tbody id="users-table-body">
                 <?php foreach ($users as $user): ?>
+                    <?php $customBotEnabled = ((int) ($user['custom_bot_enabled'] ?? 0)) === 1; ?>
                     <tr data-username="<?php echo htmlspecialchars($user['username']); ?>"
-                        data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>">
+                        data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>"
+                        data-custom-enabled="<?php echo $customBotEnabled ? '1' : '0'; ?>">
                         <td>
                             <div class="is-flex is-align-items-center">
                                 <figure class="image is-32x32 mr-2">
@@ -1063,6 +1077,12 @@ ob_start();
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                     <span>Start Beta</span>
                                 </button>
+                                <button class="button is-primary start-custom-btn"
+                                    onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
+                                    <?php echo $customBotEnabled ? '' : 'disabled'; ?> title="<?php echo $customBotEnabled ? 'Start verified custom bot mode' : 'Custom bot is not enabled/verified for this user'; ?>">
+                                    <span class="icon"><i class="fas fa-user-astronaut"></i></span>
+                                    <span>Start Custom Bot</span>
+                                </button>
                                 <button class="button is-warning restart-bot-btn"
                                     onclick="restartBot('<?php echo htmlspecialchars($user['username']); ?>', 'stable', 0, this)"
                                     style="display: none;" disabled>
@@ -1086,6 +1106,9 @@ ob_start();
 <script>
     let runningBots = [];
     let refreshTimer = null; // Debounce timer for refresh operations
+    function hasCustomBotEnabled(row) {
+        return row && row.getAttribute('data-custom-enabled') === '1';
+    }
     // Helper to get current search term and match rows against it
     function getSearchTerm() {
         const input = document.getElementById('user-search');
@@ -1171,9 +1194,11 @@ ob_start();
                         const botTypeTag = row.querySelector('.bot-type-tag');
                         const startStableBtn = row.querySelector('.start-stable-btn');
                         const startBetaBtn = row.querySelector('.start-beta-btn');
+                        const startCustomBtn = row.querySelector('.start-custom-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
+                        const canStartCustom = hasCustomBotEnabled(row);
                         if (isRunning) {
                             // Determine bot type once for use in multiple places
                             const runningType = (isRunning.bot_type || '').toLowerCase();
@@ -1212,6 +1237,10 @@ ob_start();
                             if (startBetaBtn) {
                                 startBetaBtn.disabled = true;
                                 startBetaBtn.style.display = 'none';
+                            }
+                            if (startCustomBtn) {
+                                startCustomBtn.disabled = true;
+                                startCustomBtn.style.display = 'none';
                             }
                             // Show restart button with correct bot type and PID
                             if (restartBtn) {
@@ -1256,6 +1285,10 @@ ob_start();
                             if (startBetaBtn) {
                                 startBetaBtn.disabled = false;
                                 startBetaBtn.style.display = 'inline-flex';
+                            }
+                            if (startCustomBtn) {
+                                startCustomBtn.disabled = !canStartCustom;
+                                startCustomBtn.style.display = 'inline-flex';
                             }
                             if (restartBtn) {
                                 restartBtn.style.display = 'none';
@@ -1310,9 +1343,11 @@ ob_start();
                         const botTypeTag = row.querySelector('.bot-type-tag');
                         const startStableBtn = row.querySelector('.start-stable-btn');
                         const startBetaBtn = row.querySelector('.start-beta-btn');
+                        const startCustomBtn = row.querySelector('.start-custom-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
+                        const canStartCustom = hasCustomBotEnabled(row);
                         if (isRunning) {
                             const runningType = (isRunning.bot_type || '').toLowerCase();
                             const isBetaFamily = runningType === 'beta' || runningType === 'custom';
@@ -1342,6 +1377,7 @@ ob_start();
                             }
                             if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
+                            if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
                             if (switchBtn) { const targetType = isBetaFamily ? 'stable' : 'beta'; const btnText = isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
                         } else {
@@ -1350,6 +1386,7 @@ ob_start();
                             if (runningTimeTag) { runningTimeTag.className = 'tag is-dark running-time-tag'; runningTimeTag.innerHTML = '<span>—</span>'; }
                             if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
+                            if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
                             if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
                             if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
                         }
@@ -1456,9 +1493,11 @@ ob_start();
                     const modTag = row.querySelector('.mod-status-tag');
                     const startStableBtn = row.querySelector('.start-stable-btn');
                     const startBetaBtn = row.querySelector('.start-beta-btn');
+                    const startCustomBtn = row.querySelector('.start-custom-btn');
                     const makeModBtn = row.querySelector('.make-mod-btn');
                     const username = row.getAttribute('data-username');
                     const isRunning = runningBots.find(bot => bot.username === username);
+                    const canStartCustom = hasCustomBotEnabled(row);
                     // Skip mod check for BotOfTheSpecter's own channel
                     if (twitchUserId === '971436498') {
                         modTag.className = 'tag is-info mod-status-tag';
@@ -1466,12 +1505,14 @@ ob_start();
                         if (makeModBtn) makeModBtn.style.display = 'none';
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
                         if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
+                        if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                     } else if (data.is_mod) {
                         modTag.className = 'tag is-success mod-status-tag';
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
                         if (makeModBtn) makeModBtn.style.display = 'none';
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
                         if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
+                        if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                     } else if (data.is_banned) {
                         // Bot is BANNED
                         modTag.className = 'tag is-danger mod-status-tag';
@@ -1486,6 +1527,7 @@ ob_start();
                         // Allow start button even if the bot is not a moderator (admins can start regardless)
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
                         if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
+                        if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                         // If the bot is running but missing mod, indicate it visually
                         if (isRunning) {
                             modTag.className = 'tag is-warning mod-status-tag';
@@ -1503,8 +1545,10 @@ ob_start();
                     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Renewed</span>';
                     const startStableBtn = row.querySelector('.start-stable-btn');
                     const startBetaBtn = row.querySelector('.start-beta-btn');
+                    const startCustomBtn = row.querySelector('.start-custom-btn');
                     if (startStableBtn) startStableBtn.disabled = false;
                     if (startBetaBtn) startBetaBtn.disabled = false;
+                    if (startCustomBtn) startCustomBtn.disabled = !hasCustomBotEnabled(row);
                 } else {
                     tokenTag.className = 'tag is-danger token-status-tag';
                     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Renewal Failed</span>';
@@ -1676,14 +1720,16 @@ ob_start();
         const tokenTag = row.querySelector('.token-status-tag');
         const startStableBtn = row.querySelector('.start-stable-btn');
         const startBetaBtn = row.querySelector('.start-beta-btn');
-        const currentBtn = botType === 'beta' ? startBetaBtn : startStableBtn;
-        const otherBtn = botType === 'beta' ? startStableBtn : startBetaBtn;
+        const startCustomBtn = row.querySelector('.start-custom-btn');
+        const currentBtn = botType === 'beta' ? startBetaBtn : (botType === 'custom' ? startCustomBtn : startStableBtn);
+        const otherBtns = [startStableBtn, startBetaBtn, startCustomBtn].filter(btn => btn && btn !== currentBtn);
         // Check if bot is already running
         const isRunning = runningBots.find(bot => bot.username === username);
         if (isRunning) {
             // If trying to start same type, just show info
             if (isRunning.bot_type === botType) {
-                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: `${botType === 'beta' ? 'Beta' : 'Stable'} bot for ${username} is already running`, showConfirmButton: false, timer: 1500 });
+                const currentTypeLabel = botType === 'beta' ? 'Beta' : (botType === 'custom' ? 'Custom' : 'Stable');
+                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: `${currentTypeLabel} bot for ${username} is already running`, showConfirmButton: false, timer: 1500 });
                 return;
             }
             // If switching bot types, confirm with user
@@ -1703,8 +1749,13 @@ ob_start();
             currentBtn.classList.add('is-loading');
         }
         try {
+            if (botType === 'custom' && !hasCustomBotEnabled(row)) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: `Custom bot is not enabled for ${username}`, showConfirmButton: false, timer: 2500 });
+                return;
+            }
             botTag.className = 'tag is-info bot-status-tag';
-            botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting ' + (botType === 'beta' ? 'Beta' : 'Stable') + '...</span>';
+            const startTypeLabel = botType === 'beta' ? 'Beta' : (botType === 'custom' ? 'Custom' : 'Stable');
+            botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting ' + startTypeLabel + '...</span>';
             const startFormData = new FormData();
             startFormData.append('start_user_bot', '1');
             startFormData.append('username', username);
@@ -1719,11 +1770,14 @@ ob_start();
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running</span>';
                 const botTypeTag = row.querySelector('.bot-type-tag');
                 if (botTypeTag) {
-                    botTypeTag.className = botType === 'beta' ? 'tag is-info bot-type-tag' : 'tag is-success bot-type-tag';
-                    botTypeTag.innerHTML = '<span>' + (botType === 'beta' ? 'Beta' : 'Stable') + '</span>';
+                    const botTypeClass = botType === 'beta' ? 'tag is-info bot-type-tag' : (botType === 'custom' ? 'tag is-primary bot-type-tag' : 'tag is-success bot-type-tag');
+                    const botTypeLabel = botType === 'beta' ? 'Beta' : (botType === 'custom' ? 'Custom' : 'Stable');
+                    botTypeTag.className = botTypeClass;
+                    botTypeTag.innerHTML = '<span>' + botTypeLabel + '</span>';
                 }
                 if (startStableBtn) startStableBtn.style.display = 'none';
                 if (startBetaBtn) startBetaBtn.style.display = 'none';
+                if (startCustomBtn) startCustomBtn.style.display = 'none';
                 // Remove old entry if switching types
                 runningBots = runningBots.filter(bot => bot.username !== username);
                 // Add to runningBots array optimistically
@@ -1731,7 +1785,8 @@ ob_start();
                 // Hide the row since bot is now running
                 row.style.display = 'none';
                 // Non-blocking toast notification only
-                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Started ${botType === 'beta' ? 'beta' : 'stable'} bot for ${username}`, showConfirmButton: false, timer: 1500 });
+                const startedTypeLabel = botType === 'beta' ? 'beta' : (botType === 'custom' ? 'custom' : 'stable');
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Started ${startedTypeLabel} bot for ${username}`, showConfirmButton: false, timer: 1500 });
                 // Schedule a debounced refresh to verify actual status (non-blocking)
                 scheduleRefresh(2000);
             } else {
@@ -1750,9 +1805,14 @@ ob_start();
                 currentBtn.disabled = false;
                 currentBtn.classList.remove('is-loading');
             }
-            if (otherBtn) {
-                otherBtn.disabled = false;
-            }
+            otherBtns.forEach(btn => {
+                if (!btn) return;
+                if (btn === startCustomBtn) {
+                    btn.disabled = !hasCustomBotEnabled(row);
+                } else {
+                    btn.disabled = false;
+                }
+            });
         }
     }
     // Function to switch bot type
