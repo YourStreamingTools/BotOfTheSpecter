@@ -70,6 +70,7 @@ elif SELF_MODE:
     BOT_USERNAME = args.target_channel
 else:
     BOT_USERNAME = "botofthespecter"
+IGNORED_WELCOME_USERNAMES = {"botofthespecter", BOT_USERNAME.lower()}
 VERSION = "5.8"
 if CUSTOM_MODE:
     SYSTEM = "CUSTOM"
@@ -2715,7 +2716,7 @@ class TwitchBot(commands.Bot):
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
             return
-        if messageAuthor.lower() == BOT_USERNAME.lower():
+        if messageAuthor.lower() in IGNORED_WELCOME_USERNAMES:
             # Skip message counting and welcome message for the bot itself
             return
         send_shoutout = False
@@ -2843,7 +2844,7 @@ class TwitchBot(commands.Bot):
             return
         if not stream_online:
             return
-        if not messageAuthor or messageAuthor.lower() in [BOT_USERNAME.lower(), CHANNEL_NAME.lower()]:
+        if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() == CHANNEL_NAME.lower():
             return
         send_shoutout = False
         shoutout_message = None
