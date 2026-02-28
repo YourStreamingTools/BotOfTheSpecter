@@ -79,13 +79,13 @@ function removeTokenCacheEntry($filePath, $twitchId)
     return true;
 }
 
-function get_admin_beta_mode_params($conn, $twitchUserId, $useCustom = false, $useSelf = false) {
+function get_admin_beta_mode_params($conn, $channelLookupId, $useCustom = false, $useSelf = false, $legacyTwitchUserId = null) {
     $params = [
         'use_custom_bot' => false,
         'custom_bot_username' => null,
         'use_self' => (bool) $useSelf
     ];
-    if (!$useCustom || empty($twitchUserId)) {
+    if (!$useCustom || empty($channelLookupId)) {
         return $params;
     }
     $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
@@ -93,22 +93,34 @@ function get_admin_beta_mode_params($conn, $twitchUserId, $useCustom = false, $u
         client_console_log('get_admin_beta_mode_params: failed to prepare custom_bots lookup', 'warn');
         return $params;
     }
-    $stmt->bind_param('s', $twitchUserId);
+    $lookupId = (string) $channelLookupId;
+    $stmt->bind_param('s', $lookupId);
     $stmt->execute();
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
+    if (!$row && !empty($legacyTwitchUserId)) {
+        $stmtLegacy = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+        if ($stmtLegacy) {
+            $legacyLookupId = (string) $legacyTwitchUserId;
+            $stmtLegacy->bind_param('s', $legacyLookupId);
+            $stmtLegacy->execute();
+            $legacyRes = $stmtLegacy->get_result();
+            $row = $legacyRes ? $legacyRes->fetch_assoc() : null;
+            $stmtLegacy->close();
+        }
+    }
     if (!$row) {
-        client_console_log('get_admin_beta_mode_params: no custom bot record for channel_id=' . $twitchUserId, 'warn');
+        client_console_log('get_admin_beta_mode_params: no custom bot record for channel_id=' . $lookupId, 'warn');
         return $params;
     }
     if ((int) ($row['is_verified'] ?? 0) !== 1) {
-        client_console_log('get_admin_beta_mode_params: custom bot exists but is not verified for channel_id=' . $twitchUserId, 'warn');
+        client_console_log('get_admin_beta_mode_params: custom bot exists but is not verified for channel_id=' . $lookupId, 'warn');
         return $params;
     }
     $customBotUsername = trim((string) ($row['bot_username'] ?? ''));
     if ($customBotUsername === '') {
-        client_console_log('get_admin_beta_mode_params: custom bot username is empty for channel_id=' . $twitchUserId, 'warn');
+        client_console_log('get_admin_beta_mode_params: custom bot username is empty for channel_id=' . $lookupId, 'warn');
         return $params;
     }
     $params['use_custom_bot'] = true;
@@ -185,7 +197,7 @@ if (!function_exists('start_bot_for_user')) {
     {
         global $conn, $api_key;
         // Load tokens and api_key for the user
-        $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT id, twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ? LIMIT 1");
         if (!$stmt)
             return ['success' => false, 'message' => 'Database error preparing token lookup'];
         $stmt->bind_param('s', $username);
@@ -196,6 +208,7 @@ if (!function_exists('start_bot_for_user')) {
         if (!$row)
             return ['success' => false, 'message' => 'User not found'];
         // Extract all required fields
+        $userId = trim((string) ($row['id'] ?? ''));
         $twitchUserId = trim($row['twitch_user_id'] ?? '');
         $accessToken = trim($row['access_token'] ?? '');
         $refreshToken = trim($row['refresh_token'] ?? '');
@@ -243,7 +256,7 @@ if (!function_exists('start_bot_for_user')) {
             if ($actionBotType === 'beta') {
                 $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
                 $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
-                $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $effectiveUseCustom, $effectiveUseSelf);
+                $betaModeParams = get_admin_beta_mode_params($conn, $userId, $effectiveUseCustom, $effectiveUseSelf, $twitchUserId);
                 if ($botType === 'custom' && empty($betaModeParams['use_custom_bot'])) {
                     return ['success' => false, 'message' => 'Custom bot is not enabled/verified for this user'];
                 }
@@ -950,7 +963,7 @@ include '../userdata.php';
 
 // Fetch all users from database
 $users = [];
-$stmt = $conn->prepare("SELECT u.id, u.username, u.twitch_user_id, u.twitch_display_name, u.profile_image, u.use_custom, CASE WHEN u.use_custom = 1 AND EXISTS (SELECT 1 FROM custom_bots cb WHERE cb.channel_id = u.twitch_user_id AND cb.is_verified = 1 AND COALESCE(cb.bot_username, '') <> '') THEN 1 ELSE 0 END AS custom_bot_enabled FROM users u ORDER BY u.id");
+$stmt = $conn->prepare("SELECT u.id, u.username, u.twitch_user_id, u.twitch_display_name, u.profile_image, u.use_custom, CASE WHEN EXISTS (SELECT 1 FROM custom_bots cb WHERE cb.channel_id = CAST(u.id AS CHAR) AND cb.is_verified = 1 AND COALESCE(cb.bot_username, '') <> '') OR EXISTS (SELECT 1 FROM custom_bots cb WHERE cb.channel_id = u.twitch_user_id AND cb.is_verified = 1 AND COALESCE(cb.bot_username, '') <> '') THEN 1 ELSE 0 END AS custom_bot_enabled FROM users u ORDER BY u.id");
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
