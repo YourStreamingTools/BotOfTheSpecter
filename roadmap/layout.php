@@ -140,6 +140,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
                 <div id="detailsPanelDescription" class="details-tab-panel" style="flex: 1; overflow-y: auto;">
                     <h4 class="title is-6">Description</h4>
+                    <div id="detailsTags" style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.6rem;"></div>
                     <p id="detailsMeta" class="is-size-7 has-text-grey" style="margin-bottom:0.5rem;"></p>
                     <button type="button" class="button is-small is-link is-light" id="copyShareLinkBtn" style="margin-bottom:0.75rem;">
                         <span class="icon is-small"><i class="fas fa-link"></i></span>
@@ -461,6 +462,85 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             };
             return date.toLocaleDateString('en-AU', options);
         }
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        function parseTagList(rawValue) {
+            if (!rawValue) return [];
+            if (Array.isArray(rawValue)) return rawValue.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+            const text = String(rawValue).trim();
+            if (!text) return [];
+            try {
+                const parsed = JSON.parse(text);
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
+                }
+                if (typeof parsed === 'string') {
+                    return parsed.trim() ? [parsed.trim()] : [];
+                }
+            } catch (err) {
+                return text ? [text] : [];
+            }
+            return [];
+        }
+        function getCategoryTagClass(category) {
+            const map = {
+                'REQUESTS': 'is-info',
+                'IN PROGRESS': 'is-warning',
+                'BETA TESTING': 'is-primary',
+                'COMPLETED': 'is-success',
+                'REJECTED': 'is-danger'
+            };
+            return map[category] || 'is-light';
+        }
+        function getPriorityTagClass(priority) {
+            const map = {
+                'LOW': 'is-success',
+                'MEDIUM': 'is-info',
+                'HIGH': 'is-warning',
+                'CRITICAL': 'is-danger'
+            };
+            return map[priority] || 'is-light';
+        }
+        function getSubcategoryTagClass(subcategory) {
+            const map = {
+                'TWITCH BOT': 'is-primary',
+                'DISCORD BOT': 'is-info',
+                'WEBSOCKET SERVER': 'is-success',
+                'API SERVER': 'is-warning',
+                'WEBSITE': 'is-danger',
+                'OTHER': 'is-light'
+            };
+            return map[subcategory] || 'is-light';
+        }
+        function renderDetailsTags(button) {
+            const tagsEl = document.getElementById('detailsTags');
+            if (!tagsEl) return;
+            const category = (button.dataset.category || '').trim();
+            const priority = (button.dataset.priority || '').trim();
+            const subcategories = parseTagList(button.dataset.subcategories || button.dataset.subcategory || '');
+            const websiteTypes = parseTagList(button.dataset.websiteTypes || button.dataset.websiteType || '');
+            const html = [];
+            if (category) {
+                html.push('<span class="tag is-small ' + getCategoryTagClass(category) + '">' + escapeHtml(category) + '</span>');
+            }
+            if (priority) {
+                html.push('<span class="tag is-small ' + getPriorityTagClass(priority) + '">' + escapeHtml(priority) + '</span>');
+            }
+            subcategories.forEach(sub => {
+                html.push('<span class="tag is-small ' + getSubcategoryTagClass(sub) + '">' + escapeHtml(sub) + '</span>');
+            });
+            websiteTypes.forEach(type => {
+                html.push('<span class="tag is-small is-info">' + escapeHtml(type) + '</span>');
+            });
+            tagsEl.innerHTML = html.join('');
+            tagsEl.style.display = html.length ? 'flex' : 'none';
+        }
         // Helper function to get file icon based on type
         function getFileIcon(mimeType) {
             if (mimeType.startsWith('image/')) return 'fa-image';
@@ -755,6 +835,19 @@ if (session_status() === PHP_SESSION_ACTIVE) {
             const closeLegendBtn = document.getElementById('closeLegendBtn');
             const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
             let currentItemId = null;
+            function clearItemParamFromUrl() {
+                const stateUrl = new URL(window.location.href);
+                if (!stateUrl.searchParams.has('item')) return;
+                stateUrl.searchParams.delete('item');
+                window.history.replaceState({}, '', stateUrl.toString());
+            }
+            function closeDetailsModal() {
+                if (detailsModal) {
+                    detailsModal.classList.remove('is-active');
+                }
+                currentItemId = null;
+                clearItemParamFromUrl();
+            }
             function setDetailsTab(activeTab) {
                 detailsTabButtons.forEach(tab => {
                     tab.classList.toggle('is-active', tab.getAttribute('data-details-tab') === activeTab);
@@ -948,6 +1041,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                     const updatedAt = this.dataset.updatedAt || '';
                     currentItemId = this.getAttribute('data-item-id');
                     setDetailsTab('description');
+                    renderDetailsTags(this);
                     if (currentItemId) {
                         const stateUrl = new URL(window.location.href);
                         stateUrl.searchParams.delete('search');
@@ -1151,7 +1245,11 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 btn.addEventListener('click', function () {
                     const modal = this.closest('.modal');
                     if (modal) {
-                        modal.classList.remove('is-active');
+                        if (modal.id === 'detailsModal') {
+                            closeDetailsModal();
+                        } else {
+                            modal.classList.remove('is-active');
+                        }
                     }
                 });
             });
@@ -1160,7 +1258,11 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 btn.addEventListener('click', function () {
                     const modal = this.closest('.modal');
                     if (modal) {
-                        modal.classList.remove('is-active');
+                        if (modal.id === 'detailsModal') {
+                            closeDetailsModal();
+                        } else {
+                            modal.classList.remove('is-active');
+                        }
                     }
                 });
             });
@@ -1170,7 +1272,11 @@ if (session_status() === PHP_SESSION_ACTIVE) {
                 bg.addEventListener('click', function () {
                     const modal = this.closest('.modal');
                     if (modal) {
-                        modal.classList.remove('is-active');
+                        if (modal.id === 'detailsModal') {
+                            closeDetailsModal();
+                        } else {
+                            modal.classList.remove('is-active');
+                        }
                     }
                 });
             });
