@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once "/var/www/config/db_connect.php";
 
 $token = isset($_GET['token']) ? trim((string)$_GET['token']) : '';
 $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['api_key']);
@@ -9,6 +10,97 @@ $statusClass = 'is-danger';
 $statusTitle = 'Link Failed';
 $statusMessage = 'Invalid request.';
 
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
+$originDomain = $_SERVER['HTTP_HOST'];
+$cleanReturnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . '/discord_twitch_link.php';
+if ($token !== '') {
+    $cleanReturnUrl .= '?token=' . urlencode($token);
+}
+
+$streamersconnectBase = 'https://streamersconnect.com/';
+$scopes = 'user:read:email';
+$authorizeUrl = $streamersconnectBase . '?' . http_build_query([
+    'service' => 'twitch',
+    'login' => $originDomain,
+    'scopes' => $scopes,
+    'return_url' => $cleanReturnUrl
+]);
+
+// Handle StreamersConnect auth_data callback (same pattern as home/feedback.php)
+if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
+    $decoded = null;
+    $cfg = require_once "/var/www/config/main.php";
+    $streamersConnectApiKey = isset($cfg['streamersconnect_api_key']) ? $cfg['streamersconnect_api_key'] : '';
+    if (isset($_GET['auth_data_sig']) && $streamersConnectApiKey) {
+        $sig = $_GET['auth_data_sig'];
+        $ch = curl_init('https://streamersconnect.com/verify_auth_sig.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['auth_data_sig' => $sig]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $streamersConnectApiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) {
+                $decoded = $res['payload'];
+            }
+        }
+    }
+    if (!$decoded && isset($_GET['server_token']) && $streamersConnectApiKey) {
+        $serverToken = $_GET['server_token'];
+        $ch = curl_init('https://streamersconnect.com/token_exchange.php');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['server_token' => $serverToken]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'X-API-Key: ' . $streamersConnectApiKey]);
+        $response = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response && $http === 200) {
+            $res = json_decode($response, true);
+            if (!empty($res['success']) && !empty($res['payload'])) {
+                $decoded = $res['payload'];
+            }
+        }
+    }
+    if (!$decoded && isset($_GET['auth_data'])) {
+        $decoded = json_decode(base64_decode($_GET['auth_data']), true);
+    }
+    if (!is_array($decoded) || empty($decoded['success'])) {
+        $statusClass = 'is-danger';
+        $statusTitle = 'Login Failed';
+        $statusMessage = 'Authentication failed or was cancelled.';
+    } elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
+        $user = $decoded['user'] ?? [];
+        $_SESSION['twitch_user_id'] = $user['id'] ?? null;
+        $_SESSION['twitch_display_name'] = $user['display_name'] ?? ($user['global_name'] ?? ($user['login'] ?? $user['username'] ?? null));
+        $_SESSION['twitch_username'] = $user['login'] ?? $user['username'] ?? null;
+        $_SESSION['profile_image'] = $user['profile_image_url'] ?? null;
+        $_SESSION['user_email'] = $user['email'] ?? null;
+        $_SESSION['access_token'] = $decoded['access_token'] ?? null;
+        $_SESSION['refresh_token'] = $decoded['refresh_token'] ?? null;
+        $twitchUserId = $_SESSION['twitch_user_id'] ?? null;
+        if (!empty($twitchUserId) && isset($conn)) {
+            $stmt = $conn->prepare("SELECT id, api_key FROM users WHERE twitch_user_id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('s', $twitchUserId);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($result && $row = $result->fetch_assoc()) {
+                    $_SESSION['user_id'] = $row['id'];
+                    $_SESSION['api_key'] = $row['api_key'];
+                }
+                $stmt->close();
+            }
+        }
+        // Redirect to clean URL (drop auth_data params)
+        header('Location: ' . $cleanReturnUrl);
+        exit;
+    }
+}
+
 ob_start();
 
 if ($token === '') {
@@ -16,7 +108,7 @@ if ($token === '') {
 } elseif (!$isLoggedIn) {
     $statusClass = 'is-warning';
     $statusTitle = 'Login Required';
-    $statusMessage = 'Please log in to your BotOfTheSpecter account (Twitch), then return to this page using the Discord DM link.';
+    $statusMessage = 'Please sign in with Twitch to continue. You will be returned here automatically.';
 } else {
     $apiKey = (string)$_SESSION['api_key'];
     $endpoint = 'https://api.botofthespecter.com/discord/twitch-link/confirm?' . http_build_query([
