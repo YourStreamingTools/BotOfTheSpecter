@@ -101,14 +101,36 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
     }
 }
 
+$existingLinkedName = null;
+if ($isLoggedIn && isset($conn)) {
+    $sessionTwitchUserId = $_SESSION['twitch_user_id'] ?? null;
+    if (!empty($sessionTwitchUserId)) {
+        $stmt = $conn->prepare("SELECT twitch_username FROM discord_twitch_links WHERE twitch_user_id = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $sessionTwitchUserId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result && $row = $result->fetch_assoc()) {
+                $existingLinkedName = $row['twitch_username'] ?? ($_SESSION['twitch_display_name'] ?? 'your Twitch account');
+            }
+            $stmt->close();
+        }
+    }
+}
+
 ob_start();
 
-if ($token === '') {
+if (!$isLoggedIn && $token === '') {
     $statusMessage = 'The link token is missing. Please run !linktwitch again in Discord.';
 } elseif (!$isLoggedIn) {
     $statusClass = 'is-warning';
     $statusTitle = 'Login Required';
     $statusMessage = 'Please sign in with Twitch to continue. You will be returned here automatically.';
+} elseif ($existingLinkedName !== null) {
+    $statusClass = 'is-success';
+    $statusTitle = 'Link Complete';
+    $linkedName = htmlspecialchars((string)$existingLinkedName, ENT_QUOTES, 'UTF-8');
+    $statusMessage = 'Your Discord user is linked to Twitch account: <strong>' . $linkedName . '</strong>.';
 } else {
     $apiKey = (string)$_SESSION['api_key'];
     $endpoint = 'https://api.botofthespecter.com/discord/twitch-link/confirm?' . http_build_query([
