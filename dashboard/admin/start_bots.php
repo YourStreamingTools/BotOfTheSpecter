@@ -1257,22 +1257,30 @@ ob_start();
                             }
                             // Show switch button with opposite bot type
                             if (switchBtn) {
-                                const targetType = isBetaFamily ? 'stable' : 'beta';
-                                const btnText = isBetaFamily ? 'Switch to Stable' : 'Switch to Beta';
+                                const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta');
+                                const btnText = runningType === 'custom' ? 'Switch to Stable' : (isBetaFamily ? 'Switch to Stable' : 'Switch to Beta');
                                 switchBtn.style.display = 'inline-flex';
                                 switchBtn.disabled = false;
                                 switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
                                 switchBtn.querySelector('span:last-child').textContent = btnText;
                             }
                             if (switchCustomBtn) {
-                                const canSwitchToCustom = canStartCustom && runningType !== 'custom';
-                                if (canSwitchToCustom) {
+                                if (runningType === 'custom') {
                                     switchCustomBtn.style.display = 'inline-flex';
                                     switchCustomBtn.disabled = false;
-                                    switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`);
+                                    switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`);
+                                    switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Beta';
                                 } else {
-                                    switchCustomBtn.style.display = 'none';
-                                    switchCustomBtn.disabled = true;
+                                    const canSwitchToCustom = canStartCustom && runningType !== 'custom';
+                                    if (canSwitchToCustom) {
+                                        switchCustomBtn.style.display = 'inline-flex';
+                                        switchCustomBtn.disabled = false;
+                                        switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`);
+                                        switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Custom';
+                                    } else {
+                                        switchCustomBtn.style.display = 'none';
+                                        switchCustomBtn.disabled = true;
+                                    }
                                 }
                             }
                             // Validate token to check mod status even for running bots
@@ -1402,8 +1410,8 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
-                            if (switchBtn) { const targetType = isBetaFamily ? 'stable' : 'beta'; const btnText = isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
-                            if (switchCustomBtn) { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } }
+                            if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? 'Switch to Stable' : (isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
+                            if (switchCustomBtn) { if (runningType === 'custom') { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`); switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Beta'; } else { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Custom'; } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } } }
                         } else {
                             if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
