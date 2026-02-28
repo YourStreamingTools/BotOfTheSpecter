@@ -2,8 +2,7 @@
 // Single menu renderer used by both mobile and desktop layouts
 // Usage: include_once __DIR__ . '/menu.php'; renderMenu('mobile'|'desktop', 'default'|'admin'|'todolist');
 
-function getMenuItems($role = 'default')
-{
+function getMenuItems($role = 'default') {
     // default (user dashboard) menu
     $default = [
         [ 'label' => t('navbar_home'), 'icon' => 'fas fa-home', 'href' => 'dashboard.php' ],
@@ -55,7 +54,6 @@ function getMenuItems($role = 'default')
         [ 'label' => t('navbar_raffles'), 'icon' => 'fas fa-ticket-alt', 'href' => 'raffles.php' ],
         [ 'label' => t('navbar_todo_list'), 'icon' => 'fas fa-list-check', 'href' => 'todolist/index.php' ],
     ];
-
     // admin menu (admin panel)
     $admin = [
         [ 'label' => 'Dashboard', 'icon' => 'fas fa-tachometer-alt', 'href' => 'index.php' ],
@@ -71,7 +69,6 @@ function getMenuItems($role = 'default')
         [ 'label' => 'Spam Patterns', 'icon' => 'fas fa-ban', 'href' => 'spam_patterns.php' ],
         [ 'label' => 'Web Terminal', 'icon' => 'fas fa-terminal', 'href' => 'terminal.php' ],
     ];
-
     // todolist menu
     $todolist = [
         [ 'label' => 'View Tasks', 'icon' => 'fas fa-list-check', 'href' => 'index.php' ],
@@ -87,7 +84,6 @@ function getMenuItems($role = 'default')
         ]],
         [ 'label' => 'OBS Options', 'icon' => 'fas fa-cog', 'href' => 'obs_options.php' ],
     ];
-
     switch ($role) {
         case 'admin':
             return $admin;
@@ -98,17 +94,14 @@ function getMenuItems($role = 'default')
     }
 }
 
-function renderMenu($mode = 'desktop', $role = 'default')
-{
+function renderMenu($mode = 'desktop', $role = 'default') {
     $items = getMenuItems($role);
     $isMobile = ($mode === 'mobile');
-
     echo "<ul class=\"sidebar-menu\">\n";
     foreach ($items as $item) {
         $hasSub = isset($item['submenu']) && is_array($item['submenu']);
         $liClass = 'sidebar-menu-item' . ($hasSub ? ' has-submenu' : '');
         echo "    <li class=\"{$liClass}\">\n";
-
         if ($hasSub) {
             echo "        <a href=\"#\" class=\"sidebar-menu-link\" onclick=\"toggleSubmenu(event,this)\">\n";
             echo "            <span class=\"sidebar-menu-icon\"><i class=\"{$item['icon']}\"></i></span>\n";
@@ -127,7 +120,7 @@ function renderMenu($mode = 'desktop', $role = 'default')
                 if ($subIconImg !== '') {
                     $safeAlt = htmlspecialchars(strip_tags((string)$sub['label']), ENT_QUOTES, 'UTF-8');
                     $safeSrc = htmlspecialchars((string)$subIconImg, ENT_QUOTES, 'UTF-8');
-                    echo "                    <span class=\"sidebar-submenu-icon\"><img src=\"{$safeSrc}\" alt=\"{$safeAlt}\" style=\"width:1em;height:1em;object-fit:contain;display:block;filter:grayscale(1) brightness(1.6) contrast(0.9);opacity:0.85;\"></span>\n";
+                    echo "                    <span class=\"sidebar-submenu-icon\"><img src=\"{$safeSrc}\" alt=\"{$safeAlt}\" style=\"width:1em !important;height:1em !important;min-width:1em !important;min-height:1em !important;max-width:1em !important;max-height:1em !important;object-fit:contain;display:block;filter:grayscale(1) brightness(1.6) contrast(0.9);opacity:0.85;\"></span>\n";
                 } else {
                     echo "                    <span class=\"sidebar-submenu-icon\"><i class=\"{$subIcon}\"></i></span>\n";
                 }
@@ -146,7 +139,6 @@ function renderMenu($mode = 'desktop', $role = 'default')
                 echo "        <div class=\"sidebar-tooltip\">{$item['label']}</div>\n";
             }
         }
-
         echo "    </li>\n";
     }
     echo "</ul>\n";
