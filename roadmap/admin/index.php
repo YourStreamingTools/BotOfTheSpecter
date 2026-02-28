@@ -668,22 +668,34 @@ ob_start();
                                     </button>
                                 </div>
                                 <div class="buttons are-small" style="display: flex; gap: 0.25rem; flex-wrap: nowrap;">
-                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                        <input type="hidden" name="action" value="update">
-                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <input type="hidden" name="category" value="IN PROGRESS">
-                                        <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
-                                            <span class="icon is-small"><i class="fas fa-play"></i></span>
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                        <input type="hidden" name="action" value="update">
-                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <input type="hidden" name="status" value="completed">
-                                        <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
-                                            <span class="icon is-small"><i class="fas fa-check"></i></span>
-                                        </button>
-                                    </form>
+                                    <?php if (($item['category'] ?? '') === 'REQUESTS'): ?>
+                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
+                                            <input type="hidden" name="action" value="update">
+                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                            <input type="hidden" name="category" value="IN PROGRESS">
+                                            <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
+                                                <span class="icon is-small"><i class="fas fa-play"></i></span>
+                                            </button>
+                                        </form>
+                                    <?php elseif (($item['category'] ?? '') === 'IN PROGRESS'): ?>
+                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
+                                            <input type="hidden" name="action" value="update">
+                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                            <input type="hidden" name="category" value="BETA TESTING">
+                                            <button type="submit" class="button is-primary is-small" style="flex: 1;" title="Move to Beta Testing">
+                                                <span class="icon is-small"><i class="fas fa-flask"></i></span>
+                                            </button>
+                                        </form>
+                                    <?php elseif (($item['category'] ?? '') === 'BETA TESTING'): ?>
+                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
+                                            <input type="hidden" name="action" value="update">
+                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                            <input type="hidden" name="status" value="completed">
+                                            <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
+                                                <span class="icon is-small"><i class="fas fa-check"></i></span>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                     <form method="POST" action="" style="display: flex; flex: 0 0 auto;">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
@@ -770,22 +782,34 @@ ob_start();
                                     </button>
                                 </div>
                                 <div class="buttons are-small" style="display: flex; gap: 0.25rem; flex-wrap: nowrap;">
-                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                        <input type="hidden" name="action" value="update">
-                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <input type="hidden" name="category" value="IN PROGRESS">
-                                        <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
-                                            <span class="icon is-small"><i class="fas fa-play"></i></span>
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                        <input type="hidden" name="action" value="update">
-                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <input type="hidden" name="status" value="completed">
-                                        <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
-                                            <span class="icon is-small"><i class="fas fa-check"></i></span>
-                                        </button>
-                                    </form>
+                                    <?php if (($item['category'] ?? '') === 'REQUESTS'): ?>
+                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
+                                            <input type="hidden" name="action" value="update">
+                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                            <input type="hidden" name="category" value="IN PROGRESS">
+                                            <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
+                                                <span class="icon is-small"><i class="fas fa-play"></i></span>
+                                            </button>
+                                        </form>
+                                    <?php elseif (($item['category'] ?? '') === 'IN PROGRESS'): ?>
+                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
+                                            <input type="hidden" name="action" value="update">
+                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                            <input type="hidden" name="category" value="BETA TESTING">
+                                            <button type="submit" class="button is-primary is-small" style="flex: 1;" title="Move to Beta Testing">
+                                                <span class="icon is-small"><i class="fas fa-flask"></i></span>
+                                            </button>
+                                        </form>
+                                    <?php elseif (($item['category'] ?? '') === 'BETA TESTING'): ?>
+                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
+                                            <input type="hidden" name="action" value="update">
+                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
+                                            <input type="hidden" name="status" value="completed">
+                                            <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
+                                                <span class="icon is-small"><i class="fas fa-check"></i></span>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                     <form method="POST" action="" style="display: flex; flex: 0 0 auto;">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
