@@ -2934,6 +2934,12 @@ class TwitchBot(commands.Bot):
         global stream_online
         if not messageContent or not messageContent.startswith('!'):
             return False
+        command_parts = messageContent.strip().split()
+        if not command_parts:
+            return False
+        command = command_parts[0][1:].strip().lower()
+        if not command:
+            return False
         if not stream_online:
             return False
         try:
@@ -2943,6 +2949,22 @@ class TwitchBot(commands.Bot):
                 return False
             async with await mysql_handler.get_connection() as connection:
                 async with connection.cursor(DictCursor) as cursor:
+                    is_managed_command = (
+                        command in builtin_commands
+                        or command in mod_commands
+                        or command in builtin_aliases
+                    )
+                    if not is_managed_command:
+                        await cursor.execute('SELECT 1 FROM custom_commands WHERE command = %s LIMIT 1', (command,))
+                        custom_result = await cursor.fetchone()
+                        if custom_result:
+                            is_managed_command = True
+                        else:
+                            await cursor.execute('SELECT 1 FROM custom_user_commands WHERE command = %s LIMIT 1', (command,))
+                            custom_user_result = await cursor.fetchone()
+                            is_managed_command = custom_user_result is not None
+                    if not is_managed_command:
+                        return False
                     await cursor.execute("SELECT block_first_message_commands FROM protection LIMIT 1")
                     protection_row = await cursor.fetchone()
                     if not protection_row or protection_row.get("block_first_message_commands") != 'True':
