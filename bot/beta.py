@@ -2804,7 +2804,7 @@ class TwitchBot(commands.Bot):
                                 message_to_send = replace_user_placeholder(new_default_welcome_message, messageAuthor)
                         else:
                             if has_welcome_message:
-                                message_to_send = has_welcome_message
+                                message_to_send = replace_user_placeholder(has_welcome_message, messageAuthor)
                             else:
                                 if is_vip:
                                     message_to_send = replace_user_placeholder(default_vip_welcome_message, messageAuthor)
@@ -2907,7 +2907,7 @@ class TwitchBot(commands.Bot):
                             message_to_send = new_default_welcome_message.replace("(user)", messageAuthor)
                     else:
                         if has_welcome_message:
-                            message_to_send = has_welcome_message
+                            message_to_send = has_welcome_message.replace("(user)", messageAuthor)
                         else:
                             if is_vip:
                                 message_to_send = default_vip_welcome_message.replace("(user)", messageAuthor)
