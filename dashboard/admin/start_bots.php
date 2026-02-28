@@ -79,8 +79,45 @@ function removeTokenCacheEntry($filePath, $twitchId)
     return true;
 }
 
-function format_admin_elapsed_seconds($seconds)
-{
+function get_admin_beta_mode_params($conn, $twitchUserId, $useCustom = false, $useSelf = false) {
+    $params = [
+        'use_custom_bot' => false,
+        'custom_bot_username' => null,
+        'use_self' => (bool) $useSelf
+    ];
+    if (!$useCustom || empty($twitchUserId)) {
+        return $params;
+    }
+    $stmt = $conn->prepare("SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+    if (!$stmt) {
+        client_console_log('get_admin_beta_mode_params: failed to prepare custom_bots lookup', 'warn');
+        return $params;
+    }
+    $stmt->bind_param('s', $twitchUserId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    if (!$row) {
+        client_console_log('get_admin_beta_mode_params: no custom bot record for channel_id=' . $twitchUserId, 'warn');
+        return $params;
+    }
+    if ((int) ($row['is_verified'] ?? 0) !== 1) {
+        client_console_log('get_admin_beta_mode_params: custom bot exists but is not verified for channel_id=' . $twitchUserId, 'warn');
+        return $params;
+    }
+    $customBotUsername = trim((string) ($row['bot_username'] ?? ''));
+    if ($customBotUsername === '') {
+        client_console_log('get_admin_beta_mode_params: custom bot username is empty for channel_id=' . $twitchUserId, 'warn');
+        return $params;
+    }
+    $params['use_custom_bot'] = true;
+    $params['custom_bot_username'] = $customBotUsername;
+    $params['use_self'] = false;
+    return $params;
+}
+
+function format_admin_elapsed_seconds($seconds) {
     if (!is_numeric($seconds) || $seconds < 0)
         return 'Unknown';
     $seconds = (int) $seconds;
@@ -96,18 +133,15 @@ function format_admin_elapsed_seconds($seconds)
     return $minutes . 'm';
 }
 
-function get_admin_bot_uptime_from_version_file($username, $botType)
-{
+function get_admin_bot_uptime_from_version_file($username, $botType) {
     try {
         if (empty($username) || !class_exists('SSHConnectionManager')) {
             return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
         }
-
         global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
         if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
             return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
         }
-
         $versionFilePath = "/home/botofthespecter/logs/version";
         if ($botType === 'beta' || $botType === 'custom') {
             $versionFilePath .= "/beta/{$username}_beta_version_control.txt";
@@ -116,12 +150,10 @@ function get_admin_bot_uptime_from_version_file($username, $botType)
         } else {
             $versionFilePath .= "/{$username}_version_control.txt";
         }
-
         $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
         if (!$connection) {
             return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
         }
-
         $mtimeCmd = "stat -c %Y " . escapeshellarg($versionFilePath) . " 2>/dev/null";
         $mtimeOutput = SSHConnectionManager::executeCommand($connection, $mtimeCmd);
         if (function_exists('sanitizeSSHOutput')) {
@@ -130,7 +162,6 @@ function get_admin_bot_uptime_from_version_file($username, $botType)
             $mtimeOutput = preg_replace('/\\s*\\[exit_code:\\s*-?\\d+\\]\\s*$/', '', (string) $mtimeOutput);
             $mtimeOutput = trim((string) $mtimeOutput);
         }
-
         if ($mtimeOutput !== false && $mtimeOutput !== null && is_numeric(trim((string) $mtimeOutput))) {
             $mtime = (int) trim((string) $mtimeOutput);
             if ($mtime > 0) {
@@ -144,7 +175,6 @@ function get_admin_bot_uptime_from_version_file($username, $botType)
     } catch (Exception $e) {
         client_console_log('admin uptime lookup failed for ' . $username . ': ' . $e->getMessage(), 'warn');
     }
-
     return ['uptime_seconds' => null, 'uptime_human' => 'Unknown'];
 }
 
@@ -155,7 +185,7 @@ if (!function_exists('start_bot_for_user')) {
     {
         global $conn, $api_key;
         // Load tokens and api_key for the user
-        $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token, api_key FROM users WHERE username = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ? LIMIT 1");
         if (!$stmt)
             return ['success' => false, 'message' => 'Database error preparing token lookup'];
         $stmt->bind_param('s', $username);
@@ -169,6 +199,8 @@ if (!function_exists('start_bot_for_user')) {
         $twitchUserId = trim($row['twitch_user_id'] ?? '');
         $accessToken = trim($row['access_token'] ?? '');
         $refreshToken = trim($row['refresh_token'] ?? '');
+        $useCustom = ((int) ($row['use_custom'] ?? 0)) === 1;
+        $useSelf = ((int) ($row['use_self'] ?? 0)) === 1;
         // Get API key - try per-user key first, then global fallback
         $userApiKey = trim($row['api_key'] ?? '');
         $globalApiKey = trim($api_key ?? '');
@@ -200,6 +232,7 @@ if (!function_exists('start_bot_for_user')) {
         }
         // If performBotAction exists, delegate to it with all required params
         if (function_exists('performBotAction')) {
+            $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
             $params = [
                 'username' => $username,
                 'twitch_user_id' => $twitchUserId,
@@ -207,7 +240,11 @@ if (!function_exists('start_bot_for_user')) {
                 'refresh_token' => $refreshToken,
                 'api_key' => $finalApiKey
             ];
-            $res = performBotAction('run', $botType, $params);
+            if ($actionBotType === 'beta') {
+                $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $useCustom, $useSelf);
+                $params = array_merge($params, $betaModeParams);
+            }
+            $res = performBotAction('run', $actionBotType, $params);
             // performBotAction returns an array
             return $res;
         }
@@ -256,28 +293,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
                             'uptime_human' => $uptime['uptime_human']
                         ];
                     } else {
-                        // If stable is not running, check for beta bot
-                        $betaStatus = checkBotRunning($uname, 'beta');
-                        if (isset($betaStatus['running']) && $betaStatus['running']) {
-                            $uptime = get_admin_bot_uptime_from_version_file($uname, 'beta');
+                        // If stable is not running, check custom BEFORE beta.
+                        // checkBotRunning('beta') also falls back to custom mode, so order matters.
+                        $customStatus = checkBotRunning($uname, 'custom');
+                        if (isset($customStatus['running']) && $customStatus['running']) {
+                            $uptime = get_admin_bot_uptime_from_version_file($uname, 'custom');
                             $running_bots[] = [
                                 'username' => $uname,
-                                'pid' => $betaStatus['pid'] ?? 'unknown',
-                                'bot_type' => 'beta',
-                                'version' => $betaStatus['version'] ?? '',
+                                'pid' => $customStatus['pid'] ?? 'unknown',
+                                'bot_type' => 'custom',
+                                'version' => $customStatus['version'] ?? '',
                                 'uptime_seconds' => $uptime['uptime_seconds'],
                                 'uptime_human' => $uptime['uptime_human']
                             ];
                         } else {
-                            // If neither, check for custom bot
-                            $customStatus = checkBotRunning($uname, 'custom');
-                            if (isset($customStatus['running']) && $customStatus['running']) {
-                                $uptime = get_admin_bot_uptime_from_version_file($uname, 'custom');
+                            // If neither stable nor custom is running, check for beta bot
+                            $betaStatus = checkBotRunning($uname, 'beta');
+                            if (isset($betaStatus['running']) && $betaStatus['running']) {
+                                $uptime = get_admin_bot_uptime_from_version_file($uname, 'beta');
                                 $running_bots[] = [
                                     'username' => $uname,
-                                    'pid' => $customStatus['pid'] ?? 'unknown',
-                                    'bot_type' => 'custom',
-                                    'version' => $customStatus['version'] ?? '',
+                                    'pid' => $betaStatus['pid'] ?? 'unknown',
+                                    'bot_type' => 'beta',
+                                    'version' => $betaStatus['version'] ?? '',
                                     'uptime_seconds' => $uptime['uptime_seconds'],
                                     'uptime_human' => $uptime['uptime_human']
                                 ];
@@ -587,7 +625,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_bot_mod_status'
                 $banHttpCode = curl_getinfo($banCh, CURLINFO_HTTP_CODE);
                 $banCurlErr = curl_error($banCh);
                 curl_close($banCh);
-
                 if ($banHttpCode === 200 && !$banCurlErr) {
                     $banData = json_decode($banResponse, true);
                     if (!empty($banData['data'])) {
@@ -711,7 +748,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     } else {
         try {
             // Get user data including refresh_token and api_key from users table
-            $stmt = $conn->prepare("SELECT twitch_user_id, refresh_token, api_key FROM users WHERE username = ?");
+            $stmt = $conn->prepare("SELECT twitch_user_id, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ?");
             $stmt->bind_param("s", $username);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -720,6 +757,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                 $twitchUserId = $userData['twitch_user_id'];
                 $refreshToken = $userData['refresh_token'];
                 $apiKey = $userData['api_key'];
+                $useCustom = ((int) ($userData['use_custom'] ?? 0)) === 1;
+                $useSelf = ((int) ($userData['use_self'] ?? 0)) === 1;
                 // Get bot access token from twitch_bot_access table
                 $stmt2 = $conn->prepare("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = ?");
                 $stmt2->bind_param("s", $twitchUserId);
@@ -752,8 +791,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                         'refresh_token' => $refreshToken,  // Refresh token from users table
                         'api_key' => $apiKey
                     ];
-                    client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$botType}', ...) for {$username}");
-                    $result = performBotAction('run', $botType, $params);
+                    $actionBotType = ($botType === 'custom') ? 'beta' : $botType;
+                    if ($actionBotType === 'beta') {
+                        $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $useCustom, $useSelf);
+                        $params = array_merge($params, $betaModeParams);
+                    }
+                    client_console_log("RESTART DEBUG - Calling performBotAction('run', '{$actionBotType}', ...) for {$username}");
+                    $result = performBotAction('run', $actionBotType, $params);
                     client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
                     // Clarify which bot type was started
@@ -1128,7 +1172,8 @@ ob_start();
                         const runningTimeTag = row.querySelector('.running-time-tag');
                         if (isRunning) {
                             // Determine bot type once for use in multiple places
-                            const isBeta = isRunning.bot_type === 'beta';
+                            const runningType = (isRunning.bot_type || '').toLowerCase();
+                            const isBetaFamily = runningType === 'beta' || runningType === 'custom';
                             // Show running status
                             if (botTag) {
                                 botTag.className = 'tag is-success bot-status-tag';
@@ -1172,8 +1217,8 @@ ob_start();
                             }
                             // Show switch button with opposite bot type
                             if (switchBtn) {
-                                const targetType = isBeta ? 'stable' : 'beta';
-                                const btnText = isBeta ? 'Switch to Stable' : 'Switch to Beta';
+                                const targetType = isBetaFamily ? 'stable' : 'beta';
+                                const btnText = isBetaFamily ? 'Switch to Stable' : 'Switch to Beta';
                                 switchBtn.style.display = 'inline-flex';
                                 switchBtn.disabled = false;
                                 switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
@@ -1265,7 +1310,8 @@ ob_start();
                         const switchBtn = row.querySelector('.switch-bot-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
                         if (isRunning) {
-                            const isBeta = isRunning.bot_type === 'beta';
+                            const runningType = (isRunning.bot_type || '').toLowerCase();
+                            const isBetaFamily = runningType === 'beta' || runningType === 'custom';
                             if (botTag) {
                                 botTag.className = 'tag is-success bot-status-tag';
                                 botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
@@ -1293,7 +1339,7 @@ ob_start();
                             if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
-                            if (switchBtn) { const targetType = isBeta ? 'stable' : 'beta'; const btnText = isBeta ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
+                            if (switchBtn) { const targetType = isBetaFamily ? 'stable' : 'beta'; const btnText = isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
                         } else {
                             if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
@@ -1831,6 +1877,7 @@ ob_start();
         // Store original PIDs for comparison
         const botRestartTracking = runningBots.map(bot => ({
             username: bot.username,
+            botType: bot.bot_type || 'stable',
             originalPid: bot.pid,
             newPid: null,
             restarted: false
@@ -1866,7 +1913,7 @@ ob_start();
                 const formData = new FormData();
                 formData.append('restart_bot', '1');
                 formData.append('username', botInfo.username);
-                formData.append('bot_type', 'stable');
+                formData.append('bot_type', botInfo.botType);
                 formData.append('pid', botInfo.originalPid);
                 const response = await fetch(window.location.href, {
                     method: 'POST',
