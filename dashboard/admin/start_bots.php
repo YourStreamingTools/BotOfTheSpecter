@@ -1095,6 +1095,12 @@ ob_start();
                                     <span class="icon"><i class="fas fa-exchange-alt"></i></span>
                                     <span>Switch to Beta</span>
                                 </button>
+                                <button class="button is-primary switch-custom-btn"
+                                    onclick="switchBotType('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
+                                    style="display: none;" disabled>
+                                    <span class="icon"><i class="fas fa-user-astronaut"></i></span>
+                                    <span>Switch to Custom</span>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -1197,6 +1203,7 @@ ob_start();
                         const startCustomBtn = row.querySelector('.start-custom-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
+                        const switchCustomBtn = row.querySelector('.switch-custom-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
                         const canStartCustom = hasCustomBotEnabled(row);
                         if (isRunning) {
@@ -1257,6 +1264,17 @@ ob_start();
                                 switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`);
                                 switchBtn.querySelector('span:last-child').textContent = btnText;
                             }
+                            if (switchCustomBtn) {
+                                const canSwitchToCustom = canStartCustom && runningType !== 'custom';
+                                if (canSwitchToCustom) {
+                                    switchCustomBtn.style.display = 'inline-flex';
+                                    switchCustomBtn.disabled = false;
+                                    switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`);
+                                } else {
+                                    switchCustomBtn.style.display = 'none';
+                                    switchCustomBtn.disabled = true;
+                                }
+                            }
                             // Validate token to check mod status even for running bots
                             if (twitchId) {
                                 setTimeout(() => validateUserToken(twitchId), validateDelay);
@@ -1297,6 +1315,10 @@ ob_start();
                             if (switchBtn) {
                                 switchBtn.style.display = 'none';
                                 switchBtn.disabled = true;
+                            }
+                            if (switchCustomBtn) {
+                                switchCustomBtn.style.display = 'none';
+                                switchCustomBtn.disabled = true;
                             }
                             // Validate token to check mod status
                             if (twitchId) {
@@ -1346,6 +1368,7 @@ ob_start();
                         const startCustomBtn = row.querySelector('.start-custom-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
+                        const switchCustomBtn = row.querySelector('.switch-custom-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
                         const canStartCustom = hasCustomBotEnabled(row);
                         if (isRunning) {
@@ -1380,6 +1403,7 @@ ob_start();
                             if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
                             if (switchBtn) { const targetType = isBetaFamily ? 'stable' : 'beta'; const btnText = isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'; switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
+                            if (switchCustomBtn) { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } }
                         } else {
                             if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
@@ -1389,6 +1413,7 @@ ob_start();
                             if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
                             if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
                             if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
+                            if (switchCustomBtn) { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; }
                         }
                     });
                     // Show completion toast
@@ -1817,12 +1842,13 @@ ob_start();
     }
     // Function to switch bot type
     window.switchBotType = async function (username, twitchUserId, targetType) {
+        const targetTypeLabel = targetType === 'beta' ? 'Beta' : (targetType === 'custom' ? 'Custom' : 'Stable');
         const result = await Swal.fire({
             title: 'Switch Bot Type?',
-            text: `This will switch this bot to ${targetType === 'beta' ? 'Beta' : 'Stable'} version.`,
+            text: `This will switch this bot to ${targetTypeLabel} version.`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: `Yes, switch to ${targetType === 'beta' ? 'Beta' : 'Stable'}!`,
+            confirmButtonText: `Yes, switch to ${targetTypeLabel}!`,
             cancelButtonText: 'Cancel'
         });
         if (result.isConfirmed) {
