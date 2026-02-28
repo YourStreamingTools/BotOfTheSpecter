@@ -233,13 +233,40 @@ $stmt->close();
 // Load protection settings
 $currentSettings = 'False';
 $termBlockingSettings = 'False';
-$getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands FROM protection LIMIT 1");
+$blockFirstMessageCommands = 'False';
+$blockFirstMessageCommandMode = 'all';
+$blockFirstMessageSelectedCommands = [];
+$availableBlockFirstMessageCommands = [];
+$getProtection = $db->query("SELECT url_blocking, term_blocking, block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands FROM protection LIMIT 1");
 if ($getProtection) {
     $settings = $getProtection->fetch_assoc();
     $currentSettings = isset($settings['url_blocking']) ? $settings['url_blocking'] : 'False';
     $termBlockingSettings = isset($settings['term_blocking']) ? $settings['term_blocking'] : 'False';
     $blockFirstMessageCommands = isset($settings['block_first_message_commands']) ? $settings['block_first_message_commands'] : 'False';
+    $blockFirstMessageCommandMode = isset($settings['block_first_message_command_mode']) && $settings['block_first_message_command_mode'] === 'selected' ? 'selected' : 'all';
+    $selectedCommandsRaw = isset($settings['block_first_message_selected_commands']) ? $settings['block_first_message_selected_commands'] : '[]';
+    $decodedSelectedCommands = json_decode($selectedCommandsRaw, true);
+    if (is_array($decodedSelectedCommands)) {
+        foreach ($decodedSelectedCommands as $cmd) {
+            $normalizedCmd = ltrim(strtolower(trim((string) $cmd)), '!');
+            if ($normalizedCmd !== '') {
+                $blockFirstMessageSelectedCommands[$normalizedCmd] = true;
+            }
+        }
+    }
     $getProtection->free();
+}
+
+$commandOptionsResult = $db->query("SELECT command FROM builtin_commands UNION SELECT command FROM custom_commands UNION SELECT command FROM custom_user_commands");
+if ($commandOptionsResult) {
+    while ($row = $commandOptionsResult->fetch_assoc()) {
+        $cmd = ltrim(strtolower(trim((string) ($row['command'] ?? ''))), '!');
+        if ($cmd !== '') {
+            $availableBlockFirstMessageCommands[$cmd] = $cmd;
+        }
+    }
+    $commandOptionsResult->free();
+    ksort($availableBlockFirstMessageCommands, SORT_NATURAL | SORT_FLAG_CASE);
 }
 
 // Fetch whitelist and blacklist links
@@ -760,6 +787,30 @@ ob_start();
                                                             </select>
                                                         </div>
                                                     </div>
+                                                </div>
+                                                <div class="field mt-4">
+                                                    <label class="label">Blocking Mode</label>
+                                                    <div class="control">
+                                                        <div class="select is-fullwidth">
+                                                            <select name="block_first_message_command_mode" id="block_first_message_command_mode">
+                                                                <option value="all"<?php echo $blockFirstMessageCommandMode === 'all' ? ' selected' : ''; ?>>Allow for all commands</option>
+                                                                <option value="selected"<?php echo $blockFirstMessageCommandMode === 'selected' ? ' selected' : ''; ?>>Allow for selected commands only</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="field mt-4" id="block-first-message-selected-wrapper" style="<?php echo ($blockFirstMessageCommands === 'True' && $blockFirstMessageCommandMode === 'selected') ? '' : 'display:none;'; ?>">
+                                                    <label class="label">Commands to block until user has chatted</label>
+                                                    <div class="control">
+                                                        <div class="select is-multiple is-fullwidth">
+                                                            <select name="block_first_message_selected_commands[]" id="block_first_message_selected_commands" multiple size="10">
+                                                                <?php foreach ($availableBlockFirstMessageCommands as $cmd): ?>
+                                                                    <option value="<?php echo htmlspecialchars($cmd); ?>"<?php echo isset($blockFirstMessageSelectedCommands[$cmd]) ? ' selected' : ''; ?>><?php echo htmlspecialchars('!' . $cmd); ?></option>
+                                                                <?php endforeach; ?>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <p class="help">Includes built-in and custom commands. Hold Ctrl (Windows) or Cmd (Mac) to select multiple commands.</p>
                                                 </div>
                                                 <div class="field mt-4">
                                                     <button type="submit" name="submit" class="button is-primary is-fullwidth">
@@ -2391,6 +2442,29 @@ ob_start();
                     });
             });
         });
+
+        const blockFirstMessageCommandsSelect = document.getElementById('block_first_message_commands');
+        const blockFirstMessageModeSelect = document.getElementById('block_first_message_command_mode');
+        const blockFirstMessageSelectedWrapper = document.getElementById('block-first-message-selected-wrapper');
+        const blockFirstMessageSelectedCommands = document.getElementById('block_first_message_selected_commands');
+
+        function toggleFirstMessageCommandSelection() {
+            if (!blockFirstMessageCommandsSelect || !blockFirstMessageModeSelect || !blockFirstMessageSelectedWrapper) {
+                return;
+            }
+
+            const shouldShow = blockFirstMessageCommandsSelect.value === 'True' && blockFirstMessageModeSelect.value === 'selected';
+            blockFirstMessageSelectedWrapper.style.display = shouldShow ? '' : 'none';
+            if (blockFirstMessageSelectedCommands) {
+                blockFirstMessageSelectedCommands.disabled = !shouldShow;
+            }
+        }
+
+        if (blockFirstMessageCommandsSelect && blockFirstMessageModeSelect) {
+            blockFirstMessageCommandsSelect.addEventListener('change', toggleFirstMessageCommandSelection);
+            blockFirstMessageModeSelect.addEventListener('change', toggleFirstMessageCommandSelection);
+            toggleFirstMessageCommandSelection();
+        }
     });
     
     // Font Awesome toggle icon functionality
