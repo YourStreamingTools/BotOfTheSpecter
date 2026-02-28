@@ -2821,11 +2821,13 @@ class TwitchBot(commands.Bot):
                         if message_to_send.strip():
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
-                            queued = await add_shoutout(user_to_shoutout, user_id, is_automated=True)
-                            if queued:
-                                await send_chat_message(shoutout_message)
-                            else:
-                                twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_to_shoutout} (user_id: {user_id}) [source=welcome_message].")
+                            await add_shoutout(
+                                user_to_shoutout,
+                                user_id,
+                                is_automated=True,
+                                shoutout_message=shoutout_message,
+                                source="welcome_message"
+                            )
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         create_task(self.safe_walkon(messageAuthor))
                 elif not already_seen_today and stream_online and is_command_message:
@@ -2924,11 +2926,13 @@ class TwitchBot(commands.Bot):
                     if message_to_send.strip():
                         await send_chat_message(message_to_send)
                     if send_shoutout and shoutout_message:
-                        queued = await add_shoutout(user_to_shoutout, user_id, is_automated=True)
-                        if queued:
-                            await send_chat_message(shoutout_message)
-                        else:
-                            twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_to_shoutout} (user_id: {user_id}) [source=welcome_message].")
+                        await add_shoutout(
+                            user_to_shoutout,
+                            user_id,
+                            is_automated=True,
+                            shoutout_message=shoutout_message,
+                            source="welcome_message"
+                        )
                     chat_logger.info(f"Sent first-command welcome message to {messageAuthor}")
                     create_task(self.safe_walkon(messageAuthor))
         except Exception as e:
@@ -6795,8 +6799,13 @@ class TwitchBot(commands.Bot):
             user_id = user_info[0].id
             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "command")
             chat_logger.info(shoutout_message)
-            await send_chat_message(shoutout_message)
-            await add_shoutout(user_to_shoutout, user_id, is_automated=False)
+            await add_shoutout(
+                user_to_shoutout,
+                user_id,
+                is_automated=False,
+                shoutout_message=shoutout_message,
+                source="command"
+            )
             # Record usage
             add_usage('shoutout', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -9121,26 +9130,26 @@ async def cleanup_expired_shoutouts():
             await sleep(60)  # Wait a minute before retrying on error
 
 # Enqueue shoutout requests
-async def add_shoutout(user_to_shoutout, user_id, is_automated=True):
+async def add_shoutout(user_to_shoutout, user_id, is_automated=True, shoutout_message=None, source="unknown"):
     if is_automated and await has_automated_shoutout_cooldown(user_id):
         cooldown_minutes = await get_automated_shoutout_cooldown()
-        twitch_logger.info(f"Skipping automated shoutout for {user_to_shoutout} (user_id: {user_id}) - still within {cooldown_minutes} minute cooldown.")
+        twitch_logger.info(f"Skipping automated shoutout for {user_to_shoutout} (user_id: {user_id}) - still within {cooldown_minutes} minute cooldown. [source={source}]")
         return False
-    await shoutout_queue.put((user_to_shoutout, user_id, is_automated))
-    twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue.")
+    await shoutout_queue.put((user_to_shoutout, user_id, is_automated, shoutout_message, source))
+    twitch_logger.info(f"Added shoutout request for {user_to_shoutout} to the queue. [source={source}]")
     return True
 
 # Worker to process shoutout queue
 async def shoutout_worker():
     global last_shoutout_time
     while True:
-        user_to_shoutout, user_id, is_automated = await shoutout_queue.get()
+        user_to_shoutout, user_id, is_automated, shoutout_message, source = await shoutout_queue.get()
         now = time_right_now()
         # Check user-specific cooldown FIRST (before waiting for global cooldown)
         if user_id in shoutout_tracker:
             last_user_shoutout_time = shoutout_tracker[user_id]
             if now - last_user_shoutout_time < TWITCH_SHOUTOUT_USER_COOLDOWN:
-                twitch_logger.info(f"Skipping shoutout for {user_to_shoutout}. User-specific cooldown in effect.")
+                twitch_logger.info(f"Skipping shoutout for {user_to_shoutout}. User-specific cooldown in effect. [source={source}]")
                 shoutout_queue.task_done()
                 continue
         # Check global cooldown (only if user passed per-user cooldown check)
@@ -9149,8 +9158,14 @@ async def shoutout_worker():
             twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
             await sleep(wait_time)
         # Trigger the shoutout
-        await trigger_twitch_shoutout(user_to_shoutout, user_id)
-        twitch_logger.info(f"Shoutout sent for {user_to_shoutout}.")
+        shoutout_sent = await trigger_twitch_shoutout(user_to_shoutout, user_id)
+        if not shoutout_sent:
+            twitch_logger.info(f"Shoutout was not sent for {user_to_shoutout}; skipping shoutout chat line. [source={source}]")
+            shoutout_queue.task_done()
+            continue
+        if shoutout_message:
+            await send_chat_message(shoutout_message)
+        twitch_logger.info(f"Shoutout sent for {user_to_shoutout}. [source={source}]")
         shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
         create_task(remove_shoutout_user(user_to_shoutout, 60))
         # Record automated shoutout
@@ -9168,7 +9183,7 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
         connection = await mysql_handler.get_connection(db_name="website")
     except Exception as e:
         twitch_logger.error(f"Database connection error while fetching bot access token: {e}")
-        return
+        return False
     async with connection.cursor(DictCursor) as cursor:
         bot_id = "971436498"
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
@@ -9189,10 +9204,13 @@ async def trigger_twitch_shoutout(user_to_shoutout, user_id):
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status in (200, 204):
                         twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                        return True
                     else:
                         twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                        return False
         except aiohttpClientError as e:
             twitch_logger.error(f"Error triggering shoutout: {e}")
+            return False
 
 # Function to get the last stream category for a user to shoutout
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
@@ -10183,11 +10201,13 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                queued = await add_shoutout(user_to_shoutout, user_id, is_automated=True)
-                if queued:
-                    await send_chat_message(shoutout_message)
-                else:
-                    twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_to_shoutout} (user_id: {user_id}) [source=raid].")
+                await add_shoutout(
+                    user_to_shoutout,
+                    user_id,
+                    is_automated=True,
+                    shoutout_message=shoutout_message,
+                    source="raid"
+                )
             marker_description = f"New Raid from {from_broadcaster_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -10241,11 +10261,13 @@ async def process_cheer_event(user_id, user_name, bits):
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                queued = await add_shoutout(user_name, user_id, is_automated=True)
-                if queued:
-                    await send_chat_message(shoutout_message)
-                else:
-                    twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_name} (user_id: {user_id}) [source=cheer].")
+                await add_shoutout(
+                    user_name,
+                    user_id,
+                    is_automated=True,
+                    shoutout_message=shoutout_message,
+                    source="cheer"
+                )
             # Insert stream credits data
             await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (user_name, "bits", bits))
             # Retrieve the bot settings to get the cheer points amount and subscriber multiplier
@@ -10370,11 +10392,13 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                 if alert_message.strip():
                     await send_chat_message(alert_message)
                 if send_shoutout and shoutout_message:
-                    queued = await add_shoutout(user_name, user_id, is_automated=True)
-                    if queued:
-                        await send_chat_message(shoutout_message)
-                    else:
-                        twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_name} (user_id: {user_id}) [source=subscription].")
+                    await add_shoutout(
+                        user_name,
+                        user_id,
+                        is_automated=True,
+                        shoutout_message=shoutout_message,
+                        source="subscription"
+                    )
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -10473,11 +10497,13 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                 if alert_message.strip():
                     await send_chat_message(alert_message)
                 if send_shoutout and shoutout_message:
-                    queued = await add_shoutout(user_name, user_id, is_automated=True)
-                    if queued:
-                        await send_chat_message(shoutout_message)
-                    else:
-                        twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_name} (user_id: {user_id}) [source=subscription_message].")
+                    await add_shoutout(
+                        user_name,
+                        user_id,
+                        is_automated=True,
+                        shoutout_message=shoutout_message,
+                        source="subscription_message"
+                    )
                 marker_description = f"New Subscription from {user_name}"
                 if await make_stream_marker(marker_description):
                     twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -10580,11 +10606,13 @@ async def process_followers_event(user_id, user_name):
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
-                queued = await add_shoutout(user_name, user_id, is_automated=True)
-                if queued:
-                    await send_chat_message(shoutout_message)
-                else:
-                    twitch_logger.info(f"Shoutout message suppressed due to automated cooldown for {user_name} (user_id: {user_id}) [source=follow].")
+                await add_shoutout(
+                    user_name,
+                    user_id,
+                    is_automated=True,
+                    shoutout_message=shoutout_message,
+                    source="follow"
+                )
             create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
