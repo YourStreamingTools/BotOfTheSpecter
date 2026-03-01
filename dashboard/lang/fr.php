@@ -335,6 +335,7 @@ return [
     'timed_messages_char_limit_alert' => 'Le message dépasse la limite de 255 caractères',
     'timed_messages_variables_title' => 'Variables personnalisées pour les messages programmés',
     'timed_messages_var_game' => 'Affiche le jeu actuellement joué sur la chaîne.',
+    'timed_messages_var_command' => 'Exécute une commande personnalisée et envoie sa réponse traitée comme message de chat supplémentaire.',
     // Edit Counters Page
     'edit_counters_title' => 'Modifier et gérer les compteurs',
     'edit_counters_edit_user_typos' => 'Modifier les fautes utilisateur',

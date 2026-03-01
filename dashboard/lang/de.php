@@ -335,6 +335,7 @@ return [
     'timed_messages_char_limit_alert' => 'Nachricht überschreitet das Limit von 255 Zeichen',
     'timed_messages_variables_title' => 'Verfügbare Variablen für zeitgesteuerte Nachrichten',
     'timed_messages_var_game' => 'Zeigt das aktuell im Kanal gespielte Spiel an.',
+    'timed_messages_var_command' => 'Führt einen benutzerdefinierten Befehl aus und sendet dessen verarbeitete Antwort als zusätzliche Chat-Nachricht.',
     // Edit Counters Page
     'edit_counters_title' => 'Zähler bearbeiten und verwalten',
     'edit_counters_edit_user_typos' => 'Benutzer-Typos bearbeiten',
