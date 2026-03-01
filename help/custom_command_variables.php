@@ -146,7 +146,7 @@
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(usercount)</code><br>
                 <span class="has-text-weight-bold">In Chat:</span><br>
-                <code>This command has been used by 15 unique users.</code><br><br>
+                <code>You have used this command 15 times.</code><br><br>
             </div>
         </div>
     </div>
