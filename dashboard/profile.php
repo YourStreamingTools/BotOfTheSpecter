@@ -36,6 +36,7 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 $user = mysqli_fetch_assoc($result);
 $isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
+$profileImageUrl = $user['profile_image'] ?? ($twitch_profile_image_url ?? ($_SESSION['profile_image'] ?? 'https://bulma.io/images/placeholders/128x128.png'));
 
 // Include language file based on user preference
 $userLanguage = isset($user['language']) ? $user['language'] : 'EN';
@@ -555,7 +556,7 @@ ob_start();
             <div class="columns is-vcentered">
                 <div class="column is-3 has-text-centered" style="align-items: center; justify-content: center;">
                     <figure class="image is-square has-text-centered" style="width:100%;max-width:250px;max-height:250px;aspect-ratio:1/1;margin-left:auto;margin-right:auto;">
-                        <img class="is-rounded" style="width:100%;height:100%;object-fit:cover;max-width:250px;max-height:250px;min-width:128px;min-height:128px;" src="<?php echo $_SESSION['profile_image'] ?? 'https://bulma.io/images/placeholders/128x128.png'; ?>" alt="Profile">
+                        <img class="is-rounded" style="width:100%;height:100%;object-fit:cover;max-width:250px;max-height:250px;min-width:128px;min-height:128px;" src="<?php echo htmlspecialchars($profileImageUrl, ENT_QUOTES); ?>" alt="Profile">
                     </figure>
                 </div>
                 <div class="column">
