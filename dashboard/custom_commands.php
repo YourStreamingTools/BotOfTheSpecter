@@ -712,7 +712,7 @@ function initializeRandomPickWatcher(responseInputId, commandInputId) {
 
 function hasManyOptionsToken(responseValue) {
     var value = String(responseValue || '');
-    var randomPickPattern = /\(random\.(?:pick|piack)(?:\.[^\)]*)?\)/i;
+    var randomPickPattern = /\(random\.(?:pick|piack)(?:\.[^\)]*)?\)?/i;
     return randomPickPattern.test(value);
 }
 
