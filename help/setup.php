@@ -284,7 +284,7 @@ ob_start();
         <p>Keep command names short and easy to remember so viewers can type them naturally in chat.</p>
         <div class="notification is-info has-background-dark has-text-light" style="margin-top: 1rem;">
             <span class="has-text-weight-bold">Want to level up your commands?</span><br>
-            Explore <a href="https://help.botofthespecter.com/custom_command_variables.php" target="_blank">Custom Variables</a> to add dynamic features and personalize your command responses.<br>
+            Explore <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank">Custom Variables</a> to add dynamic features and personalize your command responses.<br>
             <em>Note: Custom Variables only work in the response part of your command.</em>
         </div>
     </div>
