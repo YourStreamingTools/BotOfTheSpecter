@@ -17,7 +17,7 @@ if (!function_exists('botofthespecter_twitch_apply_db_override')) {
         if (!isset($conn) || !($conn instanceof mysqli) || $conn->connect_error) {
             return;
         }
-        $res = $conn->query("SELECT * FROM website LIMIT 1");
+        $res = $conn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
         if (!$res) {
             return;
         }
