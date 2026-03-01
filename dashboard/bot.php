@@ -93,6 +93,7 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 $isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
+$isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
 
 // Check if user has a verified custom bot
 $hasVerifiedCustomBot = false;
@@ -1027,6 +1028,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const isTechnical = <?php echo json_encode($isTechnical); ?>;
   const isBotMod = <?php echo json_encode($BotIsMod); ?>;
   const hasBetaAccess = <?php echo json_encode($betaAccess); ?>;
+  const isActingAs = <?php echo json_encode($isActingAs); ?>;
   // Initialize the notification deletion functionality
   const deleteButtons = document.querySelectorAll('.notification .delete');
   deleteButtons.forEach(button => {
@@ -1270,6 +1272,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   attachBotButtonListeners();  // Function to handle bot actions
   function handleStableBotAction(action) {
+    if (isActingAs) {
+      showNotification('Bot start/stop is disabled while acting as another channel.', 'danger');
+      return;
+    }
     if (action === 'run' && !isBotMod) {
       showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
       return;
@@ -1346,6 +1352,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 10); // Small delay to prevent UI blocking
   }
   function handleBetaBotAction(action) {
+    if (isActingAs) {
+      showNotification('Bot start/stop is disabled while acting as another channel.', 'danger');
+      return;
+    }
     if (action === 'run' && !isBotMod) {
       showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
       return;
@@ -1441,6 +1451,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 10); // Small delay to prevent UI blocking
   }
   function handleV6BotAction(action) {
+    if (isActingAs) {
+      showNotification('Bot start/stop is disabled while acting as another channel.', 'danger');
+      return;
+    }
     if (action === 'run' && !isBotMod) {
       showNotification("The bot is not a moderator on your channel. Please make the bot a moderator to start it.", 'danger');
       return;
@@ -1765,7 +1779,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (expectedRunning) {
         // Show Stop button
         buttonContainer.innerHTML = `
-          <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
+          <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3" ${isActingAs ? 'disabled' : ''}>
             <span class="icon"><i class="fas fa-stop"></i></span>
             <span><?php echo addslashes(t('bot_stop')); ?></span>
           </button>
@@ -1773,7 +1787,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // Show Run button
         buttonContainer.innerHTML = `
-          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess)) ? 'disabled' : ''}>
+          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
             <span class="icon"><i class="fas fa-play"></i></span>
             <span><?php echo addslashes(t('bot_run')); ?></span>
           </button>
@@ -1967,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', function() {
               if (data.running) {
                 // Show Stop button
                 buttonContainer.innerHTML = `
-                  <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3">
+                  <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3" ${isActingAs ? 'disabled' : ''}>
                     <span class="icon"><i class="fas fa-stop"></i></span>
                     <span><?php echo addslashes(t('bot_stop')); ?></span>
                   </button>
@@ -1975,7 +1989,7 @@ document.addEventListener('DOMContentLoaded', function() {
               } else {
                 // Show Run button
                 buttonContainer.innerHTML = `
-                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess)) ? 'disabled' : ''}>
+                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
                     <span class="icon"><i class="fas fa-play"></i></span>
                     <span><?php echo addslashes(t('bot_run')); ?></span>
                   </button>
