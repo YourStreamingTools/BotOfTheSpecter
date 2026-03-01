@@ -525,12 +525,12 @@ async def get_website_twitch_app_credentials(force_refresh=False):
     try:
         async with await mysql_handler.get_connection(db_name="website") as connection:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT * FROM website LIMIT 1")
+                await cursor.execute("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1")
                 row = await cursor.fetchone()
                 if row:
                     token_key = _first_present_key(
                         row,
-                        ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token"),
+                        ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token", "twitch_access_token", "bot_oauth_token"),
                     )
                     client_id_key = _first_present_key(
                         row,
