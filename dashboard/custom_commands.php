@@ -745,6 +745,12 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
         });
         return;
     }
+    var cachedConfig = randomPickOptionsCache[normalizedCommand];
+    var alreadyConfigured = cachedConfig && cachedConfig.many_options_enabled;
+    var configuredForCommand = responseInput.dataset.randomPickConfiguredCommand === normalizedCommand;
+    if (!forceOpen && (alreadyConfigured || configuredForCommand)) {
+        return;
+    }
     if (forceOpen) {
         openManyOptionsModal(normalizedCommand, responseInputId, false);
         return;
@@ -868,6 +874,9 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
                             many_options_enabled: !!result.value.enabled,
                             options: result.value.options
                         };
+                        if (responseInput) {
+                            responseInput.dataset.randomPickConfiguredCommand = commandName;
+                        }
                         if (result.value.enabled && responseInput) {
                             responseInput.value = normalizeResponseToManyOptionsToken(responseInput.value);
                             if (responseInput.id === 'response') {
