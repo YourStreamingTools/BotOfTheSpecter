@@ -766,12 +766,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     } else {
         try {
             // Get user data including refresh_token and api_key from users table
-            $stmt = $conn->prepare("SELECT twitch_user_id, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ?");
+            $stmt = $conn->prepare("SELECT id, twitch_user_id, refresh_token, api_key, use_custom, use_self FROM users WHERE username = ?");
             $stmt->bind_param("s", $username);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
                 $userData = $result->fetch_assoc();
+                $userId = trim((string) ($userData['id'] ?? ''));
                 $twitchUserId = $userData['twitch_user_id'];
                 $refreshToken = $userData['refresh_token'];
                 $apiKey = $userData['api_key'];
@@ -813,7 +814,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     if ($actionBotType === 'beta') {
                         $effectiveUseCustom = ($botType === 'custom') ? true : $useCustom;
                         $effectiveUseSelf = ($botType === 'custom') ? false : $useSelf;
-                        $betaModeParams = get_admin_beta_mode_params($conn, $twitchUserId, $effectiveUseCustom, $effectiveUseSelf);
+                        $channelLookupId = !empty($userId) ? $userId : $twitchUserId;
+                        $betaModeParams = get_admin_beta_mode_params($conn, $channelLookupId, $effectiveUseCustom, $effectiveUseSelf, $twitchUserId);
                         if ($botType === 'custom' && empty($betaModeParams['use_custom_bot'])) {
                             $message = 'Custom bot is not enabled/verified for this user';
                             $success = false;
