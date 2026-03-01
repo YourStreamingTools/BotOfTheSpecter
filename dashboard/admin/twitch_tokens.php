@@ -211,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
     try {
         $token = isset($_POST['access_token']) ? trim($_POST['access_token']) : '';
         $autoRenewIf24h = isset($_POST['auto_renew_if_24h']) && $_POST['auto_renew_if_24h'] === '1';
+        $syncChatExpiry = isset($_POST['sync_chat_expiry']) && $_POST['sync_chat_expiry'] === '1';
         if (empty($token)) {
             echo json_encode(['success' => false, 'error' => 'Access token is required.']);
             exit;
@@ -241,6 +242,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
                 exit;
             }
             $expiresIn = intval($result['expires_in'] ?? 0);
+            if ($syncChatExpiry) {
+                $syncPersistResult = persistWebsiteChatToken($conn, $token, $expiresIn);
+                if (empty($syncPersistResult['success'])) {
+                    echo json_encode(['success' => false, 'error' => $syncPersistResult['error'] ?? 'Failed to persist chat token expiry']);
+                    exit;
+                }
+            }
             if ($autoRenewIf24h && $expiresIn > 0 && $expiresIn <= 86400) {
                 $settings = fetchWebsiteTwitchSettings($conn);
                 if (!empty($settings['client_id']) && !empty($settings['client_secret'])) {
@@ -1292,6 +1300,7 @@ function validateChatToken(token) {
     formData.append('validate_token', '1');
     formData.append('access_token', token);
     formData.append('auto_renew_if_24h', '1');
+    formData.append('sync_chat_expiry', '1');
     fetch('', {
         method: 'POST',
         body: formData
