@@ -574,10 +574,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     $username = trim($_POST['username'] ?? '');
     $originalBotType = trim($_POST['bot_type'] ?? 'stable');
     $pid = intval($_POST['pid'] ?? 0);
-    // ALWAYS restart users as stable, regardless of what they were running
-    $botType = 'stable';
+    $allowedBotTypes = ['stable', 'beta', 'custom'];
+    $botType = in_array($originalBotType, $allowedBotTypes, true) ? $originalBotType : 'stable';
     // Log the restart attempt
-    client_console_log("Bot restart request - Username: {$username}, Original Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
+    client_console_log("Bot restart request - Username: {$username}, Requested Type: {$originalBotType}, Restarting as: {$botType}, PID: {$pid}");
     $success = false;
     $message = '';
     if (empty($username)) {
@@ -630,8 +630,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                     $result = performBotAction('run', $botType, $params);
                     client_console_log("RESTART DEBUG - performBotAction result: " . json_encode($result));
                     $success = $result['success'];
-                    // Always clarify that stable was started
-                    $message = $result['message'] . " (Stable version)";
+                    $message = $result['message'] ?? 'Bot restart completed';
                 } else {
                     $message = 'Bot access token not found for user';
                 }
