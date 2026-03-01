@@ -27,6 +27,7 @@ $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
+$isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
 
 // Fetch all moderators and their access status (requires $conn from db_connect.php)
 $stmt = $conn->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = ?');
@@ -98,6 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = isset($_POST['action']) ? $_POST['action'] : null;
     if (!$moderator_id || !$broadcaster_id || !$action) {
         echo json_encode(['status' => 'error', 'message' => 'missing_parameters']);
+        exit();
+    }
+    if ($isActingAs && in_array($action, ['add', 'remove'], true)) {
+        echo json_encode(['status' => 'error', 'message' => 'Managing dashboard access is disabled while acting as another channel.']);
         exit();
     }
     if ($action === 'add') {
@@ -311,9 +316,9 @@ ob_start();
                                         <?php if (strtolower($modDisplayName) === 'botofthespecter') : ?>
                                             <button class="button is-success" disabled><?php echo t('mods_always_has_access'); ?></button>
                                         <?php elseif ($hasAccess) : ?>
-                                            <button class="button is-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove"><?php echo t('mods_remove_access'); ?></button>
+                                            <button class="button is-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
                                         <?php else : ?>
-                                            <button class="button is-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add"><?php echo t('mods_add_access'); ?></button>
+                                            <button class="button is-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -335,6 +340,7 @@ ob_start();
 document.addEventListener('DOMContentLoaded', function() {
     var addText = <?php echo json_encode(t('mods_add_access')); ?>;
     var removeText = <?php echo json_encode(t('mods_remove_access')); ?>;
+    var isActingAs = <?php echo json_encode($isActingAs); ?>;
     function loadToastify() {
         return new Promise(function(resolve) {
             if (window.Toastify) return resolve();
@@ -367,6 +373,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var btn = e.currentTarget;
         var twitchUserId = btn.getAttribute('data-user-id');
         var action = btn.getAttribute('data-action');
+        if (isActingAs && (action === 'add' || action === 'remove')) {
+            loadToastify().then(function() { showToast('Managing dashboard access is disabled while acting as another channel.', false); });
+            return;
+        }
         console.debug('mods: sending', { moderator_id: twitchUserId, action: action });
         btn.disabled = true;
         btn.classList.add('is-loading');
@@ -393,6 +403,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     btn.setAttribute('data-action', 'add');
                     btn.textContent = addText;
                 }
+                if (isActingAs) {
+                    btn.disabled = true;
+                    btn.setAttribute('title', 'Disabled while acting as another channel');
+                } else {
+                    btn.removeAttribute('title');
+                }
                 loadToastify().then(function() { showToast('Access updated successfully', true); });
             } else {
                 console.error('Server error:', json.message || json);
@@ -402,7 +418,9 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error updating mod access:', err);
             loadToastify().then(function() { showToast('Failed to update access', false); });
         }).finally(function() {
-            btn.disabled = false;
+            if (!isActingAs) {
+                btn.disabled = false;
+            }
             btn.classList.remove('is-loading');
         });
     }
