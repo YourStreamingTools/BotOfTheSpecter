@@ -91,6 +91,12 @@ STEAM_API = os.getenv('STEAM_API')
 EXCHANGE_RATE_API_KEY = os.getenv('EXCHANGE_RATE_API')
 HYPERATE_API_KEY = os.getenv('HYPERATE_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+WEBSITE_TWITCH_CREDS_CACHE_TTL = 60
+_website_twitch_creds_cache = {
+    "loaded_at": 0.0,
+    "access_token": TWITCH_OAUTH_API_TOKEN,
+    "client_id": TWITCH_OAUTH_API_CLIENT_ID,
+}
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 _cached_instructions = None
 _cached_instructions_time = 0
@@ -498,6 +504,57 @@ async def mysql_connection(db_name=None):
     if db_name is None:
         db_name = CHANNEL_NAME
     return await mysql_handler.get_connection(db_name=db_name)
+
+def _first_present_key(row: dict, candidates):
+    for candidate in candidates:
+        if candidate in row:
+            return candidate
+    return None
+
+async def get_website_twitch_app_credentials(force_refresh=False):
+    global TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID, _website_twitch_creds_cache
+    now_ts = time.time()
+    cached_loaded_at = float(_website_twitch_creds_cache.get("loaded_at") or 0.0)
+    if not force_refresh and (now_ts - cached_loaded_at) < WEBSITE_TWITCH_CREDS_CACHE_TTL:
+        return {
+            "access_token": _website_twitch_creds_cache.get("access_token") or TWITCH_OAUTH_API_TOKEN,
+            "client_id": _website_twitch_creds_cache.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID,
+        }
+    access_token = TWITCH_OAUTH_API_TOKEN
+    client_id = TWITCH_OAUTH_API_CLIENT_ID
+    try:
+        async with await mysql_handler.get_connection(db_name="website") as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT * FROM website LIMIT 1")
+                row = await cursor.fetchone()
+                if row:
+                    token_key = _first_present_key(
+                        row,
+                        ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token"),
+                    )
+                    client_id_key = _first_present_key(
+                        row,
+                        ("twitch_client_id", "client_id", "clientID"),
+                    )
+                    db_token = (str(row.get(token_key, "")).strip() if token_key else "")
+                    db_client_id = (str(row.get(client_id_key, "")).strip() if client_id_key else "")
+                    if db_token:
+                        access_token = db_token
+                    if db_client_id:
+                        client_id = db_client_id
+    except Exception as e:
+        system_logger.warning(f"Failed to fetch Twitch app credentials from website DB: {e}")
+    TWITCH_OAUTH_API_TOKEN = access_token
+    TWITCH_OAUTH_API_CLIENT_ID = client_id
+    _website_twitch_creds_cache = {
+        "loaded_at": now_ts,
+        "access_token": access_token,
+        "client_id": client_id,
+    }
+    return {
+        "access_token": access_token,
+        "client_id": client_id,
+    }
 
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
@@ -11806,6 +11863,7 @@ async def reload_env_vars():
         'WEB': os.getenv('WEB-HOST'),
         'BILLING': os.getenv('BILLING-HOST')
     }
+    await get_website_twitch_app_credentials(force_refresh=True)
     # Log or handle any environment variable updates
     bot_logger.info("Reloaded environment variables")
 
@@ -11968,17 +12026,6 @@ async def make_stream_marker(description: str):
 
 # Function to check if a URL or domain matches whitelisted or blacklisted URLs
 async def match_domain_or_link(message, domain_list, use_regex=False):
-    """
-    Check if a message contains URLs matching patterns in the domain list.
-    
-    Args:
-        message: The message text to check
-        domain_list: List of patterns to match against
-        use_regex: If True, treat patterns as regex. If False, treat as literal domains.
-    
-    Returns:
-        True if a match is found, False otherwise
-    """
     for pattern in domain_list:
         if use_regex:
             # Use pattern as-is for regex matching
@@ -12926,10 +12973,14 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
         access_token = creds['access_token']
         client_id = CLIENT_ID  # Use the same client ID
     else:
-        # Use main bot credentials from environment
+        # Use main bot credentials from website DB (fallback to environment)
+        website_creds = await get_website_twitch_app_credentials()
         sender_id = "971436498"
-        access_token = TWITCH_OAUTH_API_TOKEN
-        client_id = TWITCH_OAUTH_API_CLIENT_ID
+        access_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
+        client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
+        if not access_token or not client_id:
+            chat_logger.error("Missing Twitch app credentials for chat message API")
+            return False
     url = "https://api.twitch.tv/helix/chat/messages"
     headers = {
         "Authorization": f"Bearer {access_token}",
