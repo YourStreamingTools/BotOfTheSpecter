@@ -27,6 +27,7 @@ import time
 import subprocess
 import datetime
 import random
+import glob
 import urllib3
 import socket
 import logging
@@ -49,6 +50,8 @@ SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
+YT_DLP_COOKIES_FILE = os.getenv('YT_DLP_COOKIES_FILE', 'twitch-cookies.txt')
+YT_DLP_LIVE_FROM_START = os.getenv('YT_DLP_LIVE_FROM_START', 'true').lower() in ('1', 'true', 'yes', 'on')
 CHECK_INTERVAL_MIN = 15
 RETRY_BASE = 2
 RETRY_JITTER = 0.01
@@ -61,6 +64,24 @@ logging.basicConfig(
 
 def sanitize_filename(filename: str) -> str:
     return "".join(x for x in filename if x.isalnum() or x in [" ", "-", "_", "."])
+
+def build_yt_dlp_command(url: str, output_template: str) -> List[str]:
+    command = [
+        "yt-dlp",
+        "--hls-use-mpegts",
+        "--retries", "infinite",
+        "--fragment-retries", "infinite",
+    ]
+    if YT_DLP_LIVE_FROM_START:
+        command.append("--live-from-start")
+    cookies_path = YT_DLP_COOKIES_FILE
+    if cookies_path:
+        if not os.path.isabs(cookies_path):
+            cookies_path = os.path.join(os.getcwd(), cookies_path)
+        if os.path.exists(cookies_path):
+            command.extend(["--cookies", cookies_path])
+    command.extend(["-o", output_template, url])
+    return command
 
 class MySQLManager:
     def __init__(self, server_location=None, logger=None):
@@ -319,17 +340,19 @@ class TwitchRecorderThread(threading.Thread):
 
     def record_stream(self, info: Dict[str, Any]):
         title = info['data'][0]['title'] if 'data' in info and info['data'] else "Untitled"
-        filename = f"{self.username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}.mp4"
-        filename = sanitize_filename(filename)
-        recorded_filename = os.path.join(self.recorded_path, filename)
-        processed_filename = os.path.join(self.processed_path, filename)
+        base_filename = f"{self.username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
+        base_filename = sanitize_filename(base_filename)
+        output_prefix = os.path.join(self.recorded_path, base_filename)
+        output_template = f"{output_prefix}.%(ext)s"
         try:
-            subprocess.call([
-                "streamlink", "--twitch-disable-hosting", "--twitch-disable-ads",
-                f"twitch.tv/{self.username}", self.quality, "-o", recorded_filename
-            ])
+            url = f"https://www.twitch.tv/{self.username}"
+            command = build_yt_dlp_command(url, output_template)
+            subprocess.call(command)
             logging.info("Recording stream is done. Fixing video file.")
-            if os.path.exists(recorded_filename):
+            candidates = [path for path in glob.glob(f"{output_prefix}.*") if os.path.isfile(path)]
+            if candidates:
+                recorded_filename = max(candidates, key=os.path.getmtime)
+                processed_filename = os.path.join(self.processed_path, os.path.basename(recorded_filename))
                 self.fix_video(recorded_filename, processed_filename)
             else:
                 logging.warning("Skip fixing. File not found.")
@@ -355,7 +378,7 @@ class TwitchRecorderThread(threading.Thread):
                 elif status == 1:
                     logging.info(f"{self.username} currently offline, checking again in {self.refresh} seconds.")
                 elif status == 0:
-                    logging.info(f"{self.username} online. Stream recording in session, using OAuth_Token: {conf.oauthtoken}")
+                    logging.info(f"{self.username} online. Stream recording in session.")
                     self.record_stream(info)
                     logging.info("Fixing is done. Going back to checking..")
                 time.sleep(self.refresh)
@@ -424,15 +447,15 @@ class RecordChecker:
 
     async def check_system_requirements(self):
         self.logger.info("Checking system requirements...")
-        # Check if streamlink is installed
+        # Check if yt-dlp is installed
         try:
-            result = subprocess.run(['streamlink', '--version'], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
-                self.logger.info(f"Streamlink found: {result.stdout.strip()}")
+                self.logger.info(f"yt-dlp found: {result.stdout.strip()}")
             else:
-                self.logger.warning("Streamlink not found or not working")
+                self.logger.warning("yt-dlp not found or not working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            self.logger.warning("Streamlink not found in PATH")
+            self.logger.warning("yt-dlp not found in PATH")
         # Check if ffmpeg is installed
         try:
             result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
@@ -446,7 +469,6 @@ class RecordChecker:
 
     async def check_channels_loop(self):
         self.logger.info("Starting channel checking loop...")
-        
         while self.running:
             try:
                 # Get all users with auto_record enabled for this server
@@ -542,27 +564,28 @@ class RecordChecker:
     async def start_recording_for_user(self, username, stream_info):
         try:
             title = stream_info.get('title', 'Untitled') if stream_info else 'Untitled'
-            filename = f"{username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}.mp4"
-            filename = sanitize_filename(filename)
+            base_filename = f"{username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
+            base_filename = sanitize_filename(base_filename)
             # Create directories
             recorded_path = os.path.join(self.root_path, "recorded", username, "best")
             processed_path = os.path.join(self.root_path, "processed", username, "best")
             os.makedirs(recorded_path, exist_ok=True)
             os.makedirs(processed_path, exist_ok=True)
-            recorded_filename = os.path.join(recorded_path, filename)
+            output_prefix = os.path.join(recorded_path, base_filename)
+            output_template = f"{output_prefix}.%(ext)s"
             # Start recording process
-            cmd = [
-                "streamlink", "--twitch-disable-hosting", "--twitch-disable-ads",
-                f"twitch.tv/{username}", "best", "-o", recorded_filename
-            ]
+            url = f"https://www.twitch.tv/{username}"
+            cmd = build_yt_dlp_command(url, output_template)
             process = subprocess.Popen(cmd)
             self.active_recordings[username] = {
                 'process': process,
-                'filename': recorded_filename,
+                'filename': None,
+                'output_prefix': output_prefix,
+                'output_template': output_template,
                 'processed_path': processed_path,
                 'start_time': datetime.datetime.now()
             }
-            self.logger.info(f"Started recording for {username}: {filename}")
+            self.logger.info(f"Started recording for {username}: {base_filename}")
         except Exception as e:
             self.logger.error(f"Error starting recording for {username}: {e}")
 
@@ -580,7 +603,7 @@ class RecordChecker:
                     process.kill()
                     process.wait()
                 self.logger.info(f"Stopped recording for {username}")
-                # Move to cleanup (will be processed in cleanup_finished_recordings)
+                await self.fix_video_file(recording_info)
                 del self.active_recordings[username]
         except Exception as e:
             self.logger.error(f"Error stopping recording for {username}: {e}")
@@ -600,8 +623,14 @@ class RecordChecker:
 
     async def fix_video_file(self, recording_info):
         try:
-            recorded_filename = recording_info['filename']
-            if os.path.exists(recorded_filename):
+            recorded_filename = recording_info.get('filename')
+            if not recorded_filename:
+                output_prefix = recording_info.get('output_prefix')
+                if output_prefix:
+                    candidates = [path for path in glob.glob(f"{output_prefix}.*") if os.path.isfile(path)]
+                    if candidates:
+                        recorded_filename = max(candidates, key=os.path.getmtime)
+            if recorded_filename and os.path.exists(recorded_filename):
                 processed_filename = os.path.join(
                     recording_info['processed_path'], 
                     os.path.basename(recorded_filename)
