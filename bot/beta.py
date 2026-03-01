@@ -8846,7 +8846,19 @@ async def get_user_count(command, user):
     finally:
         pass
 
-# Function to process custom command variables
+# Shared dynamic variable switches used across command/timed-message processing
+DYNAMIC_MESSAGE_SWITCHES = (
+    '(customapi.', '(count)', '(daysuntil.',
+    '(command.', '(user)', '(author)',
+    '(random.percent)', '(random.number)', '(random.percent.',
+    '(random.number.', '(random.pick)', '(random.pick.', '(math.',
+    '(usercount)', '(timeuntil.', '(game)', '(json.'
+)
+
+def has_dynamic_message_variables(text):
+    return bool(text) and any(switch in text for switch in DYNAMIC_MESSAGE_SWITCHES)
+
+# Function to process dynamic message variables
 async def process_dynamic_message_variables(
     command,
     response,
@@ -8893,18 +8905,9 @@ async def process_dynamic_message_variables(
                             ]
             except Exception as e:
                 chat_logger.error(f"Error loading many random pick options for command '{command}': {e}")
-
-            # Define switches to check for
-            switches = [
-                '(customapi.', '(count)', '(daysuntil.',
-                '(command.', '(user)', '(author)', 
-                '(random.percent)', '(random.number)', '(random.percent.',
-                '(random.number.', '(random.pick)', '(random.pick.', '(math.',
-                '(usercount)', '(timeuntil.', '(game)', '(json.'
-            ]
             # Process variables in a loop until none remain
             responses_to_send = []
-            while any(switch in response for switch in switches):
+            while has_dynamic_message_variables(response):
                 # Handle (count)
                 if '(count)' in response:
                     try:
@@ -9999,14 +10002,7 @@ async def send_timed_message(message_id, message, delay):
                 await sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
-            timed_message_switches = [
-                '(customapi.', '(count)', '(daysuntil.',
-                '(command.', '(user)', '(author)',
-                '(random.percent)', '(random.number)', '(random.percent.',
-                '(random.number.', '(random.pick)', '(random.pick.', '(math.',
-                '(usercount)', '(timeuntil.', '(game)', '(json.'
-            ]
-            if message and any(switch in message for switch in timed_message_switches):
+            if has_dynamic_message_variables(message):
                 await process_dynamic_message_variables(
                     command=f"timed_message_{message_id}",
                     response=message,
