@@ -37,11 +37,31 @@ $moderatorsAccess = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Fetch all registered users from the users table
 $registeredUsers = [];
+$registeredUsersByTwitchId = [];
 $userStmt = $conn->prepare('SELECT twitch_display_name FROM users');
 $userStmt->execute();
 $result = $userStmt->get_result();
 while ($row = $result->fetch_assoc()) {
     $registeredUsers[] = strtolower($row['twitch_display_name']);
+}
+
+// Build a lookup for Twitch user ID -> display/profile data (used for stale access entries)
+$userLookupStmt = $conn->prepare('SELECT twitch_user_id, twitch_display_name, username, profile_image FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != ""');
+if ($userLookupStmt) {
+    $userLookupStmt->execute();
+    $lookupResult = $userLookupStmt->get_result();
+    while ($lookupRow = $lookupResult->fetch_assoc()) {
+        $lookupId = (string)($lookupRow['twitch_user_id'] ?? '');
+        if ($lookupId === '') {
+            continue;
+        }
+        $registeredUsersByTwitchId[$lookupId] = [
+            'display_name' => (string)($lookupRow['twitch_display_name'] ?? ''),
+            'username' => (string)($lookupRow['username'] ?? ''),
+            'profile_image' => (string)($lookupRow['profile_image'] ?? ''),
+        ];
+    }
+    $userLookupStmt->close();
 }
 
 // API endpoint to fetch moderators
@@ -198,6 +218,38 @@ if ($botOfTheSpecterMod) {
     $filteredModerators = array_merge([$botOfTheSpecterMod], $filteredModerators);
 }
 
+// Include users who still have dashboard access but are no longer moderators on Twitch
+$currentModeratorIds = array_map('strval', array_column($allModerators, 'user_id'));
+$currentModeratorIdSet = array_flip($currentModeratorIds);
+$staleProfileImages = [];
+foreach ($moderatorsAccess as $accessRow) {
+    $accessModeratorId = (string)($accessRow['moderator_id'] ?? '');
+    if ($accessModeratorId === '' || isset($currentModeratorIdSet[$accessModeratorId])) {
+        continue;
+    }
+
+    $lookup = $registeredUsersByTwitchId[$accessModeratorId] ?? null;
+    $staleName = '';
+    if (is_array($lookup)) {
+        $staleName = trim((string)($lookup['display_name'] ?? ''));
+        if ($staleName === '') {
+            $staleName = trim((string)($lookup['username'] ?? ''));
+        }
+        if (!empty($lookup['profile_image'])) {
+            $staleProfileImages[$accessModeratorId] = (string)$lookup['profile_image'];
+        }
+    }
+    if ($staleName === '') {
+        $staleName = 'User ' . $accessModeratorId;
+    }
+
+    $filteredModerators[] = [
+        'user_id' => $accessModeratorId,
+        'user_name' => $staleName,
+        'is_stale_access' => true,
+    ];
+}
+
 // Check if BotOfTheSpecter is already in the list
 $botOfTheSpecterExists = false;
 foreach ($filteredModerators as $mod) {
@@ -232,6 +284,10 @@ if (!empty($modUserIds)) {
         }
         curl_close($curl);
     }
+}
+
+if (!empty($staleProfileImages)) {
+    $modProfileImages = array_merge($modProfileImages, $staleProfileImages);
 }
 
 // Start output buffering for layout
@@ -288,6 +344,7 @@ ob_start();
                                 foreach ($filteredModerators as $moderator) : 
                                     $modDisplayName = $moderator['user_name'];
                                     $modUserId = $moderator['user_id'];
+                                    $isStaleAccess = !empty($moderator['is_stale_access']);
                                     $hasAccess = in_array($modUserId, array_column($moderatorsAccess, 'moderator_id'));
                                     $isRegistered = in_array(strtolower($modDisplayName), $registeredUsers);
                                     if (strtolower($modDisplayName) === 'botofthespecter') {
@@ -303,6 +360,9 @@ ob_start();
                                         <span style="display:flex;align-items:center;">
                                             <?php echo $profileImg; ?>
                                             <?php echo htmlspecialchars($modDisplayName); ?>
+                                            <?php if ($isStaleAccess): ?>
+                                                <span class="tag is-warning is-light ml-2">No longer mod</span>
+                                            <?php endif; ?>
                                         </span>
                                     </td>
                                     <td class="has-text-white">

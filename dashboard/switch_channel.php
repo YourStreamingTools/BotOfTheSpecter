@@ -1,6 +1,46 @@
 <?php
 session_start();
 require_once "/var/www/config/db_connect.php";
+include '/var/www/config/twitch.php';
+
+function userCanModerateChannel($targetBroadcasterId, $userId, $authToken, $clientID) {
+    if ($targetBroadcasterId === '' || $userId === '' || $authToken === '' || $clientID === '') {
+        return false;
+    }
+    $cursor = null;
+    do {
+        $url = "https://api.twitch.tv/helix/moderation/channels?user_id=" . urlencode($userId) . "&first=100";
+        if (!empty($cursor)) {
+            $url .= "&after=" . urlencode($cursor);
+        }
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $authToken,
+            'Client-ID: ' . $clientID,
+        ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($response === false || $httpCode !== 200) {
+            error_log("switch_channel.php moderated-channels check failed. HTTP: {$httpCode}, user: {$userId}, target: {$targetBroadcasterId}");
+            return false;
+        }
+        $data = json_decode($response, true);
+        if (!isset($data['data']) || !is_array($data['data'])) {
+            return false;
+        }
+        foreach ($data['data'] as $channel) {
+            if ((string)($channel['broadcaster_id'] ?? '') === (string)$targetBroadcasterId) {
+                return true;
+            }
+        }
+        $cursor = $data['pagination']['cursor'] ?? null;
+    } while (!empty($cursor));
+    return false;
+}
 
 if (!isset($_SESSION['access_token'])) {
     header('Location: login.php');
@@ -33,18 +73,12 @@ $actorContext = (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION
 
 $actorUsername = strtolower(trim((string) ($actorContext['username'] ?? '')));
 $actorTwitchUserId = trim((string) ($actorContext['twitchUserId'] ?? ''));
+$actorAccessToken = trim((string) ($actorContext['access_token'] ?? ''));
 $actorIsAdmin = !empty($actorContext['is_admin']);
 $hasAccess = $actorIsAdmin || $actorUsername === 'botofthespecter';
 
 if (!$hasAccess && $actorTwitchUserId !== '' && $targetUserId !== '') {
-    $accessStmt = $conn->prepare("SELECT 1 FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ? LIMIT 1");
-    if ($accessStmt) {
-        $accessStmt->bind_param("ss", $actorTwitchUserId, $targetUserId);
-        $accessStmt->execute();
-        $accessResult = $accessStmt->get_result();
-        $hasAccess = ($accessResult && $accessResult->num_rows > 0);
-        $accessStmt->close();
-    }
+    $hasAccess = userCanModerateChannel($targetUserId, $actorTwitchUserId, $actorAccessToken, (string)($clientID ?? ''));
 }
 
 if (!$hasAccess) {
