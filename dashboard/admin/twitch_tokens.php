@@ -37,7 +37,7 @@ function fetchWebsiteTwitchSettings($conn) {
     if (!isset($conn) || !$conn) {
         return $settings;
     }
-    $res = $conn->query("SELECT * FROM website LIMIT 1");
+    $res = $conn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
     if (!$res) {
         return $settings;
     }
@@ -48,7 +48,7 @@ function fetchWebsiteTwitchSettings($conn) {
     $settings['row'] = $row;
     $clientIdKey = pickFirstExistingKey($row, ['twitch_client_id', 'client_id', 'clientID']);
     $clientSecretKey = pickFirstExistingKey($row, ['twitch_client_secret', 'client_secret', 'clientSecret']);
-    $chatTokenKey = pickFirstExistingKey($row, ['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token']);
+    $chatTokenKey = pickFirstExistingKey($row, ['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token']);
     $expiresAtKey = pickFirstExistingKey($row, ['twitch_oauth_api_expires_at', 'oauth_expires_at', 'chat_token_expires_at', 'token_expires', 'token_expires_at']);
     $settings['columns']['client_id'] = $clientIdKey;
     $settings['columns']['client_secret'] = $clientSecretKey;
@@ -121,8 +121,27 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
     $settings = fetchWebsiteTwitchSettings($conn);
     $tokenColumn = $settings['columns']['chat_token'];
     $expiresAtColumn = $settings['columns']['expires_at'];
+    $hasRow = is_array($settings['row']);
+    $expiresAt = null;
+    if (intval($expiresIn) > 0) {
+        $expiresAt = date('Y-m-d H:i:s', time() + intval($expiresIn));
+    }
+    if (!$hasRow) {
+        $insert = $conn->prepare("INSERT INTO bot_chat_token (oauth, twitch_oauth_api_token, twitch_oauth_api_expires_at) VALUES (?, ?, ?)");
+        if (!$insert) {
+            return ['success' => false, 'error' => 'Failed to prepare bot_chat_token insert: ' . $conn->error];
+        }
+        $insert->bind_param('sss', $accessToken, $accessToken, $expiresAt);
+        if (!$insert->execute()) {
+            $error = $insert->error;
+            $insert->close();
+            return ['success' => false, 'error' => 'Failed to insert bot_chat_token row: ' . $error];
+        }
+        $insert->close();
+        return ['success' => true];
+    }
     if (!$tokenColumn || !isSafeColumnName($tokenColumn)) {
-        return ['success' => false, 'error' => 'No suitable chat token column found in website table'];
+        return ['success' => false, 'error' => 'No suitable chat token column found in bot_chat_token table'];
     }
     $setSql = [];
     $types = '';
@@ -131,24 +150,20 @@ function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
     $types .= 's';
     $values[] = $accessToken;
     if ($expiresAtColumn && isSafeColumnName($expiresAtColumn)) {
-        $expiresAt = null;
-        if (intval($expiresIn) > 0) {
-            $expiresAt = date('Y-m-d H:i:s', time() + intval($expiresIn));
-        }
         $setSql[] = "`{$expiresAtColumn}` = ?";
         $types .= 's';
         $values[] = $expiresAt;
     }
-    $sql = "UPDATE website SET " . implode(', ', $setSql) . " LIMIT 1";
+    $sql = "UPDATE bot_chat_token SET " . implode(', ', $setSql) . " LIMIT 1";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        return ['success' => false, 'error' => 'Failed to prepare website token update: ' . $conn->error];
+        return ['success' => false, 'error' => 'Failed to prepare bot_chat_token update: ' . $conn->error];
     }
     $stmt->bind_param($types, ...$values);
     if (!$stmt->execute()) {
         $error = $stmt->error;
         $stmt->close();
-        return ['success' => false, 'error' => 'Failed to update website token: ' . $error];
+        return ['success' => false, 'error' => 'Failed to update bot_chat_token token: ' . $error];
     }
     $stmt->close();
     return ['success' => true];
@@ -260,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
     exit;
 }
 
-// Handle AJAX request for chat token renewal and persist to website table
+// Handle AJAX request for chat token renewal and persist to bot_chat_token table
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_chat_token'])) {
     header('Content-Type: application/json');
     try {

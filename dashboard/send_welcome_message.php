@@ -13,7 +13,7 @@ function get_twitch_app_credentials_for_welcome_test($conn) {
             'oauth' => $resolvedOAuth
         ];
     }
-    $res = $conn->query("SELECT * FROM website LIMIT 1");
+    $res = $conn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
     if ($res) {
         $row = $res->fetch_assoc();
         if (is_array($row)) {
@@ -23,7 +23,7 @@ function get_twitch_app_credentials_for_welcome_test($conn) {
                     break;
                 }
             }
-            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token'] as $oauthKey) {
+            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $oauthKey) {
                 if (array_key_exists($oauthKey, $row) && !empty($row[$oauthKey])) {
                     $resolvedOAuth = trim((string)$row[$oauthKey]);
                     break;
@@ -85,7 +85,7 @@ $chatClientId = $twitchAppCreds['client_id'] ?? '';
 $chatOAuth = $twitchAppCreds['oauth'] ?? '';
 if (empty($chatClientId) || empty($chatOAuth)) {
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Twitch app credentials are missing. Check website table token/client ID settings.']);
+    echo json_encode(['success' => false, 'message' => 'Twitch app credentials are missing. Check bot_chat_token table token/client ID settings.']);
     exit();
 }
 
