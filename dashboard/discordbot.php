@@ -21,6 +21,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+$isActAsUser = isset($isActAs) && $isActAs === true;
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -171,13 +172,16 @@ $linkingMessage = "";
 $linkingMessageType = "";
 
 // Handle user denial (error=access_denied in query string)
-if (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
+if ($isActAsUser && (isset($_GET['auth_data']) || isset($_GET['code']))) {
+  $linkingMessage = "Linking Discord is disabled while using Act As mode.";
+  $linkingMessageType = "is-warning";
+} elseif (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
   $linkingMessage = "Authorization was denied. Please allow access to link your Discord account.";
   $linkingMessageType = "is-danger";
 }
 
 // Handle StreamersConnect auth_data callback
-if (isset($_GET['auth_data'])) {
+if (isset($_GET['auth_data']) && !$isActAsUser) {
   $decoded = json_decode(base64_decode($_GET['auth_data']), true);
   if (!is_array($decoded) || empty($decoded['success'])) {
     $linkingMessage = "Authentication failed or was cancelled.";
@@ -216,7 +220,7 @@ if (isset($_GET['auth_data'])) {
 }
 
 // Handle Discord OAuth callback
-if (isset($_GET['code']) && !$is_linked) {
+if (isset($_GET['code']) && !$is_linked && !$isActAsUser) {
   // Validate state parameter for security
   if (!isset($_GET['state']) || !isset($_SESSION['discord_oauth_state']) || $_GET['state'] !== $_SESSION['discord_oauth_state']) {
     $linkingMessage = "Invalid state parameter. Please try again.";
@@ -1405,7 +1409,7 @@ function updateExistingDiscordValues()
 
 // Generate auth URL with state parameter for security
 $authURL = '';
-if (!$is_linked || $needs_relink) {
+if ((!$is_linked || $needs_relink) && !$isActAsUser) {
   $state = bin2hex(random_bytes(16));
   // Store a lightweight flag for StreamersConnect flow
   $_SESSION['discord_sc_auth_state'] = $state;
@@ -1934,13 +1938,24 @@ ob_start();
                     security, please reconnect your account with our updated integration.
                   <?php endif; ?>
                 </p>
-                <button class="button is-warning is-large" onclick="linkDiscord()"
-                  style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
-                  <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                  <span>
-                    <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
-                  </span>
-                </button>
+                <?php if ($isActAsUser): ?>
+                  <button class="button is-warning is-large" disabled
+                    style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3); opacity: 0.7;">
+                    <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                    <span>
+                      <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
+                    </span>
+                  </button>
+                  <p class="help has-text-warning mt-3">Act As mode is active. Discord linking is disabled for acting users.</p>
+                <?php else: ?>
+                  <button class="button is-warning is-large" onclick="linkDiscord()"
+                    style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
+                    <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                    <span>
+                      <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
+                    </span>
+                  </button>
+                <?php endif; ?>
               </div>
             </div>
           </div>
@@ -1960,11 +1975,20 @@ ob_start();
                   style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
                   <?php echo t('discordbot_link_desc'); ?>
                 </p>
-                <button class="button is-primary is-large" onclick="linkDiscord()"
-                  style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
-                  <span class="icon"><i class="fab fa-discord"></i></span>
-                  <span><?php echo t('discordbot_link_btn'); ?></span>
-                </button>
+                <?php if ($isActAsUser): ?>
+                  <button class="button is-primary is-large" disabled
+                    style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3); opacity: 0.7;">
+                    <span class="icon"><i class="fab fa-discord"></i></span>
+                    <span><?php echo t('discordbot_link_btn'); ?></span>
+                  </button>
+                  <p class="help has-text-warning mt-3">Act As mode is active. Discord linking is disabled for acting users.</p>
+                <?php else: ?>
+                  <button class="button is-primary is-large" onclick="linkDiscord()"
+                    style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
+                    <span class="icon"><i class="fab fa-discord"></i></span>
+                    <span><?php echo t('discordbot_link_btn'); ?></span>
+                  </button>
+                <?php endif; ?>
               </div>
             </div>
           </div>
@@ -4482,7 +4506,7 @@ ob_start();
     $('#stream_schedule_channel_id, #stream_schedule_title, #stream_schedule_content, #stream_schedule_timezone').on('change input', validateSendStreamScheduleButton);
   });
 </script>
-<?php if (!$is_linked) { ?>
+<?php if (!$is_linked && !$isActAsUser) { ?>
 <script>function linkDiscord() { window.location.href = "<?php echo addslashes($authURL); ?>"; }</script>
 <?php } else { ?>
 <script>

@@ -17,6 +17,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+$isActAsUser = isset($isActAs) && $isActAs === true;
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -67,13 +68,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'unlink') {
 }
 
 // Handle user denial (error=true in query string)
-if (isset($_GET['error']) && $_GET['error'] === 'true') {
+if ($isActAsUser && isset($_GET['code'])) {
+    $linkingMessage = "Linking StreamLabs is disabled while using Act As mode.";
+    $linkingMessageType = "is-warning";
+} elseif (isset($_GET['error']) && $_GET['error'] === 'true') {
     $linkingMessage = "Authorization was denied. Please allow access to link your StreamLabs account.";
     $linkingMessageType = "is-danger";
 }
 
 // Handle OAuth callback
-if (isset($_GET['code'])) {
+if (isset($_GET['code']) && !$isActAsUser) {
     // Validate state parameter
     if (!isset($_GET['state']) || !isset($_SESSION['streamlabs_oauth_state']) || $_GET['state'] !== $_SESSION['streamlabs_oauth_state']) {
         $linkingMessage = "Invalid state parameter. Please try again.";
@@ -152,7 +156,7 @@ if (isset($_GET['code'])) {
 
 // Generate auth URL for manual linking
 $authURL = '';
-if (!$isLinked) {
+if (!$isLinked && !$isActAsUser) {
     $state = bin2hex(random_bytes(16));
     $_SESSION['streamlabs_oauth_state'] = $state;
     $authURL = "https://streamlabs.com/api/v2.0/authorize"
@@ -485,6 +489,10 @@ ob_start();
                         </span>
                         <span>Link StreamLabs Account</span>
                     </a>
+                <?php elseif ($isActAsUser): ?>
+                    <div class="notification is-warning is-light" style="border-radius: 8px; max-width: 700px; margin: 0 auto;">
+                        Act As mode is active. Linking StreamLabs is disabled for acting users.
+                    </div>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
