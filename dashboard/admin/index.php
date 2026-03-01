@@ -10,6 +10,39 @@ require_once "/var/www/config/admin_actions.php";
 require_once "/var/www/config/twitch.php";
 include "../userdata.php";
 
+function get_twitch_app_credentials_for_dashboard($conn) {
+    $resolvedClientId = isset($GLOBALS['clientID']) ? trim((string)$GLOBALS['clientID']) : '';
+    $resolvedOAuth = isset($GLOBALS['oauth']) ? trim((string)$GLOBALS['oauth']) : '';
+    if (!isset($conn) || !$conn) {
+        return [
+            'client_id' => $resolvedClientId,
+            'oauth' => $resolvedOAuth
+        ];
+    }
+    $res = $conn->query("SELECT * FROM website LIMIT 1");
+    if ($res) {
+        $row = $res->fetch_assoc();
+        if (is_array($row)) {
+            foreach (['twitch_client_id', 'client_id', 'clientID'] as $clientIdKey) {
+                if (array_key_exists($clientIdKey, $row) && !empty($row[$clientIdKey])) {
+                    $resolvedClientId = trim((string)$row[$clientIdKey]);
+                    break;
+                }
+            }
+            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token'] as $oauthKey) {
+                if (array_key_exists($oauthKey, $row) && !empty($row[$oauthKey])) {
+                    $resolvedOAuth = trim((string)$row[$oauthKey]);
+                    break;
+                }
+            }
+        }
+    }
+    return [
+        'client_id' => $resolvedClientId,
+        'oauth' => $resolvedOAuth
+    ];
+}
+
 // Collect server-side logs for browser console output instead of writing to server error log
 $client_console_logs = [];
 function client_console_log($msg, $level = 'error') {
@@ -632,17 +665,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
 
 // Handle send message action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
+    $twitchAppCreds = get_twitch_app_credentials_for_dashboard($conn);
+    $chatClientId = $twitchAppCreds['client_id'] ?? '';
+    $chatOAuth = $twitchAppCreds['oauth'] ?? '';
     $message = trim($_POST['message']);
     $channel_id = $_POST['channel_id'];
-    if (!empty($message) && !empty($channel_id)) {
+    if (!empty($message) && !empty($channel_id) && !empty($chatClientId) && !empty($chatOAuth)) {
         if (strlen($message) > 255) {
             $error_message = "Message too long: " . strlen($message) . " characters (max 255)";
         } else {
             // Send message directly via Twitch API using bot token
             $url = "https://api.twitch.tv/helix/chat/messages";
             $headers = [
-                "Authorization: Bearer " . $oauth,
-                "Client-Id: " . $clientID,
+                "Authorization: Bearer " . $chatOAuth,
+                "Client-Id: " . $chatClientId,
                 "Content-Type: application/json"
             ];
             $data = [
@@ -692,7 +728,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
             }
         }
     } else {
+        if (empty($chatClientId) || empty($chatOAuth)) {
+            $error_message = "Twitch app credentials are missing. Check website table token/client ID settings.";
+        } else {
         $error_message = "Message and channel are required.";
+        }
     }
     admin_audit_log(
         'send_chat_message',
@@ -717,6 +757,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
 
 // Handle send shoutout action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
+    $twitchAppCreds = get_twitch_app_credentials_for_dashboard($conn);
+    $chatClientId = $twitchAppCreds['client_id'] ?? '';
+    $chatOAuth = $twitchAppCreds['oauth'] ?? '';
     $from_broadcaster_id = trim((string)($_POST['channel_id'] ?? ''));
     $target_login_raw = trim((string)($_POST['shoutout_username'] ?? ''));
     $target_login = ltrim(strtolower($target_login_raw), '@');
@@ -726,15 +769,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
     $resolved_target_id = '';
     $resolved_target_game = '';
     $chat_message_sent = false;
-    if (empty($from_broadcaster_id) || empty($target_login)) {
+    if (empty($chatClientId) || empty($chatOAuth)) {
+        $response_message = 'Twitch app credentials are missing. Check website table token/client ID settings.';
+    } elseif (empty($from_broadcaster_id) || empty($target_login)) {
         $response_message = 'Channel and shoutout username are required.';
     } elseif (!preg_match('/^[a-z0-9_]{3,25}$/', $target_login)) {
         $response_message = 'Invalid Twitch username format.';
     } else {
         $lookup_url = 'https://api.twitch.tv/helix/users?login=' . rawurlencode($target_login);
         $headers = [
-            'Authorization: Bearer ' . $oauth,
-            'Client-Id: ' . $clientID,
+            'Authorization: Bearer ' . $chatOAuth,
+            'Client-Id: ' . $chatClientId,
             'Content-Type: application/json'
         ];
         $lookup_ch = curl_init($lookup_url);
@@ -1043,6 +1088,13 @@ if (isset($_GET['ajax'])) {
         echo json_encode(['channels' => $channels]);
         exit;
     } elseif ($ajax === 'validate_shoutout_user') {
+        $twitchAppCreds = get_twitch_app_credentials_for_dashboard($conn);
+        $chatClientId = $twitchAppCreds['client_id'] ?? '';
+        $chatOAuth = $twitchAppCreds['oauth'] ?? '';
+        if (empty($chatClientId) || empty($chatOAuth)) {
+            echo json_encode(['valid' => false, 'message' => 'Twitch app credentials are missing.']);
+            exit;
+        }
         $login_raw = trim((string)($_GET['login'] ?? ''));
         $login = ltrim(strtolower($login_raw), '@');
         if (empty($login)) {
@@ -1056,8 +1108,8 @@ if (isset($_GET['ajax'])) {
 
         $lookup_url = 'https://api.twitch.tv/helix/users?login=' . rawurlencode($login);
         $headers = [
-            'Authorization: Bearer ' . $oauth,
-            'Client-Id: ' . $clientID,
+            'Authorization: Bearer ' . $chatOAuth,
+            'Client-Id: ' . $chatClientId,
             'Content-Type: application/json'
         ];
         $lookup_ch = curl_init($lookup_url);
