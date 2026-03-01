@@ -5,8 +5,8 @@ include_once __DIR__ . '/lang/i18n.php';
 
 // Auth check
 if (!isset($_SESSION['access_token'])) {
-    header('Location: login.php');
-    exit();
+  header('Location: login.php');
+  exit();
 }
 
 // Page Title
@@ -33,32 +33,44 @@ $recentSentRaids = [];
 $latestSentRaid = null;
 $topRaiders = [];
 $avgViewers = null;
+
+$formatViewerAverage = static function ($value): string {
+  if ($value === null || $value === '') {
+    return '0';
+  }
+  $number = (float) $value;
+  if (floor($number) == $number) {
+    return (string) (int) $number;
+  }
+  return rtrim(rtrim(number_format($number, 1, '.', ''), '0'), '.');
+};
+
 try {
-    // Recent received raids (includes NULL source for historical rows)
-    $recentReceivedRes = $db->query("SELECT raider_name, viewers, created_at FROM analytic_raids WHERE source = 'received' OR source IS NULL ORDER BY created_at DESC LIMIT 25");
-    if ($recentReceivedRes) {
-        $recentReceivedRaids = $recentReceivedRes->fetch_all(MYSQLI_ASSOC);
+  // Recent received raids (includes NULL source for historical rows)
+  $recentReceivedRes = $db->query("SELECT raider_name, viewers, created_at FROM analytic_raids WHERE source = 'received' OR source IS NULL ORDER BY created_at DESC LIMIT 25");
+  if ($recentReceivedRes) {
+    $recentReceivedRaids = $recentReceivedRes->fetch_all(MYSQLI_ASSOC);
+  }
+  // Recent sent raids (for latest + modal history)
+  $recentSentRes = $db->query("SELECT raider_name, viewers, created_at FROM analytic_raids WHERE source = 'sent' ORDER BY created_at DESC LIMIT 5");
+  if ($recentSentRes) {
+      $recentSentRaids = $recentSentRes->fetch_all(MYSQLI_ASSOC);
+    if (!empty($recentSentRaids)) {
+      $latestSentRaid = $recentSentRaids[0];
     }
-    // Recent sent raids (for latest + modal history)
-    $recentSentRes = $db->query("SELECT raider_name, viewers, created_at FROM analytic_raids WHERE source = 'sent' ORDER BY created_at DESC LIMIT 5");
-    if ($recentSentRes) {
-        $recentSentRaids = $recentSentRes->fetch_all(MYSQLI_ASSOC);
-      if (!empty($recentSentRaids)) {
-        $latestSentRaid = $recentSentRaids[0];
-      }
-    }
-    // Top raiders (overall)
-    $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids GROUP BY raider_name ORDER BY raids DESC LIMIT 5");
-    if ($topRes) {
-        $topRaiders = $topRes->fetch_all(MYSQLI_ASSOC);
-    }
-    $avgRes = $db->query("SELECT ROUND(AVG(viewers),1) AS avg_viewers FROM analytic_raids");
-    if ($avgRes) {
-        $avgRow = $avgRes->fetch_assoc();
-        $avgViewers = $avgRow['avg_viewers'];
-    }
+  }
+  // Top raiders (received only; includes historical NULL source rows)
+  $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids WHERE source = 'received' OR source IS NULL GROUP BY raider_name ORDER BY raids DESC LIMIT 5");
+  if ($topRes) {
+    $topRaiders = $topRes->fetch_all(MYSQLI_ASSOC);
+  }
+  $avgRes = $db->query("SELECT ROUND(AVG(viewers),1) AS avg_viewers FROM analytic_raids");
+  if ($avgRes) {
+    $avgRow = $avgRes->fetch_assoc();
+    $avgViewers = $avgRow['avg_viewers'];
+  }
 } catch (Exception $e) {
-    // Quietly fail and show empty state
+  // Quietly fail and show empty state
 }
 
 ob_start();
@@ -133,7 +145,6 @@ ob_start();
                   </table>
                 </div>
               <?php endif; ?>
-
               <div class="modal" id="lastFiveSentRaidsModal">
                 <div class="modal-background"></div>
                 <div class="modal-card" style="background-color: #23272f; color: #fff; width: min(900px, 95vw);">
@@ -169,7 +180,6 @@ ob_start();
                   </section>
                 </div>
               </div>
-
               <hr>
               <h3 class="title is-5 has-text-white">Top Raiders</h3>
               <?php if (empty($topRaiders)): ?>
@@ -177,11 +187,10 @@ ob_start();
               <?php else: ?>
                 <ul>
                   <?php foreach ($topRaiders as $t): ?>
-                    <li class="mb-2"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> — <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($t['avg_viewers']); ?> viewers</li>
+                    <li class="mb-2"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> — <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> viewers</li>
                   <?php endforeach; ?>
                 </ul>
               <?php endif; ?>
-
               <hr>
               <h4 class="subtitle is-6 has-text-white">Overall Average Viewers</h4>
               <p class="has-text-white is-size-5"><?php echo $avgViewers !== null ? htmlspecialchars($avgViewers) . ' viewers' : 'N/A'; ?></p>
@@ -203,25 +212,20 @@ document.addEventListener('DOMContentLoaded', function () {
   const openBtn = document.getElementById('showLastFiveSentRaidsBtn');
   const modal = document.getElementById('lastFiveSentRaidsModal');
   const closeBtn = document.getElementById('closeLastFiveSentRaidsModal');
-
   if (!openBtn || !modal) {
     return;
   }
-
   const closeModal = function () {
     modal.classList.remove('is-active');
   };
-
   openBtn.addEventListener('click', function () {
     if (!openBtn.disabled) {
       modal.classList.add('is-active');
     }
   });
-
   if (closeBtn) {
     closeBtn.addEventListener('click', closeModal);
   }
-
   const modalBackground = modal.querySelector('.modal-background');
   if (modalBackground) {
     modalBackground.addEventListener('click', closeModal);
