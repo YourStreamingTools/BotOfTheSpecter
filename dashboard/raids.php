@@ -60,7 +60,7 @@ try {
     }
   }
   // Top raiders (received only; includes historical NULL source rows)
-  $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids WHERE source = 'received' OR source IS NULL GROUP BY raider_name ORDER BY raids DESC LIMIT 5");
+  $topRes = $db->query("SELECT raider_name, COUNT(*) AS raids, ROUND(AVG(viewers),1) AS avg_viewers, MAX(viewers) AS max_viewers FROM analytic_raids WHERE source = 'received' OR source IS NULL GROUP BY raider_name ORDER BY raids DESC, avg_viewers DESC LIMIT 5");
   if ($topRes) {
     $topRaiders = $topRes->fetch_all(MYSQLI_ASSOC);
   }
