@@ -888,6 +888,9 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
                             var buttonId = responseInput.id === 'response' ? 'addManyOptionsBtn' : 'editManyOptionsBtn';
                             updateManyOptionsButtonVisibility(responseInput.id, buttonId);
                         }
+                        if (responseInput && responseInput.id === 'command_response') {
+                            clearEditCustomCommandForm();
+                        }
                         Swal.fire({
                             icon: 'success',
                             title: 'Saved',
@@ -1029,6 +1032,35 @@ function showResponse() {
     if (commandData && commandData.command) {
         prefetchRandomPickOptions(commandData.command);
     }
+}
+
+function clearEditCustomCommandForm() {
+    var commandSelect = document.getElementById('command_to_edit');
+    var newCommandInput = document.getElementById('new_command_name');
+    var responseInput = document.getElementById('command_response');
+    var cooldownInput = document.getElementById('cooldown_response');
+    var permissionInput = document.getElementById('permission_response');
+
+    if (commandSelect) {
+        commandSelect.value = '';
+    }
+    if (newCommandInput) {
+        newCommandInput.value = '';
+    }
+    if (responseInput) {
+        responseInput.value = '';
+        responseInput.dataset.randomPickPrompted = '';
+        responseInput.dataset.randomPickConfiguredCommand = '';
+    }
+    if (cooldownInput) {
+        cooldownInput.value = '';
+    }
+    if (permissionInput) {
+        permissionInput.value = 'Everyone';
+    }
+
+    updateCharCount('command_response', 'editResponseCharCount');
+    updateManyOptionsButtonVisibility('command_response', 'editManyOptionsBtn');
 }
 
 // Function to update character counts
