@@ -5317,6 +5317,17 @@ class TwitchBot(commands.Bot):
     @commands.command(name='ping')
     async def ping_command(self, ctx):
         global bot_owner
+        def human_readable_bytes(num_bytes):
+            try:
+                value = float(num_bytes)
+            except (TypeError, ValueError):
+                return "0 B"
+            units = ["B", "KB", "MB", "GB", "TB", "PB"]
+            unit_index = 0
+            while value >= 1024 and unit_index < len(units) - 1:
+                value /= 1024
+                unit_index += 1
+            return f"{value:.2f} {units[unit_index]}"
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5338,26 +5349,45 @@ class TwitchBot(commands.Bot):
                         bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                         if not await check_cooldown('ping', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
-                        # Using asyncio subprocess to run the ping command
                         process = await create_subprocess_exec(
-                            "ping", "-c", "1", "ping.botofthespecter.com",
+                            "speedtest", "--json", "--secure",
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE
                         )
-                        stdout, stderr = await process.communicate()
-                        # Decode the result from bytes to string and search for the time
-                        output = stdout.decode('utf-8')
-                        match = re.search(r"time=(\d+\.\d+) ms", output)
-                        if match:
-                            ping_time = match.group(1)
-                            bot_logger.info(f"Pong: {ping_time} ms")
-                            # Updated message to make it clear to the user
-                            await send_chat_message(f'Pong: {ping_time} ms – Response time from the bot server to the internet.')
-                            # Record usage
-                            add_usage('ping', bucket_key, cooldown_bucket)
-                        else:
-                            bot_logger.error(f"Error Pinging. {output}")
-                            await send_chat_message(f'Error pinging the internet from the bot server.')
+                        try:
+                            stdout, stderr = await asyncio_wait_for(process.communicate(), timeout=120)
+                        except asyncioTimeoutError:
+                            process.kill()
+                            await process.communicate()
+                            await send_chat_message('Speedtest timed out while checking ping.')
+                            return
+                        output = stdout.decode('utf-8', errors='replace').strip()
+                        error_output = stderr.decode('utf-8', errors='replace').strip()
+                        if process.returncode != 0:
+                            bot_logger.error(f"Speedtest failed with code {process.returncode}. stderr={error_output} stdout={output}")
+                            await send_chat_message('Error running speedtest on the bot server.')
+                            return
+                        try:
+                            speedtest_data = json.loads(output)
+                        except json.JSONDecodeError:
+                            bot_logger.error(f"Failed to decode speedtest JSON output. stdout={output}")
+                            await send_chat_message('Received invalid speedtest output from the bot server.')
+                            return
+                        ping_value = speedtest_data.get("ping")
+                        bytes_sent = speedtest_data.get("bytes_sent", 0)
+                        bytes_received = speedtest_data.get("bytes_received", 0)
+                        if ping_value is None:
+                            await send_chat_message('Speedtest completed but no ping value was returned.')
+                            return
+                        readable_sent = human_readable_bytes(bytes_sent)
+                        readable_received = human_readable_bytes(bytes_received)
+                        bot_logger.info(
+                            f"Speedtest ping={ping_value}ms bytes_sent={bytes_sent} bytes_received={bytes_received}"
+                        )
+                        await send_chat_message(
+                            f"Pong: {float(ping_value):.2f} ms | Sent: {readable_sent} | Received: {readable_received}"
+                        )
+                        add_usage('ping', bucket_key, cooldown_bucket)
                     else:
                         chat_logger.info(f"{ctx.author.name} tried to use the ping command but lacked permissions.")
                         await send_chat_message("You do not have the required permissions to use this command.")
