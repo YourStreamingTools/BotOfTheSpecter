@@ -370,7 +370,7 @@ function performBotAction($action, $botType, $params) {
                         }
                     }
                     if (!empty($killedPids)) {
-                        $result['message'] = 'Bot stopped (killed PIDs: ' . implode(', ', $killedPids) . ')';
+                        $result['message'] = 'Bot stopped successfully.';
                         $result['success'] = true;
                     } else {
                         $result['message'] = 'Found bot processes but could not kill them.';
@@ -382,7 +382,7 @@ function performBotAction($action, $botType, $params) {
                         $killCommand = "kill -s kill $currentPid";
                         $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
                         $killOutput = sanitizeSSHOutput($killOutput);
-                        $result['message'] = 'Bot stop command sent (PID: ' . $currentPid . ')';
+                        $result['message'] = 'Bot stop command sent.';
                         $result['success'] = true;
                     } else {
                         $result['message'] = 'Bot is not running.';
