@@ -1226,11 +1226,15 @@ class CheckKeyResponse(BaseModel):
 class StreamOnlineResponse(BaseModel):
     channel: str
     online: bool
+    stream_title: str | None = None
+    game_name: str | None = None
     class Config:
         json_schema_extra = {
             "example": {
                 "channel": "testuser",
-                "online": True
+                "online": True,
+                "stream_title": "Road to Partner - Chill Coding",
+                "game_name": "Software and Game Development"
             }
         }
 
@@ -3240,8 +3244,51 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
                     is_online = False
         finally:
             conn.close()
-        # Return resolved channel and online status
-        return {"channel": username, "online": is_online}
+        stream_title = None
+        game_name = None
+        if is_online:
+            twitch_token = None
+            website_conn = await get_mysql_connection()
+            try:
+                async with website_conn.cursor(aiomysql.DictCursor) as cur:
+                    await cur.execute("""
+                        SELECT t.twitch_access_token
+                        FROM users u
+                        LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
+                        WHERE u.username = %s
+                    """, (username,))
+                    token_row = await cur.fetchone()
+                    if token_row and token_row.get("twitch_access_token"):
+                        twitch_token = token_row["twitch_access_token"]
+            finally:
+                website_conn.close()
+            if twitch_token:
+                helix_url = "https://api.twitch.tv/helix/streams"
+                headers = {
+                    "Client-ID": "mrjucsmsnri89ifucl66jj1n35jkj8",
+                    "Authorization": f"Bearer {twitch_token}"
+                }
+                params = {"user_login": username}
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(helix_url, headers=headers, params=params) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                items = data.get("data", [])
+                                if items:
+                                    stream_title = items[0].get("title")
+                                    game_name = items[0].get("game_name")
+                            else:
+                                twitch_error = await response.text()
+                                logging.warning(f"Twitch Helix stream lookup failed for '{username}' with status {response.status}: {twitch_error}")
+                except Exception as twitch_exc:
+                    logging.warning(f"Failed to fetch Twitch stream metadata for '{username}': {twitch_exc}")
+        return {
+            "channel": username,
+            "online": is_online,
+            "stream_title": stream_title,
+            "game_name": game_name,
+        }
     except Exception as e:
         logging.error(f"Error checking stream online status from database: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
