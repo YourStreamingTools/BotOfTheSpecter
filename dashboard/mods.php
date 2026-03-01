@@ -178,9 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Filter out common bot accounts
 $botAccounts = [
     'yourstreamingtools',
+    'botrixoficial',
     'streamelements',
     'lumiastream',
     'kofistreambot',
+    'fourthwall',
     'fourthwallhq',
     'nightbot',
     'moobot',
