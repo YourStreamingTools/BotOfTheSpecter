@@ -562,7 +562,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 <h1>YourChat - Custom Twitch Chat Overlay</h1>
                 <p class="login-subtitle">Login with Twitch to customize your chat overlay</p>
                 <?php
-                $scopes = 'user:read:chat user:write:chat chat:read chat:edit channel:read:redemptions moderator:read:chatters bits:read';
+                $scopes = 'user:read:chat user:write:chat chat:read chat:edit channel:read:redemptions channel:read:ads moderator:read:chatters bits:read';
                 $authUrl = 'https://streamersconnect.com/?' . http_build_query([
                     'service' => 'twitch',
                     'login' => 'yourchat.botofthespecter.com',
