@@ -626,6 +626,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // SweetAlert2 for remove command
     setupRemoveButtons();
     // Initialize URL shortener for input fields
+    yourLinksShortener.setSuppressPromptsAfterDecline(true);
     yourLinksShortener.initializeField('response');
     yourLinksShortener.initializeField('command_response');
     initializeRandomPickWatcher('response', 'command');

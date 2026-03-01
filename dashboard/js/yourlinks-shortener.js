@@ -8,6 +8,11 @@ class YourLinksShortener {
         this.urlPattern = /https?:\/\/[^\s]+/gi;
         this.detectedUrl = null;
         this.sourceFieldId = null;
+        this.suppressPromptsAfterDecline = false;
+        this.promptDeclinedThisPage = false;
+    }
+    setSuppressPromptsAfterDecline(enabled) {
+        this.suppressPromptsAfterDecline = !!enabled;
     }
     initializeField(fieldId) {
         const field = document.getElementById(fieldId);
@@ -48,6 +53,9 @@ class YourLinksShortener {
     }
     showUrlDetectionConfirm() {
         if (!this.detectedUrl) return;
+        if (this.suppressPromptsAfterDecline && this.promptDeclinedThisPage) {
+            return;
+        }
         Swal.fire({
             title: 'URL Detected',
             html: `We detected a URL in your message: <br><code style="word-break: break-all; font-size: 12px;">${this.detectedUrl}</code><br><br>Would you like to create a short link using YourLinks.click?`,
@@ -60,6 +68,13 @@ class YourLinksShortener {
         }).then((result) => {
             if (result.isConfirmed) {
                 this.openShorteningModal();
+                return;
+            }
+            if (
+                this.suppressPromptsAfterDecline &&
+                result.dismiss === Swal.DismissReason.cancel
+            ) {
+                this.promptDeclinedThisPage = true;
             }
         });
     }
