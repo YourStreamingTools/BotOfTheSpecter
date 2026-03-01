@@ -8899,7 +8899,7 @@ async def process_custom_command_variables(
                 '(customapi.', '(count)', '(daysuntil.',
                 '(command.', '(user)', '(author)', 
                 '(random.percent)', '(random.number)', '(random.percent.',
-                '(random.number.', '(random.pick.', '(math.',
+                '(random.number.', '(random.pick)', '(random.pick.', '(math.',
                 '(usercount)', '(timeuntil.', '(game)', '(json.'
             ]
             # Process variables in a loop until none remain
@@ -8991,7 +8991,7 @@ async def process_custom_command_variables(
                             chat_logger.warning(f"Command {sub_command} referenced but not found")
                             response = response.replace(f"(command.{sub_command})", "[Command Not Found]")
                 # Handle random replacements
-                if '(random.percent' in response or '(random.number' in response or '(random.pick.' in response:
+                if '(random.percent' in response or '(random.number' in response or '(random.pick' in response:
                     pattern = r'\((random\.(percent|number|pick))(?:\.(.+?))?\)'
                     matches = re.finditer(pattern, response)
                     for match in matches:
