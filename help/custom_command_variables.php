@@ -3,13 +3,13 @@
     <ul>
         <li><a href="index.php" class="has-text-light">Home</a> <span style="color: #fff;">→</span></li>
         <li><a href="command_reference.php" class="has-text-light">Command Reference</a> <span style="color: #fff;">→</span></li>
-        <li class="is-active"><a aria-current="page" class="has-text-link has-text-weight-bold">Custom Command Variables</a></li>
+        <li class="is-active"><a aria-current="page" class="has-text-link has-text-weight-bold">Custom Variables</a></li>
     </ul>
 </nav>
-<h1 class="title has-text-light">Custom Command Variables</h1>
-<p class="subtitle has-text-light">A comprehensive guide to using variables in your custom commands.</p>
+<h1 class="title has-text-light">Custom Variables</h1>
+<p class="subtitle has-text-light">A unified guide to using variables in both custom commands and timed messages.</p>
 <div class="notification is-darker has-text-light" style="margin-bottom: 2rem;">
-    <span class="has-text-weight-bold">Note:</span> Variables colored in <span style="color: #c813e0ff;">purple</span> are for the beta bot only and are currently in testing.
+    <span class="has-text-weight-bold">Note:</span> This page is the central reference for variables used by custom commands and timed messages. Most variables listed here work in both systems unless explicitly noted otherwise. Variables colored in <span style="color: #c813e0ff;">purple</span> are for the beta bot only and are currently in testing.
 </div>
 <div class="columns is-desktop is-multiline help-variable-grid">
     <div class="column is-4">
@@ -17,6 +17,7 @@
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(customapi.URL)</span>
                 <span id="openCustomApiInfo" class="ml-2 has-text-info" role="button" tabindex="0" aria-label="Show more information about customapi variable" style="cursor: pointer; vertical-align: middle;"><i class="fas fa-circle-info" aria-hidden="true"></i></span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Fetches data from a custom API endpoint. Replace URL with your API endpoint.<br>
                 Use <code>(customapi.json.URL)</code> to fetch JSON into temporary context (silent fetch).<br>
                 <span class="has-text-weight-bold">Quick Example:</span><br>
@@ -31,6 +32,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(json.*)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Reads values from the most recent <code>(customapi.json.URL)</code> fetch in the same command response.<br>
                 Supports nested keys and array indexes.<br>
                 <span class="has-text-weight-bold">Examples:</span><br>
@@ -46,6 +48,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(count)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Displays the number of times this command has been used.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(count)</code><br>
@@ -58,6 +61,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(daysuntil.DATE)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Calculates the number of days until a specific date. Format: YYYY-MM-DD.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(daysuntil.2024-12-25)</code>
@@ -70,6 +74,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(command.COMMAND)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Executes another custom command. Replace COMMAND with the command name.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(command.othercommand)</code>
@@ -82,6 +87,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(user)</span> | <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(author)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Displays the username of the person who triggered the command.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(user)</code>
@@ -94,6 +100,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(random.percent)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Generates a random percentage between 0% and 100%. Use <span style="color: #3273dc;">(random.percent.LOWER-UPPER)</span> for custom range.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(random.percent)</code>
@@ -106,6 +113,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(random.number)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Generates a random number between 0 and 100. Use <span style="color: #3273dc;">(random.number.LOWER-UPPER)</span> for custom range.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(random.number)</code>
@@ -118,6 +126,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(random.pick.*)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Randomly selects one option from a list. Separate options with a period (.).<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(random.pick.Option1.Option2.Option3)</code><br>
@@ -130,6 +139,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(math.*)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Performs mathematical calculations. Supports +, -, *, /, and parentheses.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(math.5+3*2)</code>
@@ -142,6 +152,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(usercount)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Displays the total number of unique users who have used this command.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(usercount)</code><br>
@@ -154,6 +165,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(timeuntil.DATE-TIME)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Calculates the time remaining until a specific date and time. Format: YYYY-MM-DD HH:MM.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(timeuntil.2024-12-25 00:00)</code>
@@ -166,6 +178,7 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(game)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Displays the current game/category being streamed.<br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(game)</code>
@@ -178,7 +191,9 @@
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(call.COMMAND)</span><br>
+                <span class="tag is-warning is-light mb-2">Used in: Custom Commands only</span><br>
                 Calls an internal command as an alias. Replace COMMAND with the internal command name.<br>
+                <span class="has-text-warning has-text-weight-semibold">Custom commands only.</span><br>
                 <span class="has-text-weight-bold">Example:</span><br>
                 <code>(call.ping)</code>
                 <br><span class="has-text-weight-bold">In Chat:</span><br>
@@ -268,6 +283,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php
 $content = ob_get_clean();
-$pageTitle = 'Custom Command Variables';
+$pageTitle = 'Custom Variables';
 include 'layout.php';
 ?>
