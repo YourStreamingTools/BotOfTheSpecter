@@ -910,6 +910,14 @@ def resolve_username(key_info: dict, username_param: str = None) -> str:
                 detail="Username parameter required when using admin key"
             )
         return username_param
+    if username_param:
+        requested = username_param.strip().lower()
+        authenticated = str(key_info["username"]).strip().lower()
+        if requested and requested != authenticated:
+            raise HTTPException(
+                status_code=403,
+                detail="The 'channel' parameter is only allowed for admin API keys"
+            )
     return key_info["username"]
 
 # Function to connect to the websocket server and push a notice
@@ -1216,10 +1224,12 @@ class CheckKeyResponse(BaseModel):
         }
 
 class StreamOnlineResponse(BaseModel):
+    channel: str
     online: bool
     class Config:
         json_schema_extra = {
             "example": {
+                "channel": "testuser",
                 "online": True
             }
         }
@@ -3230,8 +3240,8 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
                     is_online = False
         finally:
             conn.close()
-        # Return just the online status
-        return {"online": is_online}
+        # Return resolved channel and online status
+        return {"channel": username, "online": is_online}
     except Exception as e:
         logging.error(f"Error checking stream online status from database: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
