@@ -55,24 +55,20 @@ function sanitize_command_name($command)
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
-
     if ($_POST['action'] === 'get_random_pick_options') {
         $commandName = sanitize_command_name($_POST['command_name'] ?? '');
         if ($commandName === '') {
             echo json_encode(['success' => false, 'message' => 'Command name is required.']);
             exit;
         }
-
         $stmt = $db->prepare("SELECT many_options_enabled, options FROM custom_command_random_pick_options WHERE command = ?");
         $stmt->bind_param('s', $commandName);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
         $stmt->close();
-
         $manyOptionsEnabled = false;
         $options = [];
-
         if ($row) {
             $manyOptionsEnabled = ((int)($row['many_options_enabled'] ?? 0) === 1);
             $decoded = json_decode($row['options'] ?? '[]', true);
@@ -88,7 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 }
             }
         }
-
         echo json_encode([
             'success' => true,
             'many_options_enabled' => $manyOptionsEnabled,
@@ -96,20 +91,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
         ]);
         exit;
     }
-
     if ($_POST['action'] === 'save_random_pick_options') {
         $commandName = sanitize_command_name($_POST['command_name'] ?? '');
         if ($commandName === '') {
             echo json_encode(['success' => false, 'message' => 'Command name is required.']);
             exit;
         }
-
         $decoded = json_decode($_POST['options'] ?? '[]', true);
         if (!is_array($decoded)) {
             echo json_encode(['success' => false, 'message' => 'Options payload is invalid.']);
             exit;
         }
-
         $cleanOptions = [];
         foreach ($decoded as $item) {
             if (!is_scalar($item)) {
@@ -120,24 +112,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $cleanOptions[] = $value;
             }
         }
-
         $manyOptionsEnabled = 0;
         if (isset($_POST['many_options_enabled'])) {
             $rawEnabled = strtolower((string)$_POST['many_options_enabled']);
             $manyOptionsEnabled = ($rawEnabled === '1' || $rawEnabled === 'true') ? 1 : 0;
         }
-
         $optionsJson = json_encode(array_values($cleanOptions), JSON_UNESCAPED_UNICODE);
         $stmt = $db->prepare("INSERT INTO custom_command_random_pick_options (command, many_options_enabled, options) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE many_options_enabled = VALUES(many_options_enabled), options = VALUES(options)");
         $stmt->bind_param('sis', $commandName, $manyOptionsEnabled, $optionsJson);
         $success = $stmt->execute();
         $stmt->close();
-
         if (!$success) {
             echo json_encode(['success' => false, 'message' => 'Failed to save options.']);
             exit;
         }
-
         echo json_encode([
             'success' => true,
             'saved_count' => count($cleanOptions),
@@ -145,7 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
         ]);
         exit;
     }
-
     echo json_encode(['success' => false, 'message' => 'Unsupported action.']);
     exit;
 }
@@ -176,14 +163,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ? WHERE command = ?");
                 $updateSTMT->bind_param("ssiss", $new_command_name, $command_response, $cooldown, $dbPermission, $command_to_edit);
                 $updateSTMT->execute();
-
                 if ($new_command_name !== $command_to_edit) {
                     $renameOptionsSTMT = $db->prepare("UPDATE custom_command_random_pick_options SET command = ? WHERE command = ?");
                     $renameOptionsSTMT->bind_param("ss", $new_command_name, $command_to_edit);
                     $renameOptionsSTMT->execute();
                     $renameOptionsSTMT->close();
                 }
-
                 if ($updateSTMT->affected_rows > 0) {
                     $status = "Command ". $command_to_edit . " updated successfully!";
                     $notification_status = "is-success";
@@ -271,12 +256,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             $deleteStmt->execute();
             $deleteStmt->close();
-
             $deleteOptionsStmt = $db->prepare("DELETE FROM custom_command_random_pick_options WHERE command = ?");
             $deleteOptionsStmt->bind_param('s', $commandToRemove);
             $deleteOptionsStmt->execute();
             $deleteOptionsStmt->close();
-
             $dataUpdated = true;
             $status = "Command removed successfully";
         } catch (mysqli_sql_exception $e) {
@@ -379,9 +362,9 @@ ob_start();
                         <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
                     </div>
                     <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
-                    <button class="button is-link is-light is-small mt-2" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
+                    <button id="addManyOptionsBtn" class="button is-link is-light is-small mt-2" style="display:none;" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
                         <span class="icon"><i class="fas fa-list"></i></span>
-                        <span>Manage (random.pick) many options</span>
+                        <span>Manage options for your command (Beta 5.8)</span>
                     </button>
                 </div>
                 <div class="field mb-4">
@@ -453,9 +436,9 @@ ob_start();
                             <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
                         </div>
                         <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
-                        <button class="button is-link is-light is-small mt-2" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
+                        <button id="editManyOptionsBtn" class="button is-link is-light is-small mt-2" style="display:none;" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
                             <span class="icon"><i class="fas fa-list"></i></span>
-                            <span>Manage (random.pick) many options</span>
+                            <span>Manage options for your command (Beta 5.8)</span>
                         </button>
                     </div>
                     <div class="field mb-4">
@@ -645,7 +628,6 @@ document.addEventListener("DOMContentLoaded", function() {
     // Initialize URL shortener for input fields
     yourLinksShortener.initializeField('response');
     yourLinksShortener.initializeField('command_response');
-
     initializeRandomPickWatcher('response', 'command');
     initializeRandomPickWatcher('command_response', 'new_command_name');
 });
@@ -657,12 +639,13 @@ function sanitizeCommandName(commandName) {
         .replace(/[^a-z0-9]/g, '');
 }
 
+var randomPickOptionsCache = {};
+
 function sendActionRequest(params, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '', true);
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
     xhr.onreadystatechange = function() {
         if (xhr.readyState !== XMLHttpRequest.DONE) {
             return;
@@ -677,14 +660,39 @@ function sendActionRequest(params, callback) {
             callback(error);
         }
     };
-
     var encoded = Object.keys(params)
         .map(function(key) {
             return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
         })
         .join('&');
-
     xhr.send(encoded);
+}
+
+function fetchRandomPickOptions(commandName, callback, forceRefresh) {
+    if (!forceRefresh && randomPickOptionsCache[commandName]) {
+        callback(null, randomPickOptionsCache[commandName]);
+        return;
+    }
+    sendActionRequest(
+        {
+            action: 'get_random_pick_options',
+            command_name: commandName
+        },
+        function(err, data) {
+            if (!err && data && data.success) {
+                randomPickOptionsCache[commandName] = data;
+            }
+            callback(err, data);
+        }
+    );
+}
+
+function prefetchRandomPickOptions(commandName) {
+    var normalizedCommand = sanitizeCommandName(commandName);
+    if (!normalizedCommand) {
+        return;
+    }
+    fetchRandomPickOptions(normalizedCommand, function() {}, false);
 }
 
 function initializeRandomPickWatcher(responseInputId, commandInputId) {
@@ -692,10 +700,29 @@ function initializeRandomPickWatcher(responseInputId, commandInputId) {
     if (!responseInput) {
         return;
     }
-
+    var buttonId = responseInputId === 'response' ? 'addManyOptionsBtn' : 'editManyOptionsBtn';
+    updateManyOptionsButtonVisibility(responseInputId, buttonId);
+    responseInput.addEventListener('input', function() {
+        updateManyOptionsButtonVisibility(responseInputId, buttonId);
+    });
     responseInput.addEventListener('blur', function() {
         handleManyOptionsPrompt(responseInputId, commandInputId, false);
     });
+}
+
+function hasManyOptionsToken(responseValue) {
+    var value = String(responseValue || '');
+    var randomPickPattern = /\(random\.(?:pick|piack)(?:\.[^\)]*)?\)/i;
+    return randomPickPattern.test(value);
+}
+
+function updateManyOptionsButtonVisibility(responseInputId, buttonId) {
+    var responseInput = document.getElementById(responseInputId);
+    var button = document.getElementById(buttonId);
+    if (!responseInput || !button) {
+        return;
+    }
+    button.style.display = hasManyOptionsToken(responseInput.value) ? 'inline-flex' : 'none';
 }
 
 function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
@@ -704,14 +731,11 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
     if (!responseInput || !commandInput) {
         return;
     }
-
     var responseValue = responseInput.value || '';
-    var hasNewSyntax = responseValue.indexOf('(random.pick)') !== -1;
-
+    var hasNewSyntax = hasManyOptionsToken(responseValue);
     if (!hasNewSyntax && !forceOpen) {
         return;
     }
-
     var normalizedCommand = sanitizeCommandName(commandInput.value);
     if (!normalizedCommand) {
         Swal.fire({
@@ -721,18 +745,15 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
         });
         return;
     }
-
     if (forceOpen) {
-        openManyOptionsModal(normalizedCommand);
+        openManyOptionsModal(normalizedCommand, responseInputId);
         return;
     }
-
     var promptSignature = normalizedCommand + '|' + responseValue;
     if (responseInput.dataset.randomPickPrompted === promptSignature) {
         return;
     }
     responseInput.dataset.randomPickPrompted = promptSignature;
-
     Swal.fire({
         icon: 'question',
         title: 'Use the new many options mode?',
@@ -742,18 +763,45 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
         cancelButtonText: 'No, keep legacy syntax'
     }).then(function(result) {
         if (result.isConfirmed) {
-            openManyOptionsModal(normalizedCommand);
+            openManyOptionsModal(normalizedCommand, responseInputId);
         }
     });
 }
 
-function openManyOptionsModal(commandName) {
-    sendActionRequest(
-        {
-            action: 'get_random_pick_options',
-            command_name: commandName
-        },
-        function(err, data) {
+function extractLegacyInlineRandomPickOptions(responseValue) {
+    var value = String(responseValue || '');
+    var match = value.match(/\(random\.(?:pick|piack)\.([^\)]+)\)/i);
+    if (!match || !match[1]) {
+        return [];
+    }
+    return match[1]
+        .split('.')
+        .map(function(item) { return item.trim(); })
+        .filter(function(item) { return item.length > 0; });
+}
+
+function normalizeResponseToManyOptionsToken(responseValue) {
+    return String(responseValue || '')
+        .replace(/\(random\.(?:pick|piack)\.[^\)]*\)/gi, '(random.pick)')
+        .replace(/\(random\.piack\)/gi, '(random.pick)');
+}
+
+function openManyOptionsModal(commandName, responseInputId) {
+    var responseInput = document.getElementById(responseInputId);
+    var inlineOptions = extractLegacyInlineRandomPickOptions(responseInput ? responseInput.value : '');
+    if (!randomPickOptionsCache[commandName]) {
+        Swal.fire({
+            title: 'Loading options...',
+            allowOutsideClick: false,
+            didOpen: function() {
+                Swal.showLoading();
+            }
+        });
+    }
+    fetchRandomPickOptions(commandName, function(err, data) {
+            if (Swal.isVisible()) {
+                Swal.close();
+            }
             if (err || !data || !data.success) {
                 Swal.fire({
                     icon: 'error',
@@ -762,10 +810,11 @@ function openManyOptionsModal(commandName) {
                 });
                 return;
             }
-
-            var initialOptions = Array.isArray(data.options) ? data.options.join('\n') : '';
-            var checked = data.many_options_enabled ? 'checked' : '';
-
+            var dbOptions = Array.isArray(data.options) ? data.options : [];
+            var effectiveOptions = dbOptions.length > 0 ? dbOptions : inlineOptions;
+            var initialOptions = effectiveOptions.join('\n');
+            var isEnabled = data.many_options_enabled || inlineOptions.length > 0;
+            var checked = isEnabled ? 'checked' : '';
             Swal.fire({
                 title: 'Many options for !' + commandName,
                 html:
@@ -775,9 +824,9 @@ function openManyOptionsModal(commandName) {
                         '</label>' +
                     '</div>' +
                     '<div class="field has-text-left mt-3">' +
-                        '<label class="label">Options (one per line)</label>' +
+                        '<label class="label has-text-black">Options (one per line)</label>' +
                         '<textarea id="manyOptionsList" class="textarea" rows="10" placeholder="Tim Tams\nLamington\nSkittles">' + initialOptions + '</textarea>' +
-                        '<p class="help">No limit on item count. Empty lines are ignored.</p>' +
+                        '<p class="help has-text-black">No limit on item count. Empty lines are ignored.</p>' +
                     '</div>',
                 width: 700,
                 showCancelButton: true,
@@ -798,7 +847,6 @@ function openManyOptionsModal(commandName) {
                 if (!result.isConfirmed) {
                     return;
                 }
-
                 sendActionRequest(
                     {
                         action: 'save_random_pick_options',
@@ -815,7 +863,22 @@ function openManyOptionsModal(commandName) {
                             });
                             return;
                         }
-
+                        randomPickOptionsCache[commandName] = {
+                            success: true,
+                            many_options_enabled: !!result.value.enabled,
+                            options: result.value.options
+                        };
+                        if (result.value.enabled && responseInput) {
+                            responseInput.value = normalizeResponseToManyOptionsToken(responseInput.value);
+                            if (responseInput.id === 'response') {
+                                updateCharCount('response', 'responseCharCount');
+                            }
+                            if (responseInput.id === 'command_response') {
+                                updateCharCount('command_response', 'editResponseCharCount');
+                            }
+                            var buttonId = responseInput.id === 'response' ? 'addManyOptionsBtn' : 'editManyOptionsBtn';
+                            updateManyOptionsButtonVisibility(responseInput.id, buttonId);
+                        }
                         Swal.fire({
                             icon: 'success',
                             title: 'Saved',
@@ -824,8 +887,7 @@ function openManyOptionsModal(commandName) {
                     }
                 );
             });
-        }
-    );
+        }, false);
 }
 
 function setupRemoveButtons() {
@@ -856,7 +918,6 @@ function toggleStatus(command, isChecked, elem) {
         return;
     }
     elem.dataset.processing = 'true';
-    
     var icon = elem.parentElement.querySelector('i');
     var statusSpan = elem.closest('tr').querySelector('.tag');
     icon.className = "fa-solid fa-spinner fa-spin";
@@ -901,7 +962,6 @@ function toggleStatus(command, isChecked, elem) {
                 icon.className = !isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
                 alert('HTTP Error: ' + xhr.status);
             }
-            
             // Reset processing flag in all cases
             elem.dataset.processing = 'false';
         }
@@ -947,7 +1007,6 @@ function showResponse() {
     responseInput.value = commandData ? commandData.response : '';
     cooldownInput.value = commandData ? commandData.cooldown : 15;
     newCommandInput.value = commandData ? commandData.command : '';
-    
     // Set permission dropdown
     if (commandData && commandData.permission) {
         var displayPermission = permissionsMap[commandData.permission] || 'Everyone';
@@ -955,9 +1014,12 @@ function showResponse() {
     } else {
         permissionInput.value = 'Everyone';
     }
-    
     // Update character count for the edit response field
     updateCharCount('command_response', 'editResponseCharCount');
+    updateManyOptionsButtonVisibility('command_response', 'editManyOptionsBtn');
+    if (commandData && commandData.command) {
+        prefetchRandomPickOptions(commandData.command);
+    }
 }
 
 // Function to update character counts
