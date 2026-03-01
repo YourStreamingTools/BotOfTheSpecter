@@ -563,6 +563,14 @@ try {
                 options JSON,
                 PRIMARY KEY (command(255))
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'custom_command_random_pick_options' => "
+            CREATE TABLE IF NOT EXISTS custom_command_random_pick_options (
+                command VARCHAR(255) NOT NULL,
+                many_options_enabled TINYINT(1) NOT NULL DEFAULT 0,
+                options JSON,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (command)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'bingo_games' => "
             CREATE TABLE IF NOT EXISTS bingo_games (
                 game_id VARCHAR(255) PRIMARY KEY,

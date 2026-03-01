@@ -8871,6 +8871,29 @@ async def process_custom_command_variables(
                 tz = pytz_timezone(timezone)
             else:
                 tz = set_timezone.UTC
+
+            many_options_enabled = False
+            many_random_pick_options = []
+            try:
+                await cursor.execute(
+                    "SELECT many_options_enabled, options FROM custom_command_random_pick_options WHERE command = %s",
+                    (command,),
+                )
+                random_pick_row = await cursor.fetchone()
+                if random_pick_row:
+                    many_options_enabled = bool(random_pick_row.get("many_options_enabled"))
+                    options_raw = random_pick_row.get("options")
+                    if options_raw:
+                        if isinstance(options_raw, (bytes, bytearray)):
+                            options_raw = options_raw.decode("utf-8", errors="ignore")
+                        parsed_options = json.loads(options_raw) if isinstance(options_raw, str) else options_raw
+                        if isinstance(parsed_options, list):
+                            many_random_pick_options = [
+                                str(item).strip() for item in parsed_options if str(item).strip()
+                            ]
+            except Exception as e:
+                chat_logger.error(f"Error loading many random pick options for command '{command}': {e}")
+
             # Define switches to check for
             switches = [
                 '(customapi.', '(count)', '(daysuntil.',
@@ -8984,7 +9007,12 @@ async def process_custom_command_variables(
                             random_value = random.randint(lower_bound, upper_bound)
                             replacement = f'{random_value}%' if 'percent' in category else str(random_value)
                         elif 'pick' in category:
-                            items = details.split('.') if details else []
+                            if details:
+                                items = [item for item in details.split('.') if item]
+                            elif many_options_enabled and many_random_pick_options:
+                                items = many_random_pick_options
+                            else:
+                                items = []
                             replacement = random.choice(items) if items else ''
                         response = response.replace(match.group(0), replacement)
                 # Handle (math.x+y)
