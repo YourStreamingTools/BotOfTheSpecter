@@ -235,6 +235,32 @@ if ($result = $db->query("SELECT id, quote, added FROM quotes ORDER BY added DES
     $result->free();
 }
 
+  // Fetch many-options lists for custom command random pick mode
+  $manyOptionsData = [];
+  if ($result = $db->query("SELECT command, many_options_enabled, options FROM custom_command_random_pick_options WHERE many_options_enabled = 1 ORDER BY command ASC")) {
+    while ($row = $result->fetch_assoc()) {
+      $items = [];
+      $decoded = json_decode($row['options'] ?? '[]', true);
+      if (is_array($decoded)) {
+        foreach ($decoded as $item) {
+          if (!is_scalar($item)) {
+            continue;
+          }
+          $value = trim((string)$item);
+          if ($value !== '') {
+            $items[] = $value;
+          }
+        }
+      }
+      $manyOptionsData[] = [
+        'command' => $row['command'],
+        'items' => $items,
+        'items_count' => count($items),
+      ];
+    }
+    $result->free();
+  }
+
 // Prepare JS objects for reward counts and titles
 $rewardCountsJs = [];
 foreach ($rewardCountsData as $row) {
@@ -747,6 +773,7 @@ ob_start();
             <button class="button is-info" data-type="rewardUsage" onclick="loadData('rewardUsage')"><?php echo t('counters_reward_usage'); ?></button>
             <button class="button is-info" data-type="watchTime" onclick="loadData('watchTime')"><?php echo t('counters_watch_time'); ?></button>
             <button class="button is-info" data-type="quotes" onclick="loadData('quotes')"><?php echo t('counters_quotes'); ?></button>
+            <button class="button is-info" data-type="manyOptions" onclick="loadData('manyOptions')">Random Pick Lists</button>
           </div>
           <div class="content">
             <div class="table-container">
@@ -1494,8 +1521,15 @@ function loadData(type) {
       infoColumn = <?php echo json_encode(t('counters_id_column')); ?>;
       dataColumn = <?php echo json_encode(t('counters_what_was_said_column')); ?>;
       break;
+    case 'manyOptions':
+      data = <?php echo json_encode($manyOptionsData); ?>;
+      countColumnVisible = true;
+      title = 'Random Pick Lists';
+      infoColumn = 'Command';
+      dataColumn = 'Items';
+      additionalColumnName = 'Total';
+      break;
   }
-
   // Update active button state using data-type attribute
   document.querySelectorAll('.buttons .button').forEach(button => {
     if (button.getAttribute('data-type') === type) {
@@ -1506,7 +1540,6 @@ function loadData(type) {
       button.classList.add('is-info');
     }
   });
-
   document.getElementById('data-column-info').innerText = dataColumn;
   document.getElementById('info-column-data').innerText = infoColumn;
   if (countColumnVisible) {
@@ -1543,10 +1576,37 @@ function loadData(type) {
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
       output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
+    } else if (type === 'manyOptions') {
+      const optionItems = Array.isArray(item.items) ? item.items : [];
+      const escapedItems = optionItems.map(option =>
+        String(option)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+      );
+      let renderedOptions = "<span class='has-text-grey-light'>No options saved</span>";
+      if (escapedItems.length > 0) {
+        if (escapedItems.length <= 5) {
+          renderedOptions = escapedItems.join('<br>');
+        } else {
+          const preview = escapedItems.slice(0, 3).join(', ');
+          const allItemsHtml = escapedItems.map(option => `<div>${option}</div>`).join('');
+          renderedOptions =
+            `<details ontoggle="toggleManyOptionsSummary(this)">` +
+              `<summary style="cursor:pointer;">` +
+                `${preview}, ... ` +
+                `<span class="many-options-summary-closed">(view all ${escapedItems.length})</span>` +
+                `<span class="many-options-summary-open" style="display:none;">(hide list ${escapedItems.length})</span>` +
+              `</summary>` +
+              `<div style="margin-top: 0.5rem;">${allItemsHtml}</div>` +
+            `</details>`;
+        }
+      }
+      output += `<td>!${item.command}</td><td>${renderedOptions}</td><td><span class='has-text-success'>${item.items_count}</span></td>`;
     }
     // Ensure three cells are added if countColumn is visible and the type doesn't already add three
     if (countColumnVisible) {
-        if (type !== 'userCounts' && type !== 'rewardCounts' && type !== 'watchTime') {
+        if (type !== 'userCounts' && type !== 'rewardCounts' && type !== 'rewardStreaks' && type !== 'watchTime' && type !== 'manyOptions') {
              output += `<td></td>`; 
         }
     }
@@ -1593,12 +1653,10 @@ function showEditTab(type) {
   document.querySelectorAll('.edit-tab-content').forEach(tab => {
     tab.style.display = 'none';
   });
-  
   const selectedTab = document.getElementById('edit-tab-' + type);
   if (selectedTab) {
     selectedTab.style.display = 'block';
   }
-  
   document.querySelectorAll('#edit-mode .buttons .button').forEach(button => {
     if (button.getAttribute('data-edit-type') === type) {
       button.classList.remove('is-info');
@@ -1608,7 +1666,6 @@ function showEditTab(type) {
       button.classList.add('is-info');
     }
   });
-  
   if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
     setCookie('preferred_edit_tab', type, 30);
   }
@@ -1666,12 +1723,10 @@ function enableButton(selectId, buttonId) {
 function wireRemoveForm(formId, selectId, type) {
   const form = document.getElementById(formId);
   if (!form) return;
-  
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     const select = document.getElementById(selectId);
     const value = select ? select.value : '';
-    
     Swal.fire({
       title: 'Are you sure?',
       text: `Do you want to remove this ${type} record?`,
@@ -1742,6 +1797,21 @@ function updateQuoteText(quoteId) {
     }
   } else {
     document.getElementById('quote_text_edit').value = '';
+  }
+}
+
+function toggleManyOptionsSummary(detailsElement) {
+  const closedLabel = detailsElement.querySelector('.many-options-summary-closed');
+  const openLabel = detailsElement.querySelector('.many-options-summary-open');
+  if (!closedLabel || !openLabel) {
+    return;
+  }
+  if (detailsElement.open) {
+    closedLabel.style.display = 'none';
+    openLabel.style.display = 'inline';
+  } else {
+    closedLabel.style.display = 'inline';
+    openLabel.style.display = 'none';
   }
 }
 </script>
