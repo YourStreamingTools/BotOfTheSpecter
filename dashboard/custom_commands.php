@@ -825,7 +825,7 @@ function openManyOptionsModal(commandName, responseInputId, autoEnable) {
                     '</div>' +
                     '<div class="field has-text-left mt-3">' +
                         '<label class="label has-text-black">Options (one per line)</label>' +
-                        '<textarea id="manyOptionsList" class="textarea" rows="10" placeholder="Tim Tams\nLamington\nSkittles">' + initialOptions + '</textarea>' +
+                        '<textarea id="manyOptionsList" class="textarea" rows="10" placeholder="Item 1\nItem 2\nItem 3">' + initialOptions + '</textarea>' +
                         '<p class="help has-text-black">No limit on item count. Empty lines are ignored.</p>' +
                     '</div>',
                 width: 700,
