@@ -9105,7 +9105,7 @@ async def trigger_twitch_title_update(new_title):
     }
     async with httpClientSession() as session:
         async with session.patch(url, headers=headers, json=params) as response:
-            if response.status == 200:
+            if response.status in (200, 204):
                 twitch_logger.info(f'Stream title updated to: {new_title}')
             else:
                 twitch_logger.error(f'Failed to update stream title: {await response.text()}')
@@ -9143,7 +9143,7 @@ async def update_twitch_game(game_name: str):
             "game_id": game_id
         }
         async with session.patch(twitch_game_update_url, headers=twitch_headers, json=payload) as twitch_response:
-            if twitch_response.status == 200:
+            if twitch_response.status in (200, 204):
                 twitch_logger.info(f"Stream game updated to: {game_name}")
                 return game_name
             else:
