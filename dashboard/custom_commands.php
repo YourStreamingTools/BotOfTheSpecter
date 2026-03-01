@@ -746,7 +746,7 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
         return;
     }
     if (forceOpen) {
-        openManyOptionsModal(normalizedCommand, responseInputId);
+        openManyOptionsModal(normalizedCommand, responseInputId, false);
         return;
     }
     var promptSignature = normalizedCommand + '|' + responseValue;
@@ -763,7 +763,7 @@ function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
         cancelButtonText: 'No, keep legacy syntax'
     }).then(function(result) {
         if (result.isConfirmed) {
-            openManyOptionsModal(normalizedCommand, responseInputId);
+            openManyOptionsModal(normalizedCommand, responseInputId, true);
         }
     });
 }
@@ -786,7 +786,7 @@ function normalizeResponseToManyOptionsToken(responseValue) {
         .replace(/\(random\.piack\)/gi, '(random.pick)');
 }
 
-function openManyOptionsModal(commandName, responseInputId) {
+function openManyOptionsModal(commandName, responseInputId, autoEnable) {
     var responseInput = document.getElementById(responseInputId);
     var inlineOptions = extractLegacyInlineRandomPickOptions(responseInput ? responseInput.value : '');
     if (!randomPickOptionsCache[commandName]) {
@@ -813,7 +813,7 @@ function openManyOptionsModal(commandName, responseInputId) {
             var dbOptions = Array.isArray(data.options) ? data.options : [];
             var effectiveOptions = dbOptions.length > 0 ? dbOptions : inlineOptions;
             var initialOptions = effectiveOptions.join('\n');
-            var isEnabled = data.many_options_enabled || inlineOptions.length > 0;
+            var isEnabled = !!autoEnable || data.many_options_enabled || inlineOptions.length > 0;
             var checked = isEnabled ? 'checked' : '';
             Swal.fire({
                 title: 'Many options for !' + commandName,
