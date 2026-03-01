@@ -21,6 +21,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+$isActAsUser = isset($isActAs) && $isActAs === true;
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -60,7 +61,10 @@ if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) 
 }
 
 // Check if we received a code from Spotify (callback handling)
-if (isset($_GET['code'])) {
+if ($isActAsUser && isset($_GET['code'])) {
+    $message = "Linking Spotify is disabled while using Act As mode.";
+    $messageType = "is-warning";
+} elseif (isset($_GET['code'])) {
     $auth_code = $_GET['code'];
     // Exchange the authorization code for an access token and refresh token
     $token_url = 'https://accounts.spotify.com/api/token';
@@ -113,7 +117,10 @@ if (isset($_GET['code'])) {
 
 // Handle POST requests for own client settings
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['use_own_client'])) {
+    if ($isActAsUser && (isset($_POST['use_own_client']) || isset($_POST['save_credentials']))) {
+        $message = "Spotify linking settings cannot be changed while using Act As mode.";
+        $messageType = "is-warning";
+    } elseif (isset($_POST['use_own_client'])) {
         // Enable own client and reset auth
         $updateStmt = $conn->prepare("UPDATE spotify_tokens SET own_client = 1, auth = 0 WHERE user_id = ?");
         $updateStmt->bind_param("i", $user_id);
@@ -181,8 +188,10 @@ if ($spotifyResult->num_rows > 0) {
     }
 } else {
     // User not linked, set authorization URL
-    $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-    $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+    if (!$isActAsUser) {
+        $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+        $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
+    }
 }
 
 // Update auth URL if needed to use effective client ID
@@ -357,6 +366,10 @@ ob_start();
                                 <span class="icon"><i class="fab fa-spotify"></i></span>
                                 <span><?php echo t('spotify_link_button'); ?></span>
                             </a>
+                        <?php elseif ($isActAsUser): ?>
+                            <div class="notification is-warning is-light" style="border-radius: 8px; max-width: 700px; margin: 0 auto;">
+                                Act As mode is active. Linking Spotify is disabled for acting users.
+                            </div>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
