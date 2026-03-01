@@ -4,6 +4,39 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 include "userdata.php";
 
+function get_twitch_app_credentials_for_welcome_test($conn) {
+    $resolvedClientId = isset($GLOBALS['clientID']) ? trim((string)$GLOBALS['clientID']) : '';
+    $resolvedOAuth = isset($GLOBALS['oauth']) ? trim((string)$GLOBALS['oauth']) : '';
+    if (!isset($conn) || !$conn) {
+        return [
+            'client_id' => $resolvedClientId,
+            'oauth' => $resolvedOAuth
+        ];
+    }
+    $res = $conn->query("SELECT * FROM website LIMIT 1");
+    if ($res) {
+        $row = $res->fetch_assoc();
+        if (is_array($row)) {
+            foreach (['twitch_client_id', 'client_id', 'clientID'] as $clientIdKey) {
+                if (array_key_exists($clientIdKey, $row) && !empty($row[$clientIdKey])) {
+                    $resolvedClientId = trim((string)$row[$clientIdKey]);
+                    break;
+                }
+            }
+            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token'] as $oauthKey) {
+                if (array_key_exists($oauthKey, $row) && !empty($row[$oauthKey])) {
+                    $resolvedOAuth = trim((string)$row[$oauthKey]);
+                    break;
+                }
+            }
+        }
+    }
+    return [
+        'client_id' => $resolvedClientId,
+        'oauth' => $resolvedOAuth
+    ];
+}
+
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
     header('Content-Type: application/json');
@@ -47,13 +80,21 @@ if (empty($message_to_send) && !$has_shoutout) {
 
 $messages_sent = [];
 $errors = [];
+$twitchAppCreds = get_twitch_app_credentials_for_welcome_test($conn);
+$chatClientId = $twitchAppCreds['client_id'] ?? '';
+$chatOAuth = $twitchAppCreds['oauth'] ?? '';
+if (empty($chatClientId) || empty($chatOAuth)) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Twitch app credentials are missing. Check website table token/client ID settings.']);
+    exit();
+}
 
 // Send the welcome message if it has content
 if (!empty($message_to_send)) {
     $url = "https://api.twitch.tv/helix/chat/messages";
     $headers = [
-        "Authorization: Bearer " . $oauth,
-        "Client-Id: " . $clientID,
+        "Authorization: Bearer " . $chatOAuth,
+        "Client-Id: " . $chatClientId,
         "Content-Type: application/json"
     ];
     $data = [
@@ -123,8 +164,8 @@ if ($has_shoutout) {
     // Get the target user's ID from Twitch API
     $user_url = "https://api.twitch.tv/helix/users?login=" . urlencode($target_username);
     $headers = [
-        "Authorization: Bearer " . $oauth,
-        "Client-Id: " . $clientID
+        "Authorization: Bearer " . $chatOAuth,
+        "Client-Id: " . $chatClientId
     ];
     $ch = curl_init($user_url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -181,8 +222,8 @@ if ($has_shoutout) {
             }
             $url = "https://api.twitch.tv/helix/chat/messages";
             $headers = [
-                "Authorization: Bearer " . $oauth,
-                "Client-Id: " . $clientID,
+                "Authorization: Bearer " . $chatOAuth,
+                "Client-Id: " . $chatClientId,
                 "Content-Type: application/json"
             ];
             $data = [
