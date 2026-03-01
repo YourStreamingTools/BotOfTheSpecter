@@ -304,7 +304,7 @@ ob_start();
             <p class="mb-1"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
             <p class="mb-1"><?php echo t('custom_commands_explore_variables'); ?></p>
             <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('custom_commands_note_detail'); ?></p>
-            <a href="https://help.botofthespecter.com/custom_command_variables.php" target="_blank" class="button is-primary is-small">
+            <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="button is-primary is-small">
                 <span class="icon"><i class="fas fa-code"></i></span>
                 <span><?php echo t('custom_commands_view_variables'); ?></span>
             </a>

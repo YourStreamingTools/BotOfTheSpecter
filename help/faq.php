@@ -32,8 +32,8 @@ ob_start();
             </div>
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
-                    <h3 class="title is-6 has-text-light">How do I use custom command variables?</h3>
-                    <p>Custom commands support various variables for dynamic content. Learn all about them on our <a href="custom_command_variables.php" class="has-text-link">Custom Command Variables</a> page.</p>
+                    <h3 class="title is-6 has-text-light">How do I use custom variables?</h3>
+                    <p>Custom commands and timed messages support variables for dynamic content. Learn all about them on our <a href="custom_variables.php" class="has-text-link">Custom Variables</a> page.</p>
                 </div>
             </div>
             <div class="column is-6">
@@ -45,7 +45,7 @@ ob_start();
             <div class="column is-6">
                 <div class="box has-background-dark has-text-light mb-4" style="border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 8px 25px rgba(255,255,255,0.1)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 3px rgba(10,10,10,0.1), 0 0 0 1px rgba(10,10,10,0.1)';">
                     <h3 class="title is-6 has-text-light">I want to do something custom with my commands, what can I do?</h3>
-                    <p>Check out our <a href="custom_command_variables.php" class="has-text-link">Custom Command Variables</a> page for the different ways you can change the way your commands work with dynamic variables, API calls, and more.</p>
+                    <p>Check out our <a href="custom_variables.php" class="has-text-link">Custom Variables</a> page for the different ways you can change how your commands and timed messages work with dynamic variables, API calls, and more.</p>
                 </div>
             </div>
             <div class="column is-12">

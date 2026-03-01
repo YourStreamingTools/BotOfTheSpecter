@@ -8,7 +8,7 @@ $isAjax = isset($_GET['ajax']);
 $pages = [
     'index.php',
     'command_reference.php',
-    'custom_command_variables.php',
+    'custom_variables.php',
     'specter_module_variables.php',
     'faq.php',
     'markdown.php',

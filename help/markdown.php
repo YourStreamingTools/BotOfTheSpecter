@@ -392,11 +392,11 @@ Stay tuned for updates!</pre>
             <div class="card-content has-background-dark">
                 <div class="content has-text-light">
                     <ul>
-                        <li><a href="custom_command_variables.php" class="has-text-light">
+                        <li><a href="custom_variables.php" class="has-text-light">
                             <span class="icon">
                                 <i class="fas fa-terminal"></i>
                             </span>
-                            Custom Command Variables
+                            Custom Variables
                         </a></li>
                         <li><a href="setup.php" class="has-text-light">
                             <span class="icon">
