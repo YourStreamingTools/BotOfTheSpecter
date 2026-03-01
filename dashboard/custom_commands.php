@@ -47,6 +47,109 @@ $permissionsMap = [
 // Reverse mapping (db to display)
 $permissionsMapReverse = array_flip($permissionsMap);
 
+function sanitize_command_name($command)
+{
+    $command = strtolower(str_replace(' ', '', (string)$command));
+    return preg_replace('/[^a-z0-9]/', '', $command);
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
+
+    if ($_POST['action'] === 'get_random_pick_options') {
+        $commandName = sanitize_command_name($_POST['command_name'] ?? '');
+        if ($commandName === '') {
+            echo json_encode(['success' => false, 'message' => 'Command name is required.']);
+            exit;
+        }
+
+        $stmt = $db->prepare("SELECT many_options_enabled, options FROM custom_command_random_pick_options WHERE command = ?");
+        $stmt->bind_param('s', $commandName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+
+        $manyOptionsEnabled = false;
+        $options = [];
+
+        if ($row) {
+            $manyOptionsEnabled = ((int)($row['many_options_enabled'] ?? 0) === 1);
+            $decoded = json_decode($row['options'] ?? '[]', true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $item) {
+                    if (!is_scalar($item)) {
+                        continue;
+                    }
+                    $value = trim((string)$item);
+                    if ($value !== '') {
+                        $options[] = $value;
+                    }
+                }
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'many_options_enabled' => $manyOptionsEnabled,
+            'options' => $options,
+        ]);
+        exit;
+    }
+
+    if ($_POST['action'] === 'save_random_pick_options') {
+        $commandName = sanitize_command_name($_POST['command_name'] ?? '');
+        if ($commandName === '') {
+            echo json_encode(['success' => false, 'message' => 'Command name is required.']);
+            exit;
+        }
+
+        $decoded = json_decode($_POST['options'] ?? '[]', true);
+        if (!is_array($decoded)) {
+            echo json_encode(['success' => false, 'message' => 'Options payload is invalid.']);
+            exit;
+        }
+
+        $cleanOptions = [];
+        foreach ($decoded as $item) {
+            if (!is_scalar($item)) {
+                continue;
+            }
+            $value = trim((string)$item);
+            if ($value !== '') {
+                $cleanOptions[] = $value;
+            }
+        }
+
+        $manyOptionsEnabled = 0;
+        if (isset($_POST['many_options_enabled'])) {
+            $rawEnabled = strtolower((string)$_POST['many_options_enabled']);
+            $manyOptionsEnabled = ($rawEnabled === '1' || $rawEnabled === 'true') ? 1 : 0;
+        }
+
+        $optionsJson = json_encode(array_values($cleanOptions), JSON_UNESCAPED_UNICODE);
+        $stmt = $db->prepare("INSERT INTO custom_command_random_pick_options (command, many_options_enabled, options) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE many_options_enabled = VALUES(many_options_enabled), options = VALUES(options)");
+        $stmt->bind_param('sis', $commandName, $manyOptionsEnabled, $optionsJson);
+        $success = $stmt->execute();
+        $stmt->close();
+
+        if (!$success) {
+            echo json_encode(['success' => false, 'message' => 'Failed to save options.']);
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'saved_count' => count($cleanOptions),
+            'many_options_enabled' => ($manyOptionsEnabled === 1),
+        ]);
+        exit;
+    }
+
+    echo json_encode(['success' => false, 'message' => 'Unsupported action.']);
+    exit;
+}
+
 // Check if form data has been submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Editing a Custom Command
@@ -61,8 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $cooldown = $_POST['cooldown_response'];
         $permission = isset($_POST['permission_response']) ? $_POST['permission_response'] : 'Everyone';
         // Remove all non-alphanumeric characters
-        $new_command_name = strtolower(str_replace(' ', '', $_POST['new_command_name']));
-        $new_command_name = preg_replace('/[^a-z0-9]/', '', $new_command_name);
+        $new_command_name = sanitize_command_name($_POST['new_command_name']);
         // Check if new command name is built-in
         if (array_key_exists($new_command_name, $builtinCommands['commands'])) {
             $status = "Failed to update: The new command name matches a built-in command.";
@@ -74,6 +176,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $updateSTMT = $db->prepare("UPDATE custom_commands SET command = ?, response = ?, cooldown = ?, permission = ? WHERE command = ?");
                 $updateSTMT->bind_param("ssiss", $new_command_name, $command_response, $cooldown, $dbPermission, $command_to_edit);
                 $updateSTMT->execute();
+
+                if ($new_command_name !== $command_to_edit) {
+                    $renameOptionsSTMT = $db->prepare("UPDATE custom_command_random_pick_options SET command = ? WHERE command = ?");
+                    $renameOptionsSTMT->bind_param("ss", $new_command_name, $command_to_edit);
+                    $renameOptionsSTMT->execute();
+                    $renameOptionsSTMT->close();
+                }
+
                 if ($updateSTMT->affected_rows > 0) {
                     $status = "Command ". $command_to_edit . " updated successfully!";
                     $notification_status = "is-success";
@@ -95,8 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // Adding a new custom command
     if (isset($_POST['command']) && isset($_POST['response']) && isset($_POST['cooldown'])) {
-        $newCommand = strtolower(str_replace(' ', '', $_POST['command']));
-        $newCommand = preg_replace('/[^a-z0-9]/', '', $newCommand);
+        $newCommand = sanitize_command_name($_POST['command']);
         $newResponse = $_POST['response'];
         $cooldown = $_POST['cooldown'];
         $permission = isset($_POST['permission']) ? $_POST['permission'] : 'Everyone';
@@ -162,6 +271,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             $deleteStmt->execute();
             $deleteStmt->close();
+
+            $deleteOptionsStmt = $db->prepare("DELETE FROM custom_command_random_pick_options WHERE command = ?");
+            $deleteOptionsStmt->bind_param('s', $commandToRemove);
+            $deleteOptionsStmt->execute();
+            $deleteOptionsStmt->close();
+
             $dataUpdated = true;
             $status = "Command removed successfully";
         } catch (mysqli_sql_exception $e) {
@@ -264,6 +379,10 @@ ob_start();
                         <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
                     </div>
                     <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                    <button class="button is-link is-light is-small mt-2" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
+                        <span class="icon"><i class="fas fa-list"></i></span>
+                        <span>Manage (random.pick) many options</span>
+                    </button>
                 </div>
                 <div class="field mb-4">
                     <label class="label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
@@ -334,6 +453,10 @@ ob_start();
                             <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
                         </div>
                         <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
+                        <button class="button is-link is-light is-small mt-2" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
+                            <span class="icon"><i class="fas fa-list"></i></span>
+                            <span>Manage (random.pick) many options</span>
+                        </button>
                     </div>
                     <div class="field mb-4">
                         <label class="label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
@@ -522,7 +645,188 @@ document.addEventListener("DOMContentLoaded", function() {
     // Initialize URL shortener for input fields
     yourLinksShortener.initializeField('response');
     yourLinksShortener.initializeField('command_response');
+
+    initializeRandomPickWatcher('response', 'command');
+    initializeRandomPickWatcher('command_response', 'new_command_name');
 });
+
+function sanitizeCommandName(commandName) {
+    return String(commandName || '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-z0-9]/g, '');
+}
+
+function sendActionRequest(params, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState !== XMLHttpRequest.DONE) {
+            return;
+        }
+        if (xhr.status !== 200) {
+            callback(new Error('HTTP Error: ' + xhr.status));
+            return;
+        }
+        try {
+            callback(null, JSON.parse(xhr.responseText));
+        } catch (error) {
+            callback(error);
+        }
+    };
+
+    var encoded = Object.keys(params)
+        .map(function(key) {
+            return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
+        })
+        .join('&');
+
+    xhr.send(encoded);
+}
+
+function initializeRandomPickWatcher(responseInputId, commandInputId) {
+    var responseInput = document.getElementById(responseInputId);
+    if (!responseInput) {
+        return;
+    }
+
+    responseInput.addEventListener('blur', function() {
+        handleManyOptionsPrompt(responseInputId, commandInputId, false);
+    });
+}
+
+function handleManyOptionsPrompt(responseInputId, commandInputId, forceOpen) {
+    var responseInput = document.getElementById(responseInputId);
+    var commandInput = document.getElementById(commandInputId);
+    if (!responseInput || !commandInput) {
+        return;
+    }
+
+    var responseValue = responseInput.value || '';
+    var hasNewSyntax = responseValue.indexOf('(random.pick)') !== -1;
+
+    if (!hasNewSyntax && !forceOpen) {
+        return;
+    }
+
+    var normalizedCommand = sanitizeCommandName(commandInput.value);
+    if (!normalizedCommand) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Command name required',
+            text: 'Set your command name first, then manage many options for (random.pick).'
+        });
+        return;
+    }
+
+    if (forceOpen) {
+        openManyOptionsModal(normalizedCommand);
+        return;
+    }
+
+    var promptSignature = normalizedCommand + '|' + responseValue;
+    if (responseInput.dataset.randomPickPrompted === promptSignature) {
+        return;
+    }
+    responseInput.dataset.randomPickPrompted = promptSignature;
+
+    Swal.fire({
+        icon: 'question',
+        title: 'Use the new many options mode?',
+        text: 'You used (random.pick). Do you want to manage a large option list in a modal instead of inline text?',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, use many options',
+        cancelButtonText: 'No, keep legacy syntax'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            openManyOptionsModal(normalizedCommand);
+        }
+    });
+}
+
+function openManyOptionsModal(commandName) {
+    sendActionRequest(
+        {
+            action: 'get_random_pick_options',
+            command_name: commandName
+        },
+        function(err, data) {
+            if (err || !data || !data.success) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Unable to load options',
+                    text: (data && data.message) ? data.message : 'Please try again.'
+                });
+                return;
+            }
+
+            var initialOptions = Array.isArray(data.options) ? data.options.join('\n') : '';
+            var checked = data.many_options_enabled ? 'checked' : '';
+
+            Swal.fire({
+                title: 'Many options for !' + commandName,
+                html:
+                    '<div class="field has-text-left">' +
+                        '<label class="checkbox">' +
+                            '<input type="checkbox" id="manyOptionsEnabled" ' + checked + '> Enable many options for (random.pick)' +
+                        '</label>' +
+                    '</div>' +
+                    '<div class="field has-text-left mt-3">' +
+                        '<label class="label">Options (one per line)</label>' +
+                        '<textarea id="manyOptionsList" class="textarea" rows="10" placeholder="Tim Tams\nLamington\nSkittles">' + initialOptions + '</textarea>' +
+                        '<p class="help">No limit on item count. Empty lines are ignored.</p>' +
+                    '</div>',
+                width: 700,
+                showCancelButton: true,
+                confirmButtonText: 'Save options',
+                preConfirm: function() {
+                    var enabled = document.getElementById('manyOptionsEnabled').checked;
+                    var raw = document.getElementById('manyOptionsList').value || '';
+                    var options = raw
+                        .split(/\r?\n/)
+                        .map(function(item) { return item.trim(); })
+                        .filter(function(item) { return item.length > 0; });
+                    return {
+                        enabled: enabled,
+                        options: options
+                    };
+                }
+            }).then(function(result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
+
+                sendActionRequest(
+                    {
+                        action: 'save_random_pick_options',
+                        command_name: commandName,
+                        many_options_enabled: result.value.enabled ? '1' : '0',
+                        options: JSON.stringify(result.value.options)
+                    },
+                    function(saveErr, saveData) {
+                        if (saveErr || !saveData || !saveData.success) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Unable to save options',
+                                text: (saveData && saveData.message) ? saveData.message : 'Please try again.'
+                            });
+                            return;
+                        }
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Saved',
+                            text: 'Many options were saved for !' + commandName + '.'
+                        });
+                    }
+                );
+            });
+        }
+    );
+}
 
 function setupRemoveButtons() {
     document.querySelectorAll('.remove-command-btn').forEach(function(btn) {
