@@ -7,6 +7,158 @@ $pageTitle = 'Twitch App Access Tokens';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 
+function pickFirstExistingKey(array $row, array $candidates) {
+    foreach ($candidates as $candidate) {
+        if (array_key_exists($candidate, $row)) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
+function isSafeColumnName($column) {
+    return is_string($column) && preg_match('/^[A-Za-z0-9_]+$/', $column);
+}
+
+function fetchWebsiteTwitchSettings($conn) {
+    $settings = [
+        'client_id' => isset($GLOBALS['clientID']) ? trim((string) $GLOBALS['clientID']) : '',
+        'client_secret' => isset($GLOBALS['clientSecret']) ? trim((string) $GLOBALS['clientSecret']) : '',
+        'chat_token' => isset($GLOBALS['oauth']) ? trim((string) $GLOBALS['oauth']) : '',
+        'expires_at' => null,
+        'row' => null,
+        'columns' => [
+            'client_id' => null,
+            'client_secret' => null,
+            'chat_token' => null,
+            'expires_at' => null,
+        ],
+    ];
+    if (!isset($conn) || !$conn) {
+        return $settings;
+    }
+    $res = $conn->query("SELECT * FROM website LIMIT 1");
+    if (!$res) {
+        return $settings;
+    }
+    $row = $res->fetch_assoc();
+    if (!$row || !is_array($row)) {
+        return $settings;
+    }
+    $settings['row'] = $row;
+    $clientIdKey = pickFirstExistingKey($row, ['twitch_client_id', 'client_id', 'clientID']);
+    $clientSecretKey = pickFirstExistingKey($row, ['twitch_client_secret', 'client_secret', 'clientSecret']);
+    $chatTokenKey = pickFirstExistingKey($row, ['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token']);
+    $expiresAtKey = pickFirstExistingKey($row, ['twitch_oauth_api_expires_at', 'oauth_expires_at', 'chat_token_expires_at', 'token_expires', 'token_expires_at']);
+    $settings['columns']['client_id'] = $clientIdKey;
+    $settings['columns']['client_secret'] = $clientSecretKey;
+    $settings['columns']['chat_token'] = $chatTokenKey;
+    $settings['columns']['expires_at'] = $expiresAtKey;
+    if ($clientIdKey && !empty($row[$clientIdKey])) {
+        $settings['client_id'] = trim((string) $row[$clientIdKey]);
+    }
+    if ($clientSecretKey && !empty($row[$clientSecretKey])) {
+        $settings['client_secret'] = trim((string) $row[$clientSecretKey]);
+    }
+    if ($chatTokenKey && !empty($row[$chatTokenKey])) {
+        $settings['chat_token'] = trim((string) $row[$chatTokenKey]);
+    }
+    if ($expiresAtKey && !empty($row[$expiresAtKey])) {
+        $settings['expires_at'] = (string) $row[$expiresAtKey];
+    }
+    return $settings;
+}
+
+function requestTwitchAppAccessToken($clientID, $clientSecret) {
+    if (empty($clientID) || empty($clientSecret)) {
+        return ['success' => false, 'error' => 'Client credentials are required'];
+    }
+    $url = 'https://id.twitch.tv/oauth2/token';
+    $data = [
+        'client_id' => $clientID,
+        'client_secret' => $clientSecret,
+        'grant_type' => 'client_credentials'
+    ];
+    $ch = curl_init($url);
+    if (!$ch) {
+        return ['success' => false, 'error' => 'cURL initialization failed.'];
+    }
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/x-www-form-urlencoded'
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    if ($curlError) {
+        return ['success' => false, 'error' => 'cURL error: ' . $curlError];
+    }
+    if ($httpCode !== 200) {
+        $error = json_decode($response, true);
+        $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to generate token (HTTP ' . $httpCode . ').';
+        return ['success' => false, 'error' => $errorMsg];
+    }
+    $result = json_decode($response, true);
+    if ($result === null || !isset($result['access_token'])) {
+        return ['success' => false, 'error' => 'Invalid response from Twitch API.'];
+    }
+    return [
+        'success' => true,
+        'access_token' => $result['access_token'],
+        'expires_in' => intval($result['expires_in'] ?? 0),
+        'token_type' => $result['token_type'] ?? 'bearer'
+    ];
+}
+
+function persistWebsiteChatToken($conn, $accessToken, $expiresIn = 0) {
+    if (!isset($conn) || !$conn) {
+        return ['success' => false, 'error' => 'Database connection failed'];
+    }
+    $settings = fetchWebsiteTwitchSettings($conn);
+    $tokenColumn = $settings['columns']['chat_token'];
+    $expiresAtColumn = $settings['columns']['expires_at'];
+    if (!$tokenColumn || !isSafeColumnName($tokenColumn)) {
+        return ['success' => false, 'error' => 'No suitable chat token column found in website table'];
+    }
+    $setSql = [];
+    $types = '';
+    $values = [];
+    $setSql[] = "`{$tokenColumn}` = ?";
+    $types .= 's';
+    $values[] = $accessToken;
+    if ($expiresAtColumn && isSafeColumnName($expiresAtColumn)) {
+        $expiresAt = null;
+        if (intval($expiresIn) > 0) {
+            $expiresAt = date('Y-m-d H:i:s', time() + intval($expiresIn));
+        }
+        $setSql[] = "`{$expiresAtColumn}` = ?";
+        $types .= 's';
+        $values[] = $expiresAt;
+    }
+    $sql = "UPDATE website SET " . implode(', ', $setSql) . " LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return ['success' => false, 'error' => 'Failed to prepare website token update: ' . $conn->error];
+    }
+    $stmt->bind_param($types, ...$values);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        return ['success' => false, 'error' => 'Failed to update website token: ' . $error];
+    }
+    $stmt->close();
+    return ['success' => true];
+}
+
+$dbTwitchSettings = fetchWebsiteTwitchSettings($conn);
+$clientID = $dbTwitchSettings['client_id'];
+$clientSecret = $dbTwitchSettings['client_secret'];
+$oauth = $dbTwitchSettings['chat_token'];
+
 // Handle AJAX request for token generation BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
     header('Content-Type: application/json');
@@ -14,62 +166,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
         $clientID = isset($_POST['client_id']) ? trim($_POST['client_id']) : '';
         $clientSecret = isset($_POST['client_secret']) ? trim($_POST['client_secret']) : '';
         // Fall back to config values if POST values are empty
-        if (empty($clientID) && isset($GLOBALS['clientID']) && !empty($GLOBALS['clientID'])) {
-            $clientID = $GLOBALS['clientID'];
+        if (empty($clientID)) {
+            $settings = fetchWebsiteTwitchSettings($conn);
+            $clientID = $settings['client_id'] ?? '';
         }
-        if (empty($clientSecret) && isset($GLOBALS['clientSecret']) && !empty($GLOBALS['clientSecret'])) {
-            $clientSecret = $GLOBALS['clientSecret'];
+        if (empty($clientSecret)) {
+            $settings = isset($settings) ? $settings : fetchWebsiteTwitchSettings($conn);
+            $clientSecret = $settings['client_secret'] ?? '';
         }
         if (empty($clientID) || empty($clientSecret)) {
             echo json_encode(['success' => false, 'error' => 'Client ID and Client Secret are required. Please configure them in your config file or enter them manually.']);
             exit;
         }
-        $url = 'https://id.twitch.tv/oauth2/token';
-        $data = [
-            'client_id' => $clientID,
-            'client_secret' => $clientSecret,
-            'grant_type' => 'client_credentials'
-        ];
-        $ch = curl_init($url);
-        if (!$ch) {
-            echo json_encode(['success' => false, 'error' => 'cURL initialization failed.']);
-            exit;
-        }
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/x-www-form-urlencoded'
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-        if ($curlError) {
-            echo json_encode(['success' => false, 'error' => 'cURL error: ' . $curlError]);
-            exit;
-        }
-        if ($httpCode === 200) {
-            $result = json_decode($response, true);
-            if ($result === null) {
-                echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
-                exit;
-            }
-            if (isset($result['access_token'])) {
-                echo json_encode([
-                    'success' => true,
-                    'access_token' => $result['access_token'],
-                    'expires_in' => $result['expires_in'] ?? 0,
-                    'token_type' => $result['token_type'] ?? 'bearer'
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'error' => 'Invalid response from Twitch API.']);
-            }
+        $tokenResult = requestTwitchAppAccessToken($clientID, $clientSecret);
+        if ($tokenResult['success']) {
+            echo json_encode($tokenResult);
         } else {
-            $error = json_decode($response, true);
-            $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to generate token (HTTP ' . $httpCode . ').';
-            echo json_encode(['success' => false, 'error' => $errorMsg]);
+            echo json_encode(['success' => false, 'error' => $tokenResult['error'] ?? 'Token generation failed']);
         }
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
@@ -82,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
     header('Content-Type: application/json');
     try {
         $token = isset($_POST['access_token']) ? trim($_POST['access_token']) : '';
+        $autoRenewIf24h = isset($_POST['auto_renew_if_24h']) && $_POST['auto_renew_if_24h'] === '1';
         if (empty($token)) {
             echo json_encode(['success' => false, 'error' => 'Access token is required.']);
             exit;
@@ -111,6 +225,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
                 echo json_encode(['success' => false, 'error' => 'Invalid JSON response from Twitch.']);
                 exit;
             }
+            $expiresIn = intval($result['expires_in'] ?? 0);
+            if ($autoRenewIf24h && $expiresIn > 0 && $expiresIn <= 86400) {
+                $settings = fetchWebsiteTwitchSettings($conn);
+                if (!empty($settings['client_id']) && !empty($settings['client_secret'])) {
+                    $renewResult = requestTwitchAppAccessToken($settings['client_id'], $settings['client_secret']);
+                    if (!empty($renewResult['success'])) {
+                        $persistResult = persistWebsiteChatToken($conn, $renewResult['access_token'], $renewResult['expires_in'] ?? 0);
+                        if (!empty($persistResult['success'])) {
+                            echo json_encode([
+                                'success' => true,
+                                'validation' => $result,
+                                'auto_renewed' => true,
+                                'renewed_token' => $renewResult['access_token'],
+                                'renewed_expires_in' => $renewResult['expires_in'] ?? 0
+                            ]);
+                            exit;
+                        }
+                    }
+                }
+            }
             echo json_encode([
                 'success' => true,
                 'validation' => $result
@@ -120,6 +254,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
             $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to validate token (HTTP ' . $httpCode . ').';
             echo json_encode(['success' => false, 'error' => $errorMsg]);
         }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// Handle AJAX request for chat token renewal and persist to website table
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_chat_token'])) {
+    header('Content-Type: application/json');
+    try {
+        $clientID = isset($_POST['client_id']) ? trim($_POST['client_id']) : '';
+        $clientSecret = isset($_POST['client_secret']) ? trim($_POST['client_secret']) : '';
+        if (empty($clientID) || empty($clientSecret)) {
+            $settings = fetchWebsiteTwitchSettings($conn);
+            if (empty($clientID)) {
+                $clientID = $settings['client_id'] ?? '';
+            }
+            if (empty($clientSecret)) {
+                $clientSecret = $settings['client_secret'] ?? '';
+            }
+        }
+        if (empty($clientID) || empty($clientSecret)) {
+            echo json_encode(['success' => false, 'error' => 'Client credentials not configured.']);
+            exit;
+        }
+        $tokenResult = requestTwitchAppAccessToken($clientID, $clientSecret);
+        if (empty($tokenResult['success'])) {
+            echo json_encode(['success' => false, 'error' => $tokenResult['error'] ?? 'Failed to renew token']);
+            exit;
+        }
+        $persistResult = persistWebsiteChatToken($conn, $tokenResult['access_token'], $tokenResult['expires_in'] ?? 0);
+        if (empty($persistResult['success'])) {
+            echo json_encode(['success' => false, 'error' => $persistResult['error'] ?? 'Failed to persist token']);
+            exit;
+        }
+        echo json_encode([
+            'success' => true,
+            'new_token' => $tokenResult['access_token'],
+            'expires_in' => $tokenResult['expires_in'] ?? 0,
+            'token_type' => $tokenResult['token_type'] ?? 'bearer'
+        ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
     }
@@ -778,7 +953,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const renewChatBtn = document.getElementById('renew-chat-btn');
     let invalidTokens = [];
     let tokenCache = {};
-    let chatToken = "<?php echo addslashes($oauth); ?>";
+    let chatToken = <?php echo json_encode($oauth ?? ''); ?>;
     // Load token validation cache on page load
     function loadTokenCache() {
         fetch('?load_token_cache=1', {
@@ -1101,6 +1276,7 @@ function validateChatToken(token) {
     const formData = new FormData();
     formData.append('validate_token', '1');
     formData.append('access_token', token);
+    formData.append('auto_renew_if_24h', '1');
     fetch('', {
         method: 'POST',
         body: formData
@@ -1108,6 +1284,14 @@ function validateChatToken(token) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            if (data.auto_renewed && data.renewed_token) {
+                chatToken = data.renewed_token;
+                statusCell.textContent = 'Auto-Renewed';
+                statusCell.className = 'has-text-warning';
+                expiryCell.textContent = 'Refreshing...';
+                setTimeout(() => validateChatToken(chatToken), 500);
+                return;
+            }
             const val = data.validation;
             const expiresIn = val.expires_in || 0;
             const now = new Date();
@@ -1287,7 +1471,7 @@ function renewChatToken(clientId, clientSecret) {
     resultContent.innerHTML = '<p>Generating new chat token...</p>';
     resultBox.classList.remove('is-hidden');
     const formData = new FormData();
-    formData.append('generate_token', '1');
+    formData.append('renew_chat_token', '1');
     formData.append('client_id', clientId);
     formData.append('client_secret', clientSecret);
     fetch('', { method: 'POST', body: formData })
@@ -1316,7 +1500,7 @@ function renewChatToken(clientId, clientSecret) {
                             </div>
                         </div>
                         <p class="help">Token expires at: ${expiryDate}</p>
-                        <p class="help mt-2"><strong>⚠️ Important:</strong> Update your bot's configuration with this new token.</p>
+                        <p class="help mt-2"><strong>ℹ️ Saved:</strong> This token was stored in the website database.</p>
                     </div>
                 `;
                 // attach handlers
@@ -1326,6 +1510,7 @@ function renewChatToken(clientId, clientSecret) {
                 document.getElementById('copy-chat-token').addEventListener('click', function() {
                     copyChatToken('chat-token-input');
                 });
+                setTimeout(() => validateChatToken(chatToken), 400);
             } else {
                 const err = data.error || 'Failed to generate new chat token.';
                 resultContent.innerHTML = `<p class="has-text-danger">${err}</p>`;
