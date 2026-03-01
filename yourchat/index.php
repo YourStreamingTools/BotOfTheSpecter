@@ -755,6 +755,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             let badgeCache = {};
             let messageBuffer = [];
             let isReconnecting = false;
+            let adBreakCountdownHandle = null;
+            let activeAdBreakNoticeEl = null;
+            let activeAdBreakEndsAtMs = null;
             function isClientSessionActive() {
                 return !!accessToken && !!CONFIG.USER_ID && !window.__sessionExpired;
             }
@@ -1162,6 +1165,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // Enforce messages cap (count only message nodes)
                 // Enforce cap using helper (default 50 messages)
                 enforceMessageCap(MAX_CHAT_MESSAGES);
+                return div;
             }
             // Update or insert a 'presence' system message (used for the "Currently in chat" summary)
             function setPresenceMessage(text) {
@@ -1192,6 +1196,65 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     existing.remove();
                 }
             }
+            function clearAdBreakCountdown() {
+                if (adBreakCountdownHandle) {
+                    clearInterval(adBreakCountdownHandle);
+                    adBreakCountdownHandle = null;
+                }
+                activeAdBreakEndsAtMs = null;
+            }
+            function formatDuration(seconds) {
+                const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+                const minutes = Math.floor(safeSeconds / 60).toString().padStart(2, '0');
+                const secs = (safeSeconds % 60).toString().padStart(2, '0');
+                return `${minutes}:${secs}`;
+            }
+            function buildAdBreakText(remainingSeconds, isAutomatic) {
+                const modeText = isAutomatic ? 'automatic' : 'manual';
+                return `Ad started (${modeText}) - remaining time: ${formatDuration(remainingSeconds)}`;
+            }
+            function setAdBreakNoticeText(text) {
+                if (!activeAdBreakNoticeEl || !activeAdBreakNoticeEl.isConnected) {
+                    return;
+                }
+                activeAdBreakNoticeEl.textContent = text;
+            }
+            function endAdBreakNotice() {
+                if (!activeAdBreakNoticeEl || !activeAdBreakNoticeEl.isConnected) {
+                    return;
+                }
+                activeAdBreakNoticeEl.textContent = 'Ad ended';
+                activeAdBreakNoticeEl.classList.remove('ad-break-notice');
+            }
+            function handleAdBreakBegin(event) {
+                const rawDuration = Number(event?.duration_seconds);
+                const durationSeconds = Number.isFinite(rawDuration) ? Math.max(0, Math.floor(rawDuration)) : 0;
+                const isAutomatic = String(event?.is_automatic).toLowerCase() === 'true' || event?.is_automatic === true;
+                endAdBreakNotice();
+                clearAdBreakCountdown();
+                activeAdBreakNoticeEl = showSystemMessage(buildAdBreakText(durationSeconds, isAutomatic), 'join');
+                if (activeAdBreakNoticeEl) {
+                    activeAdBreakNoticeEl.classList.add('ad-break-notice');
+                }
+                if (durationSeconds <= 0) {
+                    endAdBreakNotice();
+                    return;
+                }
+                activeAdBreakEndsAtMs = Date.now() + (durationSeconds * 1000);
+                adBreakCountdownHandle = setInterval(() => {
+                    if (!activeAdBreakNoticeEl || !activeAdBreakNoticeEl.isConnected) {
+                        clearAdBreakCountdown();
+                        return;
+                    }
+                    const remainingSeconds = Math.max(0, Math.ceil((activeAdBreakEndsAtMs - Date.now()) / 1000));
+                    if (remainingSeconds <= 0) {
+                        endAdBreakNotice();
+                        clearAdBreakCountdown();
+                        return;
+                    }
+                    setAdBreakNoticeText(buildAdBreakText(remainingSeconds, isAutomatic));
+                }, 1000);
+            }
             // Remove only placeholder/connected informational nodes from the overlay to avoid wiping live messages
             function clearPlaceholderOnly() {
                 const overlay = document.getElementById('chat-overlay');
@@ -1212,6 +1275,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 // Filter out nodes that should not be removed
                 const eligible = msgs.filter(node => {
                     if (!node) return false;
+                    if (node.classList.contains('ad-break-notice')) return false;
                     // presence summary and other important system messages should be preserved
                     if (node.classList.contains('system-message') && !node.classList.contains('join') && !node.classList.contains('leave') && !node.classList.contains('raid') && !node.classList.contains('bits')) return false;
                     if (node.classList.contains('fullscreen-exit-btn')) return false;
@@ -2740,6 +2804,11 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         broadcaster_user_id: broadcasterUserId,
                         user_id: broadcasterUserId
                     }
+                },
+                {
+                    type: 'channel.ad_break.begin',
+                    version: '1',
+                    condition: { broadcaster_user_id: broadcasterUserId }
                 }
             ];
             // Subscribe to each event type
@@ -2830,6 +2899,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         handleBitsEvent(eventData);
                     } else if (eventType === 'channel.chat.notification') {
                         handleChatNotification(eventData);
+                    } else if (eventType === 'channel.ad_break.begin') {
+                        handleAdBreakBegin(eventData);
                     }
                     break;
                 }
