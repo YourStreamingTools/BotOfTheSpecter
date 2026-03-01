@@ -178,6 +178,12 @@ ob_start();
                                             <li><code>(command.yourcommand)</code> – <?php echo t('timed_messages_var_command') ?: 'Runs a custom command and sends its processed response as an additional chat message.'; ?></li>
                                             <!-- Add more variables here as needed -->
                                         </ul>
+                                        <div class="mt-3">
+                                            <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="button is-primary is-small">
+                                                <span class="icon"><i class="fas fa-code"></i></span>
+                                                <span><?php echo t('custom_commands_view_variables') ?: 'View Custom Variables'; ?></span>
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
