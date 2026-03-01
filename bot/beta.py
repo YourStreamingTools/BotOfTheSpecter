@@ -1890,7 +1890,7 @@ async def CUSTOM_COMMAND(data):
             websocket_logger.error(f"Missing command or response in custom command event: {data}")
             return
         # Process and send the custom command
-        await process_custom_command_variables(command, response, user="API", send_to_chat=True)
+        await process_dynamic_message_variables(command, response, user="API", send_to_chat=True)
         websocket_logger.info(f"Custom command '{command}' executed successfully via API")
     except Exception as e:
         websocket_logger.error(f"Failed to process custom command event: {e}")
@@ -2657,7 +2657,7 @@ class TwitchBot(commands.Bot):
                             user_mention = re.search(r'@(\w+)', messageContent)
                             user_name = user_mention.group(1) if user_mention else messageAuthor
                             # Process variables (SAFE now - connection released)
-                            await process_custom_command_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                            await process_dynamic_message_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
                             # Record usage
                             add_usage(command, 'global', 'default')
                         else:
@@ -8847,7 +8847,7 @@ async def get_user_count(command, user):
         pass
 
 # Function to process custom command variables
-async def process_custom_command_variables(
+async def process_dynamic_message_variables(
     command,
     response,
     user="API",
@@ -8977,7 +8977,7 @@ async def process_custom_command_variables(
                         sub_response = await cursor.fetchone()
                         if sub_response:
                             response = response.replace(f"(command.{sub_command})", "")
-                            processed_sub_response = await process_custom_command_variables(
+                            processed_sub_response = await process_dynamic_message_variables(
                                 sub_command,
                                 sub_response["response"],
                                 user=user,
@@ -9071,7 +9071,7 @@ async def process_custom_command_variables(
                     await send_chat_message(resp)
             return response
     except Exception as e:
-        chat_logger.error(f"Error processing custom command variables: {e}")
+        chat_logger.error(f"Error processing dynamic message variables: {e}")
         return response
 
 # Functions for weather
@@ -9976,10 +9976,6 @@ async def handle_chat_message(messageAuthor, messageContent=""):
 
 async def send_interval_message(message_id, message, interval_seconds):
     global stream_online, scheduled_tasks
-    switchs = ["(game)",]
-    if message and any(switch in message for switch in switchs):
-        game_name = await get_current_game()
-        message = message.replace("(game)", game_name)
     while stream_online:
         await sleep(interval_seconds)
         if stream_online:
@@ -10003,7 +9999,23 @@ async def send_timed_message(message_id, message, delay):
                 await sleep(wait_time)
         chat_logger.info(f"Sending Timed Message ID: {message_id} - {message}")
         try:
-            await send_chat_message(message)
+            timed_message_switches = [
+                '(customapi.', '(count)', '(daysuntil.',
+                '(command.', '(user)', '(author)',
+                '(random.percent)', '(random.number)', '(random.percent.',
+                '(random.number.', '(random.pick)', '(random.pick.', '(math.',
+                '(usercount)', '(timeuntil.', '(game)', '(json.'
+            ]
+            if message and any(switch in message for switch in timed_message_switches):
+                await process_dynamic_message_variables(
+                    command=f"timed_message_{message_id}",
+                    response=message,
+                    user=CHANNEL_NAME,
+                    send_to_chat=True,
+                    emit_additional=True,
+                )
+            else:
+                await send_chat_message(message)
             last_message_time = get_event_loop().time()
         except Exception as e:
             bot_logger.error(f"Error sending message: {e}")

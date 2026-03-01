@@ -175,6 +175,7 @@ ob_start();
                                         <h5 class="title is-6 mb-2"><span class="icon"><i class="fas fa-info-circle"></i></span> <?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
                                         <ul class="mb-0" style="list-style: disc inside;">
                                             <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
+                                            <li><code>(command.yourcommand)</code> – <?php echo t('timed_messages_var_command') ?: 'Runs a custom command and sends its processed response as an additional chat message.'; ?></li>
                                             <!-- Add more variables here as needed -->
                                         </ul>
                                     </div>
