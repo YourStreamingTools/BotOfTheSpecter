@@ -8867,6 +8867,7 @@ async def process_dynamic_message_variables(
     send_to_chat=False,
     emit_additional=True,
     _visited_commands=None,
+    _return_additional=False,
 ):
     if _visited_commands is None:
         _visited_commands = set()
@@ -8883,7 +8884,6 @@ async def process_dynamic_message_variables(
                 tz = pytz_timezone(timezone)
             else:
                 tz = set_timezone.UTC
-
             many_options_enabled = False
             many_random_pick_options = []
             try:
@@ -8988,8 +8988,18 @@ async def process_dynamic_message_variables(
                                 send_to_chat=False,
                                 emit_additional=False,
                                 _visited_commands=set(_visited_commands),
+                                _return_additional=True,
                             )
-                            responses_to_send.append(processed_sub_response)
+                            if isinstance(processed_sub_response, tuple):
+                                sub_main_response, sub_additional_responses = processed_sub_response
+                            else:
+                                sub_main_response, sub_additional_responses = processed_sub_response, []
+                            if isinstance(sub_main_response, str) and sub_main_response.strip():
+                                responses_to_send.append(sub_main_response)
+                            if isinstance(sub_additional_responses, list):
+                                for additional_response in sub_additional_responses:
+                                    if isinstance(additional_response, str) and additional_response.strip():
+                                        responses_to_send.append(additional_response)
                         else:
                             chat_logger.warning(f"Command {sub_command} referenced but not found")
                             response = response.replace(f"(command.{sub_command})", "[Command Not Found]")
@@ -9072,6 +9082,8 @@ async def process_dynamic_message_variables(
             if emit_additional:
                 for resp in responses_to_send:
                     await send_chat_message(resp)
+            if _return_additional:
+                return response, responses_to_send
             return response
     except Exception as e:
         chat_logger.error(f"Error processing dynamic message variables: {e}")
