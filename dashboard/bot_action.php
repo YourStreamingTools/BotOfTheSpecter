@@ -38,6 +38,13 @@ if (!isset($_SESSION['access_token'])) {
   exit();
 }
 
+if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true) {
+  ob_clean();
+  header('Content-Type: application/json');
+  echo json_encode(['success' => false, 'message' => 'Bot start/stop is disabled while acting as another channel.']);
+  exit();
+}
+
 // Validate the Twitch token before proceeding
 $tokenData = validateTwitchToken($_SESSION['access_token']);
 if (!$tokenData) {
