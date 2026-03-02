@@ -74,7 +74,7 @@ roadmap/uploads/*
 stream/stream.service
 bot/databse.txt
 bot/ytdl-cookies.txt
-bot/twitch-cookies.txt
+*/twitch-cookies.txt
 help/search_index.json
 *.exe
 *test*
