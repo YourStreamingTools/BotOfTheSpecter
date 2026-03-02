@@ -271,6 +271,7 @@ class RecordChecker:
         self.active_recordings = {}  # username: subprocess or recording info
         self.logger = logging.getLogger("RecordChecker")
         self.running = False
+        self.last_enabled_users = set()
 
     async def start_checker(self):
         self.logger.info("RecordChecker starting up...")
@@ -308,12 +309,9 @@ class RecordChecker:
                 # Check how many users exist
                 await cursor.execute("SELECT COUNT(*) as count FROM users WHERE username IS NOT NULL AND username != ''")
                 result = await cursor.fetchone()
-                total_users = result['count'] if result else 0
-                self.logger.info(f"Found {total_users} total users in website database")
             conn.close()
             # Test getting users with auto_record enabled for this server
-            users_with_auto_record = await self.mysql_manager.get_users_with_auto_record()
-            self.logger.info(f"Found {len(users_with_auto_record)} users with auto_record enabled")
+            await self.mysql_manager.get_users_with_auto_record()
             # Check system requirements
             await self.check_system_requirements()
             return True
@@ -339,7 +337,14 @@ class RecordChecker:
             try:
                 # Get all users with auto_record enabled for this server
                 users_with_auto_record = await self.mysql_manager.get_users_with_auto_record()
-                self.logger.debug(f"Found {len(users_with_auto_record)} users with auto_record enabled")
+                current_enabled_users = set(users_with_auto_record)
+                newly_enabled = sorted(current_enabled_users - self.last_enabled_users)
+                newly_disabled = sorted(self.last_enabled_users - current_enabled_users)
+                if newly_enabled:
+                    self.logger.info(f"Auto-record enabled: {', '.join(newly_enabled)}")
+                if newly_disabled:
+                    self.logger.info(f"Auto-record disabled: {', '.join(newly_disabled)}")
+                self.last_enabled_users = current_enabled_users
                 # Stop recordings for users who disabled auto_record
                 await self.stop_disabled_recordings(users_with_auto_record)
                 # For each enabled user, check if they're live and start/continue recording
