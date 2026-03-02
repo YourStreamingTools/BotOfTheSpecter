@@ -52,6 +52,7 @@ CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TWITCH_GQL = os.getenv('TWITCH_GQL')
 YT_DLP_COOKIES_FILE = os.getenv('YT_DLP_COOKIES_FILE', 'twitch-cookies.txt')
 YT_DLP_LIVE_FROM_START = os.getenv('YT_DLP_LIVE_FROM_START', 'true').lower() in ('1', 'true', 'yes', 'on')
+STORAGE_ROOT_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
 CHECK_INTERVAL_MIN = 15
 RETRY_BASE = 2
 RETRY_JITTER = 0.01
@@ -85,7 +86,6 @@ def build_yt_dlp_command(url: str, output_template: str) -> List[str]:
 
 class MySQLManager:
     def __init__(self, server_location=None, logger=None):
-        self.server_location = server_location
         self.logger = logger or logging.getLogger("MySQLManager")
 
     async def get_connection(self, database_name='website'):
@@ -107,9 +107,6 @@ class MySQLManager:
             return None
 
     async def get_users_with_auto_record(self) -> List[str]:
-        if not self.server_location:
-            self.logger.error("No server location specified")
-            return []
         try:
             # First, get all usernames from the website database
             conn = await self.get_connection('website')
@@ -130,23 +127,23 @@ class MySQLManager:
                         self.logger.debug(f"Could not connect to database for user: {username}")
                         continue
                     async with user_conn.cursor(aiomysql.DictCursor) as cursor:
-                        # Check if auto_record_settings table exists and has matching server + enabled
+                        # Check if auto_record_settings table has enabled recording
                         query = """
-                        SELECT enabled, server_location 
+                        SELECT enabled
                         FROM auto_record_settings 
-                        WHERE enabled = 1 AND server_location = %s
+                        WHERE enabled = 1
                         LIMIT 1
                         """
-                        await cursor.execute(query, (self.server_location,))
+                        await cursor.execute(query)
                         result = await cursor.fetchone()
                         if result:
                             users_to_record.append(username)
-                            self.logger.debug(f"User {username} has auto_record enabled for server {self.server_location}")
+                            self.logger.debug(f"User {username} has auto_record enabled")
                     user_conn.close()
                 except Exception as e:
                     self.logger.debug(f"Error checking auto_record for user {username}: {e}")
                     continue
-            self.logger.info(f"Found {len(users_to_record)} users with auto_record enabled for server {self.server_location}")
+            self.logger.info(f"Found {len(users_to_record)} users with auto_record enabled")
             return users_to_record
         except Exception as e:
             self.logger.error(f"Error getting users with auto_record: {e}")
@@ -217,12 +214,12 @@ class MySQLManager:
                 return False
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 query = """
-                SELECT enabled, server_location 
+                SELECT enabled
                 FROM auto_record_settings 
-                WHERE enabled = 1 AND server_location = %s
+                WHERE enabled = 1
                 LIMIT 1
                 """
-                await cursor.execute(query, (self.server_location,))
+                await cursor.execute(query)
                 result = await cursor.fetchone()
                 return bool(result)
         except Exception as e:
@@ -387,10 +384,9 @@ class TwitchRecorderThread(threading.Thread):
                 time.sleep(self.refresh)
 
 class RecordChecker:
-    def __init__(self, server_location, root_path=""):
-        self.server_location = server_location
-        self.root_path = root_path or os.path.join(os.getcwd(), "stream")
-        self.mysql_manager = MySQLManager(server_location=server_location, logger=logging.getLogger("RecordChecker"))
+    def __init__(self, root_path=""):
+        self.root_path = root_path or STORAGE_ROOT_PATH
+        self.mysql_manager = MySQLManager(logger=logging.getLogger("RecordChecker"))
         self.active_recordings = {}  # username: subprocess or recording info
         self.logger = logging.getLogger("RecordChecker")
         self.running = False
@@ -409,7 +405,6 @@ class RecordChecker:
 
     async def perform_initial_checks(self):
         self.logger.info("Performing initial database checks...")
-        self.logger.info(f"Server location: {self.server_location}")
         try:
             # Test database connection to website database
             conn = await self.mysql_manager.get_connection('website')
@@ -437,7 +432,7 @@ class RecordChecker:
             conn.close()
             # Test getting users with auto_record enabled for this server
             users_with_auto_record = await self.mysql_manager.get_users_with_auto_record()
-            self.logger.info(f"Found {len(users_with_auto_record)} users with auto_record enabled for {self.server_location}")
+            self.logger.info(f"Found {len(users_with_auto_record)} users with auto_record enabled")
             # Check system requirements
             await self.check_system_requirements()
             return True
@@ -673,10 +668,8 @@ class RecordChecker:
 async def run_record_checker():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Twitch Stream Auto-Recorder')
-    parser.add_argument('-server', type=str, required=True, choices=['au-east-1', 'us-west-1', 'us-east-1', 'eu-central-1'], help='Server location for auto-recording')
-    args = parser.parse_args()
-    root_path = os.getenv('STREAM_ROOT_PATH', os.path.join(os.getcwd(), "stream"))
-    checker = RecordChecker(server_location=args.server, root_path=root_path)
+    parser.parse_args()
+    checker = RecordChecker(root_path=STORAGE_ROOT_PATH)
     try:
         await checker.start_checker()
     except KeyboardInterrupt:
