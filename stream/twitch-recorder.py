@@ -490,10 +490,15 @@ async def run_record_checker():
     checker = RecordChecker(root_path=STORAGE_ROOT_PATH)
     try:
         await checker.start_checker()
+    except asyncio.CancelledError:
+        logging.info("Recorder shutdown requested")
     except KeyboardInterrupt:
-        logging.info("Received interrupt signal")
+        logging.info("Recorder interrupted")
     finally:
         checker.stop_checker()
 
 if __name__ == "__main__":
-    asyncio.run(run_record_checker())
+    try:
+        asyncio.run(run_record_checker())
+    except KeyboardInterrupt:
+        logging.info("Recorder process stopped")
