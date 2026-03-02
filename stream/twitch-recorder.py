@@ -53,6 +53,7 @@ TWITCH_GQL = os.getenv('TWITCH_GQL')
 YT_DLP_COOKIES_FILE = os.getenv('YT_DLP_COOKIES_FILE', 'twitch-cookies.txt')
 YT_DLP_LIVE_FROM_START = os.getenv('YT_DLP_LIVE_FROM_START', 'true').lower() in ('1', 'true', 'yes', 'on')
 STORAGE_ROOT_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
+FILE_RETENTION_SECONDS = int(os.getenv('RECORDING_RETENTION_SECONDS', '86400'))
 CHECK_INTERVAL_MIN = 15
 RETRY_BASE = 2
 RETRY_JITTER = 0.01
@@ -386,6 +387,7 @@ class TwitchRecorderThread(threading.Thread):
 class RecordChecker:
     def __init__(self, root_path=""):
         self.root_path = root_path or STORAGE_ROOT_PATH
+        self.file_retention_seconds = FILE_RETENTION_SECONDS
         self.mysql_manager = MySQLManager(logger=logging.getLogger("RecordChecker"))
         self.active_recordings = {}  # username: subprocess or recording info
         self.logger = logging.getLogger("RecordChecker")
@@ -476,10 +478,36 @@ class RecordChecker:
                     await self.check_and_record_user(username)
                 # Clean up finished recordings
                 await self.cleanup_finished_recordings()
+                # Delete old files from server storage
+                await self.cleanup_old_files()
             except Exception as e:
                 self.logger.error(f"Error in check_channels_loop: {e}")
             # Wait before next check
             await asyncio.sleep(60)  # Check every 60 seconds
+
+    async def cleanup_old_files(self):
+        cutoff_timestamp = time.time() - self.file_retention_seconds
+        removed_count = 0
+        scan_roots = [
+            os.path.join(self.root_path, "recorded"),
+            os.path.join(self.root_path, "processed")
+        ]
+        for scan_root in scan_roots:
+            if not os.path.isdir(scan_root):
+                continue
+            for current_root, _, filenames in os.walk(scan_root):
+                for filename in filenames:
+                    file_path = os.path.join(current_root, filename)
+                    try:
+                        if os.path.getmtime(file_path) < cutoff_timestamp:
+                            os.remove(file_path)
+                            removed_count += 1
+                    except FileNotFoundError:
+                        continue
+                    except Exception as e:
+                        self.logger.error(f"Failed to remove old file {file_path}: {e}")
+        if removed_count > 0:
+            self.logger.info(f"Removed {removed_count} recording file(s) older than 24 hours")
 
     async def stop_disabled_recordings(self, enabled_users):
         users_to_stop = []
