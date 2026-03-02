@@ -144,7 +144,6 @@ class MySQLManager:
                 user_rows = await cursor.fetchall()
                 usernames = [row['username'] for row in user_rows]
             conn.close()
-            self.logger.info(f"Found {len(usernames)} total users in website database")
             # Now check each user's individual database for auto_record settings
             users_to_record = []
             for username in usernames:
@@ -170,7 +169,6 @@ class MySQLManager:
                 except Exception as e:
                     self.logger.debug(f"Error checking auto_record for user {username}: {e}")
                     continue
-            self.logger.info(f"Found {len(users_to_record)} users with auto_record enabled")
             return users_to_record
         except Exception as e:
             self.logger.error(f"Error getting users with auto_record: {e}")
