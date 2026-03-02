@@ -34,7 +34,6 @@ import threading
 import asyncio
 import argparse
 from typing import Tuple, Optional, Dict, Any, List
-from config import conf
 from json import JSONDecodeError
 import aiomysql
 from dotenv import load_dotenv
@@ -329,12 +328,6 @@ class TwitchRecorderThread(threading.Thread):
         logging.info(f"Checking for {self.username} every {self.refresh} seconds. Record with {self.quality} quality.")
         while not self.stopped():
             try:
-                logging.info("Validating OAuth_Token ...")
-                valid = conf.validate()
-                if 'status' in valid and valid['status'] == 401 and valid['message'] == "invalid access token":
-                    logging.info("OAuth_Token Invalid, Refreshing Token ...")
-                    conf.refresh()
-                    logging.info("OAuth_Token Refreshed!")
                 status, info = asyncio.run(self.check_user())
                 if status == 2:
                     logging.warning("Username not found. Invalid username or typo.")
