@@ -27,7 +27,6 @@ import time
 import subprocess
 import datetime
 import random
-import glob
 import urllib3
 import socket
 import logging
@@ -238,11 +237,8 @@ class TwitchRecorderThread(threading.Thread):
         self.root_path = root_path
         self.refresh = max(refresh, CHECK_INTERVAL_MIN)
         self.quality = "best"
-        self.ffmpeg_path = "ffmpeg"
-        self.recorded_path = os.path.join(self.root_path, "recorded", self.username, self.quality)
-        self.processed_path = os.path.join(self.root_path, "processed", self.username, self.quality)
-        os.makedirs(self.recorded_path, exist_ok=True)
-        os.makedirs(self.processed_path, exist_ok=True)
+        self.user_storage_path = os.path.join(self.root_path, self.username)
+        os.makedirs(self.user_storage_path, exist_ok=True)
         self._stop_event = threading.Event()
         self.access_token = None
         self.system_access_token = None
@@ -315,50 +311,21 @@ class TwitchRecorderThread(threading.Thread):
             status = 2
         return status, info
 
-    def fix_video(self, input_file: str, output_file: str):
-        try:
-            subprocess.call([self.ffmpeg_path, '-err_detect', 'ignore_err', '-i', input_file, '-c', 'copy', output_file])
-            os.remove(input_file)
-            logging.info(f"Fixed and moved: {output_file}")
-        except Exception as e:
-            logging.error(f"Error fixing video {input_file}: {e}")
-
-    def process_previous_recordings(self):
-        try:
-            video_list = [f for f in os.listdir(self.recorded_path) if os.path.isfile(os.path.join(self.recorded_path, f))]
-            if video_list:
-                logging.info('Fixing previously recorded files.')
-            for f in video_list:
-                recorded_filename = os.path.join(self.recorded_path, f)
-                processed_filename = os.path.join(self.processed_path, f)
-                logging.info(f'Fixing {recorded_filename}.')
-                self.fix_video(recorded_filename, processed_filename)
-        except Exception as e:
-            logging.error(f"Error processing previous recordings: {e}")
-
     def record_stream(self, info: Dict[str, Any]):
         title = info['data'][0]['title'] if 'data' in info and info['data'] else "Untitled"
         base_filename = f"{self.username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
         base_filename = sanitize_filename(base_filename)
-        output_prefix = os.path.join(self.recorded_path, base_filename)
+        output_prefix = os.path.join(self.user_storage_path, base_filename)
         output_template = f"{output_prefix}.%(ext)s"
         try:
             url = f"https://www.twitch.tv/{self.username}"
             command = build_yt_dlp_command(url, output_template)
             subprocess.call(command)
-            logging.info("Recording stream is done. Fixing video file.")
-            candidates = [path for path in glob.glob(f"{output_prefix}.*") if os.path.isfile(path)]
-            if candidates:
-                recorded_filename = max(candidates, key=os.path.getmtime)
-                processed_filename = os.path.join(self.processed_path, os.path.basename(recorded_filename))
-                self.fix_video(recorded_filename, processed_filename)
-            else:
-                logging.warning("Skip fixing. File not found.")
+            logging.info("Recording stream is done.")
         except Exception as e:
             logging.error(f"Error recording stream: {e}")
 
     def run(self):
-        self.process_previous_recordings()
         logging.info(f"Checking for {self.username} every {self.refresh} seconds. Record with {self.quality} quality.")
         while not self.stopped():
             try:
@@ -378,7 +345,7 @@ class TwitchRecorderThread(threading.Thread):
                 elif status == 0:
                     logging.info(f"{self.username} online. Stream recording in session.")
                     self.record_stream(info)
-                    logging.info("Fixing is done. Going back to checking..")
+                    logging.info("Recording ended. Going back to checking..")
                 time.sleep(self.refresh)
             except Exception as e:
                 logging.error(f"Error in loopcheck: {e}")
@@ -453,16 +420,6 @@ class RecordChecker:
                 self.logger.warning("yt-dlp not found or not working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
             self.logger.warning("yt-dlp not found in PATH")
-        # Check if ffmpeg is installed
-        try:
-            result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
-                version_line = result.stdout.split('\n')[0]
-                self.logger.info(f"FFmpeg found: {version_line}")
-            else:
-                self.logger.warning("FFmpeg not found or not working")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            self.logger.warning("FFmpeg not found in PATH")
 
     async def check_channels_loop(self):
         self.logger.info("Starting channel checking loop...")
@@ -488,14 +445,8 @@ class RecordChecker:
     async def cleanup_old_files(self):
         cutoff_timestamp = time.time() - self.file_retention_seconds
         removed_count = 0
-        scan_roots = [
-            os.path.join(self.root_path, "recorded"),
-            os.path.join(self.root_path, "processed")
-        ]
-        for scan_root in scan_roots:
-            if not os.path.isdir(scan_root):
-                continue
-            for current_root, _, filenames in os.walk(scan_root):
+        if os.path.isdir(self.root_path):
+            for current_root, _, filenames in os.walk(self.root_path):
                 for filename in filenames:
                     file_path = os.path.join(current_root, filename)
                     try:
@@ -590,11 +541,9 @@ class RecordChecker:
             base_filename = f"{username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
             base_filename = sanitize_filename(base_filename)
             # Create directories
-            recorded_path = os.path.join(self.root_path, "recorded", username, "best")
-            processed_path = os.path.join(self.root_path, "processed", username, "best")
-            os.makedirs(recorded_path, exist_ok=True)
-            os.makedirs(processed_path, exist_ok=True)
-            output_prefix = os.path.join(recorded_path, base_filename)
+            user_storage_path = os.path.join(self.root_path, username)
+            os.makedirs(user_storage_path, exist_ok=True)
+            output_prefix = os.path.join(user_storage_path, base_filename)
             output_template = f"{output_prefix}.%(ext)s"
             # Start recording process
             url = f"https://www.twitch.tv/{username}"
@@ -605,7 +554,7 @@ class RecordChecker:
                 'filename': None,
                 'output_prefix': output_prefix,
                 'output_template': output_template,
-                'processed_path': processed_path,
+                'user_storage_path': user_storage_path,
                 'start_time': datetime.datetime.now()
             }
             self.logger.info(f"Started recording for {username}: {base_filename}")
@@ -626,7 +575,6 @@ class RecordChecker:
                     process.kill()
                     process.wait()
                 self.logger.info(f"Stopped recording for {username}")
-                await self.fix_video_file(recording_info)
                 del self.active_recordings[username]
         except Exception as e:
             self.logger.error(f"Error stopping recording for {username}: {e}")
@@ -639,37 +587,7 @@ class RecordChecker:
                 finished_users.append(username)
         for username in finished_users:
             self.logger.info(f"Recording finished for {username}")
-            recording_info = self.active_recordings[username]
-            # Process the video file (fix it)
-            await self.fix_video_file(recording_info)
             del self.active_recordings[username]
-
-    async def fix_video_file(self, recording_info):
-        try:
-            recorded_filename = recording_info.get('filename')
-            if not recorded_filename:
-                output_prefix = recording_info.get('output_prefix')
-                if output_prefix:
-                    candidates = [path for path in glob.glob(f"{output_prefix}.*") if os.path.isfile(path)]
-                    if candidates:
-                        recorded_filename = max(candidates, key=os.path.getmtime)
-            if recorded_filename and os.path.exists(recorded_filename):
-                processed_filename = os.path.join(
-                    recording_info['processed_path'], 
-                    os.path.basename(recorded_filename)
-                )
-                # Use ffmpeg to fix the file
-                cmd = ['ffmpeg', '-err_detect', 'ignore_err', '-i', recorded_filename, '-c', 'copy', processed_filename]
-                result = subprocess.run(cmd, capture_output=True)
-                if result.returncode == 0:
-                    os.remove(recorded_filename)
-                    self.logger.info(f"Fixed and moved: {processed_filename}")
-                else:
-                    self.logger.error(f"Failed to fix video file: {recorded_filename}")
-            else:
-                self.logger.warning(f"Recorded file not found: {recorded_filename}")
-        except Exception as e:
-            self.logger.error(f"Error fixing video file: {e}")
 
     def stop_checker(self):
         self.logger.info("Stopping RecordChecker...")
