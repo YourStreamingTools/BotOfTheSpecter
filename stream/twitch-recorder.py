@@ -51,6 +51,7 @@ FILE_RETENTION_SECONDS = int(os.getenv('RECORDING_RETENTION_SECONDS', '86400'))
 CHECK_INTERVAL_MIN = 15
 RETRY_BASE = 2
 RETRY_JITTER = 0.01
+LIVE_FROM_START_UNSUPPORTED_TEXT = "no formats that can be downloaded from the start"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,14 +77,15 @@ def resolve_cookies_path(cookies_path: str) -> Optional[str]:
             return candidate
     return None
 
-def build_yt_dlp_command(url: str, output_template: str) -> List[str]:
+def build_yt_dlp_command(url: str, output_template: str, live_from_start: Optional[bool] = None) -> List[str]:
     command = [
         "yt-dlp",
         "--hls-use-mpegts",
         "--retries", "infinite",
         "--fragment-retries", "infinite",
     ]
-    if YT_DLP_LIVE_FROM_START:
+    use_live_from_start = YT_DLP_LIVE_FROM_START if live_from_start is None else live_from_start
+    if use_live_from_start:
         command.append("--live-from-start")
     else:
         command.append("--no-live-from-start")
@@ -252,8 +254,26 @@ class TwitchRecorderThread(threading.Thread):
         output_template = f"{output_prefix}.%(ext)s"
         try:
             url = f"https://www.twitch.tv/{self.username}"
-            command = build_yt_dlp_command(url, output_template)
-            subprocess.call(command)
+            command = build_yt_dlp_command(url, output_template, live_from_start=True)
+            result = subprocess.run(command, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                combined_output = f"{result.stdout}\n{result.stderr}".lower()
+                if "no formats that can be downloaded from the start" in combined_output:
+                    logging.warning(
+                        f"{self.username} does not support live-from-start; retrying from current live edge"
+                    )
+                    fallback_command = build_yt_dlp_command(url, output_template, live_from_start=False)
+                    fallback_result = subprocess.run(fallback_command, capture_output=True, text=True)
+                    if fallback_result.returncode != 0:
+                        error_text = (fallback_result.stderr or fallback_result.stdout or "Unknown yt-dlp error").strip()
+                        logging.error(f"yt-dlp fallback failed for {self.username}: {error_text}")
+                        return
+                else:
+                    error_text = (result.stderr or result.stdout or "Unknown yt-dlp error").strip()
+                    logging.error(f"yt-dlp failed for {self.username}: {error_text}")
+                    return
+
             logging.info("Recording stream is done.")
         except Exception as e:
             logging.error(f"Error recording stream: {e}")
@@ -420,6 +440,24 @@ class RecordChecker:
         except Exception as e:
             self.logger.error(f"Error checking user {username}: {e}")
 
+    def select_recording_command(self, username: str, url: str, output_template: str) -> List[str]:
+        if not YT_DLP_LIVE_FROM_START:
+            return build_yt_dlp_command(url, output_template, live_from_start=False)
+        preferred_command = build_yt_dlp_command(url, output_template, live_from_start=True)
+        probe_command = preferred_command + ["--simulate"]
+        try:
+            probe_result = subprocess.run(probe_command, capture_output=True, text=True)
+            if probe_result.returncode != 0:
+                probe_output = f"{probe_result.stdout}\n{probe_result.stderr}".lower()
+                if LIVE_FROM_START_UNSUPPORTED_TEXT in probe_output:
+                    self.logger.warning(
+                        f"{username} does not support live-from-start; using current live edge"
+                    )
+                    return build_yt_dlp_command(url, output_template, live_from_start=False)
+        except Exception as e:
+            self.logger.warning(f"Could not pre-check live-from-start for {username}: {e}")
+        return preferred_command
+
     async def start_recording_for_user(self, username, stream_info):
         try:
             title = stream_info.get('stream_title') if stream_info else None
@@ -434,7 +472,7 @@ class RecordChecker:
             output_template = f"{output_prefix}.%(ext)s"
             # Start recording process
             url = f"https://www.twitch.tv/{username}"
-            cmd = build_yt_dlp_command(url, output_template)
+            cmd = self.select_recording_command(username, url, output_template)
             process = subprocess.Popen(cmd)
             self.active_recordings[username] = {
                 'process': process,
