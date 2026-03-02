@@ -27,14 +27,11 @@ import time
 import subprocess
 import datetime
 import random
-import urllib3
-import socket
 import logging
 import threading
 import asyncio
 import argparse
 from typing import Tuple, Optional, Dict, Any, List
-from json import JSONDecodeError
 import aiomysql
 from dotenv import load_dotenv
 
@@ -45,9 +42,8 @@ load_dotenv()
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-TWITCH_GQL = os.getenv('TWITCH_GQL')
+ADMIN_KEY = os.getenv('ADMIN_KEY')
+INTERNAL_STREAM_API_URL = os.getenv('INTERNAL_STREAM_API_URL', 'https://api.botofthespecter.com/v2/streamonline')
 YT_DLP_COOKIES_FILE = os.getenv('YT_DLP_COOKIES_FILE', 'twitch-cookies.txt')
 YT_DLP_LIVE_FROM_START = os.getenv('YT_DLP_LIVE_FROM_START', 'true').lower() in ('1', 'true', 'yes', 'on')
 STORAGE_ROOT_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
@@ -82,6 +78,39 @@ def build_yt_dlp_command(url: str, output_template: str) -> List[str]:
             command.extend(["--cookies", cookies_path])
     command.extend(["-o", output_template, url])
     return command
+
+async def get_internal_stream_status(channel_name: str, logger: logging.Logger) -> Tuple[Optional[bool], Optional[Dict[str, Any]]]:
+    if not ADMIN_KEY:
+        logger.error("ADMIN_KEY is missing; cannot call internal stream status API")
+        return None, None
+    headers = {
+        'accept': 'application/json',
+        'X-API-KEY': ADMIN_KEY,
+    }
+    params = {
+        'channel': channel_name,
+    }
+    for attempt in range(1, 4):
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(INTERNAL_STREAM_API_URL, headers=headers, params=params) as response:
+                    if response.status in (401, 403):
+                        logger.error(f"Internal API authentication failed for channel {channel_name}")
+                        return None, None
+                    if response.status == 404:
+                        logger.warning(f"Internal API could not find channel {channel_name}")
+                        return False, None
+                    response.raise_for_status()
+                    payload = await response.json(content_type=None)
+                    return bool(payload.get('online', False)), payload
+        except aiohttp.ClientResponseError as e:
+            logger.error(f"Internal API HTTP error for {channel_name}: {e}")
+            return None, None
+        except (aiohttp.ClientConnectorError, aiohttp.ClientError, asyncio.TimeoutError):
+            await asyncio.sleep(RETRY_BASE ** attempt + random.random() * RETRY_JITTER)
+    logger.error(f"Internal API retries exhausted for channel {channel_name}")
+    return None, None
 
 class MySQLManager:
     def __init__(self, server_location=None, logger=None):
@@ -147,63 +176,6 @@ class MySQLManager:
             self.logger.error(f"Error getting users with auto_record: {e}")
             return []
 
-    async def get_user_twitch_access_token(self, username: str) -> Optional[str]:
-        try:
-            # Connect to website database to get twitch_user_id
-            conn = await self.get_connection('website')
-            if not conn:
-                self.logger.error(f"Could not connect to website database for user {username}")
-                return None
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                # Get twitch_user_id from users table
-                await cursor.execute("SELECT twitch_user_id FROM users WHERE username = %s", (username,))
-                user_result = await cursor.fetchone()
-                if not user_result or not user_result.get('twitch_user_id'):
-                    self.logger.debug(f"No twitch_user_id found for user {username}")
-                    conn.close()
-                    return None
-                twitch_user_id = user_result['twitch_user_id']
-                # Get access token from twitch_bot_access table
-                await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", (twitch_user_id,))
-                token_result = await cursor.fetchone()
-                if not token_result or not token_result.get('twitch_access_token'):
-                    self.logger.debug(f"No twitch_access_token found for twitch_user_id {twitch_user_id}")
-                    conn.close()
-                    return None
-                access_token = token_result['twitch_access_token']
-                self.logger.debug(f"Retrieved access token for user {username}")
-                conn.close()
-                return access_token
-        except Exception as e:
-            self.logger.error(f"Error getting Twitch access token for {username}: {e}")
-            if 'conn' in locals() and conn:
-                conn.close()
-            return None
-
-    async def get_system_twitch_access_token(self) -> Optional[str]:
-        try:
-            conn = await self.get_connection('website')
-            if not conn:
-                self.logger.error("Could not connect to website database for system token")
-                return None
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                # Get system access token from twitch_bot_access table using system twitch_user_id
-                await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s", ("971436498",))
-                token_result = await cursor.fetchone()
-                if not token_result or not token_result.get('twitch_access_token'):
-                    self.logger.error("No system twitch_access_token found for twitch_user_id 971436498")
-                    conn.close()
-                    return None
-                access_token = token_result['twitch_access_token']
-                self.logger.debug("Retrieved system fallback access token")
-                conn.close()
-                return access_token
-        except Exception as e:
-            self.logger.error(f"Error getting system Twitch access token: {e}")
-            if 'conn' in locals() and conn:
-                conn.close()
-            return None
-
     async def should_auto_record(self, channel_name: str) -> bool:
         try:
             # Connect to the user's specific database
@@ -248,68 +220,19 @@ class TwitchRecorderThread(threading.Thread):
         return self._stop_event.is_set()
 
     async def check_user(self) -> Tuple[int, Optional[Dict[str, Any]]]:
-        status = 3
-        info = None
-        # Get user's access token if we don't have it yet
-        if not self.access_token:
-            try:
-                self.access_token = await self.mysql_manager.get_user_twitch_access_token(self.username)
-            except Exception as e:
-                logging.error(f"Error getting access token for {self.username}: {e}")
-                return status, info
-        # If no user token, try to get system token
-        if not self.access_token:
-            if not self.system_access_token:
-                try:
-                    self.system_access_token = await self.mysql_manager.get_system_twitch_access_token()
-                except Exception as e:
-                    logging.error(f"Error getting system access token: {e}")
-                    return status, info
-            if not self.system_access_token:
-                logging.error(f"No valid access token found for {self.username} and no system fallback")
-                return status, info
-        # Try with user token first, fallback to system token on 401
-        current_token = self.access_token if self.access_token else self.system_access_token
-        token_type = "user" if self.access_token else "system"
-        async def getinfo(try_number=1, use_system_fallback=False):
-            # Use system token if fallback is requested or if we don't have user token
-            token_to_use = self.system_access_token if use_system_fallback else current_token
-            token_desc = "system" if use_system_fallback else token_type
-            url = f'https://api.twitch.tv/helix/streams?user_login={self.username}'
-            headers = {
-                'client-id': CLIENT_ID,
-                'Authorization': f'Bearer {token_to_use}',
-                'Accept': 'application/json'
-            }
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, headers=headers) as response:
-                        if response.status == 401 and not use_system_fallback and self.system_access_token:
-                            logging.warning(f"User token invalid for {self.username}, trying system fallback token")
-                            self.access_token = None  # Reset user token
-                            return await getinfo(try_number, use_system_fallback=True)
-                        response.raise_for_status()
-                        return await response.json()
-            except aiohttp.ClientResponseError as e:
-                logging.error(f"HTTP error with {token_desc} token: {e}")
-                return None
-            except (aiohttp.ClientConnectorError, aiohttp.ClientError, JSONDecodeError, 
-                    urllib3.exceptions.MaxRetryError, urllib3.exceptions.NewConnectionError, socket.gaierror) as e:
-                await asyncio.sleep(RETRY_BASE ** try_number + random.random() * RETRY_JITTER)
-                return await getinfo(try_number=try_number + 1, use_system_fallback=use_system_fallback)
-        info = await getinfo()
-        if not info:
-            return status, info
-        if 'data' in info and info['data'] == []:
-            status = 1
-        elif 'data' in info and info['data'][0]['user_name'].lower() == self.username and info['data'][0]['type'] == "live":
-            status = 0
-        else:
-            status = 2
-        return status, info
+        is_live, info = await get_internal_stream_status(self.username, logging.getLogger("TwitchRecorderThread"))
+        if is_live is None:
+            return 3, None
+        if is_live:
+            return 0, info
+        return 1, info
 
     def record_stream(self, info: Dict[str, Any]):
-        title = info['data'][0]['title'] if 'data' in info and info['data'] else "Untitled"
+        title = info.get('stream_title') if info else None
+        if not title:
+            title = info.get('title') if info else None
+        if not title:
+            title = "Untitled"
         base_filename = f"{self.username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
         base_filename = sanitize_filename(base_filename)
         output_prefix = os.path.join(self.user_storage_path, base_filename)
@@ -462,10 +385,9 @@ class RecordChecker:
 
     async def check_and_record_user(self, username):
         try:
-            # Get fresh token from database each time
-            user_token = await self.mysql_manager.get_user_twitch_access_token(username)
-            # Check if user is live
-            is_live, stream_info = await self.check_user_live_status(username, user_token)
+            is_live, stream_info = await get_internal_stream_status(username, self.logger)
+            if is_live is None:
+                return
             if is_live:
                 # Start recording if not already recording
                 if username not in self.active_recordings:
@@ -480,55 +402,11 @@ class RecordChecker:
         except Exception as e:
             self.logger.error(f"Error checking user {username}: {e}")
 
-    async def check_user_live_status(self, username, user_token):
-        try:
-            # Try with user token first
-            if user_token:
-                is_live, stream_info = await self.api_check_live(username, user_token, "user")
-                if is_live is not None:  # API call succeeded (live or not live)
-                    return is_live, stream_info
-            # Fallback to system token - get fresh token from database each time
-            system_token = await self.mysql_manager.get_system_twitch_access_token()
-            if system_token:
-                self.logger.debug(f"Using fresh system token for {username}")
-                return await self.api_check_live(username, system_token, "system")
-            else:
-                self.logger.error(f"No valid system token available for {username}")
-                return False, None
-        except Exception as e:
-            self.logger.error(f"Error checking live status for {username}: {e}")
-            return False, None
-
-    async def api_check_live(self, username, access_token, token_type):
-        try:
-            url = f'https://api.twitch.tv/helix/streams?user_login={username}'
-            headers = {
-                'client-id': CLIENT_ID,
-                'Authorization': f'Bearer {access_token}',
-                'Accept': 'application/json'
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 401:
-                        self.logger.warning(f"{token_type.capitalize()} token invalid for {username}")
-                        return None, None  # Indicate token failure - will get fresh token on next check
-                    response.raise_for_status()
-                    data = await response.json()
-                    if 'data' in data and data['data']:
-                        stream_data = data['data'][0]
-                        if stream_data['user_name'].lower() == username.lower() and stream_data['type'] == "live":
-                            return True, stream_data
-                    return False, None
-        except aiohttp.ClientResponseError as e:
-            self.logger.error(f"HTTP error checking {username} with {token_type} token: {e}")
-            return None, None
-        except Exception as e:
-            self.logger.error(f"Error in API call for {username}: {e}")
-            return None, None
-
     async def start_recording_for_user(self, username, stream_info):
         try:
-            title = stream_info.get('title', 'Untitled') if stream_info else 'Untitled'
+            title = stream_info.get('stream_title') if stream_info else None
+            if not title:
+                title = stream_info.get('title', 'Untitled') if stream_info else 'Untitled'
             base_filename = f"{username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
             base_filename = sanitize_filename(base_filename)
             # Create directories
