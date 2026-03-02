@@ -477,11 +477,11 @@ a, a:visited, a:active {
             </div>
         </section>
     </div>
-    <script>
-    // Scroll each column's list independently, always centered, never above the title
-    document.addEventListener('DOMContentLoaded', function () {
-            function initColumnScroll(root) {
-                root.querySelectorAll('.scrolling-credits .scroll-area').forEach(function(area) {
+<script>
+// Scroll each column's list independently, always centered, never above the title
+document.addEventListener('DOMContentLoaded', function () {
+    function initColumnScroll(root) {
+        root.querySelectorAll('.scrolling-credits .scroll-area').forEach(function(area) {
             const ul = area.querySelector('ul');
             if (!ul) return;
             // Check if list has content
@@ -522,76 +522,76 @@ a, a:visited, a:active {
             area.style.flexDirection = 'column';
             area.style.justifyContent = 'flex-start';
             area.style.alignItems = 'center';
-            });
+        });
+    }
+    // PAGE-LEVEL auto-scroll for the entire credits section
+    (function() {
+        const main = document.querySelector('.container.is-fluid');
+        if (!main) return;
+        const credits = main.querySelector('.scrolling-credits');
+        if (!credits) return;
+        const viewH = window.innerHeight;
+        // If credits content is not taller than the viewport, no page-level scroll needed
+        if (credits.scrollHeight <= viewH - 100) return;
+        // If we haven't created the page scroll container, create one that contains two stacked copies
+        if (!main.querySelector('.page-scroll-wrap-container')) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'page-scroll-wrap-container';
+            wrapper.style.position = 'relative';
+            wrapper.style.overflow = 'hidden';
+            // Two panels stacked inside an inner container that we will animate.
+            // Each panel contains the credits + a small gap so the loop has breathing room.
+            const gapPx = 24; // space between end and start in pixels
+            const panelA = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+            const panelB = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+            wrapper.innerHTML = '<div class="page-scroll-inner">' + panelA + panelB + '</div>';
+            credits.parentNode.replaceChild(wrapper, credits);
         }
-        // PAGE-LEVEL auto-scroll for the entire credits section
-        (function() {
-            const main = document.querySelector('.container.is-fluid');
-            if (!main) return;
-            const credits = main.querySelector('.scrolling-credits');
-            if (!credits) return;
-            const viewH = window.innerHeight;
-            // If credits content is not taller than the viewport, no page-level scroll needed
-            if (credits.scrollHeight <= viewH - 100) return;
-            // If we haven't created the page scroll container, create one that contains two stacked copies
-            if (!main.querySelector('.page-scroll-wrap-container')) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'page-scroll-wrap-container';
-                wrapper.style.position = 'relative';
-                wrapper.style.overflow = 'hidden';
-                // Two panels stacked inside an inner container that we will animate.
-                // Each panel contains the credits + a small gap so the loop has breathing room.
-                const gapPx = 24; // space between end and start in pixels
-                const panelA = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
-                const panelB = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
-                wrapper.innerHTML = '<div class="page-scroll-inner">' + panelA + panelB + '</div>';
-                credits.parentNode.replaceChild(wrapper, credits);
-            }
-            const pageWrapper = main.querySelector('.page-scroll-wrap-container');
-            if (!pageWrapper) return;
-            const pageInner = pageWrapper.querySelector('.page-scroll-inner');
-            const firstPanel = pageInner ? pageInner.querySelector('.page-panel') : null;
-            if (!pageInner || !firstPanel) return;
-            // Measure the content height (credits) and compute total panel height including gap
-            const contentBlock = firstPanel.querySelector('.page-scroll-wrap');
-            const gapBlock = firstPanel.querySelector('.page-scroll-gap');
-            const contentH = Math.max(1, Math.round(contentBlock.scrollHeight));
-            const gapH = gapBlock ? Math.max(0, parseInt(gapBlock.style.height || '24', 10)) : 24;
-            const totalH = contentH + gapH;
-            // Set the visible area to the content height so header-aligned region stays correct
-            pageWrapper.style.height = contentH + 'px';
-            pageWrapper.style.overflow = 'hidden';
-            pageInner.style.willChange = 'transform';
-            pageInner.style.height = (totalH * 2) + 'px';
-            // Ensure each panel has consistent sizing
-            Array.from(pageInner.querySelectorAll('.page-panel')).forEach(function(ch) {
-                ch.style.height = totalH + 'px';
-                ch.style.overflow = 'hidden';
-                ch.style.margin = '0';
-                ch.style.padding = '0';
-                const innerWrap = ch.querySelector('.page-scroll-wrap');
-                if (innerWrap) innerWrap.style.height = contentH + 'px';
-                const innerGap = ch.querySelector('.page-scroll-gap');
-                if (innerGap) innerGap.style.height = gapH + 'px';
-            });
-            // Animate the inner container vertically by totalH and wrap smoothly
-            const duration = Math.max(2, totalH / 50);
-            const speed = totalH / duration;
-            let last = null;
-            let offset = 0;
-            function animatePage(ts) {
-                if (last == null) last = ts;
-                const delta = (ts - last) / 1000;
-                last = ts;
-                offset += speed * delta;
-                if (offset >= totalH) offset -= totalH;
-                pageInner.style.transform = `translateY(${-offset}px)`;
-                requestAnimationFrame(animatePage);
-            }
+        const pageWrapper = main.querySelector('.page-scroll-wrap-container');
+        if (!pageWrapper) return;
+        const pageInner = pageWrapper.querySelector('.page-scroll-inner');
+        const firstPanel = pageInner ? pageInner.querySelector('.page-panel') : null;
+        if (!pageInner || !firstPanel) return;
+        // Measure the content height (credits) and compute total panel height including gap
+        const contentBlock = firstPanel.querySelector('.page-scroll-wrap');
+        const gapBlock = firstPanel.querySelector('.page-scroll-gap');
+        const contentH = Math.max(1, Math.round(contentBlock.scrollHeight));
+        const gapH = gapBlock ? Math.max(0, parseInt(gapBlock.style.height || '24', 10)) : 24;
+        const totalH = contentH + gapH;
+        // Set the visible area to the content height so header-aligned region stays correct
+        pageWrapper.style.height = contentH + 'px';
+        pageWrapper.style.overflow = 'hidden';
+        pageInner.style.willChange = 'transform';
+        pageInner.style.height = (totalH * 2) + 'px';
+        // Ensure each panel has consistent sizing
+        Array.from(pageInner.querySelectorAll('.page-panel')).forEach(function(ch) {
+            ch.style.height = totalH + 'px';
+            ch.style.overflow = 'hidden';
+            ch.style.margin = '0';
+            ch.style.padding = '0';
+            const innerWrap = ch.querySelector('.page-scroll-wrap');
+            if (innerWrap) innerWrap.style.height = contentH + 'px';
+            const innerGap = ch.querySelector('.page-scroll-gap');
+            if (innerGap) innerGap.style.height = gapH + 'px';
+        });
+        // Animate the inner container vertically by totalH and wrap smoothly
+        const duration = Math.max(2, totalH / 50);
+        const speed = totalH / duration;
+        let last = null;
+        let offset = 0;
+        function animatePage(ts) {
+            if (last == null) last = ts;
+            const delta = (ts - last) / 1000;
+            last = ts;
+            offset += speed * delta;
+            if (offset >= totalH) offset -= totalH;
+            pageInner.style.transform = `translateY(${-offset}px)`;
             requestAnimationFrame(animatePage);
-        })();
-        initColumnScroll(document);
-    });
-    </script>
+        }
+        requestAnimationFrame(animatePage);
+    })();
+    initColumnScroll(document);
+});
+</script>
 </body>
 </html>
