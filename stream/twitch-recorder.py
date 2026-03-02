@@ -102,7 +102,6 @@ class MySQLManager:
             )
             return conn
         except Exception as e:
-            self.logger.error(f"Failed to connect to database '{database_name}': {e}")
             return None
 
     async def get_users_with_auto_record(self) -> List[str]:
@@ -289,7 +288,6 @@ class TwitchRecorderThread(threading.Thread):
                             logging.warning(f"User token invalid for {self.username}, trying system fallback token")
                             self.access_token = None  # Reset user token
                             return await getinfo(try_number, use_system_fallback=True)
-                        
                         response.raise_for_status()
                         return await response.json()
             except aiohttp.ClientResponseError as e:
