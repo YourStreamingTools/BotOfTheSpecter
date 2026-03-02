@@ -72,9 +72,9 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
             $stmt->close();
         }
     } else {
-        // For raids, bits, subscriptions - get username and data, group by username to avoid duplicates
-        if ($stmt = $user_db->prepare("SELECT username, MAX(data) as data FROM stream_credits WHERE event = ? GROUP BY username ORDER BY username ASC")) {
-            $stmt->bind_param("s", $event);
+        // For raids, bits, subscriptions - get the latest row per username to avoid duplicates
+        if ($stmt = $user_db->prepare("SELECT sc.username, sc.data FROM stream_credits sc INNER JOIN (SELECT username, MAX(id) AS max_id FROM stream_credits WHERE event = ? GROUP BY username) latest ON sc.username = latest.username AND sc.id = latest.max_id WHERE sc.event = ? ORDER BY sc.username ASC")) {
+            $stmt->bind_param("ss", $event, $event);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
@@ -127,7 +127,7 @@ function build_chatters_column($user_db) {
 
 // Check if code parameter is provided and not empty
 if (isset($_GET['code']) && !empty($_GET['code'])) {
-    $api_key = sanitize_input($_GET['code']);
+    $api_key = trim($_GET['code']);
     // Connect to the main database
     $conn = new mysqli($db_servername, $db_username, $db_password, $maindb);
     // Check connection
@@ -480,7 +480,8 @@ a, a:visited, a:active {
     <script>
     // Scroll each column's list independently, always centered, never above the title
     document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.scrolling-credits .scroll-area').forEach(function(area) {
+            function initColumnScroll(root) {
+                root.querySelectorAll('.scrolling-credits .scroll-area').forEach(function(area) {
             const ul = area.querySelector('ul');
             if (!ul) return;
             // Check if list has content
@@ -521,7 +522,8 @@ a, a:visited, a:active {
             area.style.flexDirection = 'column';
             area.style.justifyContent = 'flex-start';
             area.style.alignItems = 'center';
-        });
+            });
+        }
         // PAGE-LEVEL auto-scroll for the entire credits section
         (function() {
             const main = document.querySelector('.container.is-fluid');
@@ -588,6 +590,7 @@ a, a:visited, a:active {
             }
             requestAnimationFrame(animatePage);
         })();
+        initColumnScroll(document);
     });
     </script>
 </body>
