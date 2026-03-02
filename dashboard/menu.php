@@ -32,7 +32,8 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_raids'), 'icon' => 'fas fa-bullhorn', 'href' => 'raids.php' ],
         ]],
         [ 'label' => t('navbar_stream_tools'), 'icon' => 'fas fa-video', 'submenu' => [
-            [ 'label' => t('navbar_recording'), 'icon' => 'fas fa-video', 'href' => 'streaming.php' ],
+            [ 'label' => t('navbar_recording'), 'icon' => 'fas fa-video', 'href' => 'recording.php' ],
+            [ 'label' => 'Streaming', 'icon' => 'fas fa-tower-broadcast', 'href' => 'streaming.php' ],
             [ 'label' => t('navbar_overlays'), 'icon' => 'fas fa-layer-group', 'href' => 'overlays.php' ],
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
             [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
