@@ -61,6 +61,21 @@ logging.basicConfig(
 def sanitize_filename(filename: str) -> str:
     return "".join(x for x in filename if x.isalnum() or x in [" ", "-", "_", "."])
 
+def resolve_cookies_path(cookies_path: str) -> Optional[str]:
+    if not cookies_path:
+        return None
+    if os.path.isabs(cookies_path):
+        return cookies_path if os.path.exists(cookies_path) else None
+    candidate_paths = [
+        os.path.join(os.getcwd(), cookies_path),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), cookies_path),
+        os.path.join('/home/botofthespecter', cookies_path),
+    ]
+    for candidate in candidate_paths:
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
 def build_yt_dlp_command(url: str, output_template: str) -> List[str]:
     command = [
         "yt-dlp",
@@ -70,12 +85,12 @@ def build_yt_dlp_command(url: str, output_template: str) -> List[str]:
     ]
     if YT_DLP_LIVE_FROM_START:
         command.append("--live-from-start")
+    else:
+        command.append("--no-live-from-start")
     cookies_path = YT_DLP_COOKIES_FILE
-    if cookies_path:
-        if not os.path.isabs(cookies_path):
-            cookies_path = os.path.join(os.getcwd(), cookies_path)
-        if os.path.exists(cookies_path):
-            command.extend(["--cookies", cookies_path])
+    resolved_cookies_path = resolve_cookies_path(cookies_path)
+    if resolved_cookies_path:
+        command.extend(["--cookies", resolved_cookies_path])
     command.extend(["-o", output_template, url])
     return command
 
