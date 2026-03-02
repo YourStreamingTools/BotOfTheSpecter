@@ -592,6 +592,43 @@ try {
                 INDEX idx_rank (`rank`),
                 FOREIGN KEY (game_id) REFERENCES bingo_games(game_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tanggle_room_completions' => "
+            CREATE TABLE IF NOT EXISTS tanggle_room_completions (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                room_uuid VARCHAR(255) NOT NULL,
+                redirect_url VARCHAR(255) DEFAULT NULL,
+                room_title VARCHAR(255) DEFAULT NULL,
+                piece_count INT DEFAULT NULL,
+                piece_completed INT DEFAULT NULL,
+                piece_x INT DEFAULT NULL,
+                piece_y INT DEFAULT NULL,
+                player_count INT DEFAULT NULL,
+                player_limit INT DEFAULT NULL,
+                image_uuid VARCHAR(255) DEFAULT NULL,
+                image_slug VARCHAR(255) DEFAULT NULL,
+                image_public_id INT DEFAULT NULL,
+                community_uuid VARCHAR(255) DEFAULT NULL,
+                community_name VARCHAR(255) DEFAULT NULL,
+                winner_username VARCHAR(255) DEFAULT NULL,
+                winner_twitch_username VARCHAR(255) DEFAULT NULL,
+                winner_score INT DEFAULT NULL,
+                winner_timer_seconds DECIMAL(12,3) DEFAULT NULL,
+                created_at DATETIME DEFAULT NULL,
+                completed_at DATETIME DEFAULT NULL,
+                participants_json JSON DEFAULT NULL,
+                raw_payload JSON,
+                recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_room_uuid (room_uuid),
+                INDEX idx_completed_at (completed_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'tanggle_puzzle_stats' => "
+            CREATE TABLE IF NOT EXISTS tanggle_puzzle_stats (
+                id TINYINT PRIMARY KEY,
+                completed_count INT NOT NULL DEFAULT 0,
+                last_completed_room_uuid VARCHAR(255) DEFAULT NULL,
+                last_completed_at DATETIME DEFAULT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'working_study_overlay_settings' => "
             CREATE TABLE IF NOT EXISTS working_study_overlay_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -884,6 +921,10 @@ try {
     }
     if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1, 1, 1, 1, 1, 0 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
+    }
+    // Ensure default row for Tanggle puzzle stats exists
+    if ($usrDBconn->query("INSERT INTO tanggle_puzzle_stats (id, completed_count) SELECT 1, 0 WHERE NOT EXISTS (SELECT 1 FROM tanggle_puzzle_stats WHERE id = 1)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default tanggle_puzzle_stats row ensured.');
     }
     // Ensure default options for automated shoutout settings
     if ($usrDBconn->query("INSERT INTO automated_shoutout_settings (cooldown_minutes) SELECT 60 WHERE NOT EXISTS (SELECT 1 FROM automated_shoutout_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
