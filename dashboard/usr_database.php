@@ -31,7 +31,6 @@ try {
         'auto_record_settings' => "
             CREATE TABLE IF NOT EXISTS auto_record_settings (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                server_location VARCHAR(255) NOT NULL,
                 enabled TINYINT(1) DEFAULT 0
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'everyone' => "
