@@ -24,18 +24,9 @@ $sql_server_username = $server_username;
 $sql_server_password = $server_password;
 
 // Stream Server Information
-// AU East 1
-$stream_au_east_1_host = '';
-$stream_au_east_1_username = $server_username;
-$stream_au_east_1_password = $server_password;
-// US East 1
-$stream_us_east_1_host = '';
-$stream_us_east_1_username = $server_username;
-$stream_us_east_1_password = $server_password;
-// US West 1
-$stream_us_west_1_host = '';
-$stream_us_west_1_username = $server_username;
-$stream_us_west_1_password = $server_password;
+$recorder_ssh_host = "";
+$recorder_ssh_username = $server_username;
+$recorder_ssh_password = $server_password;
 
 // SSH Connection Manager - Maintains persistent connections
 if (!class_exists('SSHConnectionManager')) {
