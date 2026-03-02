@@ -97,6 +97,12 @@ $serviceMap = [
         'ssh_host' => $bots_ssh_host,
         'ssh_username' => $bots_ssh_username,
         'ssh_password' => $bots_ssh_password
+    ],
+    'twitch_recorder' => [
+        'service_name' => 'twitch-recorder.service',
+        'ssh_host' => $recorder_ssh_host,
+        'ssh_username' => $recorder_ssh_username,
+        'ssh_password' => $recorder_ssh_password
     ]
 ];
 
