@@ -40,6 +40,22 @@ $autoRecordEnabled = 0;
 $remoteFileSections = [];
 $remoteFileError = null;
 
+function isSafeRecorderFileName($fileName) {
+    if (!is_string($fileName) || $fileName === '') {
+        return false;
+    }
+    if (strpos($fileName, '/') !== false || strpos($fileName, '\\') !== false || strpos($fileName, "\0") !== false) {
+        return false;
+    }
+    if ($fileName === '.' || $fileName === '..') {
+        return false;
+    }
+    if (preg_match('/[\x00-\x1F\x7F]/', $fileName) === 1) {
+        return false;
+    }
+    return basename($fileName) === $fileName;
+}
+
 function formatBytes($bytes) {
     $bytes = (int)$bytes;
     if ($bytes < 1024) {
@@ -151,7 +167,7 @@ if (!function_exists('ssh2_connect')) {
 } else {
     $connection = @ssh2_connect($recorderHost, 22);
     if (!$connection) {
-        $remoteFileError = 'Could not connect to recorder server.';
+        $remoteFileError = 'Could not connect to recorder server. Try refreshing the page or check back later.';
     } elseif (!@ssh2_auth_password($connection, $recorderSshUser, $recorderSshPassword)) {
         $remoteFileError = 'Authentication failed while connecting to recorder server.';
     } else {
@@ -167,6 +183,59 @@ if (!function_exists('ssh2_connect')) {
                     $remoteFileError = 'Could not create one or more recorder directories for this user.';
                     break;
                 }
+            }
+            if (!$remoteFileError && isset($_GET['download']) && $_GET['download'] === '1') {
+                $requestedFileName = isset($_GET['file']) ? (string)$_GET['file'] : '';
+                if (!isSafeRecorderFileName($requestedFileName)) {
+                    http_response_code(400);
+                    echo 'Invalid file name.';
+                    exit;
+                }
+                $isMp4 = strtolower((string)pathinfo($requestedFileName, PATHINFO_EXTENSION)) === 'mp4';
+                if (!$isMp4) {
+                    http_response_code(400);
+                    echo 'Only MP4 files can be downloaded.';
+                    exit;
+                }
+                $fullRemotePath = rtrim($userStorageDir, '/') . '/' . $requestedFileName;
+                $stat = @ssh2_sftp_stat($sftp, $fullRemotePath);
+                if (!$stat) {
+                    http_response_code(404);
+                    echo 'File not found.';
+                    exit;
+                }
+                $isDirectory = isset($stat['mode']) && (($stat['mode'] & 0x4000) === 0x4000);
+                $isPartial = substr($requestedFileName, -5) === '.part';
+                if ($isDirectory || $isPartial) {
+                    http_response_code(400);
+                    echo 'This file is not available for download.';
+                    exit;
+                }
+                $streamPath = 'ssh2.sftp://' . intval($sftp) . $fullRemotePath;
+                $streamHandle = @fopen($streamPath, 'rb');
+                if (!$streamHandle) {
+                    http_response_code(500);
+                    echo 'Unable to open file for download.';
+                    exit;
+                }
+                while (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
+                header('Content-Description: File Transfer');
+                header('Content-Type: video/mp4');
+                header('Content-Disposition: attachment; filename="' . str_replace('"', '', basename($requestedFileName)) . '"');
+                header('Content-Transfer-Encoding: binary');
+                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+                header('Pragma: no-cache');
+                if (isset($stat['size'])) {
+                    header('Content-Length: ' . (int)$stat['size']);
+                }
+                $chunkSize = 8192;
+                while (!feof($streamHandle)) {
+                    echo fread($streamHandle, $chunkSize);
+                }
+                fclose($streamHandle);
+                exit;
             }
             $directoryCandidates = [
                 $userStorageDir,
@@ -272,6 +341,7 @@ ob_start();
                                         <th>Type</th>
                                         <th>Size</th>
                                         <th>Modified</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -290,6 +360,16 @@ ob_start();
                                             <td><?= $file['is_directory'] ? '-' : htmlspecialchars(formatBytes($file['size'])) ?></td>
                                             <td>
                                                 <?= $file['modified'] ? htmlspecialchars(date('d-m-Y H:i:s', (int)$file['modified'])) : '-' ?>
+                                            </td>
+                                            <td>
+                                                <?php if (!$file['is_directory'] && empty($file['is_partial']) && strtolower((string)pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4'): ?>
+                                                    <a class="button is-small is-link is-light download-link" data-download-link="1" href="recording.php?download=1&amp;file=<?= rawurlencode($file['name']) ?>">
+                                                        <span class="icon"><i class="fas fa-download"></i></span>
+                                                        <span class="download-label">Download</span>
+                                                    </a>
+                                                <?php else: ?>
+                                                    -
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -343,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function () {
         table.className = 'table is-fullwidth is-striped is-hoverable';
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
-        ['File', 'Type', 'Size', 'Modified'].forEach(function (heading) {
+        ['File', 'Type', 'Size', 'Modified', 'Action'].forEach(function (heading) {
             var th = document.createElement('th');
             th.textContent = heading;
             headRow.appendChild(th);
@@ -372,6 +452,30 @@ document.addEventListener('DOMContentLoaded', function () {
             var modifiedCell = document.createElement('td');
             modifiedCell.textContent = formatDate(file.modified);
             row.appendChild(modifiedCell);
+            var actionCell = document.createElement('td');
+            var fileName = String(file.name || '');
+            var lowerName = fileName.toLowerCase();
+            var canDownload = !file.is_directory && !file.is_partial && lowerName.endsWith('.mp4');
+            if (canDownload) {
+                var link = document.createElement('a');
+                link.className = 'button is-small is-link is-light download-link';
+                link.setAttribute('data-download-link', '1');
+                link.href = window.location.pathname + '?download=1&file=' + encodeURIComponent(fileName);
+                var icon = document.createElement('span');
+                icon.className = 'icon';
+                var iconElement = document.createElement('i');
+                iconElement.className = 'fas fa-download';
+                icon.appendChild(iconElement);
+                var label = document.createElement('span');
+                label.className = 'download-label';
+                label.textContent = 'Download';
+                link.appendChild(icon);
+                link.appendChild(label);
+                actionCell.appendChild(link);
+            } else {
+                actionCell.textContent = '-';
+            }
+            row.appendChild(actionCell);
             tbody.appendChild(row);
         });
         table.appendChild(thead);
@@ -435,6 +539,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 isLoading = false;
             });
     }
+
+    container.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+        var link = target.closest('a[data-download-link="1"]');
+        if (!link || !(link instanceof HTMLAnchorElement)) {
+            return;
+        }
+        if (link.classList.contains('is-loading')) {
+            event.preventDefault();
+            return;
+        }
+        link.classList.add('is-loading');
+        link.setAttribute('aria-busy', 'true');
+        var label = link.querySelector('.download-label');
+        if (label) {
+            label.textContent = 'Preparing...';
+        }
+        window.setTimeout(function () {
+            link.classList.remove('is-loading');
+            link.removeAttribute('aria-busy');
+            if (label) {
+                label.textContent = 'Download';
+            }
+        }, 12000);
+    });
+
     window.setInterval(refreshRemoteFiles, 60000);
 });
 </script>
