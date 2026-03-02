@@ -129,7 +129,7 @@ builtin_commands = {
     "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
-    "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle"
+    "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles"
 }
 mod_commands = {
     "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
@@ -2230,8 +2230,8 @@ async def connect_to_tanggle():
                             # Log the event type and data
                             event_type = data.get('type', 'unknown')
                             if event_type == 'room.complete':
-                                integrations_logger.info(f"Tanggle: A room has been completed. Raw: {data}")
-                                return
+                                await process_tanggle_room_complete(data)
+                                continue
                             integrations_logger.info(f"Tanggle Event Type: {event_type}, Data: {data}")
                         except json.JSONDecodeError as e:
                             integrations_logger.error(f"Tanggle: Failed to parse JSON message: {e}")
@@ -2247,6 +2247,128 @@ async def connect_to_tanggle():
             integrations_logger.error(f"Tanggle: WebSocket connection error: {e}")
             await sleep(10)  # Wait before retrying
 
+def parse_tanggle_datetime(value):
+    if not value:
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace('Z', '+00:00')
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+async def get_tanggle_completed_count():
+    try:
+        async with await mysql_handler.get_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT completed_count FROM tanggle_puzzle_stats WHERE id = 1")
+                row = await cursor.fetchone()
+                return int((row or {}).get('completed_count', 0) or 0)
+    except Exception as e:
+        integrations_logger.error(f"Tanggle: Failed to fetch completed puzzle count: {e}")
+        return 0
+
+async def process_tanggle_room_complete(data):
+    try:
+        payload = data.get('data', {}) if isinstance(data, dict) else {}
+        room = payload.get('room', {}) if isinstance(payload, dict) else {}
+        participants = payload.get('participants', []) if isinstance(payload, dict) else []
+        room_uuid = room.get('uuid')
+        if not room_uuid:
+            integrations_logger.error(f"Tanggle: room.complete payload missing room UUID: {data}")
+            return
+        winner_name = None
+        winner_twitch_name = None
+        winner_score = None
+        winner_timer = None
+        if isinstance(participants, list) and participants:
+            winner = participants[0] or {}
+            person = winner.get('person', {}) if isinstance(winner, dict) else {}
+            user = person.get('user', {}) if isinstance(person, dict) else {}
+            connections = person.get('connections', {}) if isinstance(person, dict) else {}
+            twitch_connection = connections.get('twitch', {}) if isinstance(connections, dict) else {}
+            winner_name = user.get('username')
+            winner_twitch_name = twitch_connection.get('username')
+            winner_score = winner.get('score')
+            winner_timer = winner.get('timer')
+        pieces = room.get('pieces', {}) if isinstance(room, dict) else {}
+        image = room.get('image', {}) if isinstance(room, dict) else {}
+        community = room.get('community', {}) if isinstance(room, dict) else {}
+        participants_json = json.dumps(participants, ensure_ascii=False)
+        raw_payload_json = json.dumps(data, ensure_ascii=False)
+        completed_at = parse_tanggle_datetime(room.get('completedAt'))
+        created_at = parse_tanggle_datetime(room.get('createdAt'))
+        is_new_completion = False
+        completed_count = 0
+        async with await mysql_handler.get_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute(
+                    """
+                    INSERT IGNORE INTO tanggle_room_completions (
+                        room_uuid, redirect_url, room_title, piece_count, piece_completed, piece_x, piece_y,
+                        player_count, player_limit, image_uuid, image_slug, image_public_id,
+                        community_uuid, community_name, winner_username, winner_twitch_username,
+                        winner_score, winner_timer_seconds, created_at, completed_at, participants_json, raw_payload
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        room_uuid,
+                        room.get('redirectUrl'),
+                        room.get('title'),
+                        pieces.get('count'),
+                        pieces.get('completed'),
+                        pieces.get('x'),
+                        pieces.get('y'),
+                        room.get('playerCount'),
+                        room.get('playerLimit'),
+                        image.get('uuid'),
+                        image.get('slug'),
+                        image.get('publicId'),
+                        community.get('uuid'),
+                        community.get('name'),
+                        winner_name,
+                        winner_twitch_name,
+                        winner_score,
+                        winner_timer,
+                        created_at,
+                        completed_at,
+                        participants_json,
+                        raw_payload_json,
+                    )
+                )
+                is_new_completion = cursor.rowcount == 1
+                if is_new_completion:
+                    await cursor.execute(
+                        """
+                        INSERT INTO tanggle_puzzle_stats (id, completed_count, last_completed_room_uuid, last_completed_at)
+                        VALUES (1, 1, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            completed_count = completed_count + 1,
+                            last_completed_room_uuid = VALUES(last_completed_room_uuid),
+                            last_completed_at = VALUES(last_completed_at),
+                            updated_at = CURRENT_TIMESTAMP
+                        """,
+                        (room_uuid, completed_at)
+                    )
+                await cursor.execute("SELECT completed_count FROM tanggle_puzzle_stats WHERE id = 1")
+                stats_row = await cursor.fetchone()
+                completed_count = int((stats_row or {}).get('completed_count', 0) or 0)
+                await connection.commit()
+        if is_new_completion:
+            integrations_logger.info(f"Tanggle: Recorded new room completion {room_uuid}. Total completed puzzles: {completed_count}")
+            await send_chat_message(f"We've completed another puzzle! That's {completed_count} puzzles completed.")
+        else:
+            integrations_logger.info(f"Tanggle: Duplicate room.complete event ignored for room {room_uuid}. Total remains: {completed_count}")
+    except Exception as e:
+        integrations_logger.error(f"Tanggle: Failed to process room.complete payload: {e}")
 
 async def process_stream_bingo_message(data):
     try:
@@ -7861,6 +7983,36 @@ class TwitchBot(commands.Bot):
             add_usage('heartrate', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+
+    @commands.command(name='puzzles')
+    async def puzzles_command(self, ctx):
+        global bot_owner
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("puzzles",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('puzzles', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    total_completed = await get_tanggle_completed_count()
+                    suffix = "puzzle" if total_completed == 1 else "puzzles"
+                    await send_chat_message(f"We've completed {total_completed} Tanggle {suffix} so far.")
+                    add_usage('puzzles', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"An error occurred in the puzzles command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
 
     @commands.command(name='watchtime')
