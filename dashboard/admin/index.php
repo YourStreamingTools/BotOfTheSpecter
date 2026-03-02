@@ -349,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
     $success = false;
     $output = '';
     // Define allowed services
-    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service'];
+    $allowedServices = ['discordbot.service', 'fastapi.service', 'websocket.service', 'mysql.service', 'export_queue_worker.service', 'twitch-recorder.service'];
     if (in_array($service, $allowedServices)) {
         try {
             // Determine which server credentials to use based on service
@@ -370,6 +370,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                 $ssh_host = $sql_server_host;
                 $ssh_username = $sql_server_username;
                 $ssh_password = $sql_server_password;
+            } elseif ($service == 'twitch-recorder.service') {
+                $ssh_host = $recorder_ssh_host;
+                $ssh_username = $recorder_ssh_username;
+                $ssh_password = $recorder_ssh_password;
             }
             $connection = SSHConnectionManager::getConnection($ssh_host, $ssh_username, $ssh_password);
             if (!$connection) {
@@ -1244,6 +1248,7 @@ $discord_status = ['status' => 'Loading...', 'pid' => '...'];
 $api_status = ['status' => 'Loading...', 'pid' => '...'];
 $websocket_status = ['status' => 'Loading...', 'pid' => '...'];
 $mysql_status = ['status' => 'Loading...', 'pid' => '...'];
+$twitch_recorder_status = ['status' => 'Loading...', 'pid' => '...'];
 
 // Fetch user statistics for pie chart
 $total_users = 0;
@@ -1874,6 +1879,36 @@ ob_start();
                 </div>
             </div>
         </div>
+        <!-- Twitch Recorder Service -->
+        <div class="column is-full-mobile is-one-fifth-tablet">
+            <div class="box hover-box">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                        <span class="icon has-text-danger">
+                            <i class="fas fa-video fa-lg"></i>
+                        </span>
+                        <div style="min-width: 0;">
+                            <p class="heading">Twitch Recorder</p>
+                            <p class="title is-6 has-text-info" id="twitch-recorder-status">Loading...</p>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="tag is-light has-text-black" id="twitch-recorder-pid">PID: ...</span>
+                    </div>
+                </div>
+                <div class="buttons are-small mt-4" id="twitch-recorder-buttons">
+                    <button type="button" class="button is-success" onclick="controlService('twitch-recorder.service', 'start')" disabled>
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                    </button>
+                    <button type="button" class="button is-danger" onclick="controlService('twitch-recorder.service', 'stop')" disabled>
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                    </button>
+                    <button type="button" class="button is-warning" onclick="controlService('twitch-recorder.service', 'restart')" disabled>
+                        <span class="icon"><i class="fas fa-redo"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <div class="box">
@@ -2221,7 +2256,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'fastapi.service': { statusKey: 'fastapi', statusId: 'api-status', pidId: 'api-pid', buttonsId: 'api-buttons' },
         'websocket.service': { statusKey: 'websocket', statusId: 'websocket-status', pidId: 'websocket-pid', buttonsId: 'websocket-buttons' },
         'mysql.service': { statusKey: 'mysql', statusId: 'mysql-status', pidId: 'mysql-pid', buttonsId: 'mysql-buttons' },
-        'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' }
+        'export_queue_worker.service': { statusKey: 'export_queue_worker', statusId: 'export-queue-status', pidId: 'export-queue-pid', buttonsId: 'export-queue-buttons' },
+        'twitch-recorder.service': { statusKey: 'twitch_recorder', statusId: 'twitch-recorder-status', pidId: 'twitch-recorder-pid', buttonsId: 'twitch-recorder-buttons' }
     };
     function scheduleStatusRefresh(meta) {
         if (!meta) return;
@@ -2587,6 +2623,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('websocket', 'websocket-status', 'websocket-pid', 'websocket-buttons');
         updateServiceStatus('mysql', 'mysql-status', 'mysql-pid', 'mysql-buttons');
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
+        updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');
     }, 100);
     // Utility to create safe DOM ids from channel names
     function sanitizeId(str) {
