@@ -11333,7 +11333,9 @@ async def check_stream_online():
         pass
 
 async def refresh_stream_metadata():
-    global current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    global current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
+    if not stream_online:
+        return False
     if 'current_game' not in globals():
         current_game = None
     if 'stream_title' not in globals():
@@ -11364,10 +11366,12 @@ async def refresh_stream_metadata():
         return False
 
 async def periodic_stream_metadata_refresh():
+    global stream_online
     while True:
         try:
-            await refresh_stream_metadata()
-            await sleep(300)
+            if stream_online:
+                await refresh_stream_metadata()
+            await sleep(60)
         except asyncioCancelledError:
             bot_logger.info("Periodic stream metadata refresh task cancelled")
             break
