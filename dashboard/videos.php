@@ -21,69 +21,16 @@ include 'storage_used.php';
 $accessToken = $_SESSION['access_token'] ?? '';
 $defaultUserId = $_SESSION['twitchUserId'] ?? ($broadcasterID ?? '');
 
-$videoModes = ['user_id', 'game_id', 'id'];
-$clipModes = ['clips_broadcaster_id', 'clips_game_id', 'clips_id'];
-$allowedModes = array_merge($videoModes, $clipModes);
 $allowedTabs = ['videos', 'clips'];
-$allowedPeriods = ['all', 'day', 'week', 'month'];
-$allowedSort = ['time', 'trending', 'views'];
-$allowedTypes = ['all', 'archive', 'highlight', 'upload'];
 
 $requestedTab = isset($_GET['tab']) ? trim((string) $_GET['tab']) : '';
-$requestedMode = isset($_GET['mode']) ? trim((string) $_GET['mode']) : '';
-
-$mode = in_array($requestedMode, $allowedModes, true) ? $requestedMode : 'user_id';
-$tab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : (in_array($mode, $clipModes, true) ? 'clips' : 'videos');
-
-if ($tab === 'videos' && !in_array($mode, $videoModes, true)) {
-	$mode = 'user_id';
-} elseif ($tab === 'clips' && !in_array($mode, $clipModes, true)) {
-	$mode = 'clips_broadcaster_id';
-}
-
-$period = isset($_GET['period']) && in_array($_GET['period'], $allowedPeriods, true) ? $_GET['period'] : 'all';
-$sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort, true) ? $_GET['sort'] : 'time';
-$type = isset($_GET['type']) && in_array($_GET['type'], $allowedTypes, true) ? $_GET['type'] : 'all';
-$first = isset($_GET['first']) ? max(1, min(100, (int) $_GET['first'])) : 20;
+$tab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'videos';
+$mode = $tab === 'clips' ? 'clips_broadcaster_id' : 'user_id';
+$first = 100;
 
 $rawUserId = isset($_GET['user_id']) ? trim((string) $_GET['user_id']) : (string) $defaultUserId;
-$rawGameId = isset($_GET['game_id']) ? trim((string) $_GET['game_id']) : '';
-$rawVideoIds = isset($_GET['video_ids']) ? trim((string) $_GET['video_ids']) : '';
 $rawBroadcasterId = isset($_GET['broadcaster_id']) ? trim((string) $_GET['broadcaster_id']) : (string) $defaultUserId;
 $rawEditorId = isset($_GET['editor_id']) ? trim((string) $_GET['editor_id']) : (string) $defaultUserId;
-$rawClipGameId = isset($_GET['clip_game_id']) ? trim((string) $_GET['clip_game_id']) : '';
-$rawClipIds = isset($_GET['clip_ids']) ? trim((string) $_GET['clip_ids']) : '';
-$rawStartedAt = isset($_GET['started_at']) ? trim((string) $_GET['started_at']) : '';
-$rawEndedAt = isset($_GET['ended_at']) ? trim((string) $_GET['ended_at']) : '';
-$rawIsFeatured = isset($_GET['is_featured']) ? strtolower(trim((string) $_GET['is_featured'])) : '';
-$rawLanguage = isset($_GET['language']) ? trim((string) $_GET['language']) : '';
-$afterCursor = isset($_GET['after']) ? trim((string) $_GET['after']) : '';
-$beforeCursor = isset($_GET['before']) ? trim((string) $_GET['before']) : '';
-
-if ($afterCursor !== '' && $beforeCursor !== '') {
-	$beforeCursor = '';
-}
-
-if ($rawLanguage !== '') {
-	$rawLanguage = strtolower($rawLanguage);
-	if ($rawLanguage !== 'other' && !preg_match('/^[a-z]{2}$/', $rawLanguage)) {
-		$rawLanguage = '';
-	}
-}
-
-if (!in_array($rawIsFeatured, ['', 'true', 'false'], true)) {
-	$rawIsFeatured = '';
-}
-
-if ($rawStartedAt !== '') {
-	$startedAtUnix = strtotime($rawStartedAt);
-	$rawStartedAt = $startedAtUnix !== false ? gmdate('c', $startedAtUnix) : '';
-}
-
-if ($rawEndedAt !== '') {
-	$endedAtUnix = strtotime($rawEndedAt);
-	$rawEndedAt = $endedAtUnix !== false ? gmdate('c', $endedAtUnix) : '';
-}
 
 function twitchApiRequest($method, $url, $accessToken, $clientID)
 {
@@ -120,6 +67,59 @@ function buildTwitchQuery(array $params)
 		}
 	}
 	return implode('&', $parts);
+}
+
+function fetchAllTwitchItems($endpoint, array $baseQuery, $accessToken, $clientID, $maxItems = 1000)
+{
+	$items = [];
+	$cursor = '';
+	$httpCode = null;
+	$apiError = '';
+
+	while (count($items) < $maxItems) {
+		$query = $baseQuery;
+		if ($cursor !== '') {
+			$query['after'] = $cursor;
+		}
+
+		$url = 'https://api.twitch.tv/helix/' . $endpoint . '?' . buildTwitchQuery($query);
+		$result = twitchApiRequest('GET', $url, $accessToken, $clientID);
+		$httpCode = (int) $result['http_code'];
+		$body = json_decode((string) $result['body'], true);
+
+		if ($result['curl_error']) {
+			$apiError = 'Unable to connect to Twitch: ' . $result['curl_error'];
+			break;
+		}
+
+		if ($httpCode !== 200) {
+			$apiMessage = is_array($body) && isset($body['message']) ? (string) $body['message'] : '';
+			$apiError = 'Twitch API error (HTTP ' . $httpCode . ')' . ($apiMessage !== '' ? ': ' . $apiMessage : '.');
+			break;
+		}
+
+		$pageData = isset($body['data']) && is_array($body['data']) ? $body['data'] : [];
+		if (empty($pageData)) {
+			break;
+		}
+
+		$spaceLeft = $maxItems - count($items);
+		if (count($pageData) > $spaceLeft) {
+			$pageData = array_slice($pageData, 0, $spaceLeft);
+		}
+		$items = array_merge($items, $pageData);
+
+		$cursor = isset($body['pagination']['cursor']) ? (string) $body['pagination']['cursor'] : '';
+		if ($cursor === '' || count($pageData) === 0) {
+			break;
+		}
+	}
+
+	return [
+		'items' => $items,
+		'http_code' => $httpCode,
+		'error' => $apiError,
+	];
 }
 
 $flashSuccess = '';
@@ -195,84 +195,12 @@ $currentModeLabel = '';
 $apiEndpoint = 'videos';
 $isClipsMode = false;
 
-if ($mode === 'id') {
-	$ids = preg_split('/[\s,]+/', $rawVideoIds, -1, PREG_SPLIT_NO_EMPTY);
-	$ids = array_values(array_unique(array_slice($ids, 0, 100)));
-	if (!empty($ids)) {
-		$queryForApi['id'] = $ids;
-		$currentModeLabel = 'Video ID';
-	} else {
-		$flashError = $flashError !== '' ? $flashError : 'Enter at least one video ID.';
-	}
-} elseif ($mode === 'game_id') {
-	if ($rawGameId !== '') {
-		$queryForApi['game_id'] = $rawGameId;
-		$queryForApi['period'] = $period;
-		$queryForApi['sort'] = $sort;
-		$queryForApi['type'] = $type;
-		$queryForApi['first'] = $first;
-		if ($rawLanguage !== '') {
-			$queryForApi['language'] = $rawLanguage;
-		}
-		$currentModeLabel = 'Game/Category';
-	} else {
-		$flashError = $flashError !== '' ? $flashError : 'Enter a game/category ID.';
-	}
-} elseif ($mode === 'clips_id') {
-	$isClipsMode = true;
-	$apiEndpoint = 'clips';
-	$clipIds = preg_split('/[\s,]+/', $rawClipIds, -1, PREG_SPLIT_NO_EMPTY);
-	$clipIds = array_values(array_unique(array_slice($clipIds, 0, 100)));
-	if (!empty($clipIds)) {
-		$queryForApi['id'] = $clipIds;
-		$currentModeLabel = 'Clip ID';
-	} else {
-		$flashError = $flashError !== '' ? $flashError : 'Enter at least one clip ID.';
-	}
-} elseif ($mode === 'clips_game_id') {
-	$isClipsMode = true;
-	$apiEndpoint = 'clips';
-	if ($rawClipGameId !== '') {
-		$queryForApi['game_id'] = $rawClipGameId;
-		$queryForApi['first'] = $first;
-		if ($rawStartedAt !== '') {
-			$queryForApi['started_at'] = $rawStartedAt;
-		}
-		if ($rawEndedAt !== '') {
-			$queryForApi['ended_at'] = $rawEndedAt;
-		}
-		if ($rawIsFeatured !== '') {
-			$queryForApi['is_featured'] = $rawIsFeatured;
-		}
-		if ($afterCursor !== '') {
-			$queryForApi['after'] = $afterCursor;
-		} elseif ($beforeCursor !== '') {
-			$queryForApi['before'] = $beforeCursor;
-		}
-		$currentModeLabel = 'Clip Game/Category';
-	} else {
-		$flashError = $flashError !== '' ? $flashError : 'Enter a clip game/category ID.';
-	}
-} elseif ($mode === 'clips_broadcaster_id') {
+if ($mode === 'clips_broadcaster_id') {
 	$isClipsMode = true;
 	$apiEndpoint = 'clips';
 	if ($rawBroadcasterId !== '') {
 		$queryForApi['broadcaster_id'] = $rawBroadcasterId;
 		$queryForApi['first'] = $first;
-		if ($rawStartedAt !== '') {
-			$queryForApi['started_at'] = $rawStartedAt;
-		}
-		if ($rawEndedAt !== '') {
-			$queryForApi['ended_at'] = $rawEndedAt;
-		}
-		if ($rawIsFeatured !== '') {
-			$queryForApi['is_featured'] = $rawIsFeatured;
-		}
-		if ($afterCursor !== '') {
-			$queryForApi['after'] = $afterCursor;
-		} elseif ($beforeCursor !== '') {
-			$queryForApi['before'] = $beforeCursor;
-		}
 		$currentModeLabel = 'Clip Broadcaster';
 	} else {
 		$flashError = $flashError !== '' ? $flashError : 'No Twitch broadcaster ID found for this account.';
@@ -280,15 +208,7 @@ if ($mode === 'id') {
 } else {
 	if ($rawUserId !== '') {
 		$queryForApi['user_id'] = $rawUserId;
-		$queryForApi['period'] = $period;
-		$queryForApi['sort'] = $sort;
-		$queryForApi['type'] = $type;
 		$queryForApi['first'] = $first;
-		if ($afterCursor !== '') {
-			$queryForApi['after'] = $afterCursor;
-		} elseif ($beforeCursor !== '') {
-			$queryForApi['before'] = $beforeCursor;
-		}
 		$currentModeLabel = 'Channel User';
 	} else {
 		$flashError = $flashError !== '' ? $flashError : 'No Twitch user ID found for this account.';
@@ -297,23 +217,13 @@ if ($mode === 'id') {
 
 $videos = [];
 $apiError = '';
-$paginationCursor = '';
 $httpCode = null;
 
 if (empty($flashError) && !empty($queryForApi)) {
-	$videosUrl = 'https://api.twitch.tv/helix/' . $apiEndpoint . '?' . buildTwitchQuery($queryForApi);
-	$videosResult = twitchApiRequest('GET', $videosUrl, $accessToken, $clientID);
-	$httpCode = (int) $videosResult['http_code'];
-	$videosBody = json_decode((string) $videosResult['body'], true);
-	if ($videosResult['curl_error']) {
-		$apiError = 'Unable to connect to Twitch: ' . $videosResult['curl_error'];
-	} elseif ($httpCode === 200) {
-		$videos = isset($videosBody['data']) && is_array($videosBody['data']) ? $videosBody['data'] : [];
-		$paginationCursor = isset($videosBody['pagination']['cursor']) ? (string) $videosBody['pagination']['cursor'] : '';
-	} else {
-		$apiMessage = is_array($videosBody) && isset($videosBody['message']) ? (string) $videosBody['message'] : '';
-		$apiError = 'Twitch API error (HTTP ' . $httpCode . ')' . ($apiMessage !== '' ? ': ' . $apiMessage : '.');
-	}
+	$fetchResult = fetchAllTwitchItems($apiEndpoint, $queryForApi, $accessToken, $clientID, 1000);
+	$videos = $fetchResult['items'];
+	$httpCode = $fetchResult['http_code'];
+	$apiError = $fetchResult['error'];
 }
 
 function formatVideoDuration($duration) {
@@ -341,94 +251,21 @@ function formatClipDuration($seconds) {
 	return number_format((float) $seconds, 1) . 's';
 }
 
-$baseParams = [
+$postBackActionUrl = 'videos.php?' . http_build_query([
 	'tab' => $tab,
-	'mode' => $mode,
-	'user_id' => $rawUserId,
-	'game_id' => $rawGameId,
-	'video_ids' => $rawVideoIds,
 	'broadcaster_id' => $rawBroadcasterId,
 	'editor_id' => $rawEditorId,
-	'clip_game_id' => $rawClipGameId,
-	'clip_ids' => $rawClipIds,
-	'started_at' => $rawStartedAt,
-	'ended_at' => $rawEndedAt,
-	'is_featured' => $rawIsFeatured,
-	'period' => $period,
-	'sort' => $sort,
-	'type' => $type,
-	'first' => $first,
-	'language' => $rawLanguage,
-];
-
-$prevLink = '';
-$nextLink = '';
-$supportsCursorPaging = in_array($mode, ['user_id', 'clips_broadcaster_id', 'clips_game_id'], true);
-if ($supportsCursorPaging) {
-	if ($afterCursor !== '') {
-		$prevParams = $baseParams;
-		$prevParams['before'] = $afterCursor;
-		unset($prevParams['after']);
-		$prevLink = 'videos.php?' . http_build_query($prevParams);
-	} elseif ($beforeCursor !== '') {
-		$nextFromBeforeParams = $baseParams;
-		$nextFromBeforeParams['after'] = $beforeCursor;
-		unset($nextFromBeforeParams['before']);
-		$nextLink = 'videos.php?' . http_build_query($nextFromBeforeParams);
-	}
-	if ($paginationCursor !== '') {
-		if ($beforeCursor !== '') {
-			$prevFromBeforeParams = $baseParams;
-			$prevFromBeforeParams['before'] = $paginationCursor;
-			unset($prevFromBeforeParams['after']);
-			$prevLink = 'videos.php?' . http_build_query($prevFromBeforeParams);
-		} else {
-			$nextParams = $baseParams;
-			$nextParams['after'] = $paginationCursor;
-			unset($nextParams['before']);
-			$nextLink = 'videos.php?' . http_build_query($nextParams);
-		}
-	}
-}
-
-$activeStateParams = $baseParams;
-if ($afterCursor !== '') {
-	$activeStateParams['after'] = $afterCursor;
-}
-if ($beforeCursor !== '') {
-	$activeStateParams['before'] = $beforeCursor;
-}
-
-$postBackActionUrl = 'videos.php';
-$postBackQuery = http_build_query($activeStateParams);
-if ($postBackQuery !== '') {
-	$postBackActionUrl .= '?' . $postBackQuery;
-}
+]);
 
 $videosTabLink = 'videos.php?' . http_build_query([
 	'tab' => 'videos',
-	'mode' => 'user_id',
 	'user_id' => $rawUserId,
-	'game_id' => $rawGameId,
-	'video_ids' => $rawVideoIds,
-	'period' => $period,
-	'sort' => $sort,
-	'type' => $type,
-	'first' => $first,
-	'language' => $rawLanguage,
 ]);
 
 $clipsTabLink = 'videos.php?' . http_build_query([
 	'tab' => 'clips',
-	'mode' => 'clips_broadcaster_id',
 	'broadcaster_id' => $rawBroadcasterId,
 	'editor_id' => $rawEditorId,
-	'clip_game_id' => $rawClipGameId,
-	'clip_ids' => $rawClipIds,
-	'started_at' => $rawStartedAt,
-	'ended_at' => $rawEndedAt,
-	'is_featured' => $rawIsFeatured,
-	'first' => $first,
 ]);
 
 ob_start();
@@ -468,133 +305,6 @@ ob_start();
 				<?php if ($apiError !== ''): ?>
 					<div class="notification is-danger"><?php echo htmlspecialchars($apiError, ENT_QUOTES, 'UTF-8'); ?></div>
 				<?php endif; ?>
-				<form method="get" class="box has-background-grey-darker" style="border:1px solid #2d3138;">
-					<input type="hidden" name="tab" value="<?php echo htmlspecialchars($tab, ENT_QUOTES, 'UTF-8'); ?>">
-					<div class="columns is-multiline">
-						<div class="column is-12-mobile is-4-desktop">
-							<label class="label has-text-white">Lookup Mode</label>
-							<div class="select is-fullwidth">
-								<select name="mode" id="videosModeSelect">
-									<?php if ($tab === 'videos'): ?>
-										<option value="user_id" <?php echo $mode === 'user_id' ? 'selected' : ''; ?>>By User ID</option>
-										<option value="game_id" <?php echo $mode === 'game_id' ? 'selected' : ''; ?>>By Game/Category ID</option>
-										<option value="id" <?php echo $mode === 'id' ? 'selected' : ''; ?>>By Video ID(s)</option>
-									<?php else: ?>
-										<option value="clips_broadcaster_id" <?php echo $mode === 'clips_broadcaster_id' ? 'selected' : ''; ?>>Clips by Broadcaster ID</option>
-										<option value="clips_game_id" <?php echo $mode === 'clips_game_id' ? 'selected' : ''; ?>>Clips by Game/Category ID</option>
-										<option value="clips_id" <?php echo $mode === 'clips_id' ? 'selected' : ''; ?>>Clips by Clip ID(s)</option>
-									<?php endif; ?>
-								</select>
-							</div>
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-mode-user">
-							<label class="label has-text-white">User ID</label>
-							<input class="input" type="text" name="user_id" value="<?php echo htmlspecialchars($rawUserId, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Twitch user ID">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-mode-game">
-							<label class="label has-text-white">Game/Category ID</label>
-							<input class="input" type="text" name="game_id" value="<?php echo htmlspecialchars($rawGameId, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Twitch game/category ID">
-						</div>
-						<div class="column is-12 js-mode-id">
-							<label class="label has-text-white">Video IDs</label>
-							<input class="input" type="text" name="video_ids" value="<?php echo htmlspecialchars($rawVideoIds, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Example: 335921245, 123456789">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-mode-clip-broadcaster">
-							<label class="label has-text-white">Broadcaster ID</label>
-							<input class="input" type="text" name="broadcaster_id" value="<?php echo htmlspecialchars($rawBroadcasterId, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Twitch broadcaster ID">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-filter-clip-download">
-							<label class="label has-text-white">Editor ID (for clip download)</label>
-							<input class="input" type="text" name="editor_id" value="<?php echo htmlspecialchars($rawEditorId, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Twitch editor user ID">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-mode-clip-game">
-							<label class="label has-text-white">Clip Game/Category ID</label>
-							<input class="input" type="text" name="clip_game_id" value="<?php echo htmlspecialchars($rawClipGameId, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Twitch game/category ID">
-						</div>
-						<div class="column is-12 js-mode-clip-id">
-							<label class="label has-text-white">Clip IDs</label>
-							<input class="input" type="text" name="clip_ids" value="<?php echo htmlspecialchars($rawClipIds, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Example: Ag1234, Bx5678">
-						</div>
-						<div class="column is-12-mobile is-3-desktop js-filter-common">
-							<label class="label has-text-white">Period</label>
-							<div class="select is-fullwidth">
-								<select name="period">
-									<option value="all" <?php echo $period === 'all' ? 'selected' : ''; ?>>All</option>
-									<option value="day" <?php echo $period === 'day' ? 'selected' : ''; ?>>Day</option>
-									<option value="week" <?php echo $period === 'week' ? 'selected' : ''; ?>>Week</option>
-									<option value="month" <?php echo $period === 'month' ? 'selected' : ''; ?>>Month</option>
-								</select>
-							</div>
-						</div>
-						<div class="column is-12-mobile is-3-desktop js-filter-common">
-							<label class="label has-text-white">Sort</label>
-							<div class="select is-fullwidth">
-								<select name="sort">
-									<option value="time" <?php echo $sort === 'time' ? 'selected' : ''; ?>>Time</option>
-									<option value="trending" <?php echo $sort === 'trending' ? 'selected' : ''; ?>>Trending</option>
-									<option value="views" <?php echo $sort === 'views' ? 'selected' : ''; ?>>Views</option>
-								</select>
-							</div>
-						</div>
-						<div class="column is-12-mobile is-3-desktop js-filter-common">
-							<label class="label has-text-white">Type</label>
-							<div class="select is-fullwidth">
-								<select name="type">
-									<option value="all" <?php echo $type === 'all' ? 'selected' : ''; ?>>All</option>
-									<option value="archive" <?php echo $type === 'archive' ? 'selected' : ''; ?>>Archive</option>
-									<option value="highlight" <?php echo $type === 'highlight' ? 'selected' : ''; ?>>Highlight</option>
-									<option value="upload" <?php echo $type === 'upload' ? 'selected' : ''; ?>>Upload</option>
-								</select>
-							</div>
-						</div>
-						<div class="column is-12-mobile is-3-desktop js-filter-page">
-							<label class="label has-text-white">Results per page</label>
-							<input class="input" type="number" name="first" min="1" max="100" value="<?php echo (int) $first; ?>">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-filter-game">
-							<label class="label has-text-white">Language (optional)</label>
-							<input class="input" type="text" name="language" value="<?php echo htmlspecialchars($rawLanguage, ENT_QUOTES, 'UTF-8'); ?>" placeholder="en, de, fr, other">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-filter-clip-broadcaster-game">
-							<label class="label has-text-white">Started At (optional)</label>
-							<input class="input" type="text" name="started_at" value="<?php echo htmlspecialchars($rawStartedAt, ENT_QUOTES, 'UTF-8'); ?>" placeholder="RFC3339 e.g. 2025-02-01T00:00:00Z">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-filter-clip-broadcaster-game">
-							<label class="label has-text-white">Ended At (optional)</label>
-							<input class="input" type="text" name="ended_at" value="<?php echo htmlspecialchars($rawEndedAt, ENT_QUOTES, 'UTF-8'); ?>" placeholder="RFC3339 e.g. 2025-02-08T00:00:00Z">
-						</div>
-						<div class="column is-12-mobile is-4-desktop js-filter-clip-broadcaster-game">
-							<label class="label has-text-white">Featured Filter (optional)</label>
-							<div class="select is-fullwidth">
-								<select name="is_featured">
-									<option value="" <?php echo $rawIsFeatured === '' ? 'selected' : ''; ?>>All Clips</option>
-									<option value="true" <?php echo $rawIsFeatured === 'true' ? 'selected' : ''; ?>>Featured only</option>
-									<option value="false" <?php echo $rawIsFeatured === 'false' ? 'selected' : ''; ?>>Not featured only</option>
-								</select>
-							</div>
-						</div>
-					</div>
-					<div class="buttons mt-2">
-						<button type="submit" class="button is-link is-medium"><i class="fas fa-search mr-2"></i>Load Results</button>
-						<a class="button is-light is-medium" href="videos.php"><i class="fas fa-undo mr-2"></i>Reset</a>
-					</div>
-				</form>
-				<div class="is-flex is-justify-content-space-between is-align-items-center mb-4" style="gap:1rem; flex-wrap:wrap;">
-					<div>
-						<p class="has-text-grey-light mb-1">Source: <?php echo htmlspecialchars($currentModeLabel !== '' ? $currentModeLabel : 'N/A', ENT_QUOTES, 'UTF-8'); ?></p>
-						<p class="has-text-white is-size-5">Found <?php echo count($videos); ?> <?php echo $isClipsMode ? 'clip' : 'video'; ?><?php echo count($videos) === 1 ? '' : 's'; ?></p>
-					</div>
-					<?php if ($supportsCursorPaging && ($prevLink !== '' || $nextLink !== '')): ?>
-						<div class="buttons">
-							<?php if ($prevLink !== ''): ?>
-								<a class="button is-light" href="<?php echo htmlspecialchars($prevLink, ENT_QUOTES, 'UTF-8'); ?>"><i class="fas fa-chevron-left mr-2"></i>Previous</a>
-							<?php endif; ?>
-							<?php if ($nextLink !== ''): ?>
-								<a class="button is-link is-light" href="<?php echo htmlspecialchars($nextLink, ENT_QUOTES, 'UTF-8'); ?>">Next<i class="fas fa-chevron-right ml-2"></i></a>
-							<?php endif; ?>
-						</div>
-					<?php endif; ?>
-				</div>
 				<?php if (empty($videos) && $apiError === '' && $flashError === '' && !empty($queryForApi)): ?>
 					<div class="notification is-info">No <?php echo $isClipsMode ? 'clips' : 'videos'; ?> matched the current filters.</div>
 				<?php endif; ?>
@@ -722,48 +432,6 @@ ob_start();
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-	const modeSelect = document.getElementById('videosModeSelect');
-	const allGroups = document.querySelectorAll([
-		'.js-mode-user',
-		'.js-mode-game',
-		'.js-mode-id',
-		'.js-filter-common',
-		'.js-filter-page',
-		'.js-filter-game',
-		'.js-mode-clip-broadcaster',
-		'.js-mode-clip-game',
-		'.js-mode-clip-id',
-		'.js-filter-clip-download',
-		'.js-filter-clip-broadcaster-game'
-	].join(','));
-
-	const modeMap = {
-		user_id: ['.js-mode-user', '.js-filter-common', '.js-filter-page'],
-		game_id: ['.js-mode-game', '.js-filter-common', '.js-filter-game', '.js-filter-page'],
-		id: ['.js-mode-id'],
-		clips_broadcaster_id: ['.js-mode-clip-broadcaster', '.js-filter-page', '.js-filter-clip-download', '.js-filter-clip-broadcaster-game'],
-		clips_game_id: ['.js-mode-clip-game', '.js-filter-page', '.js-filter-clip-download', '.js-filter-clip-broadcaster-game'],
-		clips_id: ['.js-mode-clip-id', '.js-filter-clip-download']
-	};
-
-	function toggleVisibility(elements, visible) {
-		elements.forEach(function (el) {
-			el.style.display = visible ? '' : 'none';
-		});
-	}
-
-	function updateModeFields() {
-		const mode = modeSelect ? modeSelect.value : 'user_id';
-		toggleVisibility(allGroups, false);
-		const selectors = modeMap[mode] || modeMap.user_id;
-		selectors.forEach(function (selector) {
-			toggleVisibility(document.querySelectorAll(selector), true);
-		});
-	}
-	if (modeSelect) {
-		updateModeFields();
-		modeSelect.addEventListener('change', updateModeFields);
-	}
 	const deleteForm = document.getElementById('deleteVideoForm');
 	const deleteVideoIdInput = document.getElementById('deleteVideoIdInput');
 	document.querySelectorAll('.delete-video-btn').forEach(function (button) {
