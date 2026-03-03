@@ -20,6 +20,7 @@ include 'storage_used.php';
 
 $accessToken = $_SESSION['access_token'] ?? '';
 $defaultUserId = $_SESSION['twitchUserId'] ?? ($broadcasterID ?? '');
+$channelUserId = trim((string) $defaultUserId);
 
 $allowedTabs = ['videos', 'clips'];
 
@@ -28,9 +29,9 @@ $tab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'videos';
 $mode = $tab === 'clips' ? 'clips_broadcaster_id' : 'user_id';
 $first = 100;
 
-$rawUserId = isset($_GET['user_id']) ? trim((string) $_GET['user_id']) : (string) $defaultUserId;
-$rawBroadcasterId = isset($_GET['broadcaster_id']) ? trim((string) $_GET['broadcaster_id']) : (string) $defaultUserId;
-$rawEditorId = isset($_GET['editor_id']) ? trim((string) $_GET['editor_id']) : (string) $defaultUserId;
+$rawUserId = $channelUserId;
+$rawBroadcasterId = $channelUserId;
+$rawEditorId = $channelUserId;
 
 function twitchApiRequest($method, $url, $accessToken, $clientID)
 {
@@ -155,8 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_clip_download') {
 	$downloadClipId = isset($_POST['clip_id']) ? trim((string) $_POST['clip_id']) : '';
-	$downloadBroadcasterId = isset($_POST['download_broadcaster_id']) ? trim((string) $_POST['download_broadcaster_id']) : '';
-	$downloadEditorId = isset($_POST['editor_id']) ? trim((string) $_POST['editor_id']) : $rawEditorId;
+	$downloadBroadcasterId = $channelUserId;
+	$downloadEditorId = $channelUserId;
 
 	if ($downloadClipId === '' || $downloadBroadcasterId === '' || $downloadEditorId === '') {
 		$flashError = 'Clip download requires clip ID, broadcaster ID, and editor ID.';
@@ -206,7 +207,7 @@ if ($mode === 'clips_broadcaster_id') {
 		$flashError = $flashError !== '' ? $flashError : 'No Twitch broadcaster ID found for this account.';
 	}
 } else {
-	if ($rawUserId !== '') {
+	if ($channelUserId !== '') {
 		$queryForApi['user_id'] = $rawUserId;
 		$queryForApi['first'] = $first;
 		$currentModeLabel = 'Channel User';
@@ -253,19 +254,14 @@ function formatClipDuration($seconds) {
 
 $postBackActionUrl = 'videos.php?' . http_build_query([
 	'tab' => $tab,
-	'broadcaster_id' => $rawBroadcasterId,
-	'editor_id' => $rawEditorId,
 ]);
 
 $videosTabLink = 'videos.php?' . http_build_query([
 	'tab' => 'videos',
-	'user_id' => $rawUserId,
 ]);
 
 $clipsTabLink = 'videos.php?' . http_build_query([
 	'tab' => 'clips',
-	'broadcaster_id' => $rawBroadcasterId,
-	'editor_id' => $rawEditorId,
 ]);
 
 ob_start();
@@ -307,6 +303,9 @@ ob_start();
 				<?php endif; ?>
 				<?php if (empty($videos) && $apiError === '' && $flashError === '' && !empty($queryForApi)): ?>
 					<div class="notification is-info">No <?php echo $isClipsMode ? 'clips' : 'videos'; ?> matched the current filters.</div>
+				<?php endif; ?>
+				<?php if ($channelUserId === ''): ?>
+					<div class="notification is-danger">No Twitch channel ID is available for this login session.</div>
 				<?php endif; ?>
 				<div class="columns is-multiline">
 					<?php foreach ($videos as $video): ?>
@@ -390,8 +389,6 @@ ob_start();
 											<form method="post" action="<?php echo htmlspecialchars($postBackActionUrl, ENT_QUOTES, 'UTF-8'); ?>" class="is-inline-block">
 												<input type="hidden" name="action" value="get_clip_download">
 												<input type="hidden" name="clip_id" value="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>">
-												<input type="hidden" name="download_broadcaster_id" value="<?php echo htmlspecialchars($clipBroadcasterId, ENT_QUOTES, 'UTF-8'); ?>">
-												<input type="hidden" name="editor_id" value="<?php echo htmlspecialchars($rawEditorId, ENT_QUOTES, 'UTF-8'); ?>">
 												<button type="submit" class="button is-primary is-small">
 													<i class="fas fa-download mr-1"></i>Get Download URLs
 												</button>
