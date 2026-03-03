@@ -21,20 +21,16 @@ include 'storage_used.php';
 $accessToken = $_SESSION['access_token'] ?? '';
 $defaultUserId = $_SESSION['twitchUserId'] ?? ($broadcasterID ?? '');
 $channelUserId = trim((string) $defaultUserId);
-
 $allowedTabs = ['videos', 'clips'];
-
 $requestedTab = isset($_GET['tab']) ? trim((string) $_GET['tab']) : '';
 $tab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'videos';
 $mode = $tab === 'clips' ? 'clips_broadcaster_id' : 'user_id';
 $first = 100;
-
 $rawUserId = $channelUserId;
 $rawBroadcasterId = $channelUserId;
 $rawEditorId = $channelUserId;
 
-function twitchApiRequest($method, $url, $accessToken, $clientID)
-{
+function twitchApiRequest($method, $url, $accessToken, $clientID) {
 	$ch = curl_init($url);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 	curl_setopt($ch, CURLOPT_TIMEOUT, 20);
@@ -55,8 +51,7 @@ function twitchApiRequest($method, $url, $accessToken, $clientID)
 	];
 }
 
-function buildTwitchQuery(array $params)
-{
+function buildTwitchQuery(array $params) {
 	$parts = [];
 	foreach ($params as $key => $value) {
 		if (is_array($value)) {
@@ -70,56 +65,95 @@ function buildTwitchQuery(array $params)
 	return implode('&', $parts);
 }
 
-function fetchAllTwitchItems($endpoint, array $baseQuery, $accessToken, $clientID, $maxItems = 1000)
-{
+function fetchAllTwitchItems($endpoint, array $baseQuery, $accessToken, $clientID, $maxItems = 1000) {
 	$items = [];
 	$cursor = '';
 	$httpCode = null;
 	$apiError = '';
-
 	while (count($items) < $maxItems) {
 		$query = $baseQuery;
 		if ($cursor !== '') {
 			$query['after'] = $cursor;
 		}
-
 		$url = 'https://api.twitch.tv/helix/' . $endpoint . '?' . buildTwitchQuery($query);
 		$result = twitchApiRequest('GET', $url, $accessToken, $clientID);
 		$httpCode = (int) $result['http_code'];
 		$body = json_decode((string) $result['body'], true);
-
 		if ($result['curl_error']) {
 			$apiError = 'Unable to connect to Twitch: ' . $result['curl_error'];
 			break;
 		}
-
 		if ($httpCode !== 200) {
 			$apiMessage = is_array($body) && isset($body['message']) ? (string) $body['message'] : '';
 			$apiError = 'Twitch API error (HTTP ' . $httpCode . ')' . ($apiMessage !== '' ? ': ' . $apiMessage : '.');
 			break;
 		}
-
 		$pageData = isset($body['data']) && is_array($body['data']) ? $body['data'] : [];
 		if (empty($pageData)) {
 			break;
 		}
-
 		$spaceLeft = $maxItems - count($items);
 		if (count($pageData) > $spaceLeft) {
 			$pageData = array_slice($pageData, 0, $spaceLeft);
 		}
 		$items = array_merge($items, $pageData);
-
 		$cursor = isset($body['pagination']['cursor']) ? (string) $body['pagination']['cursor'] : '';
 		if ($cursor === '' || count($pageData) === 0) {
 			break;
 		}
 	}
-
 	return [
 		'items' => $items,
 		'http_code' => $httpCode,
 		'error' => $apiError,
+	];
+}
+
+function fetchClipDownloadUrls(array $clipIds, $broadcasterId, $editorId, $accessToken, $clientID) {
+	$downloads = [];
+	$error = '';
+	$uniqueClipIds = array_values(array_unique(array_filter(array_map('strval', $clipIds), static function ($value) {
+		return $value !== '';
+	})));
+	if (empty($uniqueClipIds) || $broadcasterId === '' || $editorId === '') {
+		return [
+			'downloads' => $downloads,
+			'error' => $error,
+		];
+	}
+	$chunks = array_chunk($uniqueClipIds, 10);
+	foreach ($chunks as $chunk) {
+		$downloadUrl = 'https://api.twitch.tv/helix/clips/downloads?' . buildTwitchQuery([
+			'editor_id' => $editorId,
+			'broadcaster_id' => $broadcasterId,
+			'clip_id' => $chunk,
+		]);
+		$downloadResult = twitchApiRequest('GET', $downloadUrl, $accessToken, $clientID);
+		$downloadBody = json_decode((string) $downloadResult['body'], true);
+		if ($downloadResult['curl_error']) {
+			$error = 'Clip download lookup failed: ' . $downloadResult['curl_error'];
+			break;
+		}
+		if ((int) $downloadResult['http_code'] !== 200) {
+			$apiMessage = is_array($downloadBody) && isset($downloadBody['message']) ? (string) $downloadBody['message'] : '';
+			$error = 'Clip download lookup failed (HTTP ' . (int) $downloadResult['http_code'] . ').' . ($apiMessage !== '' ? ' ' . $apiMessage : '');
+			break;
+		}
+		$downloadData = isset($downloadBody['data']) && is_array($downloadBody['data']) ? $downloadBody['data'] : [];
+		foreach ($downloadData as $item) {
+			if (!isset($item['clip_id'])) {
+				continue;
+			}
+			$clipIdKey = (string) $item['clip_id'];
+			$downloads[$clipIdKey] = [
+				'landscape_download_url' => isset($item['landscape_download_url']) ? (string) $item['landscape_download_url'] : '',
+				'portrait_download_url' => isset($item['portrait_download_url']) ? (string) $item['portrait_download_url'] : '',
+			];
+		}
+	}
+	return [
+		'downloads' => $downloads,
+		'error' => $error,
 	];
 }
 
@@ -150,43 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 				$apiMessage = (string) $deleteBody['message'];
 			}
 			$flashError = 'Delete failed (HTTP ' . (int) $deleteResult['http_code'] . ').' . ($apiMessage !== '' ? ' ' . $apiMessage : '');
-		}
-	}
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_clip_download') {
-	$downloadClipId = isset($_POST['clip_id']) ? trim((string) $_POST['clip_id']) : '';
-	$downloadBroadcasterId = $channelUserId;
-	$downloadEditorId = $channelUserId;
-
-	if ($downloadClipId === '' || $downloadBroadcasterId === '' || $downloadEditorId === '') {
-		$flashError = 'Clip download requires clip ID, broadcaster ID, and editor ID.';
-	} else {
-		$downloadUrl = 'https://api.twitch.tv/helix/clips/downloads?' . buildTwitchQuery([
-			'editor_id' => $downloadEditorId,
-			'broadcaster_id' => $downloadBroadcasterId,
-			'clip_id' => [$downloadClipId],
-		]);
-		$downloadResult = twitchApiRequest('GET', $downloadUrl, $accessToken, $clientID);
-		$downloadBody = json_decode((string) $downloadResult['body'], true);
-		if ($downloadResult['curl_error']) {
-			$flashError = 'Clip download lookup failed: ' . $downloadResult['curl_error'];
-		} elseif ((int) $downloadResult['http_code'] === 200) {
-			$downloadData = isset($downloadBody['data']) && is_array($downloadBody['data']) ? $downloadBody['data'] : [];
-			if (!empty($downloadData) && isset($downloadData[0]['clip_id'])) {
-				$clipIdKey = (string) $downloadData[0]['clip_id'];
-				$clipDownloadUrls[$clipIdKey] = [
-					'landscape_download_url' => isset($downloadData[0]['landscape_download_url']) ? (string) $downloadData[0]['landscape_download_url'] : '',
-					'portrait_download_url' => isset($downloadData[0]['portrait_download_url']) ? (string) $downloadData[0]['portrait_download_url'] : '',
-				];
-				$hasAnyDownload = $clipDownloadUrls[$clipIdKey]['landscape_download_url'] !== '' || $clipDownloadUrls[$clipIdKey]['portrait_download_url'] !== '';
-				$flashSuccess = $hasAnyDownload ? 'Clip download URLs loaded.' : 'Clip download lookup returned no downloadable URL yet.';
-			} else {
-				$flashError = 'Clip download lookup returned no data.';
-			}
-		} else {
-			$apiMessage = is_array($downloadBody) && isset($downloadBody['message']) ? (string) $downloadBody['message'] : '';
-			$flashError = 'Clip download lookup failed (HTTP ' . (int) $downloadResult['http_code'] . ').' . ($apiMessage !== '' ? ' ' . $apiMessage : '');
 		}
 	}
 }
@@ -227,6 +224,20 @@ if (empty($flashError) && !empty($queryForApi)) {
 	$apiError = $fetchResult['error'];
 }
 
+if ($isClipsMode && !empty($videos) && $channelUserId !== '') {
+	$clipIdsForDownload = [];
+	foreach ($videos as $clipItem) {
+		if (isset($clipItem['id']) && (string) $clipItem['id'] !== '') {
+			$clipIdsForDownload[] = (string) $clipItem['id'];
+		}
+	}
+	$downloadLookup = fetchClipDownloadUrls($clipIdsForDownload, $channelUserId, $channelUserId, $accessToken, $clientID);
+	$clipDownloadUrls = $downloadLookup['downloads'];
+	if ($downloadLookup['error'] !== '' && $flashError === '') {
+		$flashError = $downloadLookup['error'];
+	}
+}
+
 function formatVideoDuration($duration) {
 	if (!is_string($duration) || $duration === '') {
 		return 'Unknown';
@@ -251,10 +262,6 @@ function formatClipDuration($seconds) {
 	}
 	return number_format((float) $seconds, 1) . 's';
 }
-
-$postBackActionUrl = 'videos.php?' . http_build_query([
-	'tab' => $tab,
-]);
 
 $videosTabLink = 'videos.php?' . http_build_query([
 	'tab' => 'videos',
@@ -384,29 +391,23 @@ ob_start();
 											</button>
 										<?php endif; ?>
 										<?php if ($isClipsMode && $videoId !== '' && $clipBroadcasterId !== ''): ?>
-											<form method="post" action="<?php echo htmlspecialchars($postBackActionUrl, ENT_QUOTES, 'UTF-8'); ?>" class="is-inline-block">
-												<input type="hidden" name="action" value="get_clip_download">
-												<input type="hidden" name="clip_id" value="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>">
-												<button type="submit" class="button is-primary is-small">
-													<i class="fas fa-download mr-1"></i>Get Download URLs
-												</button>
-											</form>
-										<?php endif; ?>
-									</div>
-									<?php if ($isClipsMode && ($clipLandscapeDownload !== '' || $clipPortraitDownload !== '')): ?>
-										<div class="buttons mt-2" style="gap:0.5rem; flex-wrap:wrap;">
 											<?php if ($clipLandscapeDownload !== ''): ?>
-												<a class="button is-success is-small is-light" href="<?php echo htmlspecialchars($clipLandscapeDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
+												<a class="button is-primary is-small" href="<?php echo htmlspecialchars($clipLandscapeDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
 													<i class="fas fa-download mr-1"></i>Landscape
 												</a>
 											<?php endif; ?>
 											<?php if ($clipPortraitDownload !== ''): ?>
-												<a class="button is-success is-small is-light" href="<?php echo htmlspecialchars($clipPortraitDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
+												<a class="button is-primary is-small" href="<?php echo htmlspecialchars($clipPortraitDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
 													<i class="fas fa-download mr-1"></i>Portrait
 												</a>
 											<?php endif; ?>
-										</div>
-									<?php endif; ?>
+											<?php if ($clipLandscapeDownload === '' && $clipPortraitDownload === ''): ?>
+												<button class="button is-light is-small" disabled>
+													<i class="fas fa-download mr-1"></i>Download unavailable
+												</button>
+											<?php endif; ?>
+										<?php endif; ?>
+									</div>
 								</div>
 							</div>
 						</div>
