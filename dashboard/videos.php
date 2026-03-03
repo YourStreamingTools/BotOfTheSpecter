@@ -320,7 +320,6 @@ ob_start();
 						$videoUrl = isset($video['url']) ? (string) $video['url'] : '';
 						$videoViews = isset($video['view_count']) ? (int) $video['view_count'] : 0;
 						$videoType = isset($video['type']) ? (string) $video['type'] : ($isClipsMode ? 'clip' : 'unknown');
-						$videoLang = isset($video['language']) ? (string) $video['language'] : 'unknown';
 						$videoDuration = $isClipsMode ? formatClipDuration($video['duration'] ?? null) : formatVideoDuration($video['duration'] ?? '');
 						$videoDate = $isClipsMode ? formatVideoDate($video['created_at'] ?? '') : formatVideoDate($video['published_at'] ?? '');
 						$clipCreator = isset($video['creator_name']) ? (string) $video['creator_name'] : '';
@@ -356,7 +355,6 @@ ob_start();
 									<?php endif; ?>
 									<div class="tags mb-3">
 										<span class="tag is-info is-light"><?php echo htmlspecialchars($videoType, ENT_QUOTES, 'UTF-8'); ?></span>
-										<span class="tag is-warning is-light"><?php echo htmlspecialchars($videoLang, ENT_QUOTES, 'UTF-8'); ?></span>
 										<span class="tag is-primary is-light"><?php echo htmlspecialchars($videoDuration, ENT_QUOTES, 'UTF-8'); ?></span>
 										<?php if ($isClipsMode): ?>
 											<span class="tag is-success is-light"><?php echo $clipFeatured ? 'featured' : 'not featured'; ?></span>
