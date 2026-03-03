@@ -199,53 +199,56 @@ def time_right_now(tz=None):
     return datetime.now()
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
-scheduled_tasks = set()                                 # Set for scheduled tasks
-shoutout_queue = Queue()                                # Queue for shoutouts
-recent_shoutouts = {}                                   # Dictionary for recent shoutouts
-permitted_users = {}                                    # Dictionary for permitted users
-connected = set()                                       # Set for connected users
-pending_removals = {}                                   # Dictionary for pending removals
-shoutout_tracker = {}                                   # Dictionary for tracking shoutouts
-shoutout_user = {}                                      # Dictionary for temporary shoutout user data
-command_usage = {}                                      # Dictionary for tracking command usage with timestamps
-last_poll_progress_update = 0                           # Variable for last poll progress update
-last_message_time = 0                                   # Variable for last message time
-chat_line_count = 0                                     # Tracks the number of chat messages
-chat_trigger_tasks = {}                                 # Maps message IDs to chat line counts
-song_requests = {}                                      # Tracks song request from users
-looped_tasks = {}                                       # Set for looped tasks
-active_timed_messages = {}                              # Dictionary to track active timed message IDs and their details
-message_tasks = {}                                      # Dictionary to track individual message tasks by ID
-gift_sub_recipients = {}                                # Tracks users who received gift subs to prevent duplicate notifications
-GIFT_SUB_TRACKING_DURATION = 30                         # Seconds to track gift recipients
+scheduled_tasks = set()                                                                 # Set for scheduled tasks
+shoutout_queue = Queue()                                                                # Queue for shoutouts
+recent_shoutouts = {}                                                                   # Dictionary for recent shoutouts
+permitted_users = {}                                                                    # Dictionary for permitted users
+connected = set()                                                                       # Set for connected users
+pending_removals = {}                                                                   # Dictionary for pending removals
+shoutout_tracker = {}                                                                   # Dictionary for tracking shoutouts
+shoutout_user = {}                                                                      # Dictionary for temporary shoutout user data
+command_usage = {}                                                                      # Dictionary for tracking command usage with timestamps
+last_poll_progress_update = 0                                                           # Variable for last poll progress update
+last_message_time = 0                                                                   # Variable for last message time
+chat_line_count = 0                                                                     # Tracks the number of chat messages
+chat_trigger_tasks = {}                                                                 # Maps message IDs to chat line counts
+song_requests = {}                                                                      # Tracks song request from users
+looped_tasks = {}                                                                       # Set for looped tasks
+active_timed_messages = {}                                                              # Dictionary to track active timed message IDs and their details
+message_tasks = {}                                                                      # Dictionary to track individual message tasks by ID
+gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
+GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
 
 # Initialize global variables
-specterSocket = AsyncClient()                           # Specter Socket Client instance
-streamelements_socket = AsyncClient()                   # StreamElements Socket Client instance
-openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)     # OpenAI client for AI responses
-_shared_http_session = None                              # Shared aiohttp session (lazy-created)
-bot_started = time_right_now()                          # Time the bot started
-stream_online = False                                   # Whether the stream is currently online 
-next_spotify_refresh_time = None                        # Time for the next Spotify token refresh 
-HEARTRATE = None                                        # Current heart rate value 
-hyperate_task = None                                    # HypeRate WebSocket task
-TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for shoutouts
-TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
-last_shoutout_time = datetime.min                       # Last time a shoutout was performed
-websocket_connected = False                             # Whether the websocket is currently connected
-bot_owner = "gfaundead"                                 # Bot owner's username
-streamelements_token = None                             # StreamElements OAuth2 access token
-streamlabs_token = None                                 # StreamLabs access token
-ad_settings_cache = None                                # Global cache for ad settings
-ad_settings_cache_time = 0                              # Last time the ad settings were cached
-CACHE_DURATION = 60                                     # 1 minute (matches ad check interval)
-ad_upcoming_notified = False                            # Flag to prevent duplicate ad upcoming notifications
-ad_upcoming_last_notified_next_ad_at = None            # Tracks which next_ad_at already triggered a notice
-AD_DEDUPE_COOLDOWN_SECONDS = 45                         # Minimum seconds between ad messages per process
-last_ad_message_ts = 0.0                                # Timestamp of last ad message sent by this process
-stream_session_started_at = 0.0                         # UTC timestamp when the current stream session started
-pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
-outgoing_raid_task = None                               # asyncio.Task that waits for stream end to persist outgoing raid
+specterSocket = AsyncClient()                                                           # Specter Socket Client instance
+streamelements_socket = AsyncClient()                                                   # StreamElements Socket Client instance
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)                                     # OpenAI client for AI responses
+_shared_http_session = None                                                             # Shared aiohttp session (lazy-created)
+bot_started = time_right_now()                                                          # Time the bot started
+stream_online = False                                                                   # Whether the stream is currently online 
+next_spotify_refresh_time = None                                                        # Time for the next Spotify token refresh 
+HEARTRATE = None                                                                        # Current heart rate value 
+hyperate_task = None                                                                    # HypeRate WebSocket task
+TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)                                  # Global cooldown for shoutouts
+TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)                                   # User-specific cooldown for shoutouts
+last_shoutout_time = datetime.min                                                       # Last time a shoutout was performed
+websocket_connected = False                                                             # Whether the websocket is currently connected
+bot_owner = "gfaundead"                                                                 # Bot owner's username
+streamelements_token = None                                                             # StreamElements OAuth2 access token
+streamlabs_token = None                                                                 # StreamLabs access token
+ad_settings_cache = None                                                                # Global cache for ad settings
+ad_settings_cache_time = 0                                                              # Last time the ad settings were cached
+CACHE_DURATION = 60                                                                     # 1 minute (matches ad check interval)
+ad_upcoming_notified = False                                                            # Flag to prevent duplicate ad upcoming notifications
+ad_upcoming_last_notified_next_ad_at = None                                             # Tracks which next_ad_at already triggered a notice
+AD_DEDUPE_COOLDOWN_SECONDS = 45                                                         # Minimum seconds between ad messages per process
+last_ad_message_ts = 0.0                                                                # Timestamp of last ad message sent by this process
+stream_session_started_at = 0.0                                                         # UTC timestamp when the current stream session started
+pending_outgoing_raid = None                                                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
+outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
+MYSQL_POOL_ACQUIRE_TIMEOUT = float(os.getenv('MYSQL_POOL_ACQUIRE_TIMEOUT', '10'))       # Timeout for acquiring a connection from the MySQL pool (in seconds)
+MYSQL_POOL_PING_TIMEOUT = float(os.getenv('MYSQL_POOL_PING_TIMEOUT', '3'))              # Timeout for pinging a MySQL connection to check if it's alive (in seconds)
+MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -432,11 +435,27 @@ class MySQLHandler:
                     if pool is None:
                         pool = await self._create_pool(db_name)
                 # Acquire a connection from the pool
-                conn = await pool.acquire()
+                acquire_started = time.time()
+                try:
+                    conn = await asyncio_wait_for(pool.acquire(), timeout=MYSQL_POOL_ACQUIRE_TIMEOUT)
+                except asyncioTimeoutError:
+                    pool_stats = self.get_pool_stats().get(db_name, {})
+                    bot_logger.error(
+                        f"MySQL pool acquire timed out for '{db_name}' after {MYSQL_POOL_ACQUIRE_TIMEOUT:.1f}s. "
+                        f"Pool stats: {pool_stats}"
+                    )
+                    raise MySQLError(
+                        f"Timeout acquiring MySQL connection for {db_name} after {MYSQL_POOL_ACQUIRE_TIMEOUT:.1f}s"
+                    )
+                acquire_elapsed = time.time() - acquire_started
+                if acquire_elapsed >= 1.0:
+                    bot_logger.warning(
+                        f"Slow MySQL pool acquire for '{db_name}': {acquire_elapsed:.2f}s"
+                    )
                 try:
                     # Ensure the connection is alive; try ping, recreate pool on failure
                     try:
-                        await conn.ping()
+                        await asyncio_wait_for(conn.ping(), timeout=MYSQL_POOL_PING_TIMEOUT)
                     except Exception:
                         # Connection is dead - release and recreate pool, then retry acquisition
                         try:
@@ -446,7 +465,17 @@ class MySQLHandler:
                         async with self.lock:
                             await self._close_pool(db_name)
                             pool = await self._create_pool(db_name)
-                        conn = await pool.acquire()
+                        try:
+                            conn = await asyncio_wait_for(pool.acquire(), timeout=MYSQL_POOL_ACQUIRE_TIMEOUT)
+                        except asyncioTimeoutError:
+                            pool_stats = self.get_pool_stats().get(db_name, {})
+                            bot_logger.error(
+                                f"MySQL pool re-acquire timed out for '{db_name}' after reconnect. "
+                                f"Pool stats: {pool_stats}"
+                            )
+                            raise MySQLError(
+                                f"Timeout re-acquiring MySQL connection for {db_name} after reconnect"
+                            )
                     # Update last used timestamp
                     self.pool_meta.setdefault(db_name, {})['last_used'] = time.time()
                     return PoolConnectionWrapper(conn, pool=pool)
@@ -473,7 +502,6 @@ class MySQLHandler:
         for db_name, meta in list(self.pool_meta.items()):
             if now - meta.get('last_used', 0) > max_idle_time:
                 to_close.append(db_name)
-
         for db_name in to_close:
             bot_logger.info(f"Closing idle DB pool: {db_name}")
             await self._close_pool(db_name)
@@ -482,10 +510,17 @@ class MySQLHandler:
         stats = {}
         for db_name, pool in self.pools.items():
             try:
+                maxsize = getattr(pool, 'maxsize', None)
+                free_size = getattr(pool, 'free_size', None)
+                size = getattr(pool, 'size', None)
+                used_size = (size - free_size) if (isinstance(size, int) and isinstance(free_size, int)) else None
                 stats[db_name] = {
                     'minsize': getattr(pool, 'minsize', None),
-                    'maxsize': getattr(pool, 'maxsize', None),
-                    'free_size': getattr(pool, 'free_size', None)
+                    'maxsize': maxsize,
+                    'size': size,
+                    'free_size': free_size,
+                    'used_size': used_size,
+                    'saturated': bool(maxsize is not None and free_size == 0 and size == maxsize)
                 }
             except Exception:
                 stats[db_name] = {'info': 'unavailable'}
@@ -2664,11 +2699,21 @@ class TwitchBot(commands.Bot):
             # We only accept messages from users in the running bot channel
             if source_room_id and source_room_id != str(CHANNEL_ID):
                 return
-        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
-        async with await mysql_handler.get_connection() as connection:
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
-                await connection.commit()
+        author_name_for_log = message.author.name if getattr(message, 'author', None) else "unknown"
+        chat_history_logger.info(f"Chat message from {author_name_for_log}: {message.content}")
+        try:
+            async with await mysql_handler.get_connection() as connection:
+                async with connection.cursor(DictCursor) as cursor:
+                    await asyncio_wait_for(
+                        cursor.execute(
+                            "INSERT INTO chat_history (author, message) VALUES (%s, %s)",
+                            (author_name_for_log, message.content)
+                        ),
+                        timeout=MYSQL_QUERY_TIMEOUT
+                    )
+                    await asyncio_wait_for(connection.commit(), timeout=MYSQL_QUERY_TIMEOUT)
+        except Exception as history_error:
+            chat_logger.warning(f"Chat history insert skipped due to DB issue: {history_error}")
         messageAuthor = ""
         messageAuthorID = ""
         bannedUser = None
