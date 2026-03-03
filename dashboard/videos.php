@@ -250,6 +250,19 @@ function sortClipsByCreatedDate(array &$clips) {
 	});
 }
 
+function fetchSortedChannelClips($channelUserId, $accessToken, $clientID, $maxItems = 1000) {
+	$result = fetchAllTwitchItems('clips', [
+		'broadcaster_id' => $channelUserId,
+		'first' => 100,
+	], $accessToken, $clientID, $maxItems);
+	$clips = $result['items'];
+	sortClipsByCreatedDate($clips);
+	return [
+		'items' => $clips,
+		'error' => $result['error'],
+	];
+}
+
 function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = []) {
 	$videoId = isset($video['id']) ? (string) $video['id'] : '';
 	$videoTitle = isset($video['title']) ? (string) $video['title'] : ($isClipsMode ? 'Untitled Clip' : 'Untitled Video');
@@ -366,41 +379,25 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'clips') {
 		]);
 		exit();
 	}
-	$afterCursor = isset($_GET['after']) ? trim((string) $_GET['after']) : '';
+	$offset = isset($_GET['offset']) ? max(0, (int) $_GET['offset']) : 0;
 	$loadMode = isset($_GET['mode']) ? trim((string) $_GET['mode']) : 'more';
 	$loadAll = $loadMode === 'all';
 	$loadedItems = [];
-	$nextCursor = $afterCursor;
 	$error = '';
-	$maxThisRequest = $loadAll ? 1000 : 20;
-	while (count($loadedItems) < $maxThisRequest) {
-		$batchSize = $loadAll ? 100 : 20;
-		$pageQuery = [
-			'broadcaster_id' => $channelUserId,
-			'first' => $batchSize,
-		];
-		if ($nextCursor !== '') {
-			$pageQuery['after'] = $nextCursor;
-		}
-		$page = fetchTwitchPage('clips', $pageQuery, $accessToken, $clientID);
-		if ($page['error'] !== '') {
-			$error = $page['error'];
-			break;
-		}
-		if (empty($page['items'])) {
-			$nextCursor = '';
-			break;
-		}
-		$spaceLeft = $maxThisRequest - count($loadedItems);
-		$itemsToAdd = $page['items'];
-		if (count($itemsToAdd) > $spaceLeft) {
-			$itemsToAdd = array_slice($itemsToAdd, 0, $spaceLeft);
-		}
-		$loadedItems = array_merge($loadedItems, $itemsToAdd);
-		$nextCursor = $page['cursor'];
-		if ($nextCursor === '' || !$loadAll || count($itemsToAdd) === 0) {
-			break;
-		}
+	$sortedClipsResult = fetchSortedChannelClips($channelUserId, $accessToken, $clientID, 1000);
+	$loadedItems = [];
+	$totalClips = 0;
+	$nextOffset = $offset;
+	$hasMore = false;
+	if ($sortedClipsResult['error'] !== '') {
+		$error = $sortedClipsResult['error'];
+	} else {
+		$allClips = $sortedClipsResult['items'];
+		$totalClips = count($allClips);
+		$limit = $loadAll ? max(0, $totalClips - $offset) : 20;
+		$loadedItems = array_slice($allClips, $offset, $limit);
+		$nextOffset = $offset + count($loadedItems);
+		$hasMore = $nextOffset < $totalClips;
 	}
 	$clipIds = [];
 	foreach ($loadedItems as $clip) {
@@ -420,7 +417,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'clips') {
 	echo json_encode([
 		'success' => $error === '',
 		'html' => $html,
-		'next_cursor' => $nextCursor,
+		'next_offset' => $nextOffset,
+		'has_more' => $hasMore,
+		'total_count' => $totalClips,
 		'loaded_count' => count($loadedItems),
 		'message' => $error,
 	]);
@@ -457,23 +456,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $videos = [];
 $apiError = '';
 $isClipsMode = $tab === 'clips';
-$clipsNextCursor = '';
+$clipsNextOffset = 0;
+$clipsHasMore = false;
 $clipDownloadUrls = [];
 
 if ($channelUserId === '') {
 	$flashError = 'No Twitch channel ID is available for this login session.';
 } else {
 	if ($isClipsMode) {
-		$firstPage = fetchTwitchPage('clips', [
-			'broadcaster_id' => $channelUserId,
-			'first' => 20,
-		], $accessToken, $clientID);
-		if ($firstPage['error'] !== '') {
-			$apiError = $firstPage['error'];
+		$sortedClipsResult = fetchSortedChannelClips($channelUserId, $accessToken, $clientID, 1000);
+		if ($sortedClipsResult['error'] !== '') {
+			$apiError = $sortedClipsResult['error'];
 		} else {
-			$videos = $firstPage['items'];
-			sortClipsByCreatedDate($videos);
-			$clipsNextCursor = $firstPage['cursor'];
+			$allClips = $sortedClipsResult['items'];
+			$videos = array_slice($allClips, 0, 20);
+			$clipsNextOffset = count($videos);
+			$clipsHasMore = $clipsNextOffset < count($allClips);
 			$clipIds = [];
 			foreach ($videos as $clip) {
 				if (isset($clip['id']) && (string) $clip['id'] !== '') {
@@ -527,7 +525,6 @@ ob_start();
 						</li>
 					</ul>
 				</div>
-
 				<?php if ($flashSuccess !== ''): ?>
 					<div class="notification is-success"><?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></div>
 				<?php endif; ?>
@@ -540,19 +537,17 @@ ob_start();
 				<?php if (empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== ''): ?>
 					<div class="notification is-info">No <?php echo $isClipsMode ? 'clips' : 'videos'; ?> found for this channel.</div>
 				<?php endif; ?>
-
 				<?php if ($isClipsMode): ?>
 					<div class="box has-background-grey-darker mb-4" style="border:1px solid #2d3138;">
 						<div class="is-flex is-justify-content-space-between is-align-items-center" style="gap:1rem; flex-wrap:wrap;">
 							<p class="has-text-grey-light mb-0" id="clipsLoadStatus">Loaded <?php echo count($videos); ?> clips.</p>
 							<div class="buttons mb-0">
-								<button id="clipsLoadMoreBtn" class="button is-link is-light" <?php echo $clipsNextCursor === '' ? 'disabled' : ''; ?>>Load 20 More</button>
-								<button id="clipsLoadAllBtn" class="button is-warning is-light" <?php echo $clipsNextCursor === '' ? 'disabled' : ''; ?>>Load All</button>
+								<button id="clipsLoadMoreBtn" class="button is-link is-light" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load 20 More</button>
+								<button id="clipsLoadAllBtn" class="button is-warning is-light" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load All</button>
 							</div>
 						</div>
 					</div>
 				<?php endif; ?>
-
 				<div class="columns is-multiline" id="mediaCardsContainer">
 					<?php foreach ($videos as $video): ?>
 						<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls); ?>
@@ -562,7 +557,6 @@ ob_start();
 		</div>
 	</div>
 </div>
-
 <form id="deleteVideoForm" method="post" style="display:none;">
 	<input type="hidden" name="action" value="delete_video">
 	<input type="hidden" name="video_id" id="deleteVideoIdInput" value="">
@@ -609,13 +603,13 @@ document.addEventListener('DOMContentLoaded', function () {
 	const loadMoreBtn = document.getElementById('clipsLoadMoreBtn');
 	const loadAllBtn = document.getElementById('clipsLoadAllBtn');
 	const statusLabel = document.getElementById('clipsLoadStatus');
-	let nextCursor = <?php echo json_encode($clipsNextCursor); ?>;
+	let nextOffset = <?php echo (int) $clipsNextOffset; ?>;
+	let hasMore = <?php echo $clipsHasMore ? 'true' : 'false'; ?>;
 	let loadedCount = <?php echo (int) count($videos); ?>;
 	let totalCount = null;
 	let totalCapped = false;
 	let loading = false;
 	function updateButtons() {
-		const hasMore = !!nextCursor;
 		if (loadMoreBtn) {
 			loadMoreBtn.disabled = loading || !hasMore;
 		}
@@ -659,7 +653,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			});
 	}
 	function fetchClipsBatch(mode) {
-		if (loading || !nextCursor) {
+		if (loading || !hasMore) {
 			return Promise.resolve();
 		}
 		loading = true;
@@ -668,7 +662,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		url.searchParams.set('tab', 'clips');
 		url.searchParams.set('ajax', 'clips');
 		url.searchParams.set('ajax_action', 'batch');
-		url.searchParams.set('after', nextCursor);
+		url.searchParams.set('offset', String(nextOffset));
 		url.searchParams.set('mode', mode);
 		return fetch(url.toString(), {
 			method: 'GET',
@@ -685,7 +679,11 @@ document.addEventListener('DOMContentLoaded', function () {
 					cardsContainer.insertAdjacentHTML('beforeend', data.html);
 				}
 				loadedCount += Number(data.loaded_count || 0);
-				nextCursor = data.next_cursor || '';
+				nextOffset = Number(data.next_offset || nextOffset);
+				hasMore = !!data.has_more;
+				if (typeof data.total_count !== 'undefined') {
+					totalCount = Number(data.total_count || totalCount || 0);
+				}
 				if (totalCount !== null && loadedCount > totalCount) {
 					totalCount = loadedCount;
 				}
