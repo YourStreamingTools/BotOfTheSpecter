@@ -11505,6 +11505,7 @@ async def process_channel_point_rewards(event_data, event_type):
             if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
+                    contains_fortune_placeholder = '(fortune)' in custom_message
                     json_context = None
                     # Apply all replacements in a loop until no more variables are found
                     max_iterations = 8
@@ -11659,6 +11660,12 @@ async def process_channel_point_rewards(event_data, event_type):
                             custom_message = custom_message.replace(var, str(value))
                     # Only send message if it's not empty after replacements
                     if custom_message.strip():
+                        if contains_fortune_placeholder:
+                            custom_message_lstripped = custom_message.lstrip()
+                            normalized_lstripped = custom_message_lstripped.lower()
+                            name_prefix = f"{user_name.lower()},"
+                            if not normalized_lstripped.startswith(name_prefix):
+                                custom_message = f"{user_name}, {custom_message_lstripped}"
                         # Check for (tts.message) which sends the final message to both TTS and chat
                         if '(tts.message)' in custom_message:
                             custom_message = custom_message.replace('(tts.message)', '')
@@ -11780,11 +11787,28 @@ async def generate_user_lotto_numbers(user_name):
                     game_running = await cursor.fetchone()
                 if not game_running:
                     return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
-            # Draw the numbers if the game is running
-            all_numbers = random.sample(range(1, 48), 9)
-            # Combine both sets of numbers into one string
-            winning_numbers = ', '.join(map(str, all_numbers[:6]))
-            supplementary_numbers = ', '.join(map(str, all_numbers[6:]))
+            winning_db_numbers = set(map(int, str(game_running["winning_numbers"]).split(', ')))
+            supplementary_db_numbers = set(map(int, str(game_running["supplementary_numbers"]).split(', ')))
+            weighted_main_match_count = random.choices([3, 4, 5], weights=[70, 25, 5], k=1)[0]
+            weighted_main_match_count = min(weighted_main_match_count, len(winning_db_numbers), 6)
+            user_main_numbers = set(random.sample(list(winning_db_numbers), weighted_main_match_count))
+            remaining_main_needed = 6 - len(user_main_numbers)
+            non_winning_pool = list(set(range(1, 48)) - winning_db_numbers)
+            if remaining_main_needed > 0:
+                user_main_numbers.update(random.sample(non_winning_pool, remaining_main_needed))
+            weighted_supp_match_count = random.choices([0, 1, 2], weights=[65, 30, 5], k=1)[0]
+            weighted_supp_match_count = min(weighted_supp_match_count, len(supplementary_db_numbers), 3)
+            user_supp_numbers = set(random.sample(list(supplementary_db_numbers), weighted_supp_match_count))
+            remaining_supp_needed = 3 - len(user_supp_numbers)
+            non_supp_pool = list((set(range(1, 48)) - user_main_numbers) - supplementary_db_numbers)
+            if len(non_supp_pool) < remaining_supp_needed:
+                non_supp_pool = list(set(range(1, 48)) - user_main_numbers)
+            if remaining_supp_needed > 0:
+                user_supp_numbers.update(random.sample(non_supp_pool, remaining_supp_needed))
+            user_main_numbers_list = sorted(user_main_numbers)
+            user_supp_numbers_list = sorted(user_supp_numbers)
+            winning_numbers = ', '.join(map(str, user_main_numbers_list))
+            supplementary_numbers = ', '.join(map(str, user_supp_numbers_list))
             all_numbers_str = f"Winning Numbers: {winning_numbers} Supplementary Numbers: {supplementary_numbers}"
             # Insert the user's numbers into the database
             await cursor.execute(
