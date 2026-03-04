@@ -421,8 +421,8 @@ class MySQLHelper:
                 await cursor.execute(
                     """
                     INSERT INTO live_notifications (guild_id, username, stream_id, started_at, posted_at)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE stream_id = VALUES(stream_id), started_at = VALUES(started_at), posted_at = VALUES(posted_at)
+                    VALUES (%s, %s, %s, %s, %s) AS new
+                    ON DUPLICATE KEY UPDATE stream_id = new.stream_id, started_at = new.started_at, posted_at = new.posted_at
                     """,
                     (guild_id, str(username).lower(), stream_id, started_at, posted_at)
                 )
@@ -3272,7 +3272,7 @@ class BotOfTheSpecter(commands.Bot):
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/follow.png"))
         elif event_type == "SUBSCRIPTION":
-            months = data.get("twitch-sub-months", 1)
+            months = safe_int_convert(data.get("twitch-sub-months", 1), default=1, logger=self.logger)
             tier = data.get("twitch-tier")
             desc = f"**{twitch_username}** just subscribed"
             if months > 1:
@@ -3285,7 +3285,7 @@ class BotOfTheSpecter(commands.Bot):
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/sub.png"))
         elif event_type == "CHEER":
-            bits = data.get("twitch-cheer-amount", 0)
+            bits = safe_int_convert(data.get("twitch-cheer-amount", 0), default=0, logger=self.logger)
             embed = discord.Embed(
                 title="New Cheer!",
                 description=f"**{twitch_username}** cheered {bits} bits!",
@@ -3579,7 +3579,7 @@ class BotOfTheSpecter(commands.Bot):
                                     # Handle both datetime objects and timezone-aware datetimes
                                     if isinstance(posted_at, datetime):
                                         if posted_at.tzinfo is None:
-                                            time_diff = datetime.utcnow() - posted_at
+                                            time_diff = datetime.now(timezone.utc) - posted_at.replace(tzinfo=timezone.utc)
                                         else:
                                             time_diff = datetime.now(timezone.utc) - posted_at
                                     else:
@@ -3659,7 +3659,7 @@ class BotOfTheSpecter(commands.Bot):
                         # After send attempt, if successful persist the live notification and mark online
                         if sent_success:
                             try:
-                                posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                                posted_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                                 started_at = posted_at
                                 # Fetch stream_id and full stream details from Twitch API
                                 stream_id = None
@@ -4695,14 +4695,14 @@ class TicketCog(commands.Cog, name='Tickets'):
                     await cur.execute("""
                         INSERT INTO ticket_settings 
                         (guild_id, owner_id, info_channel_id, category_id, closed_category_id, support_role_id, mod_channel_id, enabled) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE) AS new
                         ON DUPLICATE KEY UPDATE 
-                        owner_id = VALUES(owner_id),
-                        info_channel_id = VALUES(info_channel_id),
-                        category_id = VALUES(category_id),
-                        closed_category_id = VALUES(closed_category_id),
-                        support_role_id = VALUES(support_role_id),
-                        mod_channel_id = VALUES(mod_channel_id),
+                        owner_id = new.owner_id,
+                        info_channel_id = new.info_channel_id,
+                        category_id = new.category_id,
+                        closed_category_id = new.closed_category_id,
+                        support_role_id = new.support_role_id,
+                        mod_channel_id = new.mod_channel_id,
                         enabled = TRUE,
                         updated_at = CURRENT_TIMESTAMP
                     """, (ctx.guild.id, ctx.author.id, info_channel.id, category.id, closed_category.id,
@@ -6458,8 +6458,8 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                     started_at = started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
                 except Exception as e:
                     self.logger.error(f"Error parsing started_at datetime '{started_at_raw}': {e}")
-                    started_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                posted_at = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    started_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                posted_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 await self.mysql.insert_live_notification(
                     guild_id, username, stream['id'], started_at, posted_at
                 )
@@ -6725,8 +6725,8 @@ class ServerManagement(commands.Cog, name='Server Management'):
         self.reaction_roles_cache = {}
         # Cache for timezone update tasks: {(server_id, timezone_message_id): asyncio.Task}
         self.timezone_update_tasks = {}
-        asyncio.create_task(self._refresh_reaction_roles_cache())
-        asyncio.create_task(self._resume_stream_schedule_updates())
+        self._cache_refresh_task = asyncio.create_task(self._refresh_reaction_roles_cache())
+        self._schedule_resume_task = asyncio.create_task(self._resume_stream_schedule_updates())
 
     async def _resume_stream_schedule_updates(self):
         try:
@@ -7943,6 +7943,12 @@ class ServerManagement(commands.Cog, name='Server Management'):
         await self.handle_auto_role_assignment(member)
 
     def cog_unload(self):
+        for task in (getattr(self, '_cache_refresh_task', None), getattr(self, '_schedule_resume_task', None)):
+            if task and not task.done():
+                task.cancel()
+        for task in self.timezone_update_tasks.values():
+            if task and not task.done():
+                task.cancel()
         self.logger.info("ServerManagement cog unloaded")
 
 # Role History cog - tracks member roles for restoration when they rejoin
@@ -7952,8 +7958,8 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.mysql = MySQLHelper(logger)
         # Start periodic cleanup and member role check tasks
-        asyncio.create_task(self._periodic_cleanup())
-        asyncio.create_task(self._periodic_member_role_check())
+        self._periodic_cleanup_task = asyncio.create_task(self._periodic_cleanup())
+        self._periodic_member_role_check_task = asyncio.create_task(self._periodic_member_role_check())
 
     async def _get_settings(self, server_id: str):
         try:
@@ -7988,9 +7994,9 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
             # last_checked will be updated to CURRENT_TIMESTAMP automatically
             query = """
                 INSERT INTO role_history (server_id, user_id, role_ids)
-                VALUES (%s, %s, %s)
+                VALUES (%s, %s, %s) AS new
                 ON DUPLICATE KEY UPDATE
-                role_ids = VALUES(role_ids),
+                role_ids = new.role_ids,
                 last_checked = CURRENT_TIMESTAMP
             """
             params = (str(server_id), str(user_id), role_ids_json)
@@ -8138,9 +8144,9 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
                         role_ids_json = json.dumps(current_role_ids)
                         insert_query = """
                             INSERT INTO role_history (server_id, user_id, role_ids)
-                            VALUES (%s, %s, %s)
+                            VALUES (%s, %s, %s) AS new
                             ON DUPLICATE KEY UPDATE
-                            role_ids = VALUES(role_ids),
+                            role_ids = new.role_ids,
                             last_checked = CURRENT_TIMESTAMP
                         """
                         await self.mysql.execute(
@@ -8323,6 +8329,12 @@ class RoleHistoryCog(commands.Cog, name='Role History'):
             self.logger.error(f"Error in role_history_status command: {e}")
 
     def cog_unload(self):
+        for task in (
+            getattr(self, '_periodic_cleanup_task', None),
+            getattr(self, '_periodic_member_role_check_task', None)
+        ):
+            if task and not task.done():
+                task.cancel()
         self.logger.info("RoleHistoryCog cog unloaded")
 
 # Role Tracking cog - logs role changes to a designated channel
@@ -9440,25 +9452,43 @@ class DiscordBotRunner:
         self.discord_token = config.discord_token
         self.bot = None
         self.loop = None
+        self._shutting_down = False
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
 
     def sig_handler(self, signum, frame):
         signame = signal.Signals(signum).name
         self.logger.error(f'Caught Signal {signame} ({signum})')
-        self.loop.create_task(self.stop_bot())
+        if self._shutting_down:
+            return
+        if not self.loop or self.loop.is_closed() or not self.loop.is_running():
+            return
+        self.loop.call_soon_threadsafe(lambda: asyncio.create_task(self.stop_bot()))
 
     async def stop_bot(self):
-        if self.bot is not None:
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        try:
+            if self.bot is None:
+                return
             self.logger.info("Stopping BotOfTheSpecter Discord Bot")
-            tasks = [t for t in asyncio.all_tasks(self.loop) if not t.done()]
-            list(map(lambda task: task.cancel(), tasks))
-            try:
+            await self.bot.close()
+            current_task = asyncio.current_task(loop=self.loop)
+            tasks = [
+                t for t in asyncio.all_tasks(self.loop)
+                if t is not current_task and not t.done()
+            ]
+            for task in tasks:
+                task.cancel()
+            if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
-                await self.bot.close()
-            except asyncio.CancelledError as e:
-                self.logger.error(f"Bot task was cancelled. Error: {e}")
-            finally:
+        except asyncio.CancelledError as e:
+            self.logger.error(f"Bot task was cancelled. Error: {e}")
+        except Exception as e:
+            self.logger.error(f"Error while stopping bot: {e}")
+        finally:
+            if self.loop and not self.loop.is_closed():
                 self.loop.stop()
 
     def run(self):
