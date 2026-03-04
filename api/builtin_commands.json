@@ -154,6 +154,9 @@
 		"heartrate": {
 			"description": "This command will show your heart rate in chat. (if you have setup the hyperate code in your profile.)"
 		},
+		"puzzles": {
+			"description": "This command will show current puzzle completion stats."
+		},
 		"addcommand": {
 			"description": "This command will add a new custom command to the system."
 		},
@@ -162,6 +165,14 @@
 		},
 		"editcommand": {
 			"description": "This command will edit an existing custom command."
+		},
+		"enablecommand": {
+			"description": "This command will enable an existing built-in or custom command.",
+			"force_level": "mod"
+		},
+		"disablecommand": {
+			"description": "This command will disable an existing built-in or custom command.",
+			"force_level": "mod"
 		},
 		"removetypos": {
 			"description": "This command will remove a type from a mentioned user.",
@@ -223,6 +234,14 @@
 		},
 		"dbstatus": {
 			"description": "This command will check and display the database connection status, including connection uptime or last connection attempt time.",
+			"force_level": "mod"
+		},
+		"forceonline": {
+			"description": "This command will forcibly set stream status to online.",
+			"force_level": "mod"
+		},
+		"forceoffline": {
+			"description": "This command will forcibly set stream status to offline.",
 			"force_level": "mod"
 		},
 		"obs": {
