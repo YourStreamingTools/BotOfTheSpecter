@@ -49,9 +49,12 @@
 		"followage": "This command will show how long you have followed the channel.",
 		"deaths": "This command will display how many times you've died in-game.",
 		"heartrate": "This command will show your heart rate in chat. (if you have setup the hyperate code in your profile.)",
+		"puzzles": "This command will show current puzzle completion stats.",
 		"addcommand": "This command will add a new custom command to the system.",
 		"removecommand": "This command will remove an existing custom command.",
 		"editcommand": "This command will edit an existing custom command.",
+		"enablecommand": "This command will enable an existing built-in or custom command.",
+		"disablecommand": "This command will disable an existing built-in or custom command.",
 		"removetypos": "This command will remove a type from a mentioned user.",
 		"addpoints": "This command will award points to a mentioned user.",
 		"removepoints": "This command will deduct points from a mentioned user.",
@@ -70,6 +73,14 @@
 		"drawlotto": "This command will draw and announce the lottery winner(s).",
 		"wsstatus": "This command will check and display the WebSocket server connection status for the channel instance.",
 		"dbstatus": "This command will check and display the database connection status, including connection uptime or last connection attempt time.",
-		"obs": "This command is used to interact with the OBS Connector app for BotOfTheSpecter."
+		"forceonline": "This command will forcibly set stream status to online.",
+		"forceoffline": "This command will forcibly set stream status to offline.",
+		"obs": "This command is used to interact with the OBS Connector app for BotOfTheSpecter.",
+		"createraffle": "This command will create a new raffle with specified name, prize, and number of winners. The raffle will be scheduled and must be started with !startraffle.",
+		"startraffle": "This command will start a scheduled raffle. Use without arguments to start the first scheduled raffle, or provide a raffle ID to start a specific one (e.g., !startraffle 4).",
+		"joinraffle": "This command allows viewers to join an active raffle.",
+		"leaveraffle": "This command allows viewers to leave an active raffle they have joined.",
+		"stopraffle": "This command will stop and end an active raffle without drawing winners.",
+		"drawraffle": "This command will draw and announce the raffle winner(s) according to the configured number of winners."
 	}
 }
