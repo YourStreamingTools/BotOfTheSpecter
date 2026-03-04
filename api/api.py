@@ -57,6 +57,7 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
 
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 WEATHER_API = os.getenv('WEATHER_API')
+STEAM_API = os.getenv('STEAM_API')
 DISCORD_TWITCH_LINK_BASE_URL = os.getenv('DISCORD_TWITCH_LINK_BASE_URL', 'https://botofthespecter.com/discord_twitch_link.php')
 DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES = int(os.getenv('DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES', '30'))
 
@@ -456,6 +457,7 @@ _V2_PUBLIC_PATHS = [
     "/api/song",
     "/api/exchangerate",
     "/api/weather",
+    "/api/steamapplist",
 ]
 _V2_PUBLIC_PATHS_SET = set(_V2_PUBLIC_PATHS)
 
@@ -1193,6 +1195,68 @@ class PublicAPIDailyResponse(BaseModel):
                 "time_remaining": "3 hours, 24 minutes, 16 seconds",
             }
         }
+
+STEAM_APP_LIST_CACHE_TTL_SECONDS = max(60, int(os.getenv('STEAM_APP_LIST_CACHE_TTL_SECONDS', '3600')))
+STEAM_APP_LIST_CACHE_PATHS = [
+    "/home/botofthespecter/steamapplist.json",
+]
+_steam_app_list_cache: Dict[str, int] = {}
+_steam_app_list_cache_loaded_at = datetime.fromtimestamp(0, tz=timezone.utc)
+
+def _normalize_steam_app_list(payload: Any) -> Dict[str, int]:
+    if not isinstance(payload, dict):
+        return {}
+    if "response" in payload:
+        apps = ((payload.get("response") or {}).get("apps") or [])
+        return {
+            str(app.get("name", "")).lower(): int(app.get("appid"))
+            for app in apps
+            if app.get("name") and app.get("appid")
+        }
+    if "applist" in payload:
+        applist = payload.get("applist") or {}
+        apps = applist.get("apps") or []
+        if isinstance(apps, dict):
+            apps = apps.get("app") or []
+        return {
+            str(app.get("name", "")).lower(): int(app.get("appid"))
+            for app in apps
+            if app.get("name") and app.get("appid")
+        }
+    return {
+        str(name).lower(): int(appid)
+        for name, appid in payload.items()
+        if name and appid is not None
+    }
+
+def _load_steam_app_list_from_disk(now_utc: datetime, allow_expired: bool = False) -> Dict[str, int]:
+    for cache_path in STEAM_APP_LIST_CACHE_PATHS:
+        try:
+            if not os.path.exists(cache_path):
+                continue
+            age = now_utc.timestamp() - os.path.getmtime(cache_path)
+            if not allow_expired and age > STEAM_APP_LIST_CACHE_TTL_SECONDS:
+                continue
+            with open(cache_path, "r", encoding="utf-8") as cache_file:
+                cached_payload = json.load(cache_file)
+            normalized = _normalize_steam_app_list(cached_payload)
+            if normalized:
+                return normalized
+        except Exception as exc:
+            logging.warning(f"Failed reading Steam cache file {cache_path}: {exc}")
+    return {}
+
+def _save_steam_app_list_to_disk(app_map: Dict[str, int]):
+    for cache_path in STEAM_APP_LIST_CACHE_PATHS:
+        try:
+            cache_dir = os.path.dirname(cache_path)
+            if cache_dir:
+                os.makedirs(cache_dir, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as cache_file:
+                json.dump(app_map, cache_file)
+            return
+        except Exception as exc:
+            logging.warning(f"Failed writing Steam cache file {cache_path}: {exc}")
 
 # Define the response model for User Points
 class UserPointsResponse(BaseModel):
@@ -2286,6 +2350,141 @@ async def api_weather_requests_remaining():
         return {"requests_remaining": str(count), "time_remaining": time_remaining}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving weather API count: {str(e)}")
+
+
+@app.get(
+    "/api/steamapplist",
+    summary="Get Steam app list mapping",
+    description="Return a lowercased Steam game-name to appid mapping cached by the API server.",
+    tags=["Public"],
+    operation_id="get_steam_app_list"
+)
+async def api_steamapplist():
+    global _steam_app_list_cache, _steam_app_list_cache_loaded_at
+    now_utc = datetime.now(timezone.utc)
+    in_memory_age = (now_utc - _steam_app_list_cache_loaded_at).total_seconds()
+    if _steam_app_list_cache and in_memory_age < STEAM_APP_LIST_CACHE_TTL_SECONDS:
+        return _steam_app_list_cache
+    disk_cache = _load_steam_app_list_from_disk(now_utc)
+    if disk_cache:
+        _steam_app_list_cache = disk_cache
+        _steam_app_list_cache_loaded_at = now_utc
+        return disk_cache
+    primary_url = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
+    legacy_url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"
+    request_attempts = [{"format": "json"}]
+    if STEAM_API:
+        request_attempts.insert(0, {"format": "json", "key": STEAM_API})
+    else:
+        logging.warning("STEAM_API key is not configured; attempting unauthenticated Steam app list request")
+    try:
+        timeout = aiohttp.ClientTimeout(total=20)
+        payload = None
+        last_status = None
+        last_error_snippet = ""
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for query_params in request_attempts:
+                try:
+                    combined_map: Dict[str, int] = {}
+                    last_appid = 0
+                    more_results = True
+                    while more_results:
+                        store_params = dict(query_params)
+                        store_params.update({
+                            "max_results": 50000,
+                            "last_appid": last_appid,
+                        })
+                        async with session.get(
+                            primary_url,
+                            params=store_params,
+                            headers={
+                                "Accept": "application/json",
+                                "User-Agent": "BotOfTheSpecter/1.0",
+                            },
+                        ) as response:
+                            if response.status != 200:
+                                upstream_error = await response.text()
+                                last_status = response.status
+                                last_error_snippet = (upstream_error or "")[:400]
+                                logging.error(
+                                    "Steam IStoreService call failed with status %s (params=%s): %s",
+                                    response.status,
+                                    "with_key" if query_params.get("key") else "without_key",
+                                    last_error_snippet,
+                                )
+                                combined_map = {}
+                                break
+                            page_payload = await response.json(content_type=None)
+                            page_normalized = _normalize_steam_app_list(page_payload)
+                            if not page_normalized:
+                                break
+                            combined_map.update(page_normalized)
+                            response_obj = (page_payload or {}).get("response") or {}
+                            more_results = bool(response_obj.get("have_more_results"))
+                            last_appid = int(response_obj.get("last_appid") or 0)
+                            if more_results and last_appid <= 0:
+                                break
+                    if combined_map:
+                        payload = combined_map
+                        break
+                    if payload is None:
+                        async with session.get(
+                            legacy_url,
+                            params=query_params,
+                            headers={
+                                "Accept": "application/json",
+                                "User-Agent": "BotOfTheSpecter/1.0",
+                            },
+                        ) as response:
+                            if response.status == 200:
+                                payload = await response.json(content_type=None)
+                                break
+                            upstream_error = await response.text()
+                            last_status = response.status
+                            last_error_snippet = (upstream_error or "")[:400]
+                            logging.error(
+                                "Steam legacy GetAppList failed with status %s (params=%s): %s",
+                                response.status,
+                                "with_key" if query_params.get("key") else "without_key",
+                                last_error_snippet,
+                            )
+                except Exception as request_exc:
+                    logging.error(
+                        "Steam API request error (params=%s): %s",
+                        "with_key" if query_params.get("key") else "without_key",
+                        request_exc,
+                    )
+        if payload is None:
+            stale_disk_cache = _load_steam_app_list_from_disk(now_utc, allow_expired=True)
+            if stale_disk_cache:
+                logging.warning("Steam API unavailable; serving stale Steam app list cache")
+                _steam_app_list_cache = stale_disk_cache
+                _steam_app_list_cache_loaded_at = now_utc
+                return stale_disk_cache
+            logging.error(
+                "Steam API unavailable and no stale cache available (status=%s, error=%s)",
+                last_status,
+                last_error_snippet,
+            )
+            raise HTTPException(status_code=502, detail="Steam API unavailable")
+        normalized = _normalize_steam_app_list(payload)
+        if not normalized:
+            stale_disk_cache = _load_steam_app_list_from_disk(now_utc, allow_expired=True)
+            if stale_disk_cache:
+                logging.warning("Steam API returned empty payload; serving stale Steam app list cache")
+                _steam_app_list_cache = stale_disk_cache
+                _steam_app_list_cache_loaded_at = now_utc
+                return stale_disk_cache
+            raise HTTPException(status_code=502, detail="Steam API returned empty app list")
+        _steam_app_list_cache = normalized
+        _steam_app_list_cache_loaded_at = now_utc
+        _save_steam_app_list_to_disk(normalized)
+        return normalized
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.error(f"Error retrieving Steam app list: {exc}")
+        raise HTTPException(status_code=500, detail="Error retrieving Steam app list")
 
 # killCommand EndPoint
 @app.get(

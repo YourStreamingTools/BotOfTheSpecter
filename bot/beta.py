@@ -6501,27 +6501,14 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('steam', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-            # File path
-            file_path = '/var/www/api/steamapplist.json'
-            # Check if the file exists and if it's less than 1 hour old
-            try:
-                file_mtime = os.path.getmtime(file_path)
-                if (time.time() - file_mtime) < 3600:
-                    # Load from file if it's still fresh
-                    with open(file_path, 'r') as file:
-                        steam_app_list = json.load(file)
-                else:
-                    raise FileNotFoundError  # Force fetching fresh data
-            except (FileNotFoundError, OSError):
-                async with httpClientSession() as session:
-                    response = await session.get("http://api.steampowered.com/ISteamApps/GetAppList/v2")
-                    if response.status == 200:
-                        data = await response.json()
-                        steam_app_list = {app['name'].lower(): app['appid'] for app in data['applist']['apps']}
-                        # Save to file
-                        with open(file_path, 'w') as file:
-                            json.dump(data, file)
-                    else:
+            steam_api_url = "https://api.botofthespecter.com/api/steamapplist"
+            async with httpClientSession(timeout=ClientTimeout(total=15)) as session:
+                async with session.get(steam_api_url) as response:
+                    if response.status != 200:
+                        await send_chat_message("Failed to fetch Steam games list.")
+                        return
+                    steam_app_list = await response.json(content_type=None)
+                    if not isinstance(steam_app_list, dict) or not steam_app_list:
                         await send_chat_message("Failed to fetch Steam games list.")
                         return
             game_name_lower = current_game.lower()
