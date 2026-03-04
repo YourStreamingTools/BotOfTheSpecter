@@ -35,6 +35,47 @@ ob_start();
         </div>
         <p class="help">Press Enter or click Execute. Use 'clear' to reset the terminal.</p>
     </div>
+    <div class="box">
+        <h2 class="title is-6 mb-3"><span class="icon"><i class="fas fa-toolbox"></i></span> Terminal Tools</h2>
+        <div class="columns is-multiline mb-0">
+            <div class="column is-6">
+                <label class="label">Quick Preset</label>
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <div class="select is-fullwidth">
+                            <select id="preset-select" disabled>
+                                <option value="">Select preset command...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="control">
+                        <button class="button is-info" id="run-preset-btn" disabled>
+                            <span class="icon"><i class="fas fa-bolt"></i></span>
+                            <span>Run</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="column is-6">
+                <label class="label">Saved Snippets</label>
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <div class="select is-fullwidth">
+                            <select id="snippet-select">
+                                <option value="">Select saved snippet...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="control">
+                        <button class="button is-link is-light" id="save-snippet-btn" disabled>
+                            <span class="icon"><i class="fas fa-save"></i></span>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="field">
         <div class="control">
             <button class="button is-primary" id="execute-btn" disabled>
@@ -49,6 +90,14 @@ ob_start();
                 <span class="icon"><i class="fas fa-stop"></i></span>
                 <span>Interrupt</span>
             </button>
+            <button class="button is-link is-light" id="copy-output-btn">
+                <span class="icon"><i class="fas fa-copy"></i></span>
+                <span>Copy Output</span>
+            </button>
+            <button class="button is-link is-light" id="download-output-btn">
+                <span class="icon"><i class="fas fa-download"></i></span>
+                <span>Download Log</span>
+            </button>
         </div>
     </div>
     <div class="field">
@@ -57,7 +106,15 @@ ob_start();
                 <span class="tag is-info" id="connection-status">Status: waiting for server selection</span>
                 <span class="tag is-dark has-text-white" id="current-server">Server: none</span>
                 <span class="tag is-dark has-text-white" id="last-command">Last command: none</span>
+                <span class="tag is-dark has-text-white" id="runtime-stat">Runtime: 00:00</span>
+                <span class="tag is-dark has-text-white" id="line-count-stat">Lines: 0</span>
             </div>
+        </div>
+    </div>
+    <div class="field">
+        <label class="label">Filter Output</label>
+        <div class="control">
+            <input class="input" type="text" id="output-filter" placeholder="Type to filter terminal output...">
         </div>
     </div>
     <div class="box" style="background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; height: 500px; overflow-y: auto; white-space: pre-wrap; padding: 1rem;" id="terminal-output">
@@ -69,6 +126,10 @@ ob_start();
             <label class="checkbox">
                 <input type="checkbox" id="auto-scroll">
                 Auto-scroll to bottom
+            </label>
+            <label class="checkbox ml-4">
+                <input type="checkbox" id="safe-mode" checked>
+                Safe mode (blocks risky commands unless confirmed)
             </label>
         </div>
     </div>
@@ -82,23 +143,81 @@ const STATUS_CLASSES = {
     danger: 'is-danger'
 };
 const HISTORY_STORAGE_KEY = 'botofthespecter_webterminal_history';
+const SNIPPETS_STORAGE_KEY = 'botofthespecter_webterminal_snippets';
 const HISTORY_LIMIT = 100;
+const SNIPPET_LIMIT = 40;
+const DANGEROUS_COMMAND_PATTERNS = [
+    /\brm\s+-rf\s+\//i,
+    /\bdd\s+if=.*\bof=\/dev\//i,
+    /\bmkfs(\.|\s)/i,
+    /:\s*\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\};\s*:/,
+    /\bshutdown\b/i,
+    /\breboot\b/i,
+    /\bpoweroff\b/i,
+    /\bhalt\b/i,
+    /\bformat\b/i,
+    /\bdel\s+\/f\s+\/s\s+\/q\b/i,
+    /\btruncate\s+-s\s+0\b/i
+];
+const PRESET_COMMANDS = {
+    bots: [
+        { label: 'Discord bot service status', command: 'systemctl status discordbot.service --no-pager' },
+        { label: 'Discord bot logs', command: 'journalctl -u discordbot.service -n 100 --no-pager' },
+        { label: 'Export queue worker status', command: 'systemctl status export_queue_worker.service --no-pager' },
+        { label: 'Export queue worker logs', command: 'journalctl -u export_queue_worker.service -n 100 --no-pager' },
+        { label: 'Disk usage', command: 'df -h' }
+    ],
+    web: [
+        { label: 'Apache status', command: 'systemctl status apache2 --no-pager' },
+        { label: 'Apache access log (tail)', command: 'tail -n 100 /var/log/apache2/access.log' },
+        { label: 'Apache error log (tail)', command: 'tail -n 100 /var/log/apache2/error.log' }
+    ],
+    api: [
+        { label: 'FastAPI service status', command: 'systemctl status fastapi.service --no-pager' },
+        { label: 'FastAPI logs', command: 'journalctl -u fastapi.service -n 100 --no-pager' },
+        { label: 'Open ports', command: 'ss -tulpen | head -n 30' }
+    ],
+    websocket: [
+        { label: 'WebSocket service status', command: 'systemctl status websocket.service --no-pager' },
+        { label: 'WebSocket logs', command: 'journalctl -u websocket.service -n 100 --no-pager' },
+        { label: 'Socket connections', command: 'ss -tunap | head -n 40' }
+    ],
+    sql: [
+        { label: 'MySQL service status', command: 'systemctl status mysql.service --no-pager' },
+        { label: 'MySQL process list', command: 'mysqladmin processlist' },
+        { label: 'MySQL error log (tail)', command: 'tail -n 100 /var/log/mysql/error.log' }
+    ]
+};
 
 let currentEventSource = null;
 let commandHistory = loadHistory();
 let historyIndex = -1;
 let isExecuting = false;
+let snippets = loadSnippets();
+let lineCount = 0;
+let executionStartTime = null;
+let executionTimer = null;
 
 const serverSelect = document.getElementById('server-select');
 const commandInput = document.getElementById('command-input');
 const executeBtn = document.getElementById('execute-btn');
 const clearBtn = document.getElementById('clear-btn');
 const interruptBtn = document.getElementById('interrupt-btn');
+const presetSelect = document.getElementById('preset-select');
+const runPresetBtn = document.getElementById('run-preset-btn');
+const snippetSelect = document.getElementById('snippet-select');
+const saveSnippetBtn = document.getElementById('save-snippet-btn');
+const copyOutputBtn = document.getElementById('copy-output-btn');
+const downloadOutputBtn = document.getElementById('download-output-btn');
+const outputFilterInput = document.getElementById('output-filter');
 const terminalOutput = document.getElementById('terminal-output');
 const autoScrollCheckbox = document.getElementById('auto-scroll');
+const safeModeCheckbox = document.getElementById('safe-mode');
 const connectionStatusTag = document.getElementById('connection-status');
 const currentServerTag = document.getElementById('current-server');
 const lastCommandTag = document.getElementById('last-command');
+const runtimeStatTag = document.getElementById('runtime-stat');
+const lineCountStatTag = document.getElementById('line-count-stat');
 
 autoScrollCheckbox.checked = true;
 
@@ -115,6 +234,60 @@ function loadHistory() {
 
 function persistHistory() {
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(commandHistory));
+}
+
+function loadSnippets() {
+    try {
+        const stored = localStorage.getItem(SNIPPETS_STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (error) {
+        console.warn('Failed to load snippets', error);
+        return [];
+    }
+}
+
+function persistSnippets() {
+    localStorage.setItem(SNIPPETS_STORAGE_KEY, JSON.stringify(snippets));
+}
+
+function renderSnippetOptions() {
+    snippetSelect.innerHTML = '<option value="">Select saved snippet...</option>';
+    snippets.forEach((snippet) => {
+        const option = document.createElement('option');
+        option.value = snippet;
+        option.textContent = snippet;
+        snippetSelect.appendChild(option);
+    });
+}
+
+function saveSnippet(command) {
+    if (!command) return;
+    const existing = snippets.indexOf(command);
+    if (existing !== -1) {
+        snippets.splice(existing, 1);
+    }
+    snippets.push(command);
+    if (snippets.length > SNIPPET_LIMIT) {
+        snippets = snippets.slice(snippets.length - SNIPPET_LIMIT);
+    }
+    persistSnippets();
+    renderSnippetOptions();
+}
+
+function refreshPresetOptions() {
+    const server = serverSelect.value;
+    const presets = PRESET_COMMANDS[server] || [];
+    presetSelect.innerHTML = '<option value="">Select preset command...</option>';
+    presets.forEach((preset) => {
+        const option = document.createElement('option');
+        option.value = preset.command;
+        option.textContent = `${preset.label} — ${preset.command}`;
+        presetSelect.appendChild(option);
+    });
+    const shouldDisable = !server || isExecuting || presets.length === 0;
+    presetSelect.disabled = shouldDisable;
+    runPresetBtn.disabled = shouldDisable;
 }
 
 function addToHistory(command) {
@@ -159,10 +332,114 @@ function appendToTerminal(text, type = 'output') {
     const timestamp = new Date().toLocaleTimeString();
     div.style.color = colors[type] || colors.output;
     div.textContent = `[${timestamp}] ${text}`;
+    const filterText = outputFilterInput.value.trim().toLowerCase();
+    if (filterText && !div.textContent.toLowerCase().includes(filterText)) {
+        div.style.display = 'none';
+    }
     terminalOutput.appendChild(div);
+    lineCount++;
+    updateLiveStats();
     if (autoScrollCheckbox.checked) {
         terminalOutput.scrollTop = terminalOutput.scrollHeight;
     }
+}
+
+function getTerminalText() {
+    return Array.from(terminalOutput.children).map(node => node.textContent || '').join('\n');
+}
+
+async function copyTerminalOutput() {
+    const text = getTerminalText();
+    if (!text.trim()) {
+        setStatus('Nothing to copy', 'warning');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Output copied to clipboard', 'success');
+    } catch (error) {
+        setStatus('Clipboard copy failed', 'danger');
+        console.error('Clipboard copy failed', error);
+    }
+}
+
+function downloadTerminalOutput() {
+    const text = getTerminalText();
+    if (!text.trim()) {
+        setStatus('Nothing to download', 'warning');
+        return;
+    }
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().replace(/[.:]/g, '-');
+    link.href = url;
+    link.download = `terminal-log-${timestamp}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setStatus('Log download started', 'success');
+}
+
+function applyOutputFilter() {
+    const filter = outputFilterInput.value.trim().toLowerCase();
+    Array.from(terminalOutput.children).forEach((node) => {
+        const text = (node.textContent || '').toLowerCase();
+        node.style.display = !filter || text.includes(filter) ? '' : 'none';
+    });
+}
+
+function formatDuration(ms) {
+    if (!ms || ms < 0) return '00:00';
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+function updateLiveStats() {
+    lineCountStatTag.textContent = `Lines: ${lineCount}`;
+    const runtime = executionStartTime ? formatDuration(Date.now() - executionStartTime) : '00:00';
+    runtimeStatTag.textContent = `Runtime: ${runtime}`;
+}
+
+function startExecutionTimer() {
+    executionStartTime = Date.now();
+    if (executionTimer) {
+        clearInterval(executionTimer);
+    }
+    executionTimer = setInterval(updateLiveStats, 1000);
+    updateLiveStats();
+}
+
+function stopExecutionTimer() {
+    if (executionTimer) {
+        clearInterval(executionTimer);
+        executionTimer = null;
+    }
+    executionStartTime = null;
+    updateLiveStats();
+}
+
+function commandLooksDangerous(command) {
+    return DANGEROUS_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
+}
+
+async function confirmCommandSafety(command) {
+    if (!safeModeCheckbox.checked || !commandLooksDangerous(command)) {
+        return { proceed: true, force: false };
+    }
+    const result = await Swal.fire({
+        title: 'Risky command detected',
+        text: 'This command looks destructive. Continue anyway?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Run anyway',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d33'
+    });
+    return { proceed: result.isConfirmed, force: result.isConfirmed };
 }
 
 function setStatus(message, type = 'info') {
@@ -192,6 +469,8 @@ function setExecutionState(executing) {
     executeBtn.disabled = disabled;
     interruptBtn.disabled = !executing;
     serverSelect.disabled = executing;
+    saveSnippetBtn.disabled = disabled;
+    refreshPresetOptions();
     if (executing) {
         executeBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Executing...</span>';
     } else {
@@ -204,6 +483,7 @@ function finalizeExecution(message, type = 'info', statusLabel = 'Idle') {
         appendToTerminal(message, type === 'danger' ? 'error' : 'info');
     }
     setStatus(statusLabel, type);
+    stopExecutionTimer();
     cleanupEventSource();
     setExecutionState(false);
     commandInput.value = '';
@@ -215,7 +495,9 @@ serverSelect.addEventListener('change', function() {
     const label = serverSelected ? this.options[this.selectedIndex].text : 'none';
     commandInput.disabled = !serverSelected || isExecuting;
     executeBtn.disabled = !serverSelected || isExecuting;
+    saveSnippetBtn.disabled = !serverSelected || isExecuting;
     setCurrentServer(label);
+    refreshPresetOptions();
     if (serverSelected) {
         setStatus(`Connected to ${label}`, 'success');
         commandInput.focus();
@@ -238,8 +520,37 @@ commandInput.addEventListener('keydown', function(e) {
 
 executeBtn.addEventListener('click', executeCommand);
 
+runPresetBtn.addEventListener('click', function() {
+    const preset = presetSelect.value;
+    if (!preset || isExecuting) return;
+    commandInput.value = preset;
+    executeCommand();
+});
+
+snippetSelect.addEventListener('change', function() {
+    if (!this.value || isExecuting || serverSelect.value === '') return;
+    commandInput.value = this.value;
+    commandInput.focus();
+});
+
+saveSnippetBtn.addEventListener('click', function() {
+    const command = commandInput.value.trim();
+    if (!command) {
+        setStatus('Nothing to save as snippet', 'warning');
+        return;
+    }
+    saveSnippet(command);
+    setStatus('Snippet saved', 'success');
+});
+
+copyOutputBtn.addEventListener('click', copyTerminalOutput);
+downloadOutputBtn.addEventListener('click', downloadTerminalOutput);
+outputFilterInput.addEventListener('input', applyOutputFilter);
+
 clearBtn.addEventListener('click', function() {
     terminalOutput.innerHTML = '<div style="color: #00ff00;">Terminal cleared</div>';
+    lineCount = 1;
+    updateLiveStats();
     setStatus('Terminal cleared', 'info');
 });
 
@@ -249,7 +560,7 @@ interruptBtn.addEventListener('click', function() {
     finalizeExecution('Command interrupted by user', 'danger', 'Command interrupted');
 });
 
-function executeCommand() {
+async function executeCommand() {
     const server = serverSelect.value;
     const command = commandInput.value.trim();
     if (!server || !command) return;
@@ -258,15 +569,23 @@ function executeCommand() {
         commandInput.value = '';
         return;
     }
+    const safetyDecision = await confirmCommandSafety(command);
+    if (!safetyDecision.proceed) {
+        setStatus('Command cancelled', 'warning');
+        return;
+    }
     addToHistory(command);
     historyIndex = -1;
     appendToTerminal(`$ ${command}`, 'command');
     setLastCommandLabel(command);
     setStatus(`Executing command on ${serverSelect.options[serverSelect.selectedIndex].text}`, 'warning');
     setExecutionState(true);
+    startExecutionTimer();
     const encodedCommand = encodeURIComponent(command);
     const encodedServer = encodeURIComponent(server);
-    currentEventSource = new EventSource(`terminal_stream.php?server=${encodedServer}&command=${encodedCommand}`);
+    const encodedSafeMode = safeModeCheckbox.checked ? '1' : '0';
+    const encodedForce = safetyDecision.force ? '1' : '0';
+    currentEventSource = new EventSource(`terminal_stream.php?server=${encodedServer}&command=${encodedCommand}&safe=${encodedSafeMode}&force=${encodedForce}`);
 
     currentEventSource.onmessage = function(event) {
         if (event.data) {
@@ -311,16 +630,24 @@ function executeCommand() {
 
 document.addEventListener('DOMContentLoaded', function() {
     setStatus('Waiting for server selection', 'info');
+    renderSnippetOptions();
+    refreshPresetOptions();
     appendToTerminal('='.repeat(60), 'info');
-    appendToTerminal('BotOfTheSpecter Web Terminal v1.1', 'success');
+    appendToTerminal('BotOfTheSpecter Web Terminal v1.2', 'success');
     appendToTerminal('='.repeat(60), 'info');
     appendToTerminal('Commands:', 'info');
     appendToTerminal('  - Use ↑/↓ arrows to navigate command history', 'info');
+    appendToTerminal('  - Save snippets for commands you run frequently', 'info');
+    appendToTerminal('  - Choose server-specific presets from Terminal Tools', 'info');
     appendToTerminal('  - Type "clear" to clear the terminal', 'info');
+    appendToTerminal('  - Use output filter, copy output, or download log anytime', 'info');
+    appendToTerminal('  - Safe mode warns on risky commands', 'info');
     appendToTerminal('  - Press Ctrl+C or click Interrupt to stop running commands', 'info');
     appendToTerminal('='.repeat(60), 'info');
     appendToTerminal('Command history restored: ' + commandHistory.length + ' entries', 'info');
+    appendToTerminal('Saved snippets restored: ' + snippets.length + ' entries', 'info');
     appendToTerminal('');
+    updateLiveStats();
 });
 </script>
 <?php
