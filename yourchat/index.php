@@ -3837,22 +3837,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 'celebration': 'Celebration'
             };
             const rewardName = rewardTypeNames[event.reward.type] || event.reward.type;
-            // Build message HTML with emotes if present
-            let messageHtml = '';
             const redemptionText = extractTextFromEvent(event);
-            if (event.message && event.message.text) {
-                if (event.message.fragments) {
-                    event.message.fragments.forEach(fragment => {
-                        if (fragment.type === 'emote' && fragment.emote) {
-                            messageHtml += `<img src="https://static-cdn.jtvnw.net/emoticons/v2/${fragment.emote.id}/default/dark/1.0" alt="${fragment.text}" title="${fragment.text}" style="vertical-align: middle;">`;
-                        } else {
-                            messageHtml += escapeHtml(fragment.text);
-                        }
-                    });
-                } else {
-                    messageHtml = escapeHtml(event.message.text);
-                }
-            }
             // Check if there's a recent chat message that matches this redemption (bidirectional deduplication)
             try {
                 if (consumeMatchingChatMessage(
@@ -3897,7 +3882,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         <span class="reward-name">${escapeHtml(rewardName)}</span>
                         <span class="reward-cost">(${event.reward.channel_points} pts)</span>
                     </div>
-                    ${messageHtml ? `<div class="reward-message-text">${messageHtml}</div>` : ''}
                 `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
@@ -3978,7 +3962,6 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         <span class="reward-cost">(${event.reward.cost} pts)</span>
                     </div>
                     ${event.reward.prompt ? `<div class="reward-prompt">${escapeHtml(event.reward.prompt)}</div>` : ''}
-                    ${event.user_input ? `<div class="reward-message-text">${escapeHtml(event.user_input)}</div>` : ''}
                 `;
             overlay.appendChild(rewardDiv);
             overlay.scrollTop = overlay.scrollHeight;
