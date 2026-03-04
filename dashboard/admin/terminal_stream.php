@@ -10,6 +10,28 @@ ignore_user_abort(true);
 
 $streamTerminated = false;
 
+function isDangerousCommand(string $command): bool {
+    $patterns = [
+        '/\brm\s+-rf\s+\//i',
+        '/\bdd\s+if=.*\bof=\/dev\//i',
+        '/\bmkfs(\.|\s)/i',
+        '/:\s*\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\};\s*:/',
+        '/\bshutdown\b/i',
+        '/\breboot\b/i',
+        '/\bpoweroff\b/i',
+        '/\bhalt\b/i',
+        '/\bformat\b/i',
+        '/\bdel\s+\/f\s+\/s\s+\/q\b/i',
+        '/\btruncate\s+-s\s+0\b/i'
+    ];
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $command)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function sse_send($data, $event = 'message') {
     if ($data === null) {
         return;
@@ -83,10 +105,24 @@ header('Access-Control-Allow-Origin: *');
 // Get parameters
 $server = $_GET['server'] ?? '';
 $command = $_GET['command'] ?? '';
+$safeMode = ($_GET['safe'] ?? '1') === '1';
+$forceExecution = ($_GET['force'] ?? '0') === '1';
 
 if (empty($server) || empty($command)) {
     sse_send('Error: Missing server or command parameter', 'error');
     sendDoneEvent(['error' => 'Missing parameters']);
+    exit;
+}
+
+if (strlen($command) > 2000) {
+    sse_send('Error: Command exceeds maximum length (2000 characters)', 'error');
+    sendDoneEvent(['error' => 'Command too long']);
+    exit;
+}
+
+if ($safeMode && !$forceExecution && isDangerousCommand($command)) {
+    sse_send('Error: Command blocked by safe mode. Disable safe mode or force execution from UI.', 'error');
+    sendDoneEvent(['error' => 'Blocked by safe mode']);
     exit;
 }
 
@@ -131,6 +167,14 @@ if (!isset($ssh_configs[$server])) {
 }
 
 $config = $ssh_configs[$server];
+
+error_log(sprintf(
+    '[WebTerminal] user_id=%s server=%s safe_mode=%s command="%s"',
+    $_SESSION['user_id'] ?? 'unknown',
+    $server,
+    $safeMode ? '1' : '0',
+    $command
+));
 
 try {
     // Get SSH connection
