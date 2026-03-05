@@ -111,6 +111,27 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                 exit;
             }
             mysqli_stmt_close($stmt);
+            // Check if this account has been preserved as a memorial for a deceased user
+            $deceasedQuery = "SELECT is_deceased FROM users WHERE twitch_user_id = ? LIMIT 1";
+            $stmt = mysqli_prepare($conn, $deceasedQuery);
+            mysqli_stmt_bind_param($stmt, 's', $twitchUserId);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_store_result($stmt);
+            if (mysqli_stmt_num_rows($stmt) > 0) {
+                mysqli_stmt_bind_result($stmt, $isDeceased);
+                mysqli_stmt_fetch($stmt);
+                mysqli_stmt_close($stmt);
+                if ((int)$isDeceased === 1) {
+                    $_SESSION = array();
+                    session_destroy();
+                    $accessMode = 'memorial';
+                    $info = "This account has been preserved in memory of the account holder who has passed away. The account and all associated data have been retained as a permanent memorial.";
+                    include 'restricted.php';
+                    exit;
+                }
+            } else {
+                mysqli_stmt_close($stmt);
+            }
             // Check if the user already exists
             $checkQuery = "SELECT id, api_key FROM users WHERE twitch_user_id = ?";
             $stmt = mysqli_prepare($conn, $checkQuery);
