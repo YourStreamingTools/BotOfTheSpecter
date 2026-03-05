@@ -313,34 +313,94 @@
     opacity: 1 !important;
 }
 
+.admin-users-table tr.is-memorial-row {
+    background-color: rgba(155, 89, 182, 0.08);
+}
+
+.admin-users-table tr.is-memorial-row td {
+    text-decoration: none !important;
+    opacity: 1 !important;
+}
+
 .admin-users-table .restricted-label {
     margin-left: 0.5rem;
     vertical-align: middle;
 }
 
+.admin-users-table .memorial-label {
+    margin-left: 0.5rem;
+    vertical-align: middle;
+    background-color: #f0e6f7 !important;
+    color: #7b2fa8 !important;
+    border-color: #c9a0e0 !important;
+}
+
+.admin-users-table .memorial-action-btn {
+    background-color: #f0e6f7;
+    color: #7b2fa8;
+    border-color: #c9a0e0;
+}
+
+.admin-users-table .memorial-action-btn:hover {
+    background-color: #e2caf0;
+    color: #5c1f7a;
+    border-color: #9b59b6;
+}
+
 .admin-users-table .actions-wrap {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    max-width: 18rem;
 }
 
 .admin-users-table .actions-wrap > .button,
 .admin-users-table .actions-wrap > a.button {
-    justify-content: center;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 2rem !important;
+    min-width: 2rem !important;
+    max-width: 2rem !important;
+    height: 2rem !important;
+    min-height: 2rem !important;
+    padding: 0 !important;
+    flex-shrink: 0;
+    position: relative;
+    line-height: 1 !important;
+    font-size: 0.8rem !important;
 }
 
-.admin-users-table .actions-wrap > .button:not(.is-light):not(.is-danger),
-.admin-users-table .actions-wrap > a.button:not(.is-light):not(.is-danger) {
-    min-width: 7.5rem;
+/* CSS tooltips for action buttons */
+.admin-users-table .actions-wrap > [title],
+.admin-users-table .actions-wrap > a[title] {
+    position: relative;
 }
 
-.admin-users-table .actions-wrap > .button.is-light,
-.admin-users-table .actions-wrap > .button.is-danger {
-    min-width: 2.25rem;
-    width: 2.25rem;
-    padding-left: 0;
-    padding-right: 0;
+.admin-users-table .actions-wrap > [title]::after,
+.admin-users-table .actions-wrap > a[title]::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 20, 20, 0.92);
+    color: #f5f5f5;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    padding: 0.3rem 0.55rem;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease;
+    z-index: 100;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+}
+
+.admin-users-table .actions-wrap > [title]:hover::after,
+.admin-users-table .actions-wrap > a[title]:hover::after {
+    opacity: 1;
 }
 
 .admin-users-table .admin-date-cell {

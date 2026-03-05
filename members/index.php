@@ -117,6 +117,10 @@ if (isset($_GET['user'])) {
 $page = isset($_GET['page']) ? sanitize_input($_GET['page']) : null;
 $buildResults = "Welcome " . $_SESSION['display_name'];
 $notFound = false;
+$isRestricted = false;
+$isDeceased = false;
+$memberProfileImage = null;
+$memberDisplayName = null;
 
 if ($username) {
     try {
@@ -129,6 +133,7 @@ if ($username) {
         $stmt->bind_param('s', $escapedUsername);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $checkDb->close();
         if (!$result) {
             $notFound = true;
             throw new Exception("Database does not exist", 1049);
@@ -140,6 +145,32 @@ if ($username) {
             $buildResults = "Error: " . $e->getMessage();
         }
     }
+
+    // Check memorial and restricted status from the website DB
+    if (!$notFound) {
+        $websiteConn = new mysqli($db_servername, $db_username, $db_password, 'website');
+        if (!$websiteConn->connect_error) {
+            $ustmt = $websiteConn->prepare("SELECT is_deceased, profile_image, twitch_display_name FROM users WHERE username = ? LIMIT 1");
+            $ustmt->bind_param('s', $username);
+            $ustmt->execute();
+            $ustmt->bind_result($isDeceasedVal, $profileImageVal, $displayNameVal);
+            if ($ustmt->fetch()) {
+                $isDeceased = (int)$isDeceasedVal === 1;
+                $memberProfileImage = $profileImageVal;
+                $memberDisplayName = $displayNameVal ?: $username;
+            }
+            $ustmt->close();
+            if (!$isDeceased) {
+                $rstmt = $websiteConn->prepare("SELECT 1 FROM restricted_users WHERE username = ? LIMIT 1");
+                $rstmt->bind_param('s', $username);
+                $rstmt->execute();
+                $rstmt->store_result();
+                $isRestricted = $rstmt->num_rows > 0;
+                $rstmt->close();
+            }
+            $websiteConn->close();
+        }
+    }
 }
 
 if (isset($_SESSION['redirect_url'])) {
@@ -149,7 +180,7 @@ if (isset($_SESSION['redirect_url'])) {
     exit();
 }
 
-if ($username) {
+if ($username && !$notFound && !$isRestricted && !$isDeceased) {
     $_SESSION['username'] = $username;
     $buildResults = "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . (isset($_SESSION['username']) ? $_SESSION['username'] : 'unknown user');
     $dbname = $username;
@@ -259,6 +290,62 @@ if ($username) {
                             </div>
                             <!-- Add more system pages here in future -->
                         </div>
+                    </div>
+                <?php elseif ($notFound): ?>
+                    <div class="box has-text-centered" style="padding: 3rem 2rem;">
+                        <span class="icon is-large mb-4" style="display:block;">
+                            <i class="fas fa-search fa-3x" style="color: var(--text-muted);"></i>
+                        </span>
+                        <h2 class="title is-4">Channel Not Found</h2>
+                        <p class="subtitle is-6" style="color: var(--text-secondary);">
+                            We couldn&rsquo;t find a channel named <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong> on BotOfTheSpecter.
+                        </p>
+                        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">The channel may not have signed up yet, or the username may be spelled incorrectly.</p>
+                        <a href="/" class="button is-link">
+                            <span class="icon"><i class="fas fa-arrow-left"></i></span>
+                            <span>Search Again</span>
+                        </a>
+                    </div>
+                <?php elseif ($isDeceased): ?>
+                    <div class="box" style="padding: 3rem 2rem; border: 1px solid rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.06);">
+                        <div class="has-text-centered mb-5">
+                            <?php if ($memberProfileImage): ?>
+                                <figure class="image is-96x96 is-inline-block mb-4">
+                                    <img class="is-rounded" src="<?php echo htmlspecialchars($memberProfileImage, ENT_QUOTES, 'UTF-8'); ?>" alt="Profile" style="border: 3px solid rgba(155,89,182,0.6);" onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
+                                </figure>
+                                <br>
+                            <?php endif; ?>
+                            <span class="icon is-large" style="color: #9b59b6; display:inline-block; margin-bottom: 0.5rem;">
+                                <i class="fas fa-dove fa-3x"></i>
+                            </span>
+                            <h2 class="title is-3 mt-3" style="color: #c39bd3;">In Memoriam</h2>
+                            <h3 class="subtitle is-5" style="color: var(--text-secondary);"><?php echo htmlspecialchars($memberDisplayName ?: $username, ENT_QUOTES, 'UTF-8'); ?></h3>
+                        </div>
+                        <div class="content has-text-centered" style="max-width: 560px; margin: 0 auto;">
+                            <p style="color: var(--text-primary); font-size: 1.05rem;">This channel has been preserved as a permanent memorial.</p>
+                            <p style="color: var(--text-secondary);">The account holder has passed away. Their channel, community, and memories remain here as a tribute to the person they were and the community they built.</p>
+                        </div>
+                        <div class="has-text-centered mt-5">
+                            <a href="/" class="button is-light">
+                                <span class="icon"><i class="fas fa-arrow-left"></i></span>
+                                <span>Back to Search</span>
+                            </a>
+                        </div>
+                    </div>
+                <?php elseif ($isRestricted): ?>
+                    <div class="box has-text-centered" style="padding: 3rem 2rem; border: 1px solid rgba(255, 193, 7, 0.3); background: rgba(255, 193, 7, 0.05);">
+                        <span class="icon is-large mb-4" style="display:block;">
+                            <i class="fas fa-user-lock fa-3x" style="color: var(--color-warning);"></i>
+                        </span>
+                        <h2 class="title is-4">Channel Restricted</h2>
+                        <p class="subtitle is-6" style="color: var(--text-secondary);">
+                            The channel <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong> is currently restricted and cannot be viewed.
+                        </p>
+                        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Access to this channel&rsquo;s page has been suspended by an administrator.</p>
+                        <a href="/" class="button is-light">
+                            <span class="icon"><i class="fas fa-arrow-left"></i></span>
+                            <span>Back to Search</span>
+                        </a>
                     </div>
                 <?php else: ?>
                     <div class="notification is-info">

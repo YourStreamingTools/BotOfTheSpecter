@@ -1,6 +1,7 @@
 <?php
 $accessMode = isset($accessMode) ? (string) $accessMode : 'restricted';
 $isAccessDenied = ($accessMode === 'denied');
+$isMemorial = ($accessMode === 'memorial');
 
 $restrictedDetails = [
     'Restrictions are applied when security, abuse-prevention, or platform policy checks detect behavior that puts services, users, or integrations at risk.',
@@ -12,15 +13,25 @@ $restrictedDetails = [
 ];
 
 if (!isset($info) || trim((string) $info) === '') {
-    if ($isAccessDenied) {
+    if ($isMemorial) {
+        $info = 'This account has been preserved in memory of the account holder who has passed away.';
+    } elseif ($isAccessDenied) {
         $info = 'Access denied.';
     } else {
         $info = "Your account has been restricted from accessing BotOfTheSpecter due to activity that violated our platform rules or acceptable use policies.";
     }
 }
 
-$pageTitle = $isAccessDenied ? 'Access Denied - BotOfTheSpecter' : 'Access Restricted - BotOfTheSpecter';
-$headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
+if ($isMemorial) {
+    $pageTitle = 'Memorial Account - BotOfTheSpecter';
+    $headingTitle = 'Account Preserved in Memory';
+} elseif ($isAccessDenied) {
+    $pageTitle = 'Access Denied - BotOfTheSpecter';
+    $headingTitle = 'Access Denied';
+} else {
+    $pageTitle = 'Access Restricted - BotOfTheSpecter';
+    $headingTitle = 'Access Restricted';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -90,7 +101,11 @@ $headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
             <header class="card-header">
                 <p class="card-header-title">
                     <span class="icon mr-2">
-                        <i class="fas fa-exclamation-triangle has-text-danger"></i>
+                        <?php if ($isMemorial): ?>
+                            <i class="fas fa-dove" style="color:#9b59b6;"></i>
+                        <?php else: ?>
+                            <i class="fas fa-exclamation-triangle has-text-danger"></i>
+                        <?php endif; ?>
                     </span>
                     <?php echo htmlspecialchars($headingTitle, ENT_QUOTES, 'UTF-8'); ?>
                 </p>
@@ -99,7 +114,7 @@ $headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
                 <div class="content has-text-centered">
                     <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" width="100" class="mb-4">
                     <p class="mb-4"><?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?></p>
-                    <?php if (!$isAccessDenied): ?>
+                    <?php if (!$isAccessDenied && !$isMemorial): ?>
                         <ul class="restricted-details">
                             <?php foreach ($restrictedDetails as $detail): ?>
                                 <li><?php echo htmlspecialchars($detail, ENT_QUOTES, 'UTF-8'); ?></li>
@@ -107,7 +122,7 @@ $headingTitle = $isAccessDenied ? 'Access Denied' : 'Access Restricted';
                         </ul>
                     <?php endif; ?>
                     <div class="buttons is-centered">
-                        <?php if (!$isAccessDenied): ?>
+                        <?php if (!$isAccessDenied && !$isMemorial): ?>
                             <a href="mailto:support@botofthespecter.com" class="button is-link">
                                 <span class="icon">
                                     <i class="fas fa-envelope"></i>

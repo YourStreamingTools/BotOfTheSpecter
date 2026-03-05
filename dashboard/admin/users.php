@@ -269,6 +269,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
     echo json_encode($response);
     exit;
 }
+
+// Handle AJAX memorial/deceased action (super admins only)
+// Required DB migration: ALTER TABLE users ADD COLUMN is_deceased TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN deceased_date DATE NULL DEFAULT NULL;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
+    $action = $_POST['deceased_action'];
+    $user_id = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
+    $response = ['success' => false, 'msg' => ''];
+    if (!$currentAdminIsSuperAdmin) {
+        $response['msg'] = 'Only super admins can manage memorial accounts.';
+        echo json_encode($response);
+        exit;
+    }
+    if (($action !== 'mark_deceased' && $action !== 'unmark_deceased') || $user_id <= 0) {
+        $response['msg'] = 'Invalid memorial request.';
+        echo json_encode($response);
+        exit;
+    }
+    if ($action === 'mark_deceased') {
+        $deceasedDate = date('Y-m-d');
+        $stmt = $conn->prepare("UPDATE users SET is_deceased = 1, deceased_date = ? WHERE id = ?");
+        $stmt->bind_param("si", $deceasedDate, $user_id);
+        if ($stmt->execute()) {
+            $stmt->close();
+            // Automatically restrict the account to prevent login
+            $usernameStmt = $conn->prepare("SELECT username, twitch_user_id FROM users WHERE id = ? LIMIT 1");
+            $usernameStmt->bind_param("i", $user_id);
+            $usernameStmt->execute();
+            $usernameStmt->bind_result($decUsername, $decTwitchId);
+            $usernameStmt->fetch();
+            $usernameStmt->close();
+            if ($decUsername) {
+                $restrictStmt = $conn->prepare("INSERT IGNORE INTO restricted_users (username, twitch_user_id) VALUES (?, ?)");
+                $restrictStmt->bind_param("ss", $decUsername, $decTwitchId);
+                $restrictStmt->execute();
+                $restrictStmt->close();
+            }
+            $response['success'] = true;
+        } else {
+            $stmt->close();
+            $response['msg'] = 'Could not mark account as memorial.';
+        }
+    } elseif ($action === 'unmark_deceased') {
+        $stmt = $conn->prepare("UPDATE users SET is_deceased = 0, deceased_date = NULL WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        if ($stmt->execute()) {
+            $response['success'] = true;
+        } else {
+            $response['msg'] = 'Could not remove memorial status.';
+        }
+        $stmt->close();
+    }
+    echo json_encode($response);
+    exit;
+}
 ?>
 <?php if ($actAsNotice): ?>
     <div class="notification <?php echo $actAsNoticeClass; ?> is-light">
@@ -331,15 +385,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
                     $is_super_admin = isset($user['super_admin']) && (int) $user['super_admin'] === 1;
                     $is_admin_user = isset($user['is_admin']) && (int) $user['is_admin'] === 1;
                     $can_restrict_user = !$is_super_admin && (!$is_admin_user || $currentAdminIsSuperAdmin);
+                    $is_deceased = isset($user['is_deceased']) && (int) $user['is_deceased'] === 1;
                 ?>
-                <tr<?php if ($is_restricted) echo ' class="is-restricted-row"'; ?>>
+                <?php
+                $rowClass = '';
+                if ($is_deceased) $rowClass = 'is-memorial-row';
+                elseif ($is_restricted) $rowClass = 'is-restricted-row';
+                ?>
+                <tr<?php if ($rowClass) echo ' class="' . htmlspecialchars($rowClass) . '"'; ?>>
                     <td class="has-text-centered" style="vertical-align: middle;"><?php echo htmlspecialchars($user['id']); ?></td>
                     <td style="vertical-align: middle;">
                         <figure class="image is-32x32 is-inline-block mr-2" style="vertical-align:middle;">
                             <img class="is-rounded" src="<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
                         </figure>
                         <span style="vertical-align:middle;"><?php echo htmlspecialchars($user['username']); ?></span>
-                        <?php if ($is_restricted): ?>
+                        <?php if ($is_deceased): ?>
+                            <span class="tag is-light memorial-label">
+                                <span class="icon is-small"><i class="fas fa-dove"></i></span>&nbsp;Memorial
+                            </span>
+                        <?php elseif ($is_restricted): ?>
                             <span class="tag is-warning is-light restricted-label">Restricted</span>
                         <?php endif; ?>
                     </td>
@@ -386,64 +450,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_action'])) {
                     <td class="has-text-centered admin-date-cell" style="vertical-align: middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
                     <td class="has-text-centered" style="vertical-align: middle;">
                         <div class="actions-wrap">
-                            <button class="button is-small is-light" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
+                            <button class="button is-small is-light" title="View Details" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
                                 <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
-                            <button class="button is-small is-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
+                            <button class="button is-small is-danger" title="Delete User" onclick="deleteUser(<?php echo $user['id']; ?>)">
                                 <span class="icon"><i class="fas fa-trash"></i></span>
                             </button>
                             <?php if ((int) $user['is_admin']): ?>
                                 <button
                                     class="button is-small is-warning"
                                     onclick="removeAdminAccess(<?php echo (int) $user['id']; ?>)"
-                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled title="Only super admins can remove admin access"<?php endif; ?>
+                                    title="Remove Admin"
+                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>
                                 >
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
-                                    <span>Remove Admin</span>
                                 </button>
                             <?php else: ?>
                                 <button
                                     class="button is-small is-link"
                                     onclick="grantAdminAccess(<?php echo (int) $user['id']; ?>)"
-                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled title="Only super admins can grant admin access"<?php endif; ?>
+                                    title="Give Admin"
+                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>
                                 >
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
-                                    <span>Give Admin</span>
                                 </button>
                             <?php endif; ?>
                             <?php if ((int) $user['beta_access']): ?>
-                                <button class="button is-small is-warning" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)">
+                                <button class="button is-small is-warning" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="Remove Beta">
                                     <span class="icon"><i class="fas fa-flask"></i></span>
-                                    <span>Remove Beta</span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-primary" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)">
+                                <button class="button is-small is-primary" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="Give Beta">
                                     <span class="icon"><i class="fas fa-flask"></i></span>
-                                    <span>Give Beta</span>
                                 </button>
                             <?php endif; ?>
                             <?php if ($is_restricted): ?>
-                                <button class="button is-small is-warning" onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
+                                <button class="button is-small is-warning" title="Unrestrict"
+                                    onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
-                                    <span>Unrestrict</span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-dark"
+                                <button class="button is-small is-dark" title="<?php echo $can_restrict_user ? 'Restrict' : 'Only super admins can restrict admins. Super admins cannot be restricted.'; ?>"
                                     onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)"
-                                    <?php if (!$can_restrict_user): ?>disabled title="Only super admins can restrict admins. Super admins cannot be restricted."<?php endif; ?>>
+                                    <?php if (!$can_restrict_user): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
-                                    <span>Restrict</span>
+                                </button>
+                            <?php endif; ?>
+                            <?php if ($is_deceased): ?>
+                                <button class="button is-small is-light memorial-action-btn" title="Remove Memorial"
+                                    onclick="unmarkDeceased(<?php echo (int) $user['id']; ?>)"
+                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
+                                    <span class="icon"><i class="fas fa-dove"></i></span>
+                                </button>
+                            <?php else: ?>
+                                <button class="button is-small is-light memorial-action-btn" title="Mark as Memorial"
+                                    onclick="markDeceased(<?php echo (int) $user['id']; ?>)"
+                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
+                                    <span class="icon"><i class="fas fa-dove"></i></span>
                                 </button>
                             <?php endif; ?>
                             <?php if ((int) $user['id'] !== $currentAdminUserId): ?>
-                                <a class="button is-small is-info" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="Open dashboard as this user">
+                                <a class="button is-small is-info" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="Act As">
                                     <span class="icon"><i class="fas fa-user-secret"></i></span>
-                                    <span>Act As</span>
                                 </a>
                             <?php else: ?>
                                 <button class="button is-small is-info" type="button" disabled title="You are already viewing your own dashboard">
                                     <span class="icon"><i class="fas fa-user-secret"></i></span>
-                                    <span>Act As</span>
                                 </button>
                             <?php endif; ?>
                         </div>
@@ -664,9 +736,10 @@ function filterUsers() {
 function deleteUser(userId) {
     const user = usersData.find(u => u.id == userId);
     if (!user) return;
+    const memorialWarning = user.is_deceased ? '<br><br><span style="color:#7b2fa8;"><strong>&#128540; This is a memorial account for a deceased user. All data will be permanently lost.</strong></span>' : '';
     Swal.fire({
         title: 'Delete User?',
-        html: `Are you sure you want to delete <b>${user.username}</b> from the users table?`,
+        html: `Are you sure you want to delete <b>${user.username}</b> from the users table?${memorialWarning}`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Yes',
@@ -883,6 +956,62 @@ function removeAdminAccess(userId) {
 document.getElementById('user-search').addEventListener('keyup', function(e) {
     filterUsers();
 });
+
+function markDeceased(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    Swal.fire({
+        title: 'Mark Account as Memorial?',
+        html: `<p>This will preserve <b>${user.username}</b>'s account in memory of the account holder who has passed away.</p>
+               <p class="mt-2">The account will be restricted to prevent login. All data will be permanently retained.</p>`,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Mark as Memorial',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#7b2fa8'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', {
+            deceased_action: 'mark_deceased',
+            user_id: userId
+        }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Preserved', 'Account has been marked as memorial and restricted.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not mark account as memorial.', 'error');
+            }
+        });
+    });
+}
+
+function unmarkDeceased(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    Swal.fire({
+        title: 'Remove Memorial Status?',
+        html: `Remove memorial status from <b>${user.username}</b>?<br>Note: this does not automatically unrestrict the account.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remove',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', {
+            deceased_action: 'unmark_deceased',
+            user_id: userId
+        }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Updated', 'Memorial status removed.', 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not remove memorial status.', 'error');
+            }
+        });
+    });
+}
 
 function exportSensitiveUser() {
     const uid = window.currentSensitiveUserId;
