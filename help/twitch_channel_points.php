@@ -9,7 +9,6 @@ ob_start();
 </nav>
 <h1 class="title has-text-light">Twitch Channel Points</h1>
 <p class="subtitle has-text-light">Learn how to use Twitch Channel Points with BotOfTheSpecter for enhanced viewer engagement.</p>
-
 <div class="columns is-multiline">
     <div class="column is-12">
         <div class="card has-background-dark has-shadow mb-4">
@@ -26,12 +25,11 @@ ob_start();
                     allowing you to automate responses and create custom experiences when viewers redeem rewards.
                 </p>
                 <div class="notification is-info mt-4">
-                    <strong>Note:</strong> Channel Points are managed entirely through Twitch's dashboard. BotOfTheSpecter enhances this system by allowing you to set custom messages and automate responses to redemptions.
+                    <strong>Note:</strong> Channel Points are managed through Twitch's dashboard and are available for Affiliate/Partner channels. BotOfTheSpecter enhances this system by syncing your rewards and automating responses when redemptions happen.
                 </div>
             </div>
         </div>
     </div>
-
     <div class="columns is-flex is-full">
         <div class="column is-6">
             <div class="card has-background-dark has-shadow mb-4 is-flex" style="height: 100%;">
@@ -46,13 +44,12 @@ ob_start();
                         <li>Go to your <a href="https://dashboard.twitch.tv/" target="_blank" class="has-text-link">Twitch Dashboard</a></li>
                         <li>Navigate to the "Channel Points" section</li>
                         <li>Create custom rewards with titles, costs, and descriptions</li>
-                        <li>Enable the rewards you want to use</li>
+                        <li>Enable the rewards you want to use (Affiliate/Partner required)</li>
                         <li>Use BotOfTheSpecter to sync and customize responses</li>
                     </ol>
                 </div>
             </div>
         </div>
-
         <div class="column is-6">
             <div class="card has-background-dark has-shadow mb-4 is-flex" style="height: 100%;">
                 <div class="card-content has-background-dark has-text-light">
@@ -63,7 +60,7 @@ ob_start();
                         Syncing Rewards in Specter
                     </h3>
                     <p>
-                        To use Channel Points with BotOfTheSpecter, you need to sync your rewards from Twitch. This allows the bot to recognize redemptions and respond accordingly.
+                        To use Channel Points with BotOfTheSpecter, sync your rewards from Twitch. This updates reward IDs, titles, and costs so the bot can recognize redemptions and trigger your configured actions.
                     </p>
                     <div class="content">
                         <ol>
@@ -78,13 +75,16 @@ ob_start();
             </div>
         </div>
     </div>
-
     <div class="column is-12">
         <div class="notification is-warning">
             <strong>Tip:</strong> Sync your rewards whenever you add, modify, or remove rewards on Twitch to keep everything up to date.
         </div>
     </div>
-
+    <div class="column is-12">
+        <div class="notification is-warning">
+            <strong>Important:</strong> <code>(fortune)</code>, <code>(lotto)</code>, and <code>(tts)</code> are variable-based triggers. You can place them in any reward message instead of relying on a specific reward title.
+        </div>
+    </div>
     <div class="column is-12">
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light">
@@ -103,7 +103,7 @@ ob_start();
                         <ol class="ml-5">
                             <li>Find the reward in the Channel Rewards table</li>
                             <li>Click the "Edit" button next to the reward</li>
-                            <li>Enter your custom message in the text area</li>
+                            <li>Enter your custom message in the text area (up to 255 characters)</li>
                             <li>Click "Save" to apply the changes</li>
                         </ol>
                     </div>
@@ -114,14 +114,21 @@ ob_start();
                             <li><code>(user)</code> - Tags the user who redeemed the reward.</li>
                             <li><code>(usercount)</code> - Shows how many times the user has redeemed the reward.</li>
                             <li><code>(userstreak)</code> - Shows how many times in a row the user has redeemed the reward.</li>
-                            <li><code>(track)</code> - Tracks how many times the reward has been used, this is an internal count and does not get posted to chat.</li>
+                            <li><code>(track)</code> - Increments internal reward usage tracking (does not post text).</li>
+                            <li><code>(tts)</code> - Sends the redemption user input to TTS (if present).</li>
+                            <li><code>(tts.message)</code> - Sends your final custom message to both chat and TTS.</li>
+                            <li><code>(lotto)</code> - Generates the user's lotto numbers.</li>
+                            <li><code>(fortune)</code> - Inserts a random fortune response.</li>
+                            <li><code>(vip)</code> - Attempts to grant the redeemer VIP via Twitch.</li>
+                            <li><code>(vip.today)</code> - Grants temporary VIP intended for current stream use.</li>
+                            <li><code>(customapi.https://example.com/api)</code> - Fetches data from a custom API endpoint.</li>
+                            <li><code>(customapi.json.https://example.com/api)</code> with <code>(json.path.to.value)</code> - Fetch JSON and insert a specific field.</li>
                         </ul>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
     <div class="column is-12">
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light">
@@ -155,6 +162,8 @@ ob_start();
                         <ul>
                             <li>Keep custom messages fun and engaging</li>
                             <li>Use variables to personalize responses</li>
+                            <li>Use the Manage option to convert rewards to Specter-managed when needed</li>
+                            <li>Map rewards to sounds/videos for overlay alerts if needed</li>
                             <li>Test rewards before going live</li>
                             <li>Regularly sync rewards from Twitch</li>
                         </ul>
@@ -163,7 +172,6 @@ ob_start();
             </div>
         </div>
     </div>
-
     <div class="column is-12">
         <div class="card has-background-dark has-shadow">
             <div class="card-content has-background-dark has-text-light">
@@ -199,6 +207,7 @@ ob_start();
                                         Custom messages not working
                                     </h5>
                                     <p>Ensure you've saved the custom message and that the bot has the necessary mod permissions on your channel.<br>
+                                    If you use <code>(customapi.json...)</code>, make sure your <code>(json.path.to.value)</code> matches the API response structure.<br>
                                     Check the bot's logs for any errors and report them on GitHub or the Discord Server.</p>
                                 </div>
                             </div>
@@ -213,7 +222,20 @@ ob_start();
                                     </span>
                                     Redemptions not triggering responses
                                 </h5>
-                                <p>Verify that the reward is synced and that the bot is running. Make sure the reward title matches exactly between Twitch and Specter.</p>
+                                <p>Verify that the reward is synced, your channel is Affiliate/Partner, and the bot is running. Make sure the correct reward was redeemed and your response is configured for that reward ID in Specter.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column is-12">
+                        <div class="card has-background-dark has-shadow">
+                            <div class="card-content has-background-dark has-text-light">
+                                <h5 class="title is-6 has-text-light">
+                                    <span class="icon">
+                                        <i class="fas fa-history"></i>
+                                    </span>
+                                    Redemption history is empty
+                                </h5>
+                                <p>Recent redemption history only loads for Specter-managed rewards. If a reward is Twitch-only, convert it using the Manage button in Channel Rewards first.</p>
                             </div>
                         </div>
                     </div>
