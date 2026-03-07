@@ -729,10 +729,39 @@ async def subscribe_to_events(session_id):
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
-    # For standard mode, chat subscriptions must use the App Access Token + bot user ID
-    # so that the bot appears with the Chat Bot badge and is recognised as a bot in chat.
-    # In SELF_MODE / CUSTOM_MODE the broadcaster IS the bot user, so user credentials are fine.
-    if not CUSTOM_MODE and not SELF_MODE:
+    # Chat subscriptions must be authorised with the *bot's own* User Access Token so that
+    # Twitch recognises a separate bot identity and awards the Chat Bot badge in chat.
+    if SELF_MODE:
+        # Broadcaster IS the bot — broadcaster token and ID are correct.
+        chat_headers = user_headers
+        bot_user_id = CHANNEL_ID
+        twitch_logger.info("Chat subscriptions will use broadcaster token (SELF_MODE)")
+    elif CUSTOM_MODE:
+        # Separate custom bot account — must use the bot's own access token (auto-refreshed
+        # every 4 hours by refresh_custom_bot_tokens.py) and the bot's own Twitch user ID.
+        # Using the broadcaster's token here would NOT produce the Chat Bot badge.
+        custom_creds = await get_current_custom_credentials()
+        if custom_creds and custom_creds.get('access_token') and custom_creds.get('bot_channel_id'):
+            bot_user_id = custom_creds['bot_channel_id']
+            chat_headers = {
+                "Client-Id": CLIENT_ID,
+                "Authorization": f"Bearer {custom_creds['access_token']}",
+                "Content-Type": "application/json"
+            }
+            twitch_logger.info(f"Chat subscriptions will use custom bot token for user ID {bot_user_id} ({BOT_USERNAME})")
+        else:
+            # Credentials not yet available (e.g. DB unavailable at startup) — fall back to
+            # broadcaster token so other subscriptions still succeed.  The badge won't show
+            # until the bot reconnects with valid custom credentials.
+            chat_headers = user_headers
+            bot_user_id = CHANNEL_ID
+            twitch_logger.warning(
+                f"Custom bot credentials not available for {BOT_USERNAME}; "
+                f"falling back to broadcaster token for chat subscriptions. "
+                f"Chat Bot badge will not appear until credentials are resolved."
+            )
+    else:
+        # Standard mode — use the botofthespecter App Access Token (bot_chat_token table).
         website_creds = await get_website_twitch_app_credentials()
         bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
         bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
@@ -743,10 +772,6 @@ async def subscribe_to_events(session_id):
             "Content-Type": "application/json"
         }
         twitch_logger.info(f"Chat subscriptions will use App Access Token with bot user ID {bot_user_id}")
-    else:
-        # In custom/self mode the bot IS the channel user — keep identical headers and use CHANNEL_ID
-        chat_headers = user_headers
-        bot_user_id = CHANNEL_ID
     # Channel-scoped (broadcaster) topics — use broadcaster User Access Token
     broadcaster_topics = [
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
