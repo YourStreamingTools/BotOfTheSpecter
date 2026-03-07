@@ -1811,6 +1811,17 @@ nav.top-navbar,
     margin-right: 0.75rem;
     transition: all 0.3s ease;
     opacity: 0.8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    line-height: 1;
+}
+
+.sidebar-menu-icon i {
+    display: block;
+    width: 1.25em;
+    text-align: center;
 }
 
 .sidebar-nav.collapsed .sidebar-menu-icon {
@@ -1821,6 +1832,12 @@ nav.top-navbar,
     justify-content: center;
     padding-left: 0;
     padding-right: 0;
+    border-left: 0;
+}
+
+.sidebar-nav.collapsed .sidebar-menu-link:hover,
+.sidebar-nav.collapsed .sidebar-menu-link.active {
+    box-shadow: inset 3px 0 0 0 #3273dc;
 }
 
 .sidebar-menu-link:hover .sidebar-menu-icon,
@@ -1837,6 +1854,7 @@ nav.top-navbar,
 .sidebar-nav.collapsed .sidebar-menu-text {
     opacity: 0;
     width: 0;
+    display: none;
 }
 
 .sidebar-submenu-toggle {
@@ -1847,6 +1865,8 @@ nav.top-navbar,
 .sidebar-nav.collapsed .sidebar-submenu-toggle {
     opacity: 0;
     width: 0;
+    margin-left: 0;
+    display: none;
 }
 
 .sidebar-menu-item.expanded .sidebar-submenu-toggle {
@@ -1943,6 +1963,17 @@ nav.top-navbar,
     margin-right: 0.75rem;
     opacity: 0.8;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    line-height: 1;
+}
+
+.sidebar-user-icon i {
+    display: block;
+    width: 1.25em;
+    text-align: center;
 }
 
 .sidebar-nav.collapsed .sidebar-user-icon {
