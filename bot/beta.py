@@ -9859,34 +9859,34 @@ async def process_stream_online_websocket():
         }
         async with session.get('https://api.twitch.tv/helix/streams', headers=headers, params=params) as response:
             data = await response.json()
-    # Extract necessary data from the API response
-    is_live = bool(data.get('data'))
-    if is_live:
-        stream_data = data['data'][0]
-        current_game = (stream_data.get('game_name') or '').strip() or None
-        stream_title = (stream_data.get('title') or '').strip() or None
-    else:
-        current_game = None
-        stream_title = None
-    # Fallback lookup: if game is unknown/missing, query channels endpoint and refresh globals
-    if is_live and (not current_game or str(current_game).strip().lower() == "unknown"):
-        try:
-            channel_params = {'broadcaster_id': CHANNEL_ID}
-            async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=channel_params) as channel_response:
-                if channel_response.status == 200:
-                    channel_payload = await channel_response.json()
-                    if channel_payload.get('data'):
-                        channel_data = channel_payload['data'][0]
-                        fallback_game = (channel_data.get('game_name') or '').strip()
-                        fallback_title = (channel_data.get('title') or '').strip()
-                        if fallback_game:
-                            current_game = fallback_game
-                        if fallback_title:
-                            stream_title = fallback_title
-                else:
-                    api_logger.error(f"Failed channel metadata fallback during stream online: {channel_response.status}")
-        except Exception as e:
-            api_logger.error(f"Error during channel metadata fallback during stream online: {e}")
+        # Extract necessary data from the API response
+        is_live = bool(data.get('data'))
+        if is_live:
+            stream_data = data['data'][0]
+            current_game = (stream_data.get('game_name') or '').strip() or None
+            stream_title = (stream_data.get('title') or '').strip() or None
+        else:
+            current_game = None
+            stream_title = None
+        # Fallback lookup: if game is unknown/missing, query channels endpoint and refresh globals
+        if is_live and (not current_game or str(current_game).strip().lower() == "unknown"):
+            try:
+                channel_params = {'broadcaster_id': CHANNEL_ID}
+                async with session.get('https://api.twitch.tv/helix/channels', headers=headers, params=channel_params) as channel_response:
+                    if channel_response.status == 200:
+                        channel_payload = await channel_response.json()
+                        if channel_payload.get('data'):
+                            channel_data = channel_payload['data'][0]
+                            fallback_game = (channel_data.get('game_name') or '').strip()
+                            fallback_title = (channel_data.get('title') or '').strip()
+                            if fallback_game:
+                                current_game = fallback_game
+                            if fallback_title:
+                                stream_title = fallback_title
+                    else:
+                        api_logger.error(f"Failed channel metadata fallback during stream online: {channel_response.status}")
+            except Exception as e:
+                api_logger.error(f"Error during channel metadata fallback during stream online: {e}")
     if not current_game:
         current_game = "Unknown"
     # Send a message to the chat announcing the stream is online
