@@ -28,8 +28,10 @@ from socketio.exceptions import ConnectionError as ConnectionExecptionError
 from aiomysql import DictCursor, MySQLError
 from aiomysql import Error as MySQLOtherErrors
 from deep_translator import GoogleTranslator as translator
+import asyncio
+import twitchio
 from twitchio.ext.commands import Context
-from twitchio.ext import commands, routines
+from twitchio.ext import commands, routines, eventsub
 from streamlink import Streamlink
 import pytz as set_timezone
 from pytz import timezone as pytz_timezone
@@ -808,7 +810,6 @@ async def subscribe_to_events(session_id):
         {"type": "channel.moderate", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
     ]
     chat_topics = [
-        {"type": "channel.chat.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
         {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
         {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
     ]
@@ -2720,22 +2721,28 @@ async def cleanup_idle_db_pools():
 
 class TwitchBot(commands.AutoBot):
     # Event Message to get the bot ready
-    def __init__(self, token, prefix, channel_name, client_id, client_secret, bot_id, owner_id):
+    def __init__(self, prefix, client_id, client_secret, bot_id, owner_id, subscriptions, force_subscribe):
         super().__init__(
-                token=token,
                 prefix=prefix,
-                initial_channels=[channel_name],
                 case_insensitive=True,
                 client_id=client_id,
                 client_secret=client_secret,
                 bot_id=bot_id,
-                owner_id=owner_id
+                owner_id=owner_id,
+                subscriptions=subscriptions,
+                force_subscribe=force_subscribe
             )
-        self.channel_name = channel_name
+        self.channel_name = CHANNEL_NAME
         self.running_commands = set()
 
     async def setup_hook(self) -> None:
         pass
+
+    async def event_token_refreshed(self, payload: twitchio.TokenRefreshedPayload) -> None:
+        global CHANNEL_AUTH
+        if payload.user_id == str(CHANNEL_ID) or payload.user_id == str(BOT_ID):
+            CHANNEL_AUTH = payload.token
+            bot_logger.info(f"Token refreshed for user_id={payload.user_id}; CHANNEL_AUTH updated.")
 
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.user.name}"')
@@ -2782,19 +2789,13 @@ class TwitchBot(commands.AutoBot):
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
-    async def event_channel_joined(self, channel):
-        # NOTE: TwitchIO v3 removed `event_channel_joined`. This handler will not be called by v3.
-        # Keep here for reference; move logic to `event_ready` or EventSub/conduit if needed.
-        self.target_channel = channel 
-        bot_logger.info(f"Joined channel: {channel.name}")
-
     # Errors
     async def event_command_error(self, payload: commands.CommandErrorPayload) -> None:
         ctx = payload.context
         error = payload.exception
-        command = ctx.message.content.split()[0][1:]
+        command = ctx.message.text.split()[0][1:]
         if isinstance(error, commands.CommandOnCooldown):
-            retry_after = max(1, math.ceil(error.retry_after))
+            retry_after = max(1, math.ceil(error.remaining))
             bot_logger.info(f"[COOLDOWN] Command: '{command}' is on cooldown for {retry_after} seconds.")
             message = f"Command '{command}' is on cooldown. Try again in {retry_after} seconds."
             await send_chat_message(message)
@@ -2822,17 +2823,14 @@ class TwitchBot(commands.AutoBot):
     # Function to check all messages and push out a custom command.
     async def event_message(self, message):
         global CHANNEL_NAME, CHANNEL_ID
-        # Verify source-room-id matches expected channel
-        if hasattr(message, 'tags') and message.tags:
-            source_room_id = message.tags.get('source-room-id')
-            # source-room-id indicates the originating channel (where the user is from)
-            # We only accept messages from users in the running bot channel
-            if source_room_id and source_room_id != str(CHANNEL_ID):
-                return
-        chat_history_logger.info(f"Chat message from {message.author.name}: {message.content}")
+        # In v3 EventSub, source_broadcaster is set when a message was forwarded via shared chat
+        # (originated from a different channel). Ignore such messages.
+        if message.source_broadcaster is not None and message.source_broadcaster.id != str(CHANNEL_ID):
+            return
+        chat_history_logger.info(f"Chat message from {message.chatter.name}: {message.text}")
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.author.name, message.content))
+            await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.chatter.name, message.text))
             await connection.commit()
             messageAuthor = ""
             messageAuthorID = ""
@@ -2840,14 +2838,14 @@ class TwitchBot(commands.AutoBot):
             messageContent = ""
             try:
                 # Ignore messages from the bot itself
-                if message.echo:
+                if message.chatter.id == str(BOT_ID):
                     return
                 # Handle commands
                 await self.handle_commands(message)
-                messageContent = str(message.content).strip().lower() if message.content else ""
-                messageAuthor = message.author.name if message.author else ""
-                messageAuthorID = message.author.id if message.author else ""
-                AuthorMessage = str(message.content) if message.content else ""
+                messageContent = str(message.text).strip().lower() if message.text else ""
+                messageAuthor = message.chatter.name if message.chatter else ""
+                messageAuthorID = message.chatter.id if message.chatter else ""
+                AuthorMessage = str(message.text) if message.text else ""
                 # Check if the message matches the spam pattern
                 spam_pattern = await get_spam_patterns()
                 if spam_pattern:  # Check if spam_pattern is not empty
@@ -2883,7 +2881,7 @@ class TwitchBot(commands.AutoBot):
                         cc_permission = cc_result.get("permission")
                         if cc_status == 'Enabled':
                             # Check if user has permission to use the command
-                            if not await command_permissions(cc_permission, message.author):
+                            if not await command_permissions(cc_permission, message.chatter):
                                 chat_logger.info(f"{messageAuthor} tried to use command {command} but doesn't have {cc_permission} permission.")
                                 return
                             # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
@@ -3064,27 +3062,27 @@ class TwitchBot(commands.AutoBot):
                                 # Check cooldown using new system (assume rate=1, bucket='default', time=cooldown)
                                 if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
                                     return
-                                if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.author):
+                                if messageAuthor.lower() == user_id.lower() or await command_permissions("mod", message.chatter):
                                     await send_chat_message(response)
                                     # Record usage
                                     add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
                 # Handle AI responses
-                if f'@{self.nick.lower()}' in str(message.content).lower():
+                if f'@{BOT_USERNAME.lower()}' in str(message.text).lower():
                     # Ignore messages from the bot itself to prevent self-responses
-                    if message.author.name.lower() == self.nick.lower():
+                    if message.chatter.name.lower() == BOT_USERNAME.lower():
                         chat_logger.info(f"Ignoring AI mention from bot itself")
                         return
                     # Ignore messages from the channel owner in SELF mode
-                    if message.author.name.lower() == CHANNEL_NAME.lower():
+                    if message.chatter.name.lower() == CHANNEL_NAME.lower():
                         chat_logger.info(f"Ignoring AI mention from channel owner in SELF mode")
                         return
-                    user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
+                    user_message = str(message.text).lower().replace(f'@{BOT_USERNAME.lower()}', '').strip()
                     if not user_message:
-                        await send_chat_message(f'Hello, {message.author.name}!')
+                        await send_chat_message(f'Hello, {message.chatter.name}!')
                     else:
-                        await self.handle_ai_response(user_message, messageAuthorID, message.author.name)
+                        await self.handle_ai_response(user_message, messageAuthorID, message.chatter.name)
                 if 'http://' in AuthorMessage or 'https://' in AuthorMessage:
                     # Always check blacklist
                     await cursor.execute('SELECT link FROM link_blacklisting')
@@ -4102,7 +4100,7 @@ class TwitchBot(commands.AutoBot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         user = user.lstrip('@')
-                        user_info = await self.fetch_users(names=[user])
+                        user_info = await self.fetch_users(logins=[user])
                         if not user_info:
                             await send_chat_message(f"User {user} not found.")
                             return
@@ -4143,7 +4141,7 @@ class TwitchBot(commands.AutoBot):
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
                         user = user.lstrip('@')
-                        user_info = await self.fetch_users(names=[user])
+                        user_info = await self.fetch_users(logins=[user])
                         if not user_info:
                             await send_chat_message(f"User {user} not found.")
                             return
@@ -4664,7 +4662,7 @@ class TwitchBot(commands.AutoBot):
                     return
             access_token = await get_spotify_access_token()
             headers = {"Authorization": f"Bearer {access_token}"}
-            message = ctx.message.content
+            message = ctx.message.text
             parts = message.split(" ", 1)
             if len(parts) < 2 or not parts[1].strip():
                 await send_chat_message("Please provide a song title, artist, YouTube link, or a Spotify link. Examples: !songrequest [song title] by [artist] or !songrequest https://www.youtube.com/watch?v=... or !songrequest https://open.spotify.com/track/...")
@@ -5003,7 +5001,7 @@ class TwitchBot(commands.AutoBot):
                 if active_timer:
                     await send_chat_message(f"@{ctx.author.name}, you already have an active timer.")
                     return
-                content = ctx.message.content.strip()
+                content = ctx.message.text.strip()
                 try:
                     _, minutes = content.split(' ')
                     minutes = int(minutes)
@@ -5387,7 +5385,7 @@ class TwitchBot(commands.AutoBot):
                         if not await check_cooldown('translate', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                             return
                         # Get the message content after the command
-                        message = ctx.message.content[len("!translate "):]
+                        message = ctx.message.text[len("!translate "):]
                         # Check if there is a message to translate
                         if not message:
                             await send_chat_message("Please provide a message to translate.")
@@ -6615,7 +6613,7 @@ class TwitchBot(commands.AutoBot):
                 }
                 try:
                     if mentioned_username:
-                        user_info = await self.fetch_users(names=[target_user])
+                        user_info = await self.fetch_users(logins=[target_user])
                         if user_info:
                             user_id = user_info[0].id
                             params = {
@@ -6866,7 +6864,7 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message(f"The user @{user_to_shoutout} does not exist on Twitch.")
                 return
             chat_logger.info(f"Shoutout for {user_to_shoutout} ran by {ctx.author.name}")
-            user_info = await self.fetch_users(names=[user_to_shoutout])
+            user_info = await self.fetch_users(logins=[user_to_shoutout])
             if not user_info:
                 await send_chat_message("Failed to fetch user information.")
                 return
@@ -6907,7 +6905,7 @@ class TwitchBot(commands.AutoBot):
                 return
             # Parse the command and response from the message
             try:
-                command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+                command, response = ctx.message.text.strip().split(' ', 1)[1].split(' ', 1)
             except ValueError:
                 await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
                 return
@@ -6949,7 +6947,7 @@ class TwitchBot(commands.AutoBot):
                 return
             # Parse the command and new response from the message
             try:
-                command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
+                command, new_response = ctx.message.text.strip().split(' ', 1)[1].split(' ', 1)
             except ValueError:
                 await send_chat_message(f"Invalid command format. Use: !editcommand [command] [new_response]")
                 return
@@ -6991,7 +6989,7 @@ class TwitchBot(commands.AutoBot):
                 return
             # Parse the command from the message
             try:
-                command = ctx.message.content.strip().split(' ')[1]
+                command = ctx.message.text.strip().split(' ')[1]
             except IndexError:
                 await send_chat_message(f"Invalid command format. Use: !removecommand [command]")
                 return
@@ -7033,7 +7031,7 @@ class TwitchBot(commands.AutoBot):
                 return
             # Parse the command from the message
             try:
-                command = ctx.message.content.strip().split(' ')[1]
+                command = ctx.message.text.strip().split(' ')[1]
             except IndexError:
                 await send_chat_message(f"Invalid command format. Use: !enablecommand [command]")
                 return
@@ -7091,7 +7089,7 @@ class TwitchBot(commands.AutoBot):
                 return
             # Parse the command from the message
             try:
-                command = ctx.message.content.strip().split(' ')[1]
+                command = ctx.message.text.strip().split(' ')[1]
             except IndexError:
                 await send_chat_message(f"Invalid command format. Use: !disablecommand [command]")
                 return
@@ -7354,7 +7352,7 @@ class TwitchBot(commands.AutoBot):
                     return
                 choices = ["rock", "paper", "scissors"]
                 bot_choice = random.choice(choices)
-                user_input = ctx.message.content.split(' ')[1].lower() if len(ctx.message.content.split(' ')) > 1 else None
+                user_input = ctx.message.text.split(' ')[1].lower() if len(ctx.message.text.split(' ')) > 1 else None
                 if user_input not in choices:
                     await send_chat_message(f'Please choose "Rock", "Paper" or "Scissors". Usage: !rps <choice>')
                     return
@@ -7403,7 +7401,7 @@ class TwitchBot(commands.AutoBot):
                 if not await check_cooldown('gamble', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Parse command arguments
-                parts = ctx.message.content.split(' ')
+                parts = ctx.message.text.split(' ')
                 if len(parts) < 2:
                     await send_chat_message(f"{ctx.author.name}, please specify a game type. Try !gamble coinflip 100, !gamble blackjack 100, or !gamble roulette red 100")
                     return
@@ -7518,7 +7516,7 @@ class TwitchBot(commands.AutoBot):
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('story', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
-                words = ctx.message.content.split(' ')[1:]
+                words = ctx.message.text.split(' ')[1:]
                 if len(words) < 5:
                     await send_chat_message(f"{ctx.author.name}, please provide 5 words. (noun, verb, adjective, adverb, action) Usage: !story <word1> <word2> <word3> <word4> <word5>")
                     return
@@ -7626,7 +7624,7 @@ class TwitchBot(commands.AutoBot):
     @commands.command(name='todo')
     async def todo_command(ctx: commands.Context):
         global bot_owner
-        message_content = ctx.message.content.strip()
+        message_content = ctx.message.text.strip()
         user = ctx.author
         user_id = user.id
         connection = await mysql_handler.get_connection()
@@ -8027,7 +8025,7 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        message_parts = ctx.message.content.split()
+                        message_parts = ctx.message.text.split()
                         if len(message_parts) > 1:
                             subcommand = message_parts[1].lower()
                             if subcommand == "scene":
@@ -8130,20 +8128,20 @@ async def command_permissions(setting, user):
             chat_logger.info(f"Command Permission denied to {user.name}. Command requires broadcaster permission.")
             return False
     # Check if the user is a moderator and the setting is "mod"
-    elif setting == "mod" and user.is_mod:
+    elif setting == "mod" and user.moderator:
         chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         return True
     # Check if the user is a VIP and the setting is "vip"
-    elif setting == "vip" and user.is_vip or user.is_mod:
-        if user.is_mod:
+    elif setting == "vip" and user.vip or user.moderator:
+        if user.moderator:
             chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
         else:
             chat_logger.info(f"Command Permission checked, {user.name} is a VIP")
         return True
     # Check if the user is a subscriber for all-subs or t1-sub
     elif setting in ["all-subs", "t1-sub"]:
-        if user.is_subscriber or user.is_mod:
-            if user.is_mod:
+        if user.subscriber or user.moderator:
+            if user.moderator:
                 chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
             else:
                 chat_logger.info(f"Command Permission checked, {user.name} is a Subscriber")
@@ -8167,8 +8165,8 @@ async def command_permissions(setting, user):
                     if subscriptions:
                         for subscription in subscriptions:
                             tier = subscription['tier']
-                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000") or user.is_mod:
-                                if user.is_mod:
+                            if (setting == "t2-sub" and tier == "2000") or (setting == "t3-sub" and tier == "3000") or user.moderator:
+                                if user.moderator:
                                     chat_logger.info(f"Command Permission checked, {user.name} is a Moderator")
                                 else:
                                     chat_logger.info(f"Command Permission checked, {user.name} has the required subscription tier ({tier}).")
@@ -9471,7 +9469,7 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
         else:
             time_left = f"{seconds} seconds"
         half_way_message = f"The poll '{poll_title}' is halfway through! You have {time_left} left to cast your vote."
-        @routines.routine(seconds=half_time, iterations=1, wait_first=True)
+        @routines.routine(delta=timedelta(seconds=half_time), iterations=1, wait_first=True)
         async def handel_twitch_poll_half_message():
             await send_chat_message(half_way_message)
         handel_twitch_poll_half_message.start()
@@ -11545,7 +11543,7 @@ async def handle_ad_break_start(duration_seconds):
     if not settings.get('enable_ad_notice', True):
         return
     formatted_duration = format_duration(duration_seconds)
-    @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
+    @routines.routine(delta=timedelta(seconds=duration_seconds), iterations=1, wait_first=True)
     async def handle_ad_break_end():
         end_notice_sent = False
         if settings.get('enable_end_ad_message', True):
@@ -12334,19 +12332,45 @@ else:
     BOT_OAUTH_TOKEN = OAUTH_TOKEN
     bot_logger.info(f"Running in BETA mode with bot username: {BOT_USERNAME}")
 
-# Here is the TwitchBot
-BOTS_TWITCH_BOT = TwitchBot(
-    token=BOT_OAUTH_TOKEN,
-    prefix='!',
-    channel_name=CHANNEL_NAME,
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET,
-    bot_id=BOT_ID,
-    owner_id=OWNER_ID
-)
-
 # Initialize SSH Connection Manager
 ssh_manager = SSHConnectionManager(system_logger)
+
+async def _fetch_custom_bot_user_id() -> str:
+    """Fetch the custom bot's Twitch user ID using its access token."""
+    try:
+        async with httpClientSession() as _session:
+            _headers = {"Authorization": f"Bearer {BOT_OAUTH_TOKEN}", "Client-ID": CLIENT_ID}
+            async with _session.get("https://api.twitch.tv/helix/users", headers=_headers) as _resp:
+                if _resp.status == 200:
+                    _data = await _resp.json()
+                    _users = _data.get("data", [])
+                    if _users:
+                        return str(_users[0]["id"])
+    except Exception as _e:
+        system_logger.error(f"Failed to fetch custom bot user ID: {_e}")
+    return CHANNEL_ID
+
+async def main() -> None:
+    global BOTS_TWITCH_BOT
+    if SELF_MODE:
+        bot_user_id = CHANNEL_ID
+    elif CUSTOM_MODE:
+        bot_user_id = await _fetch_custom_bot_user_id()
+    else:
+        bot_user_id = "971436498"
+    subs = [eventsub.ChatMessageSubscription(broadcaster_user_id=CHANNEL_ID, user_id=bot_user_id)]
+    async with TwitchBot(
+        prefix='!',
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        bot_id=BOT_ID,
+        owner_id=OWNER_ID,
+        subscriptions=subs,
+        force_subscribe=True
+    ) as bot:
+        BOTS_TWITCH_BOT = bot
+        await bot.add_token(BOT_OAUTH_TOKEN, REFRESH_TOKEN)
+        await bot.start(load_tokens=False, save_tokens=False, with_adapter=False)
 
 # Run the bot
 def start_bot():
@@ -12363,7 +12387,10 @@ def start_bot():
     system_logger.info(f"Version: {VERSION}")
     system_logger.info(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     system_logger.info("===== Initialization Complete =====")
-    BOTS_TWITCH_BOT.run()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
 
 if __name__ == '__main__':
     start_bot()
