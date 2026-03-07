@@ -1,11 +1,11 @@
 # Standard library imports
-import os, re, sys, ast, signal, argparse, traceback, math
+import os, re, sys, ast, signal, argparse, traceback, math, ssl
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess, Lock
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
-from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec
+from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 from logging import getLogger
@@ -710,17 +710,34 @@ async def twitch_eventsub():
 async def subscribe_to_events(session_id):
     global CHANNEL_ID, CHANNEL_AUTH, CLIENT_ID
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-    headers = {
+    # Default headers use the broadcaster's User Access Token (required for most subscriptions)
+    user_headers = {
         "Client-Id": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
-    # Define topics with their versions and conditions
-    topics = [
-        # v1 topics
+    # For standard mode, chat subscriptions must use the App Access Token + bot user ID
+    # so that the bot appears with the Chat Bot badge and is recognised as a bot in chat.
+    # In SELF_MODE / CUSTOM_MODE the broadcaster IS the bot user, so user credentials are fine.
+    if not CUSTOM_MODE and not SELF_MODE:
+        website_creds = await get_website_twitch_app_credentials()
+        bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
+        bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
+        bot_user_id = "971436498"  # botofthespecter Twitch user ID
+        chat_headers = {
+            "Client-Id": bot_app_client_id,
+            "Authorization": f"Bearer {bot_app_token}",
+            "Content-Type": "application/json"
+        }
+        twitch_logger.info(f"Chat subscriptions will use App Access Token with bot user ID {bot_user_id}")
+    else:
+        # In custom/self mode the bot IS the channel user — keep identical headers and use CHANNEL_ID
+        chat_headers = user_headers
+        bot_user_id = CHANNEL_ID
+    # Channel-scoped (broadcaster) topics — use broadcaster User Access Token
+    broadcaster_topics = [
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "stream.offline", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
-        {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.bits.use", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.raid", "version": "1", "condition": {"to_broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.raid", "version": "1", "condition": {"from_broadcaster_user_id": CHANNEL_ID}},
@@ -730,12 +747,9 @@ async def subscribe_to_events(session_id):
         {"type": "channel.poll.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.poll.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.suspicious_user.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
-        {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.create", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.shoutout.receive", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
-        {"type": "channel.chat.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": CHANNEL_ID}},
-        # v2 topics
-        {"type": "channel.channel_points_automatic_reward_redemption.add", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},        
+        {"type": "channel.channel_points_automatic_reward_redemption.add", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "automod.message.hold", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.follow", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
         {"type": "channel.update", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -743,47 +757,71 @@ async def subscribe_to_events(session_id):
         {"type": "channel.hype_train.end", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.moderate", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
     ]
-    # Prepare payloads
-    payloads = []
-    for topic in topics:
-        payload = {
-            "type": topic["type"],
-            "version": topic["version"],
-            "condition": topic["condition"],
-            "transport": {
-                "method": "websocket",
-                "session_id": session_id
-            }
-        }
-        payloads.append(payload)
+    # Chat bot topics — use App Access Token + bot user ID (required for Chat Bot badge / chat visibility)
+    chat_topics = [
+        {"type": "channel.chat.message", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
+        {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
+        {"type": "channel.chat.user_message_hold", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
+    ]
+    def build_payloads(topics, headers):
+        result = []
+        for topic in topics:
+            result.append((
+                {
+                    "type": topic["type"],
+                    "version": topic["version"],
+                    "condition": topic["condition"],
+                    "transport": {"method": "websocket", "session_id": session_id}
+                },
+                headers
+            ))
+        return result
+    all_payloads = build_payloads(broadcaster_topics, user_headers) + build_payloads(chat_topics, chat_headers)
     # Subscribe concurrently
-    responses = []
     async with httpClientSession() as session:
         twitch_logger.info("===== Subscribing to Twitch EventSub Events =====")
-        tasks = []
-        for payload in payloads:
-            task = session.post(url, headers=headers, json=payload)
-            tasks.append(task)
-        # Gather all responses
+        tasks = [session.post(url, headers=hdrs, json=payload) for payload, hdrs in all_payloads]
         results = await gather(*tasks, return_exceptions=True)
         subscribed_events = 0
         failed_events = 0
         events_subscribed_to = []
         events_failed_to_subscribe = []
         for i, result in enumerate(results):
+            payload, _ = all_payloads[i]
             if isinstance(result, Exception):
-                twitch_logger.error(f"Error subscribing to {payloads[i]['type']}: {result}")
+                twitch_logger.error(f"Error subscribing to {payload['type']}: {result}")
+                failed_events += 1
+                events_failed_to_subscribe.append(payload['type'])
             else:
-                response = result
-                if response.status in (200, 202):
-                    responses.append(await response.json())
+                if result.status in (200, 202):
                     subscribed_events += 1
-                    events_subscribed_to.append(payloads[i]['type'])
+                    events_subscribed_to.append(payload['type'])
                 else:
-                    error_text = await response.text()
-                    twitch_logger.error(f"Failed to subscribe to {payloads[i]['type']}: HTTP {response.status} - {error_text}")
+                    error_text = await result.text()
+                    twitch_logger.error(f"Failed to subscribe to {payload['type']}: HTTP {result.status} - {error_text}")
                     failed_events += 1
-                    events_failed_to_subscribe.append(payloads[i]['type'])
+                    events_failed_to_subscribe.append(payload['type'])
+                    # If a chat subscription fails with 403, the broadcaster has not yet granted channel:bot scope
+                    if result.status == 403 and payload['type'].startswith("channel.chat"):
+                        twitch_logger.warning(
+                            f"Chat subscription {payload['type']} denied — broadcaster may not have granted "
+                            f"channel:bot scope. Falling back to broadcaster user token for this subscription."
+                        )
+                        fallback_payload = dict(payload)
+                        fallback_payload["condition"] = {k: CHANNEL_ID for k in payload["condition"]}
+                        try:
+                            async with session.post(url, headers=user_headers, json=fallback_payload) as fb_resp:
+                                if fb_resp.status in (200, 202):
+                                    subscribed_events += 1
+                                    failed_events -= 1
+                                    events_subscribed_to.append(f"{payload['type']} (fallback)")
+                                    events_failed_to_subscribe.remove(payload['type'])
+                                    twitch_logger.info(f"Fallback subscription succeeded for {payload['type']}")
+                                else:
+                                    fb_text = await fb_resp.text()
+                                    twitch_logger.error(f"Fallback also failed for {payload['type']}: HTTP {fb_resp.status} - {fb_text}")
+                        except Exception as fb_e:
+                            twitch_logger.error(f"Fallback request error for {payload['type']}: {fb_e}")
         twitch_logger.info(f"Subscribed to {subscribed_events} Twitch EventSub events. Events: {', '.join(events_subscribed_to)}")
         if events_failed_to_subscribe:
             twitch_logger.error(f"Failed to subscribe to {failed_events} events: {', '.join(events_failed_to_subscribe)}")
@@ -1766,6 +1804,252 @@ async def process_twitch_eventsub_message(message):
     finally:
         pass
 
+# Maintain a Twitch IRC presence so the bot appears in the channel user list
+async def twitch_irc_presence():
+    IRC_HOST = "irc.chat.twitch.tv"
+    IRC_PORT = 6697
+    reconnect_delay = 30
+    force_refresh = False
+    server_reconnect = False  # True when the server sent RECONNECT (reconnect with no delay)
+    channel_blocked = False   # True when banned/channel suspended (back off for a long time)
+    timeout_seconds = 0       # Non-zero when msg_timedout received; sleep this long before retry
+    def _parse_irc_tags(line):
+        if not line.startswith("@"):
+            return {}
+        tag_str = line[1:line.index(" ")] if " " in line else line[1:]
+        tags = {}
+        for part in tag_str.split(";"):
+            if "=" in part:
+                k, _, v = part.partition("=")
+                tags[k] = v
+            else:
+                tags[part] = ""
+        return tags
+    # NOTICE msg-ids — from the full Twitch NOTICE Reference
+    # Permanent: no point reconnecting soon; back off for 10 minutes
+    _BLOCKING_NOTICE_IDS = {
+        "msg_banned",                       # permanently banned from this channel
+        "msg_channel_blocked",              # account not in good standing in channel
+        "msg_channel_suspended",            # channel suspended by Twitch
+        "msg_suspended",                    # bot account itself has no permission
+        "tos_ban",                          # channel closed for ToS violations
+    }
+    # Account needs manual action before chatting is possible
+    _ACCOUNT_ACTION_NOTICE_IDS = {
+        "msg_requires_verified_phone_number",   # must verify phone at twitch.tv/settings
+        "msg_verified_email",                   # must verify email at twitch.tv/settings
+    }
+    # Room mode change notifications — informational only, no action needed
+    _ROOM_MODE_NOTICE_IDS = {
+        "emote_only_off", "emote_only_on",
+        "followers_off", "followers_on", "followers_on_zero",
+        "slow_off", "slow_on",
+        "subs_off", "subs_on",
+    }
+    while True:
+        reader = None
+        writer = None
+        auth_failed = False
+        channel_blocked = False
+        timeout_seconds = 0
+        try:
+            # Fetch the token that matches how the bot sends chat messages via the API
+            if SELF_MODE:
+                irc_token = CHANNEL_AUTH
+                irc_nick = BOT_USERNAME.lower()
+            elif CUSTOM_MODE:
+                creds = await get_current_custom_credentials()
+                if not creds:
+                    bot_logger.error("IRC Presence: Could not get custom bot credentials, retrying in 60s")
+                    await sleep(60)
+                    continue
+                irc_token = creds['access_token']
+                irc_nick = BOT_USERNAME.lower()
+            else:
+                website_creds = await get_website_twitch_app_credentials(force_refresh=force_refresh)
+                irc_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
+                irc_nick = "botofthespecter"
+            if not irc_token:
+                bot_logger.error("IRC Presence: No token available, retrying in 60s")
+                await sleep(60)
+                continue
+            ssl_ctx = ssl.create_default_context()
+            bot_logger.info(f"IRC Presence: Connecting to {IRC_HOST}:{IRC_PORT} as {irc_nick} in #{CHANNEL_NAME}")
+            reader, writer = await open_connection(IRC_HOST, IRC_PORT, ssl=ssl_ctx)
+            # Request capabilities before auth so tags/membership/commands are included in responses
+            writer.write(b"CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n")
+            # Authenticate per the Twitch IRC spec: PASS then NICK
+            writer.write(f"PASS oauth:{irc_token}\r\n".encode())
+            writer.write(f"NICK {irc_nick}\r\n".encode())
+            await writer.drain()
+            # Wait for the welcome sequence (001) or an auth failure NOTICE before joining.
+            # We also accept GLOBALUSERSTATE as a confirmation of successful auth.
+            # CAP * ACK/NAK lines are consumed but don't block the wait.
+            authenticated = False
+            auth_timeout = 15  # seconds to wait for welcome/rejection
+            auth_deadline = time.monotonic() + auth_timeout
+            while not authenticated:
+                remaining = auth_deadline - time.monotonic()
+                if remaining <= 0:
+                    bot_logger.error("IRC Presence: Timed out waiting for auth response, reconnecting...")
+                    break
+                line_bytes = await asyncio_wait_for(reader.readline(), timeout=remaining)
+                if not line_bytes:
+                    break
+                line = line_bytes.decode("utf-8", errors="replace").rstrip("\r\n")
+                if "NOTICE * :Login authentication failed" in line or "NOTICE * :Improperly formatted auth" in line:
+                    bot_logger.error(f"IRC Presence: Auth failed — {line}. Will refresh token on next attempt.")
+                    auth_failed = True
+                    break
+                if "CAP * NAK" in line:
+                    # Server rejected one or more requested capabilities — log but continue
+                    bot_logger.warning(f"IRC Presence: Capability request denied by server: {line}")
+                if " 001 " in line:
+                    authenticated = True
+                elif "GLOBALUSERSTATE" in line:
+                    # GLOBALUSERSTATE is the definitive auth confirmation and carries the bot's
+                    # user-id and display-name tags — use them to verify the right account authed
+                    gs_tags = _parse_irc_tags(line)
+                    gs_user_id = gs_tags.get("user-id", "unknown")
+                    gs_display = gs_tags.get("display-name", irc_nick)
+                    bot_logger.info(
+                        f"IRC Presence: Authenticated as '{gs_display}' (user-id={gs_user_id})"
+                    )
+                    authenticated = True
+            if not authenticated:
+                continue
+            # Authenticated — join the target channel
+            writer.write(f"JOIN #{CHANNEL_NAME}\r\n".encode())
+            await writer.drain()
+            bot_logger.info(f"IRC Presence: Joined #{CHANNEL_NAME}")
+            reconnect_delay = 30  # Reset back-off on every successful connection
+            force_refresh = False
+            server_reconnect = False
+            while True:
+                line_bytes = await asyncio_wait_for(reader.readline(), timeout=300)
+                if not line_bytes:
+                    bot_logger.warning("IRC Presence: Connection closed by server")
+                    break
+                line = line_bytes.decode("utf-8", errors="replace").rstrip("\r\n")
+                # ── Keepalive ──────────────────────────────────────────────────────
+                if line.startswith("PING"):
+                    pong_target = line[5:].strip() if len(line) > 5 else ":tmi.twitch.tv"
+                    writer.write(f"PONG {pong_target}\r\n".encode())
+                    await writer.drain()
+                # ── Server-initiated reconnect (maintenance) ───────────────────────
+                elif ":tmi.twitch.tv RECONNECT" in line:
+                    bot_logger.info("IRC Presence: Server sent RECONNECT, reconnecting immediately...")
+                    server_reconnect = True
+                    break
+                # ── NOTICE — categorised handling using the full NOTICE msg-id reference ──
+                elif "NOTICE" in line and ("#" + CHANNEL_NAME) in line:
+                    tags = _parse_irc_tags(line)
+                    msg_id = tags.get("msg-id", "")
+                    if msg_id in _BLOCKING_NOTICE_IDS:
+                        # Permanent condition — no point retrying for at least 10 minutes
+                        bot_logger.error(
+                            f"IRC Presence: Permanently blocked from #{CHANNEL_NAME} "
+                            f"(msg-id={msg_id}). Backing off 10 min. Line: {line}"
+                        )
+                        channel_blocked = True
+                        break
+                    elif msg_id in _ACCOUNT_ACTION_NOTICE_IDS:
+                        # Bot account needs manual action before it can chat
+                        bot_logger.error(
+                            f"IRC Presence: Bot account needs action before joining "
+                            f"#{CHANNEL_NAME} (msg-id={msg_id}). Backing off 10 min. Line: {line}"
+                        )
+                        channel_blocked = True
+                        break
+                    elif msg_id == "msg_timedout":
+                        # Parse remaining timeout seconds from the message text, e.g.
+                        # "You are timed out for 42 more seconds."
+                        import re as _re
+                        m = _re.search(r'(\d+)\s+more\s+second', line)
+                        timeout_seconds = int(m.group(1)) + 5 if m else 60
+                        bot_logger.warning(
+                            f"IRC Presence: Timed out in #{CHANNEL_NAME} for "
+                            f"{timeout_seconds}s. Will wait and rejoin."
+                        )
+                        break
+                    elif msg_id in _ROOM_MODE_NOTICE_IDS:
+                        # Room setting changed — purely informational
+                        bot_logger.info(f"IRC Presence room mode change (msg-id={msg_id}): {line}")
+                    else:
+                        # All other NOTICEs (rate limits, duplicate, etc.) — log as warning
+                        bot_logger.warning(f"IRC Presence NOTICE (msg-id={msg_id or 'none'}): {line}")
+                # ── USERSTATE — log bot's role in the channel after JOIN or PRIVMSG ─
+                # Tags: mod, badges, subscriber, display-name (see USERSTATE tag docs)
+                elif "USERSTATE" in line and ("#" + CHANNEL_NAME) in line:
+                    us_tags = _parse_irc_tags(line)
+                    is_mod = us_tags.get("mod", "0") == "1"
+                    badges = us_tags.get("badges", "")
+                    is_vip = "vip/" in badges
+                    is_broadcaster = "broadcaster/" in badges
+                    if is_broadcaster:
+                        role = "broadcaster"
+                    elif is_mod:
+                        role = "moderator"
+                    elif is_vip:
+                        role = "VIP"
+                    else:
+                        role = "regular user"
+                    # Rate limit bucket is determined by role:
+                    # broadcaster/mod/VIP → 100 msgs/30s  |  regular → 20 msgs/30s
+                    rate_bucket = "100 msgs/30s" if (is_broadcaster or is_mod or is_vip) else "20 msgs/30s"
+                    bot_logger.info(
+                        f"IRC Presence: Bot joined #{CHANNEL_NAME} as {role} "
+                        f"(IRC rate limit: {rate_bucket})"
+                    )
+                # ── Expected / informational messages — silently consumed ───────────
+                # ROOMSTATE  : chat room settings on join or change
+                # USERSTATE  : bot's own state on join or after PRIVMSG
+                # GLOBALUSERSTATE : global bot state (can arrive after JOIN too)
+                # USERNOTICE : subscription/raid/milestone events
+                # CLEARCHAT  : chat cleared or user timed-out/banned
+                # CLEARMSG   : individual message deleted
+                # PRIVMSG    : incoming chat messages (handled by EventSub; ignore here)
+                # PART       : user left chat room
+                # 353 / 366  : NAMES list on join and end-of-list marker
+                # CAP * ACK  : capability acknowledgement
+        except asyncioTimeoutError:
+            bot_logger.warning("IRC Presence: Read timeout (no data in 5 min), reconnecting...")
+        except asyncioCancelledError:
+            raise
+        except Exception as e:
+            bot_logger.error(f"IRC Presence: Error: {e}")
+        finally:
+            if writer:
+                try:
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+        # Always pull a fresh token from the DB on the next reconnect attempt
+        force_refresh = True
+        if auth_failed:
+            # Bad token — wait before hammering the auth endpoint
+            bot_logger.info("IRC Presence: Auth failure — waiting 120s before retry...")
+            await sleep(120)
+            reconnect_delay = 30  # Fresh back-off after token recovery
+        elif channel_blocked:
+            # Permanently banned / suspended / account action needed — long back-off
+            bot_logger.info("IRC Presence: Channel blocked — waiting 600s before retry...")
+            await sleep(600)
+            reconnect_delay = 30
+        elif timeout_seconds > 0:
+            # Server timed us out — sleep exactly as long as required then rejoin
+            bot_logger.info(f"IRC Presence: Waiting {timeout_seconds}s for timeout to expire...")
+            await sleep(timeout_seconds)
+            reconnect_delay = 30
+        elif server_reconnect:
+            # Server maintenance reconnect — rejoin immediately
+            pass
+        else:
+            bot_logger.info(f"IRC Presence: Reconnecting in {reconnect_delay}s...")
+            await sleep(reconnect_delay)
+            reconnect_delay = min(reconnect_delay * 2, 300)  # Exponential back-off up to 5 minutes
+
 # Connect and manage reconnection for Internal Socket Server
 async def specter_websocket():
     global websocket_connected, specterSocket
@@ -2645,6 +2929,7 @@ class TwitchBot(commands.Bot):
         create_task(channel_point_rewards())
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
+        looped_tasks["twitch_irc_presence"] = create_task(twitch_irc_presence())
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
         looped_tasks["midnight"] = create_task(midnight())
