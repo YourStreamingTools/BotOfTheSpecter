@@ -734,21 +734,23 @@ async def subscribe_to_events(session_id):
         bot_user_id = CHANNEL_ID
         twitch_logger.info("Chat subscriptions will use broadcaster token (SELF_MODE)")
     elif CUSTOM_MODE:
-        # Use the custom bot's own token and user ID for the Chat Bot badge
         custom_creds = await get_current_custom_credentials()
-        if custom_creds and custom_creds.get('access_token') and custom_creds.get('bot_channel_id'):
+        website_creds = await get_website_twitch_app_credentials()
+        bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
+        bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
+        if custom_creds and custom_creds.get('bot_channel_id') and bot_app_token:
             bot_user_id = custom_creds['bot_channel_id']
             chat_headers = {
-                "Client-Id": CLIENT_ID,
-                "Authorization": f"Bearer {custom_creds['access_token']}",
+                "Client-Id": bot_app_client_id,
+                "Authorization": f"Bearer {bot_app_token}",
                 "Content-Type": "application/json"
             }
-            twitch_logger.info(f"Chat subscriptions will use custom bot token for user ID {bot_user_id} ({BOT_USERNAME})")
+            twitch_logger.info(f"Chat subscriptions will use App Access Token with custom bot user ID {bot_user_id} ({BOT_USERNAME})")
         else:
-            # Fall back to broadcaster token if custom credentials aren't available yet
+            # Fall back to broadcaster token if credentials aren't available yet
             chat_headers = user_headers
             bot_user_id = CHANNEL_ID
-            twitch_logger.warning(f"Custom bot credentials not available for {BOT_USERNAME}; falling back to broadcaster token for chat subscriptions")
+            twitch_logger.warning(f"App credentials or custom bot ID not available for {BOT_USERNAME}; falling back to broadcaster token for chat subscriptions")
     else:
         # Standard mode — use the botofthespecter App Access Token (bot_chat_token table).
         website_creds = await get_website_twitch_app_credentials()
@@ -13610,14 +13612,18 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
         access_token = CHANNEL_AUTH
         client_id = CLIENT_ID
     elif CUSTOM_MODE:
-        # Use expiry-aware cached credentials when present, otherwise fetch from DB
+        # Must use App Access Token (not the custom bot's User Access Token) for the Chat Bot badge.
         creds = await get_current_custom_credentials()
-        if not creds:
+        if not creds or not creds.get('bot_channel_id'):
             chat_logger.error(f"Failed to get custom bot credentials for {BOT_USERNAME}")
             return False
         sender_id = creds['bot_channel_id']
-        access_token = creds['access_token']
-        client_id = CLIENT_ID  # Use the same client ID
+        website_creds = await get_website_twitch_app_credentials()
+        access_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
+        client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
+        if not access_token or not client_id:
+            chat_logger.error("Missing Twitch app credentials for custom bot chat message")
+            return False
     else:
         # Use main bot credentials from website DB (fallback to environment)
         website_creds = await get_website_twitch_app_credentials()
@@ -13691,41 +13697,35 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                 else:
                     chat_logger.error(f"No data in response; text={resp_text}")
                     return False
-            # Handle token expiry for custom mode
+            # Handle token expiry — force-refresh the App Access Token and retry once
             if status in (401, 403) and CUSTOM_MODE:
-                chat_logger.warning(f"Custom bot token invalid/expired for {BOT_USERNAME}. Re-fetching credentials from DB and retrying.")
-                fresh = await get_custom_bot_credentials()
-                if not fresh or fresh.get('access_token') == access_token:
+                chat_logger.warning(f"App Access Token rejected ({status}) for custom bot {BOT_USERNAME}. Force-refreshing and retrying.")
+                fresh_website = await get_website_twitch_app_credentials(force_refresh=True)
+                fresh_token = fresh_website.get("access_token") or TWITCH_OAUTH_API_TOKEN
+                if not fresh_token or fresh_token == access_token:
                     text = resp_text
-                    chat_logger.error(f"Failed to send chat message after DB re-fetch: {status} - {text}")
-                    _custom_creds_cache.pop(BOT_USERNAME, None)
+                    chat_logger.error(f"App token unchanged after refresh; cannot send message: {status} - {text}")
                     return False
                 try:
                     global _custom_token_retry_count
                     _custom_token_retry_count += 1
-                    system_logger.info(f"Custom token retry for {BOT_USERNAME} count={_custom_token_retry_count}")
+                    system_logger.info(f"App token retry for {BOT_USERNAME} count={_custom_token_retry_count}")
                 except Exception:
                     pass
-                if fresh.get('token_expires'):
-                    _custom_creds_cache[BOT_USERNAME] = {
-                        'bot_channel_id': fresh.get('bot_channel_id'),
-                        'access_token': fresh.get('access_token'),
-                        'expires_at': fresh.get('token_expires')
-                    }
-                status2, resp_text2, resp_json2 = await _do_post(fresh.get('access_token'))
+                status2, resp_text2, resp_json2 = await _do_post(fresh_token)
                 if status2 == 200:
                     response_data = resp_json2
                     if response_data and response_data.get("data") and response_data["data"][0].get("is_sent"):
-                        chat_logger.info(f"Sent chat message after DB refresh: {message}")
+                        chat_logger.info(f"Sent chat message after app token refresh: {message}")
                         await track_chat_message()
                         return True
                     else:
                         text = resp_text2
-                        chat_logger.error(f"Failed on retry after DB refresh: {status2} - {text}")
+                        chat_logger.error(f"Failed on retry after app token refresh: {status2} - {text}")
                         return False
                 else:
                     text = resp_text2
-                    chat_logger.error(f"Retry failed after DB refresh: {status2} - {text}")
+                    chat_logger.error(f"Retry failed after app token refresh: {status2} - {text}")
                     return False
             # Retry on server errors
             if status in retryable_statuses:
