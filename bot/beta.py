@@ -706,8 +706,7 @@ async def twitch_eventsub():
                     # Manage keepalive and listen for messages concurrently
                     await gather(twitch_receive_messages(twitch_websocket, keepalive_timeout))
         except EventSubReconnect as e:
-            # Server sent session_reconnect with a new URL — connect immediately to that URL
-            # (do NOT resubscribe; existing subscriptions transfer automatically)
+            # Reconnect to the server-provided URL; subscriptions transfer automatically
             event_logger.info(f"EventSub server-initiated reconnect to: {e.reconnect_url}")
             twitch_websocket_uri = e.reconnect_url
             continue
@@ -729,17 +728,13 @@ async def subscribe_to_events(session_id):
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
-    # Chat subscriptions must be authorised with the *bot's own* User Access Token so that
-    # Twitch recognises a separate bot identity and awards the Chat Bot badge in chat.
+    # Use the bot's own token for chat subscriptions so Twitch awards the Chat Bot badge
     if SELF_MODE:
-        # Broadcaster IS the bot — broadcaster token and ID are correct.
         chat_headers = user_headers
         bot_user_id = CHANNEL_ID
         twitch_logger.info("Chat subscriptions will use broadcaster token (SELF_MODE)")
     elif CUSTOM_MODE:
-        # Separate custom bot account — must use the bot's own access token (auto-refreshed
-        # every 4 hours by refresh_custom_bot_tokens.py) and the bot's own Twitch user ID.
-        # Using the broadcaster's token here would NOT produce the Chat Bot badge.
+        # Use the custom bot's own token and user ID for the Chat Bot badge
         custom_creds = await get_current_custom_credentials()
         if custom_creds and custom_creds.get('access_token') and custom_creds.get('bot_channel_id'):
             bot_user_id = custom_creds['bot_channel_id']
@@ -750,16 +745,10 @@ async def subscribe_to_events(session_id):
             }
             twitch_logger.info(f"Chat subscriptions will use custom bot token for user ID {bot_user_id} ({BOT_USERNAME})")
         else:
-            # Credentials not yet available (e.g. DB unavailable at startup) — fall back to
-            # broadcaster token so other subscriptions still succeed.  The badge won't show
-            # until the bot reconnects with valid custom credentials.
+            # Fall back to broadcaster token if custom credentials aren't available yet
             chat_headers = user_headers
             bot_user_id = CHANNEL_ID
-            twitch_logger.warning(
-                f"Custom bot credentials not available for {BOT_USERNAME}; "
-                f"falling back to broadcaster token for chat subscriptions. "
-                f"Chat Bot badge will not appear until credentials are resolved."
-            )
+            twitch_logger.warning(f"Custom bot credentials not available for {BOT_USERNAME}; falling back to broadcaster token for chat subscriptions")
     else:
         # Standard mode — use the botofthespecter App Access Token (bot_chat_token table).
         website_creds = await get_website_twitch_app_credentials()
@@ -876,9 +865,7 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
                 if message_type == 'session_keepalive':
                     event_logger.info("Received session keepalive message from Twitch WebSocket")
                 elif message_type == 'session_reconnect':
-                    # Server is asking us to reconnect to a new URL.
-                    # Subscriptions transfer automatically — do NOT resubscribe.
-                    # Raise EventSubReconnect so twitch_eventsub() can connect to the new URL.
+                    # Raise EventSubReconnect so twitch_eventsub() connects to the new URL
                     reconnect_url = (
                         message_data.get('payload', {})
                         .get('session', {})
@@ -887,24 +874,13 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
                     event_logger.info(f"EventSub session_reconnect received. New URL: {reconnect_url}")
                     raise EventSubReconnect(reconnect_url)
                 elif message_type == 'revocation':
-                    # A subscription was revoked — typically because the bot was banned/timed out.
-                    # The status field explains why (e.g. 'chat_user_banned', 'user_removed',
-                    # 'authorization_revoked', 'version_removed').
                     sub = message_data.get('payload', {}).get('subscription', {})
                     sub_type = sub.get('type', 'unknown')
                     sub_status = sub.get('status', 'unknown')
                     sub_id = sub.get('id', 'unknown')
-                    event_logger.error(
-                        f"EventSub subscription revoked — type={sub_type}, "
-                        f"status={sub_status}, id={sub_id}"
-                    )
-                    # If a chat subscription was revoked because the bot is banned,
-                    # signal the IRC presence function to back off too.
+                    event_logger.error(f"EventSub subscription revoked — type={sub_type}, status={sub_status}, id={sub_id}")
                     if sub_status in ('chat_user_banned', 'user_removed') and sub_type.startswith('channel.chat'):
-                        event_logger.error(
-                            f"Bot has been removed from chat (status={sub_status}). "
-                            f"IRC presence will back off automatically on next cycle."
-                        )
+                        event_logger.error(f"Bot removed from chat (status={sub_status}).")
                 else:
                     event_logger.info(f"Info from Twitch EventSub: {message_data}")
                     await process_twitch_eventsub_message(message_data)
