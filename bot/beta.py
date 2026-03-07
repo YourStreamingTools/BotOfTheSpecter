@@ -679,6 +679,11 @@ async def save_eventsub_session_id(session_id):
     except Exception as e:
         event_logger.error(f"Failed to save EventSub session ID to database: {e}")
 
+# Raised inside twitch_receive_messages to signal a server-requested reconnect
+class EventSubReconnect(Exception):
+    def __init__(self, reconnect_url):
+        self.reconnect_url = reconnect_url
+
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
@@ -700,11 +705,19 @@ async def twitch_eventsub():
                     await subscribe_to_events(session_id)
                     # Manage keepalive and listen for messages concurrently
                     await gather(twitch_receive_messages(twitch_websocket, keepalive_timeout))
+        except EventSubReconnect as e:
+            # Server sent session_reconnect with a new URL — connect immediately to that URL
+            # (do NOT resubscribe; existing subscriptions transfer automatically)
+            event_logger.info(f"EventSub server-initiated reconnect to: {e.reconnect_url}")
+            twitch_websocket_uri = e.reconnect_url
+            continue
         except WebSocketConnectionClosedError as e:
             event_logger.error(f"WebSocket connection closed unexpectedly: {e}")
+            twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
             await sleep(10)  # Wait before retrying
         except Exception as e:
             event_logger.error(f"An unexpected error occurred: {e}")
+            twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
             await sleep(10)  # Wait before reconnecting
 
 async def subscribe_to_events(session_id):
@@ -837,12 +850,43 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
                 message_type = message_data['metadata'].get('message_type')
                 if message_type == 'session_keepalive':
                     event_logger.info("Received session keepalive message from Twitch WebSocket")
+                elif message_type == 'session_reconnect':
+                    # Server is asking us to reconnect to a new URL.
+                    # Subscriptions transfer automatically — do NOT resubscribe.
+                    # Raise EventSubReconnect so twitch_eventsub() can connect to the new URL.
+                    reconnect_url = (
+                        message_data.get('payload', {})
+                        .get('session', {})
+                        .get('reconnect_url', '')
+                    )
+                    event_logger.info(f"EventSub session_reconnect received. New URL: {reconnect_url}")
+                    raise EventSubReconnect(reconnect_url)
+                elif message_type == 'revocation':
+                    # A subscription was revoked — typically because the bot was banned/timed out.
+                    # The status field explains why (e.g. 'chat_user_banned', 'user_removed',
+                    # 'authorization_revoked', 'version_removed').
+                    sub = message_data.get('payload', {}).get('subscription', {})
+                    sub_type = sub.get('type', 'unknown')
+                    sub_status = sub.get('status', 'unknown')
+                    sub_id = sub.get('id', 'unknown')
+                    event_logger.error(
+                        f"EventSub subscription revoked — type={sub_type}, "
+                        f"status={sub_status}, id={sub_id}"
+                    )
+                    # If a chat subscription was revoked because the bot is banned,
+                    # signal the IRC presence function to back off too.
+                    if sub_status in ('chat_user_banned', 'user_removed') and sub_type.startswith('channel.chat'):
+                        event_logger.error(
+                            f"Bot has been removed from chat (status={sub_status}). "
+                            f"IRC presence will back off automatically on next cycle."
+                        )
                 else:
-                    # event_logger.info(f"Received message type: {message_type}")
                     event_logger.info(f"Info from Twitch EventSub: {message_data}")
                     await process_twitch_eventsub_message(message_data)
             else:
                 event_logger.error("Received unrecognized message format")
+        except EventSubReconnect:
+            raise  # propagate up to twitch_eventsub()
         except asyncioTimeoutError:
             event_logger.error("Keepalive timeout exceeded, reconnecting...")
             await twitch_websocket.close()
