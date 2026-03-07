@@ -407,7 +407,7 @@ class MySQLHandler:
             password=SQL_PASSWORD,
             db=db_name,
             minsize=1,
-            maxsize=8,
+            maxsize=15,
             autocommit=True,
             connect_timeout=5
         )
@@ -442,6 +442,10 @@ class MySQLHandler:
                     pool_stats = self.get_pool_stats().get(db_name, {})
                     bot_logger.error(
                         f"MySQL pool acquire timed out for '{db_name}' after {MYSQL_POOL_ACQUIRE_TIMEOUT:.1f}s. "
+                        f"Pool stats: {pool_stats}"
+                    )
+                    chat_logger.error(
+                        f"[DB POOL EXHAUSTED] Command processing may be failing — MySQL pool acquire timed out for '{db_name}'. "
                         f"Pool stats: {pool_stats}"
                     )
                     raise MySQLError(
@@ -1193,34 +1197,32 @@ async def process_tipping_message(data, source):
         if send_message and user and amount is not None:
             await send_chat_message(send_message)
             # Save tipping data to database
-            connection = await mysql_handler.get_connection()
             try:
-                async with connection.cursor(DictCursor) as cursor:
-                    # For StreamElements, store additional data
-                    if source == "StreamElements":
-                        await cursor.execute(
-                            "INSERT INTO tipping (username, amount, message, source, tip_id, currency, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                            (user, amount, tip_message or '', source, tip_id, currency, created_at)
-                        )
-                    else:
-                        # For other sources, use the basic format
-                        await cursor.execute(
-                            "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
-                            (user, amount, tip_message or '', source)
-                        )
-                    await connection.commit()
+                async with await mysql_handler.get_connection() as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                        # For StreamElements, store additional data
+                        if source == "StreamElements":
+                            await cursor.execute(
+                                "INSERT INTO tipping (username, amount, message, source, tip_id, currency, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                                (user, amount, tip_message or '', source, tip_id, currency, created_at)
+                            )
+                        else:
+                            # For other sources, use the basic format
+                            await cursor.execute(
+                                "INSERT INTO tipping (username, amount, message, source) VALUES (%s, %s, %s, %s)",
+                                (user, amount, tip_message or '', source)
+                            )
+                        await connection.commit()
             except MySQLError as err:
                 integrations_logger.error(f"Database error saving tip: {err}")
-            finally:
-                pass
     except Exception as e:
         integrations_logger.error(f"Error processing tipping message: {e}")
 
 async def process_twitch_eventsub_message(message):
     global pending_outgoing_raid, outgoing_raid_task
     try:
-        connection = await mysql_handler.get_connection()
-        async with connection.cursor(DictCursor) as cursor:
+        async with await mysql_handler.get_connection() as connection:
+         async with connection.cursor(DictCursor) as cursor:
             event_type = message.get("payload", {}).get("subscription", {}).get("type")
             event_data = message.get("payload", {}).get("event")
             if event_type:
@@ -1848,8 +1850,6 @@ async def process_twitch_eventsub_message(message):
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
     except Exception as e:
         event_logger.error(f"Error processing EventSub message: {e}")
-    finally:
-        pass
 
 # Maintain a Twitch IRC presence so the bot appears in the channel user list
 async def twitch_irc_presence(override_nick=None, override_token=None):
@@ -2413,13 +2413,14 @@ async def hyperate_websocket_persistent():
     while True:
         try:
             # Check DB for heartrate code before attempting any websocket connection
+            heartrate_code_data = None
             try:
-                connection = await mysql_handler.get_connection()
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute('SELECT heartrate_code FROM profile')
-                    heartrate_code_data = await cursor.fetchone()
-            finally:
-                pass
+                async with await mysql_handler.get_connection() as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                        await cursor.execute('SELECT heartrate_code FROM profile')
+                        heartrate_code_data = await cursor.fetchone()
+            except Exception as hb_db_err:
+                bot_logger.error(f"HypeRate: DB error checking heartrate code: {hb_db_err}")
             if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
                 bot_logger.info("HypeRate info: No Heart Rate Code found in database. Stopping websocket connection.")
                 HEARTRATE = None
@@ -2519,16 +2520,16 @@ async def stream_bingo_websocket():
     while True:
         try:
             # Retrieve Stream Bingo API key from database
-            connection = await mysql_handler.get_connection()
             stream_bingo_api_key = None
             try:
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute("SELECT stream_bounty_api_key FROM profile")
-                    result = await cursor.fetchone()
-                    if result:
-                        stream_bingo_api_key = result.get('stream_bounty_api_key')
-            finally:
-                pass
+                async with await mysql_handler.get_connection() as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                        await cursor.execute("SELECT stream_bounty_api_key FROM profile")
+                        result = await cursor.fetchone()
+                        if result:
+                            stream_bingo_api_key = result.get('stream_bounty_api_key')
+            except Exception as sb_db_err:
+                integrations_logger.error(f"Stream Bingo: DB error retrieving API key: {sb_db_err}")
             if not stream_bingo_api_key:
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
@@ -2567,18 +2568,18 @@ async def connect_to_tanggle():
     while True:
         try:
             # Retrieve Tanggle credentials from database
-            connection = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
             tanggle_api_token = None
             tanggle_community_uuid = None
             try:
-                async with connection.cursor(DictCursor) as cursor:
-                    await cursor.execute("SELECT tanggle_api_token, tanggle_community_uuid FROM profile LIMIT 1")
-                    result = await cursor.fetchone()
-                    if result:
-                        tanggle_api_token = result.get('tanggle_api_token')
-                        tanggle_community_uuid = result.get('tanggle_community_uuid')
-            finally:
-                pass
+                async with await mysql_handler.get_connection(db_name=CHANNEL_NAME) as connection:
+                    async with connection.cursor(DictCursor) as cursor:
+                        await cursor.execute("SELECT tanggle_api_token, tanggle_community_uuid FROM profile LIMIT 1")
+                        result = await cursor.fetchone()
+                        if result:
+                            tanggle_api_token = result.get('tanggle_api_token')
+                            tanggle_community_uuid = result.get('tanggle_community_uuid')
+            except Exception as tg_db_err:
+                integrations_logger.error(f"Tanggle: DB error retrieving credentials: {tg_db_err}")
             if not tanggle_api_token or not tanggle_community_uuid:
                 integrations_logger.info("No Tanggle credentials found, skipping connection")
                 await sleep(300)  # Wait 5 minutes before checking again
@@ -3321,12 +3322,12 @@ class TwitchBot(commands.Bot):
         send_shoutout = False
         shoutout_message = None
         try:
-            connection = await mysql_handler.get_connection()
-            async with connection.cursor(DictCursor) as cursor:
-                # Check user level
-                is_vip = await is_user_vip(messageAuthorID)
-                is_mod = await is_user_mod(messageAuthorID)
-                is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
+            # Resolve user status via HTTP before acquiring a DB connection
+            is_vip = await is_user_vip(messageAuthorID)
+            is_mod = await is_user_mod(messageAuthorID)
+            is_broadcaster = messageAuthor.lower() == CHANNEL_NAME.lower()
+            async with await mysql_handler.get_connection() as connection:
+             async with connection.cursor(DictCursor) as cursor:
                 user_level = 'broadcaster' if is_broadcaster else 'mod' if is_mod else 'vip' if is_vip else 'normal'
                 # Update message count
                 await cursor.execute(
@@ -3456,8 +3457,8 @@ class TwitchBot(commands.Bot):
         send_shoutout = False
         shoutout_message = None
         try:
-            connection = await mysql_handler.get_connection()
-            async with connection.cursor(DictCursor) as cursor:
+            async with await mysql_handler.get_connection() as connection:
+             async with connection.cursor(DictCursor) as cursor:
                 if await self.is_first_message_command_blocked_by_settings(cursor, command):
                     return
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
@@ -3640,53 +3641,50 @@ class TwitchBot(commands.Bot):
             chat_logger.error(f"Error in user_points: {e}")
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
+        # Early exits before any DB or HTTP work
+        if messageAuthor == self.channel_name or messageAuthor == "None":
+            return
         try:
-            connection = await mysql_handler.get_connection()
             group_names = []
-            # Check if the user is the broadcaster
-            if messageAuthor == self.channel_name:
-                return
-            # Check if there was a user passed
-            if messageAuthor == "None":
-                return
-            async with connection.cursor(DictCursor) as cursor:
-                # Check if the user is a moderator
-                if await is_user_mod(messageAuthorID):
-                    group_names = ["MOD"]  # Override any other groups
-                else:
-                    # Check if the user is a VIP
-                    if await is_user_vip(messageAuthorID):
-                        group_names = ["VIP"]  # Override subscriber groups
-                    # Check if the user is a subscriber, only if they are not a VIP or MOD
-                    if not group_names:
-                        subscription_tier = await is_user_subscribed(messageAuthorID)
-                        if subscription_tier:
-                            # Map subscription tier to group name
-                            if subscription_tier == "Tier 1":
-                                group_names.append("Subscriber T1")
-                            elif subscription_tier == "Tier 2":
-                                group_names.append("Subscriber T2")
-                            elif subscription_tier == "Tier 3":
-                                group_names.append("Subscriber T3")
-                # If the user is not a MOD, VIP, or Subscriber, assign them the role "Normal"
+            # Resolve user status via HTTP before acquiring a DB connection
+            if await is_user_mod(messageAuthorID):
+                group_names = ["MOD"]  # Override any other groups
+            else:
+                # Check if the user is a VIP
+                if await is_user_vip(messageAuthorID):
+                    group_names = ["VIP"]  # Override subscriber groups
+                # Check if the user is a subscriber, only if they are not a VIP or MOD
                 if not group_names:
-                    group_names.append("Normal")
-                # Assign user to groups
-                for name in group_names:
-                    await cursor.execute("SELECT * FROM `groups` WHERE name=%s", (name,))
-                    group = await cursor.fetchone()
-                    if group:
-                        try:
-                            await cursor.execute(
-                                "INSERT INTO everyone (username, group_name) VALUES (%s, %s) "
-                                "ON DUPLICATE KEY UPDATE group_name = %s", (messageAuthor, name, name)
-                            )
-                            await connection.commit()
-                            #bot_logger.info(f"User '{messageAuthor}' assigned to group '{name}' successfully.")
-                        except MySQLIntegrityError:
-                            bot_logger.error(f"Failed to assign user '{messageAuthor}' to group '{name}'.")
-                    else:
-                        bot_logger.error(f"Group '{name}' does not exist.")
+                    subscription_tier = await is_user_subscribed(messageAuthorID)
+                    if subscription_tier:
+                        # Map subscription tier to group name
+                        if subscription_tier == "Tier 1":
+                            group_names.append("Subscriber T1")
+                        elif subscription_tier == "Tier 2":
+                            group_names.append("Subscriber T2")
+                        elif subscription_tier == "Tier 3":
+                            group_names.append("Subscriber T3")
+            # If the user is not a MOD, VIP, or Subscriber, assign them the role "Normal"
+            if not group_names:
+                group_names.append("Normal")
+            # Acquire DB connection only for the insert, with all HTTP calls already resolved
+            async with await mysql_handler.get_connection() as connection:
+                async with connection.cursor(DictCursor) as cursor:
+                    # Assign user to groups
+                    for name in group_names:
+                        await cursor.execute("SELECT * FROM `groups` WHERE name=%s", (name,))
+                        group = await cursor.fetchone()
+                        if group:
+                            try:
+                                await cursor.execute(
+                                    "INSERT INTO everyone (username, group_name) VALUES (%s, %s) "
+                                    "ON DUPLICATE KEY UPDATE group_name = %s", (messageAuthor, name, name)
+                                )
+                                await connection.commit()
+                            except MySQLIntegrityError:
+                                bot_logger.error(f"Failed to assign user '{messageAuthor}' to group '{name}'.")
+                        else:
+                            bot_logger.error(f"Group '{name}' does not exist.")
         except Exception as e:
             bot_logger.error(f"An error occurred in user_grouping: {e}")
 
