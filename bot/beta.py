@@ -1852,14 +1852,14 @@ async def process_twitch_eventsub_message(message):
         pass
 
 # Maintain a Twitch IRC presence so the bot appears in the channel user list
-async def twitch_irc_presence():
+async def twitch_irc_presence(override_nick=None, override_token=None):
     IRC_HOST = "irc.chat.twitch.tv"
     IRC_PORT = 6697
     reconnect_delay = 30
     force_refresh = False
-    server_reconnect = False  # True when the server sent RECONNECT (reconnect with no delay)
-    channel_blocked = False   # True when banned/channel suspended (back off for a long time)
-    timeout_seconds = 0       # Non-zero when msg_timedout received; sleep this long before retry
+    server_reconnect = False
+    channel_blocked = False
+    timeout_seconds = 0
     def _parse_irc_tags(line):
         if not line.startswith("@"):
             return {}
@@ -1900,8 +1900,11 @@ async def twitch_irc_presence():
         channel_blocked = False
         timeout_seconds = 0
         try:
-            # Fetch the token that matches how the bot sends chat messages via the API
-            if SELF_MODE:
+            # If explicit credentials were passed (e.g. Specter presence alongside custom bot), use them
+            if override_nick and override_token:
+                irc_token = override_token
+                irc_nick = override_nick
+            elif SELF_MODE:
                 irc_token = CHANNEL_AUTH
                 irc_nick = BOT_USERNAME.lower()
             elif CUSTOM_MODE:
@@ -2977,6 +2980,11 @@ class TwitchBot(commands.Bot):
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["twitch_irc_presence"] = create_task(twitch_irc_presence())
+        if CUSTOM_MODE:
+            # Also keep the BotOfTheSpecter account present in chat
+            looped_tasks["twitch_irc_presence_specter"] = create_task(
+                twitch_irc_presence(override_nick="botofthespecter", override_token=TWITCH_OAUTH_API_TOKEN)
+            )
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
         looped_tasks["midnight"] = create_task(midnight())
