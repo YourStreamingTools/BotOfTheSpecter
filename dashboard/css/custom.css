@@ -1817,6 +1817,12 @@ nav.top-navbar,
     margin-right: 0;
 }
 
+.sidebar-nav.collapsed .sidebar-menu-link {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
 .sidebar-menu-link:hover .sidebar-menu-icon,
 .sidebar-menu-link.active .sidebar-menu-icon {
     opacity: 1;
@@ -1941,6 +1947,12 @@ nav.top-navbar,
 
 .sidebar-nav.collapsed .sidebar-user-icon {
     margin-right: 0;
+}
+
+.sidebar-nav.collapsed .sidebar-user-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .sidebar-user-item:hover .sidebar-user-icon {
