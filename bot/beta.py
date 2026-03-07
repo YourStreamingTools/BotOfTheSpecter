@@ -1900,9 +1900,14 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
         channel_blocked = False
         timeout_seconds = 0
         try:
-            # If explicit credentials were passed (e.g. Specter presence alongside custom bot), use them
+            # If an explicit nick+token were passed use them directly
             if override_nick and override_token:
                 irc_token = override_token
+                irc_nick = override_nick
+            elif override_nick:
+                # Nick override without token — use website creds (same as standard mode)
+                website_creds = await get_website_twitch_app_credentials(force_refresh=force_refresh)
+                irc_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
                 irc_nick = override_nick
             elif SELF_MODE:
                 irc_token = CHANNEL_AUTH
@@ -2981,9 +2986,9 @@ class TwitchBot(commands.Bot):
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["twitch_irc_presence"] = create_task(twitch_irc_presence())
         if CUSTOM_MODE:
-            # Also keep the BotOfTheSpecter account present in chat
+            # Keep BotOfTheSpecter present in chat alongside the custom bot
             looped_tasks["twitch_irc_presence_specter"] = create_task(
-                twitch_irc_presence(override_nick="botofthespecter", override_token=TWITCH_OAUTH_API_TOKEN)
+                twitch_irc_presence(override_nick="botofthespecter")
             )
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
