@@ -12719,6 +12719,49 @@ async def handle_ad_break_start(duration_seconds):
     if not settings.get('enable_ad_notice', True):
         return
     formatted_duration = format_duration(duration_seconds)
+    # Start the ad-break end timer immediately so it fires after exactly duration_seconds,
+    @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
+    async def handle_ad_break_end():
+        end_notice_sent = False
+        # Send immediate plain-text ad-end message only
+        if settings.get('enable_end_ad_message', True):
+            try:
+                if can_send_ad_message():
+                    sent_ok = await send_chat_message(settings['ad_end_message'])
+                    if sent_ok:
+                        end_notice_sent = True
+                        try_mark_ad_message_sent_after(True)
+                    else:
+                        api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
+                else:
+                    api_logger.info("Skipped ad end immediate message due to cooldown")
+            except Exception as e:
+                api_logger.error(f"Exception while sending immediate ad end message: {e}")
+        # Fallback for cases where immediate send failed/skipped
+        if not end_notice_sent and settings.get('enable_end_ad_message', True):
+            try:
+                if can_send_ad_message():
+                    sent_ok = await send_chat_message(settings['ad_end_message'])
+                    if sent_ok:
+                        try_mark_ad_message_sent_after(True)
+                    else:
+                        api_logger.error(f"Ad end message failed to send (fallback): {settings.get('ad_end_message')}")
+                else:
+                    api_logger.info("Skipped ad end fallback due to cooldown")
+            except Exception as e:
+                api_logger.error(f"Exception while sending ad end fallback message: {e}")
+        # Check for the next ad after this one completes
+        try:
+            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
+            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
+            create_task(check_next_ad_after_completion(ads_api_url, headers))
+        except Exception as e:
+            api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
+    try:
+        handle_ad_break_end.start()
+    except Exception as e:
+        api_logger.error(f"Failed to start ad-end routine: {e}")
     # 1. Update Ad Break Count
     ad_break_count = 1
     try:
@@ -12910,48 +12953,6 @@ async def handle_ad_break_start(duration_seconds):
                     api_logger.info("Skipped ad start fallback due to cooldown")
             except Exception as e:
                 api_logger.error(f"Exception while sending ad start message: {e}")
-    @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
-    async def handle_ad_break_end():
-        end_notice_sent = False
-        # Send immediate plain-text ad-end message only
-        if settings.get('enable_end_ad_message', True):
-            try:
-                if can_send_ad_message():
-                    sent_ok = await send_chat_message(settings['ad_end_message'])
-                    if sent_ok:
-                        end_notice_sent = True
-                        try_mark_ad_message_sent_after(True)
-                    else:
-                        api_logger.error(f"Ad end message failed to send: {settings.get('ad_end_message')}")
-                else:
-                    api_logger.info("Skipped ad end immediate message due to cooldown")
-            except Exception as e:
-                api_logger.error(f"Exception while sending immediate ad end message: {e}")
-        # Fallback for cases where immediate send failed/skipped
-        if not end_notice_sent and settings.get('enable_end_ad_message', True):
-            try:
-                if can_send_ad_message():
-                    sent_ok = await send_chat_message(settings['ad_end_message'])
-                    if sent_ok:
-                        try_mark_ad_message_sent_after(True)
-                    else:
-                        api_logger.error(f"Ad end message failed to send (fallback): {settings.get('ad_end_message')}")
-                else:
-                    api_logger.info("Skipped ad end fallback due to cooldown")
-            except Exception as e:
-                api_logger.error(f"Exception while sending ad end fallback message: {e}")
-        # Check for the next ad after this one completes
-        try:
-            global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
-            ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
-            headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-            create_task(check_next_ad_after_completion(ads_api_url, headers))
-        except Exception as e:
-            api_logger.error(f"Exception scheduling next-ad check after ad end: {e}")
-    try:
-        handle_ad_break_end.start()
-    except Exception as e:
-        api_logger.error(f"Failed to start ad-end routine: {e}")
 
 # Handle upcoming Twitch Ads
 async def handle_upcoming_ads():
@@ -12971,6 +12972,7 @@ async def handle_upcoming_ads():
             api_logger.error(f"Error in handle_upcoming_ads loop: {e}")
             await sleep(10)
 
+# Separate function to check for ads and handle notifications, allowing it to be called after ad completion as well
 async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze_count=None):
     global stream_online, CHANNEL_ID, CLIENT_ID, CHANNEL_AUTH, ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at
     ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
@@ -13071,6 +13073,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
         api_logger.error(f"Error in check_and_handle_ads: {e}")
         return last_notification_time, last_ad_time, last_snooze_count
 
+# Function to check for the next ad after an ad break completes, allowing for timely notifications of upcoming ads even if they are scheduled shortly after the previous one ends
 async def check_next_ad_after_completion(ads_api_url, headers):
     global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at
     # Poll for up to 5 minutes (check every 10 seconds) to find the next ad and send timely notifications.
