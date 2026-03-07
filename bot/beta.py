@@ -1900,14 +1900,9 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
         channel_blocked = False
         timeout_seconds = 0
         try:
-            # If an explicit nick+token were passed use them directly
+            # If explicit credentials were passed use them directly
             if override_nick and override_token:
                 irc_token = override_token
-                irc_nick = override_nick
-            elif override_nick:
-                # Nick override without token — use website creds (same as standard mode)
-                website_creds = await get_website_twitch_app_credentials(force_refresh=force_refresh)
-                irc_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
                 irc_nick = override_nick
             elif SELF_MODE:
                 irc_token = CHANNEL_AUTH
@@ -2986,10 +2981,25 @@ class TwitchBot(commands.Bot):
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["twitch_irc_presence"] = create_task(twitch_irc_presence())
         if CUSTOM_MODE:
-            # Keep BotOfTheSpecter present in chat alongside the custom bot
-            looped_tasks["twitch_irc_presence_specter"] = create_task(
-                twitch_irc_presence(override_nick="botofthespecter")
-            )
+            specter_irc_token = None
+            try:
+                async with await mysql_handler.get_connection(db_name="website") as _conn:
+                    async with _conn.cursor(DictCursor) as _cur:
+                        await _cur.execute(
+                            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1",
+                            ("971436498",)
+                        )
+                        _row = await _cur.fetchone()
+                        if _row:
+                            specter_irc_token = _row.get("twitch_access_token")
+            except Exception as _e:
+                system_logger.error(f"Failed to fetch Specter IRC token from DB: {_e}")
+            if specter_irc_token:
+                looped_tasks["twitch_irc_presence_specter"] = create_task(
+                    twitch_irc_presence(override_nick="botofthespecter", override_token=specter_irc_token)
+                )
+            else:
+                system_logger.warning("No Specter IRC token found in DB; skipping secondary IRC presence")
         looped_tasks["specter_websocket"] = create_task(specter_websocket())
         looped_tasks["connect_to_integrations"] = create_task(connect_to_integrations())
         looped_tasks["midnight"] = create_task(midnight())
