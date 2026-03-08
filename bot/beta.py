@@ -1952,8 +1952,8 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     bot_logger.error("IRC Presence: Timed out waiting for auth response, reconnecting...")
                     break
                 if not line_bytes:
-                    bot_logger.warning("IRC Presence: Server closed connection during auth, reconnecting...")
-                    break
+                    bot_logger.warning("IRC Presence: Server closed connection during auth — giving up.")
+                    return
                 line = line_bytes.decode("utf-8", errors="replace").rstrip("\r\n")
                 if "NOTICE * :Login authentication failed" in line or "NOTICE * :Improperly formatted auth" in line:
                     bot_logger.error(f"IRC Presence: Auth failed — {line}. Will refresh token on next attempt.")
