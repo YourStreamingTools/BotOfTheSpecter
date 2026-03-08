@@ -500,7 +500,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'log_twitch_event' && $_SERVER
         exit;
     }
     $userId = $_SESSION['user_id'];
-    $logsDir = '/var/www/yourchat/twitch-event-logs';
+    $logsDir = '/var/www/yourchat/chat-logs';
     $logFile = $logsDir . '/' . $userId . '_twitch_events.log';
     // Create directory if it doesn't exist
     if (!is_dir($logsDir)) {
@@ -1713,10 +1713,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     const result = await response.json();
                     if (result.success && result.messages && result.messages.length > 0) {
                         const overlay = document.getElementById('chat-overlay');
-                        const hasOnlyPlaceholder = overlay.children.length === 0 ||
-                            (overlay.children.length === 1 && overlay.children[0].tagName === 'P') ||
-                            (overlay.children.length === 1 && overlay.children[0].classList.contains('fullscreen-exit-btn')) ||
-                            (overlay.children.length === 2 && overlay.querySelector('.fullscreen-exit-btn') && overlay.querySelector('.chat-placeholder'));
+                        // Only restore if no real chat messages are present yet
+                        const hasOnlyPlaceholder = overlay.querySelectorAll('.chat-message, .reward-message').length === 0;
                         if (hasOnlyPlaceholder) {
                             // Preserve any non-message nodes like fullscreen button
                             const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
@@ -4264,27 +4262,27 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Render presence summary immediately (before websocket/bootstrap work)
             setPresenceMessage(buildInitialPresenceSummaryText());
-            // Connect both IRC and EventSub WebSockets
-            connectIRCWebSocket();
-            connectEventSubWebSocket();
             updateTokenTimer();
-
-            // Continue startup data hydration in background
+            // Load settings and chat history BEFORE connecting WebSockets so history
+            // is always restored before live messages arrive
             (async () => {
                 try {
-                    await loadSettingsFromServer();
+                    await Promise.allSettled([
+                        loadSettingsFromServer(),
+                        loadChatHistory()
+                    ]);
                     migrateOldFilters();
                     renderFilters();
                     renderNicknames();
-
                     const checkbox = document.getElementById('notify-joins-checkbox');
                     presenceEnabled = loadPresenceSetting();
                     if (checkbox) {
                         checkbox.checked = presenceEnabled;
                     }
-
+                    // Connect WebSockets after history is restored
+                    connectIRCWebSocket();
+                    connectEventSubWebSocket();
                     await Promise.allSettled([
-                        loadChatHistory(),
                         loadActivityFeed(),
                         validateToken(),
                         fetchBadges()
