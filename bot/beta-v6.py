@@ -634,6 +634,7 @@ async def refresh_twitch_token(current_refresh_token):
                         # Update the global access token
                         CHANNEL_AUTH = new_access_token
                         twitch_logger.info(f"Refreshed token. New Access Token: {CHANNEL_AUTH}.")
+                        connection = None
                         connection = await mysql_handler.get_connection(db_name="website")
                         try:
                             async with connection.cursor(DictCursor) as cursor:
@@ -644,7 +645,8 @@ async def refresh_twitch_token(current_refresh_token):
                         except Exception as e:
                             twitch_logger.error(f"Database update failed: {e}")
                         finally:
-                            pass
+                            if connection:
+                                await connection.release()
                         return next_refresh_time
                     else:
                         twitch_logger.error("Token refresh failed: 'access_token' not found in response.")
@@ -1187,6 +1189,7 @@ async def process_tipping_message(data, source):
         if send_message and user and amount is not None:
             await send_chat_message(send_message)
             # Save tipping data to database
+            connection = None
             connection = await mysql_handler.get_connection()
             try:
                 async with connection.cursor(DictCursor) as cursor:
@@ -1206,11 +1209,13 @@ async def process_tipping_message(data, source):
             except MySQLError as err:
                 event_logger.error(f"Database error saving tip: {err}")
             finally:
-                pass
+                if connection:
+                    await connection.release()
     except Exception as e:
         event_logger.error(f"Error processing tipping message: {e}")
 
 async def process_twitch_eventsub_message(message):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -1752,7 +1757,8 @@ async def process_twitch_eventsub_message(message):
     except Exception as e:
         event_logger.error(f"Error processing EventSub message: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Maintain a Twitch IRC presence so the bot appears in the channel user list
 async def twitch_irc_presence(override_nick=None, override_token=None):
@@ -2191,13 +2197,15 @@ async def hyperate_websocket_persistent():
     while True:
         try:
             # Check DB for heartrate code before attempting any websocket connection
+            connection = None
             try:
                 connection = await mysql_handler.get_connection()
                 async with connection.cursor(DictCursor) as cursor:
                     await cursor.execute('SELECT heartrate_code FROM profile')
                     heartrate_code_data = await cursor.fetchone()
             finally:
-                pass
+                if connection:
+                    await connection.release()
             if not heartrate_code_data or not heartrate_code_data.get('heartrate_code'):
                 bot_logger.info("HypeRate info: No Heart Rate Code found in database. Stopping websocket connection.")
                 HEARTRATE = None
@@ -2294,6 +2302,7 @@ async def join_channel(hyperate_websocket, heartrate_code):
 async def stream_bingo_websocket():
     global CHANNEL_ID
     while True:
+        connection = None
         try:
             # Retrieve Stream Bingo API key from database
             connection = await mysql_handler.get_connection()
@@ -2338,11 +2347,15 @@ async def stream_bingo_websocket():
         except Exception as e:
             bot_logger.error(f"Stream Bingo: WebSocket connection error: {e}")
             await sleep(10)  # Wait before retrying
+        finally:
+            if connection:
+                await connection.release()
 
 async def connect_to_tanggle():
     global CHANNEL_NAME
     integrations_logger.info("===== Tanggle =====")
     while True:
+        connection = None
         try:
             connection = await mysql_handler.get_connection(db_name=CHANNEL_NAME)
             tanggle_api_token = None
@@ -2389,6 +2402,9 @@ async def connect_to_tanggle():
         except Exception as e:
             integrations_logger.error(f"Tanggle: WebSocket connection error: {e}")
             await sleep(10)
+        finally:
+            if connection:
+                await connection.release()
 
 def parse_tanggle_datetime(value):
     if not value:
@@ -2505,6 +2521,7 @@ async def process_stream_bingo_message(data):
         event_type = data.get('type', 'unknown')
         bot_logger.info(f"Stream Bingo: Processing event type: {event_type}")
         # Connect to user database for storing bingo data
+        user_db = None
         user_db = await mysql_handler.get_connection()
         try:
             # Handle different bingo event types
@@ -2606,7 +2623,8 @@ async def process_stream_bingo_message(data):
             else:
                 bot_logger.debug(f"Stream Bingo: Unhandled event type: {event_type}")
         finally:
-            user_db.close()
+            if user_db:
+                await user_db.release()
     except Exception as e:
         bot_logger.error(f"Stream Bingo: Error processing message: {e}")
 
@@ -2801,6 +2819,7 @@ class TwitchBot(commands.AutoBot):
             await send_chat_message(message)
         elif isinstance(error, commands.CommandNotFound):
             # Check if the command is a custom command
+            connection = None
             try:
                 connection = await mysql_handler.get_connection()
                 async with connection.cursor(DictCursor) as cursor:
@@ -2815,7 +2834,8 @@ class TwitchBot(commands.AutoBot):
                         bot_logger.debug(f"[CUSTOM USER COMMAND] Command '{command}' exists in the database. Ignoring error.")
                         return
             finally:
-                pass
+                if connection:
+                    await connection.release()
             bot_logger.error(f"Command '{command}' was not found in the bot or custom commands.")
         else:
             bot_logger.error(f"Command: '{command}', Error: {type(error).__name__}, Details: {error}")
@@ -2828,8 +2848,7 @@ class TwitchBot(commands.AutoBot):
         if message.source_broadcaster is not None and message.source_broadcaster.id != str(CHANNEL_ID):
             return
         chat_history_logger.info(f"Chat message from {message.chatter.name}: {message.text}")
-        connection = await mysql_handler.get_connection()
-        async with connection.cursor(DictCursor) as cursor:
+        async with await mysql_handler.get_connection() as connection, connection.cursor(DictCursor) as cursor:
             await cursor.execute("INSERT INTO chat_history (author, message) VALUES (%s, %s)", (message.chatter.name, message.text))
             await connection.commit()
             messageAuthor = ""
@@ -3136,6 +3155,7 @@ class TwitchBot(commands.AutoBot):
             # Skip message counting and welcome message for the bot itself
             return
         send_shoutout = False
+        connection = None
         try:
             connection = await mysql_handler.get_connection()
             async with connection.cursor(DictCursor) as cursor:
@@ -3269,6 +3289,7 @@ class TwitchBot(commands.AutoBot):
             chat_logger.error(f"Error in user_points: {e}")
 
     async def user_grouping(self, messageAuthor, messageAuthorID):
+        connection = None
         try:
             connection = await mysql_handler.get_connection()
             group_names = []
@@ -3318,6 +3339,9 @@ class TwitchBot(commands.AutoBot):
                         bot_logger.error(f"Group '{name}' does not exist.")
         except Exception as e:
             bot_logger.error(f"An error occurred in user_grouping: {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     async def call_command(self, command_name, ctx):
         if command_name in self.running_commands:
@@ -3618,6 +3642,7 @@ class TwitchBot(commands.AutoBot):
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3658,10 +3683,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred while executing the 'commands' command: {str(e)}")
             await send_chat_message("An error occurred while fetching the twitch_commands. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='bot')
     async def bot_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3693,10 +3722,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the bot command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='wsstatus')
     async def websocket_status_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3742,10 +3775,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in websocket_status_command: {e}")
             await send_chat_message("An error occurred while checking WebSocket status.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='dbstatus')
     async def database_status_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3798,10 +3835,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in database_status_command: {e}")
             await send_chat_message("An error occurred while checking database status.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='forceonline')
     async def forceonline_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3835,10 +3876,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in forceonline_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='forceoffline')
     async def forceoffline_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3874,10 +3919,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in forceoffline_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='version')
     async def version_command(ctx: commands.Context):
         global bot_owner, bot_started
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3943,10 +3992,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the version command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='roadmap')
     async def roadmap_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3977,10 +4030,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roadmap command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='weather')
     async def weather_command(ctx: commands.Context, *, location: str = None) -> None:
         global bot_owner, CHANNEL_NAME
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4027,12 +4084,16 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the weather command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='points')
     async def points_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4074,10 +4135,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the points command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='addpoints')
     async def addpoints_command(self, ctx: commands.Context, user: str, points_to_add: int):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4115,10 +4180,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of addpoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='removepoints')
     async def removepoints_command(self, ctx: commands.Context, user: str, points_to_remove: int):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4156,10 +4225,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='time')
     async def time_command(ctx: commands.Context, *, timezone: str = None) -> None:
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4248,10 +4321,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the time command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='joke')
     async def joke_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4303,10 +4380,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the joke command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='quote')
     async def quote_command(ctx: commands.Context, number: int = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4350,10 +4431,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the quote command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='quoteadd')
     async def quoteadd_command(ctx: commands.Context, *, quote):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4386,10 +4471,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the quoteadd command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='removequote')
     async def quoteremove_command(ctx: commands.Context, number: int = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4428,10 +4517,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removequote command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='permit')
     async def permit_command(ctx: commands.Context, permit_user: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4467,10 +4560,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the permit command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='settitle')
     async def settitle_command(ctx: commands.Context, *, title: str = None) -> None:
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4506,10 +4603,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the settitle command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='setgame')
     async def setgame_command(ctx: commands.Context, *, game: str = None) -> None:
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4561,10 +4662,14 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message("An unexpected error occurred. Please try again later.")
             except:
                 pass
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='song')
     async def song_command(ctx: commands.Context):
         global stream_online, song_requests, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4632,10 +4737,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the song command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='songrequest', aliases=['sr'])
     async def songrequest_command(ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4810,10 +4919,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the songrequest command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='skipsong', aliases=['skip'])
     async def skipsong_command(ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4879,10 +4992,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the skipsong command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='songqueue', aliases=['sq', 'queue'])
     async def songqueue_command(ctx: commands.Context):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -4968,10 +5085,14 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message("Something went wrong while fetching the song queue. Please try again later.")
             except:
                 pass
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='timer')
     async def timer_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5022,10 +5143,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='stoptimer')
     async def stoptimer_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5062,10 +5187,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the stoptimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='checktimer')
     async def checktimer_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5104,10 +5233,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the checktimer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='hug')
     async def hug_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5172,10 +5305,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in hug command: {e}")
             await send_chat_message("An error occurred while processing the command.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='highfive')
     async def highfive_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5240,10 +5377,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in highfive command: {e}")
             await send_chat_message("An error occurred while processing the command.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='kiss')
     async def kiss_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5308,10 +5449,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in kiss command: {e}")
             await send_chat_message("An error occurred while processing the command.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='ping')
     async def ping_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5359,10 +5504,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in ping_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='translate')
     async def translate_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5411,10 +5560,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in translate_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='cheerleader', aliases=['bitsleader'])
     async def cheerleader_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5465,10 +5618,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in cheerleader_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='mybits')
     async def mybits_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5547,10 +5704,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in mybits_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='lurk')
     async def lurk_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5618,10 +5779,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in lurk_command: {e}")
             await send_chat_message(f"Thanks for lurking! See you soon.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='lurking')
     async def lurking_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5667,10 +5832,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in lurking_command: {e}")
             await send_chat_message(f"Oops, something went wrong while trying to check your lurk time.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='lurklead', aliases=['lurkleader'])
     async def lurklead_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5727,10 +5896,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in lurklead_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check the command status.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='unlurk', aliases=('back',))
     async def unlurk_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5795,10 +5968,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
             await send_chat_message("Oops, something went wrong with the unlurk command.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='userslurking')
     async def userslurking_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5835,10 +6012,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in userslurking_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check the number of lurkers.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='clip')
     async def clip_command(ctx: commands.Context):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5894,10 +6075,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             twitch_logger.error(f"Error in clip_command: {e}")
             await send_chat_message("An error occurred while executing the clip command.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='marker')
     async def marker_command(ctx: commands.Context, *, description: str):
         global stream_online, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5933,10 +6118,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             twitch_logger.error(f"Error in marker_command: {e}")
             await send_chat_message("An error occurred while executing the marker command.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='subscription', aliases=['mysub'])
     async def subscription_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -5997,10 +6186,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subscription command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='uptime')
     async def uptime_command(ctx: commands.Context):
         global stream_online, bot_owner, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6065,10 +6258,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the uptime command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='typo')
     async def typo_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6117,10 +6314,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in typo_command: {e}", exc_info=True)
             await send_chat_message(f"An error occurred while trying to add to your typo count.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='typos', aliases=('typocount',))
     async def typos_command(ctx: commands.Context, mentioned_username: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6161,10 +6362,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to check typos.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='edittypos', aliases=('edittypo',))
     async def edittypo_command(ctx: commands.Context, mentioned_username: str = None, new_count: int = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6229,10 +6434,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the edittypos command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='removetypos', aliases=('removetypo',))
     async def removetypos_command(ctx: commands.Context, mentioned_username: str = None, decrease_amount: int = 1):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6275,10 +6484,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in remove_typos_command: {e}")
             await send_chat_message(f"An error occurred while trying to remove typos.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='steam')
     async def steam_command(ctx: commands.Context):
         global current_game, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6341,10 +6554,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in steam_command: {e}")
             await send_chat_message("An error occurred while trying to check the Steam store.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='deaths')
     async def deaths_command(ctx: commands.Context):
         global current_game, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6397,10 +6614,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in deaths_command: {e}")
             await send_chat_message(f"An error occurred while executing the command. {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='deathadd', aliases=['death+'])
     async def deathadd_command(ctx: commands.Context, deaths: int = 1):
         global current_game, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6475,10 +6696,14 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message(f"An unexpected error occurred: {e}")
             except:
                 pass
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='deathremove', aliases=['death-'])
     async def deathremove_command(ctx: commands.Context, deaths: int = 1):
         global current_game, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6546,10 +6771,14 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message(f"An unexpected error occurred: {e}")
             except:
                 pass
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='game')
     async def game_command(ctx: commands.Context):
         global current_game, bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6579,10 +6808,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in game_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to retrieve the game information.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='followage')
     async def followage_command(self, ctx: commands.Context, mentioned_username: str = None):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6672,10 +6905,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the followage command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='schedule')
     async def schedule_command(ctx: commands.Context):
         global bot_owner, CLIENT_ID, CHANNEL_AUTH
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6773,10 +7010,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the schedule command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='checkupdate')
     async def checkupdate_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6826,10 +7067,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"Error in checkupdate_command: {e}")
             await send_chat_message("Oops, something went wrong while trying to check for updates.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='shoutout', aliases=('so',))
     async def shoutout_command(self, ctx: commands.Context, user_to_shoutout: str = None):
         global bot_owner, shoutout_user
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6878,10 +7123,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the shoutout command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='addcommand')
     async def addcommand_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6920,10 +7169,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the addcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='editcommand')
     async def editcommand_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -6962,10 +7215,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the editcommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='removecommand')
     async def removecommand_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7004,10 +7261,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the removecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='enablecommand')
     async def enablecommand_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7062,10 +7323,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the enablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='disablecommand')
     async def disablecommand_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7120,12 +7385,16 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the disablecommand command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='slots')
     async def slots_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7198,10 +7467,14 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message("An unexpected error occurred. Please try again later.")
             except:
                 pass
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='kill')
     async def kill_command(ctx: commands.Context, mention: str = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7262,12 +7535,16 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the kill command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name="roulette")
     async def roulette_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7323,10 +7600,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the roulette command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name="rps")
     async def rps_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7371,12 +7652,16 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the RPS command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name="gamble")
     async def gamble_command(ctx: commands.Context):
         global bot_owner
         user_id = str(ctx.author.id)
         user_name = ctx.author.name
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7489,10 +7774,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the gamble command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name="story")
     async def story_command(self, ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7534,10 +7823,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the story command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name="convert")
     async def convert_command(ctx: commands.Context, *args):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7620,6 +7913,9 @@ class TwitchBot(commands.AutoBot):
                 await send_chat_message("An unexpected error occurred. Please try again later.")
             except:
                 pass
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='todo')
     async def todo_command(ctx: commands.Context):
@@ -7627,6 +7923,7 @@ class TwitchBot(commands.AutoBot):
         message_content = ctx.message.text.strip()
         user = ctx.author
         user_id = user.id
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7683,10 +7980,14 @@ class TwitchBot(commands.AutoBot):
                 chat_logger.warning(f"{user.name} used an unrecognized action: {action}.")
         except Exception as e:
             bot_logger.error(f"An error occurred in todo_command: {e}")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name="subathon")
     async def subathon_command(ctx: commands.Context, action: str = None, minutes: int = None):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7737,10 +8038,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the subathon command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='heartrate')
     async def heartrate_command(ctx: commands.Context):
         global bot_owner, HEARTRATE, hyperate_task
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7786,12 +8091,16 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             chat_logger.error(f"An error occurred in the heartrate command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='watchtime')
     async def watchtime_command(ctx: commands.Context):
         global bot_owner
         user_id = ctx.author.id
         username = ctx.author.name
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7856,9 +8165,13 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             bot_logger.error(f"Error fetching watch time for {username}: {e}")
             await send_chat_message(f"@{username}, an error occurred while fetching your watch time.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='startlotto')
     async def startlotto_command(ctx: commands.Context):
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -7891,10 +8204,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             bot_logger.error(f"Error in starting lotto game: {e}")
             await send_chat_message("There was an error generating the lotto numbers.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='drawlotto')
     async def drawlotto_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -8000,10 +8317,14 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
+        finally:
+            if connection:
+                await connection.release()
 
     @commands.command(name='obs')
     async def obs_command(ctx: commands.Context):
         global bot_owner
+        connection = None
         connection = await mysql_handler.get_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -8052,6 +8373,10 @@ class TwitchBot(commands.AutoBot):
 # Functions for all the commands
 ##
 # Function to format lurk time duration
+        finally:
+            if connection:
+                await connection.release()
+
 def format_lurk_time(elapsed_time):
     total_seconds = int(elapsed_time.total_seconds())
     years = total_seconds // (365 * 24 * 3600)
@@ -8251,6 +8576,7 @@ async def is_user_subscribed(user_id):
 
 # Function to add user to the table of known users
 async def user_is_seen(username):
+    connection = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8259,7 +8585,8 @@ async def user_is_seen(username):
     except Exception as e:
         bot_logger.error(f"Error occurred while adding user '{username}' to seen_users table: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to fetch custom API responses
 async def fetch_api_response(url, json_flag=False):
@@ -8293,6 +8620,7 @@ def safe_math(expr: str):
 # Function to update custom counts
 async def update_custom_count(command, count):
     count = int(count)
+    connection = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8311,9 +8639,12 @@ async def update_custom_count(command, count):
         chat_logger.error(f"Error updating count for command '{command}': {e}")
         await connection.rollback()
     finally:
-        pass
+        if connection:
+            await connection.release()
+
 
 async def get_custom_count(command):
+    connection = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8330,11 +8661,13 @@ async def get_custom_count(command):
         chat_logger.error(f"Error retrieving count for command '{command}': {e}")
         return 0
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to update user counts
 async def update_user_count(command, user, count):
     count = int(count)
+    connection = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8353,9 +8686,12 @@ async def update_user_count(command, user, count):
         chat_logger.error(f"Error updating user count for command '{command}' and user '{user}': {e}")
         await connection.rollback()
     finally:
-        pass
+        if connection:
+            await connection.release()
+
 
 async def get_user_count(command, user):
+    connection = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8372,10 +8708,12 @@ async def get_user_count(command, user):
         chat_logger.error(f"Error retrieving user count for command '{command}' and user '{user}': {e}")
         return 0
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Functions for weather
 async def get_streamer_weather():
+    connection = None
     connection = await mysql_handler.get_connection()
     try:
         async with connection.cursor(DictCursor) as cursor:
@@ -8388,7 +8726,8 @@ async def get_streamer_weather():
             else:
                 return None
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to udpate the stream title
 async def trigger_twitch_title_update(new_title):
@@ -8453,6 +8792,7 @@ async def update_twitch_game(game_name: str):
 
 # Helper function to check if user has received automated shoutout today
 async def get_automated_shoutout_cooldown():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8462,6 +8802,9 @@ async def get_automated_shoutout_cooldown():
                 return max(60, int(result['cooldown_minutes']))  # Enforce minimum of 60 minutes
     except Exception as e:
         twitch_logger.error(f"Error fetching automated shoutout cooldown: {e}")
+    finally:
+        if connection:
+            await connection.release()
     return 60  # Default to 60 minutes
 
 # Helper function to check if user is within automated shoutout cooldown
@@ -8480,6 +8823,7 @@ async def record_automated_shoutout(user_id, user_name):
     recent_shoutouts[user_id] = now
     twitch_logger.info(f"Recorded automated shoutout for {user_name} (user_id: {user_id}) at {now}")
     # Store in database
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8494,7 +8838,12 @@ async def record_automated_shoutout(user_id, user_name):
         twitch_logger.error(f"Error storing automated shoutout in database: {e}")
 
 # Helper function to load automated shoutout tracking from database
+    finally:
+        if connection:
+            await connection.release()
+
 async def load_automated_shoutout_tracking():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8507,7 +8856,12 @@ async def load_automated_shoutout_tracking():
         twitch_logger.error(f"Error loading automated shoutout tracking: {e}")
 
 # Helper function to clear automated shoutout tracking
+    finally:
+        if connection:
+            await connection.release()
+
 async def clear_automated_shoutout_tracking():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8519,6 +8873,10 @@ async def clear_automated_shoutout_tracking():
         twitch_logger.error(f"Error clearing automated shoutout tracking: {e}")
 
 # Background task to cleanup expired shoutout entries
+    finally:
+        if connection:
+            await connection.release()
+
 async def cleanup_expired_shoutouts():
     while True:
         try:
@@ -8534,8 +8892,7 @@ async def cleanup_expired_shoutouts():
                 del recent_shoutouts[user_id]
             if expired_user_ids:
                 twitch_logger.info(f"Removed {len(expired_user_ids)} expired shoutout entries from memory")
-            connection = await mysql_handler.get_connection()
-            async with connection.cursor(DictCursor) as cursor:
+            async with await mysql_handler.get_connection() as connection, connection.cursor(DictCursor) as cursor:
                 await cursor.execute(
                     "DELETE FROM automated_shoutout_tracking WHERE shoutout_time < %s",
                     (cutoff_time,)
@@ -8591,11 +8948,15 @@ async def shoutout_worker():
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, user_id):
+    connection = None
     try:
         connection = await mysql_handler.get_connection(db_name="website")
     except Exception as e:
         twitch_logger.error(f"Database connection error while fetching bot access token: {e}")
         return
+    finally:
+        if connection:
+            await connection.release()
     async with connection.cursor(DictCursor) as cursor:
         bot_id = "971436498"
         await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
@@ -8907,6 +9268,7 @@ async def process_stream_online_websocket():
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('True')
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8914,7 +9276,8 @@ async def process_stream_online_websocket():
             await cursor.execute("UPDATE stream_status SET status = %s", ("True",))
             await connection.commit()
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -8934,6 +9297,7 @@ async def process_stream_offline_websocket():
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('False')
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8941,7 +9305,8 @@ async def process_stream_offline_websocket():
             await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
             await connection.commit()
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
@@ -8970,6 +9335,7 @@ async def delayed_clear_tables():
 
 # Function to clear the seen users table at the end of stream
 async def clear_seen_today():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8979,10 +9345,12 @@ async def clear_seen_today():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear seen today table: {err}')
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to clear the ending credits table at the end of stream
 async def clear_credits_data():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -8992,10 +9360,12 @@ async def clear_credits_data():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear stream credits table: {err}')
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to clear the death count per stream
 async def clear_per_stream_deaths():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9005,10 +9375,12 @@ async def clear_per_stream_deaths():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear Per Stream Death Count: {err}')
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to clear the lotto numbers at the end of stream
 async def clear_lotto_numbers():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9020,7 +9392,8 @@ async def clear_lotto_numbers():
     except MySQLOtherErrors as err:
         bot_logger.error(f'Failed to clear Lotto Numbers: {err}')
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for timed messages
 async def timed_message():
@@ -9059,6 +9432,7 @@ async def update_timed_messages():
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online
     if not stream_online:
         return
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9104,7 +9478,9 @@ async def update_timed_messages():
     except Exception as e:
         bot_logger.error(f"Error in update_timed_messages: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
+
 
 async def start_timed_message(message_id, row):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count
@@ -9230,6 +9606,7 @@ async def send_timed_message(message_id, message, delay):
 
 # Function to get Spotify access token from database
 async def get_spotify_access_token():
+    connection = None
     try:
         connection = await mysql_handler.get_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
@@ -9253,7 +9630,8 @@ async def get_spotify_access_token():
         api_logger.error(f"Error retrieving Spotify access token: {e}")
         return None
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to get the song via Spotify
 async def get_spotify_current_song():
@@ -9395,8 +9773,7 @@ async def shazam_detect_song(raw_audio_b64):
                     with open(file_path, 'w') as file:
                         file.write(requests_left)
                     api_logger.info(f"There are {requests_left} requests lefts for the song command.")
-                    connection = await mysql_handler.get_connection(db_name="website")
-                    async with connection.cursor(DictCursor) as cursor:
+                    async with await mysql_handler.get_connection(db_name="website") as connection, connection.cursor(DictCursor) as cursor:
                         await cursor.execute("UPDATE api_counts SET count=%s WHERE type=%s", (requests_left, "shazam"))
                         await connection.commit()
                     if int(requests_left) == 0:
@@ -9479,6 +9856,7 @@ async def handel_twitch_poll(event=None, poll_title=None, half_time=None, messag
 
 # Function for RAIDS
 async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_count):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9555,10 +9933,12 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for BITS
 async def process_cheer_event(user_id, user_name, bits):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9640,10 +10020,12 @@ async def process_cheer_event(user_id, user_name, bits):
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9740,10 +10122,12 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
     except Exception as e:
         event_logger.error(f"Error processing subscription event for user {user_name} ({user_id}): {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for Resubscriptions with Messages
 async def process_subscription_message_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9840,10 +10224,12 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
     except Exception as e:
         event_logger.error(f"Error processing subscription message event for user {user_name} ({user_id}): {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for Gift Subscriptions
 async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts, anonymous, total_gifted, skip_alert=False):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9874,10 +10260,12 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                     sound_file = "twitch/" + result.get("sound_mapping")
                     create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for FOLLOWERS
 async def process_followers_event(user_id, user_name):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         time_now = time_right_now()
@@ -9941,11 +10329,13 @@ async def process_followers_event(user_id, user_name):
                 sound_file = "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to ban a user
 async def ban_user(username, user_id, use_streamer=False):
     # Connect to the database
+    connection = None
     try:
         connection = await mysql_handler.get_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
@@ -9978,7 +10368,8 @@ async def ban_user(username, user_id, use_streamer=False):
                         error_text = await response.text()
                         twitch_logger.error(f"Failed to ban user: {username}. Status Code: {response.status}, Response: {error_text}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
@@ -9990,6 +10381,7 @@ async def websocket_notice(
     if not is_websocket_connected():
         websocket_logger.warning(f"Cannot send event '{event}' - websocket is not connected to internal system")
         return
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10110,11 +10502,13 @@ async def websocket_notice(
     except Exception as e:
         bot_logger.error(f"Error in check_stream_online: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10159,7 +10553,8 @@ async def builtin_commands_creation():
     except MySQLOtherErrors as e:
         bot_logger.error(f"builtin_commands_creation function error: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to tell the website what version of the bot is currently running
 async def update_version_control():
@@ -10232,8 +10627,7 @@ async def check_stream_online():
     global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at
     try:
         was_online = stream_online
-        connection = await mysql_handler.get_connection()
-        async with connection.cursor(DictCursor) as cursor:
+        async with await mysql_handler.get_connection() as connection, connection.cursor(DictCursor) as cursor:
             async with httpClientSession() as session:
                 headers = {
                     'Client-ID': CLIENT_ID,
@@ -10358,6 +10752,7 @@ async def convert_currency(amount, from_currency, to_currency):
                     converted_amount = data['conversion_result']
                     api_logger.info(f"Converted {amount} {from_currency} to {converted_amount:.2f} {to_currency}")
                     # Update API usage count in database
+                    connection = None
                     try:
                         connection = await mysql_handler.get_connection(db_name="website")
                         async with connection.cursor(DictCursor) as cursor:
@@ -10375,7 +10770,8 @@ async def convert_currency(amount, from_currency, to_currency):
                     except Exception as e:
                         api_logger.error(f"Error updating API count: {e}")
                     finally:
-                        pass
+                        if connection:
+                            await connection.release()
                     return converted_amount
                 else:
                     error_message = data.get('error-type', 'Unknown error')
@@ -10389,8 +10785,7 @@ async def convert_currency(amount, from_currency, to_currency):
 
 # Channel Point Rewards Proccessing
 async def process_channel_point_rewards(event_data, event_type):
-    connection = await mysql_handler.get_connection()
-    async with connection.cursor(DictCursor) as cursor:
+    async with await mysql_handler.get_connection() as connection, connection.cursor(DictCursor) as cursor:
         try:
             user_name = event_data["user_name"]
             user_id = event_data["user_id"]
@@ -10537,6 +10932,7 @@ async def channel_point_rewards():
     rewards_processed = 0
     user_api_url = f"https://api.twitch.tv/helix/users?id={CHANNEL_ID}"
     headers = {"Client-Id": CLIENT_ID,"Authorization": f"Bearer {CHANNEL_AUTH}"}
+    connection = None
     try:
         # Get MySQL connection
         connection = await mysql_handler.get_connection()
@@ -10579,9 +10975,12 @@ async def channel_point_rewards():
     except Exception as e:
         api_logger.error(f"An error occurred in channel_point_rewards: {str(e)}")
     finally:
-        pass
+        if connection:
+            await connection.release()
+
 
 async def generate_winning_lotto_numbers():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10607,8 +11006,13 @@ async def generate_winning_lotto_numbers():
         api_logger.error(f"An error occurred in generate_winning_lotto_numbers: {str(e)}")
 
 # Function to generate random Lotto numbers
+    finally:
+        if connection:
+            await connection.release()
+
 async def generate_user_lotto_numbers(user_name):
     user_name = user_name.lower()
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10646,6 +11050,10 @@ async def generate_user_lotto_numbers(user_name):
         return {"error": "An error occurred while generating your lotto numbers."}
 
 # Function to fetch a random fortune
+    finally:
+        if connection:
+            await connection.release()
+
 async def tell_fortune():
     url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
     async with httpClientSession() as session:
@@ -10797,6 +11205,7 @@ async def fetch_category_name(cursor, category_id):
 
 # Function to start subathon timer
 async def start_subathon(ctx):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10823,11 +11232,13 @@ async def start_subathon(ctx):
                 else:
                     await send_chat_message(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to stop subathon timer
 async def stop_subathon(ctx):
     subathon_state = await get_subathon_state()
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10840,10 +11251,12 @@ async def stop_subathon(ctx):
             else:
                 await send_chat_message(f"No subathon active.")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to pause subathon
 async def pause_subathon(ctx):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10859,10 +11272,12 @@ async def pause_subathon(ctx):
             else:
                 await send_chat_message("No subathon is active or it's already paused!")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to resume subathon
 async def resume_subathon(ctx):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10877,10 +11292,12 @@ async def resume_subathon(ctx):
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
                 create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to Add Time to subathon
 async def addtime_subathon(ctx, minutes):
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10896,7 +11313,8 @@ async def addtime_subathon(ctx, minutes):
             else:
                 await send_chat_message("No subathon is active or it's paused!")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to get the current subathon status
 async def subathon_status(ctx):
@@ -10918,29 +11336,34 @@ async def subathon_countdown():
             now = time_right_now()
             if now >= subathon_state["end_time"]:
                 await send_chat_message(f"Subathon has ended!")
+                connection = None
                 try:
                     connection = await mysql_handler.get_connection()
                     async with connection.cursor(DictCursor) as cursor:
                         await cursor.execute("UPDATE subathon SET paused = %s WHERE id = %s", (True, subathon_state["id"]))
                         await connection.commit()
                 finally:
-                    pass
+                    if connection:
+                        await connection.release()
             break
         await sleep(60)  # Check every minute
 
 # Function to get the current subathon state
 async def get_subathon_state():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
             await cursor.execute("SELECT * FROM subathon ORDER BY id DESC LIMIT 1")
             return await cursor.fetchone()
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to run at midnight each night
 async def midnight():
     # Get the timezone once outside the loop
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10974,6 +11397,9 @@ async def midnight():
                 await sleep(10)
     except Exception as e:
         bot_logger.error(f"An error occurred in midnight function: {str(e)}")
+    finally:
+        if connection:
+            await connection.release()
 
 async def reload_env_vars():
     # Load in all the globals
@@ -11017,6 +11443,7 @@ async def reload_env_vars():
     bot_logger.info("Reloaded environment variables")
 
 async def get_point_settings():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -11051,10 +11478,13 @@ async def get_point_settings():
         bot_logger.error(f"Error fetching bot settings: {e}")
         return None
     finally:
-        pass
+        if connection:
+            await connection.release()
+
 
 async def known_users():
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         headers = {"Authorization": f"Bearer {CHANNEL_AUTH}","Client-Id": CLIENT_ID,"Content-Type": "application/json"}
@@ -11098,7 +11528,9 @@ async def known_users():
     except Exception as e:
         bot_logger.error(f"An error occurred in known_users: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
+
 
 async def check_premium_feature(user):
     global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, CHANNEL_NAME, bot_owner
@@ -11106,6 +11538,7 @@ async def check_premium_feature(user):
     if user == bot_owner:
         api_logger.info("User is bot owner, returning 4000")
         return 4000
+    connection = None
     try:
         connection = await mysql_handler.get_connection(db_name="website")
         async with connection.cursor(DictCursor) as cursor:
@@ -11134,7 +11567,8 @@ async def check_premium_feature(user):
         api_logger.error(f"Error in check_premium_feature: {e}")
         return 0
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Make a Stream Marker for events
 async def make_stream_marker(description: str):
@@ -11220,6 +11654,7 @@ async def fetch_active_users():
 # Function to add time in the database
 async def track_watch_time(active_users):
     global stream_online
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -11261,7 +11696,8 @@ async def track_watch_time(active_users):
     except Exception as e:
         bot_logger.error(f"Error in track_watch_time: {e}", exc_info=True)
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to periodically check the queue
 async def check_song_requests():
@@ -11299,6 +11735,7 @@ async def return_the_action_back(ctx, author, action):
         return
     table, column = action_config[action]
     display_action = "high five" if action == "highfive" else action
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -11314,7 +11751,8 @@ async def return_the_action_back(ctx, author, action):
                 count = result[column]
                 await send_chat_message(f"Thanks for the {display_action}, {author}! I've given you a {display_action} too, you have been {display_action} {count} times!")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to remove the temp user from the shoutout_user dict
 async def remove_shoutout_user(username: str, delay: int):
@@ -11341,6 +11779,7 @@ async def get_ad_settings():
     current_time = time.time()
     if ad_settings_cache and (current_time - ad_settings_cache_time) < CACHE_DURATION:
         return ad_settings_cache
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -11404,7 +11843,8 @@ async def get_ad_settings():
         ad_settings_cache_time = current_time
         return ad_settings_cache
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function for AD BREAK
 def analyze_chat_vibe(chat_history):
@@ -11583,6 +12023,7 @@ async def handle_ad_break_start(duration_seconds):
     except Exception as e:
         api_logger.error(f"Failed to start ad-end routine: {e}")
     ad_break_count = 1
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -11594,6 +12035,9 @@ async def handle_ad_break_start(duration_seconds):
                 ad_break_count = result['ad_break_count']
     except Exception as e:
         api_logger.error(f"Error updating ad break count in handle_ad_break_start: {e}")
+    finally:
+        if connection:
+            await connection.release()
     chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
     chat_history = []
     if chat_file.exists():
@@ -12225,6 +12669,7 @@ async def get_shoutout_message(user_id, user_name, action="command"):
 
 # Function to manage user points
 async def manage_user_points(user_id: str, user_name: str, action: str, amount: int = 0) -> dict:
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -12294,6 +12739,9 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
             "amount_changed": 0,
             "error": str(e)
         }
+    finally:
+        if connection:
+            await connection.release()
 
 async def process_chat_message_event(user_id: str, user_name: str, message: str = ""):
     try:
