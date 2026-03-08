@@ -312,6 +312,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'load_chat_history') {
     $logsDir = '/var/www/yourchat/chat-logs';
     $historyFile = $logsDir . '/' . $userId . '_chat_history.json';
     if (file_exists($historyFile)) {
+        // Only restore history from today's session - discard anything from a previous day
+        $fileDate = date('Y-m-d', filemtime($historyFile));
+        $today = date('Y-m-d');
+        if ($fileDate !== $today) {
+            echo json_encode(['success' => true, 'messages' => []]);
+            exit;
+        }
         $historyData = file_get_contents($historyFile);
         $messages = json_decode($historyData, true);
         if (json_last_error() === JSON_ERROR_NONE && is_array($messages)) {
@@ -457,6 +464,45 @@ if (isset($_GET['action']) && $_GET['action'] === 'clear_activity_feed' && $_SER
         }
     }
     echo json_encode(['success' => true, 'message' => 'Activity feed cleared']);
+    exit;
+}
+
+// Handle Twitch event logging
+if (isset($_GET['action']) && $_GET['action'] === 'log_twitch_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    if (!isset($_SESSION['user_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
+    $userId = $_SESSION['user_id'];
+    $logsDir = '/var/www/yourchat/twitch-event-logs';
+    $logFile = $logsDir . '/' . $userId . '_twitch_events.log';
+    // Create directory if it doesn't exist
+    if (!is_dir($logsDir)) {
+        if (!mkdir($logsDir, 0755, true)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to create log directory']);
+            exit;
+        }
+    }
+    // Get JSON data from request body
+    $jsonData = file_get_contents('php://input');
+    if (empty($jsonData)) {
+        echo json_encode(['success' => false, 'error' => 'No data received']);
+        exit;
+    }
+    $data = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON: ' . json_last_error_msg()]);
+        exit;
+    }
+    // Append log entry with timestamp
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[{$timestamp}] " . json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n" . str_repeat('-', 80) . "\n";
+    if (file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX) === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to write to log file']);
+        exit;
+    }
+    echo json_encode(['success' => true]);
     exit;
 }
 
@@ -2862,6 +2908,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             if (!metadata || !metadata.message_type) {
                 return;
             }
+            // Log every raw EventSub message to the server
+            await logTwitchEvent(message);
             switch (metadata.message_type) {
                 case 'session_welcome': {
                     eventSubSessionId = payload.session.id;
@@ -3395,6 +3443,29 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             } catch (error) {
                 console.error('Error logging raw chat data:', error);
+            }
+        }
+        async function logTwitchEvent(message) {
+            if (shouldSkipAuthenticatedRequest('logTwitchEvent')) {
+                return;
+            }
+            try {
+                const response = await fetch('?action=log_twitch_event', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(message)
+                });
+                const result = await response.json();
+                if (!result.success) {
+                    console.error('Failed to log Twitch event:', result.error);
+                    if ((result.error || '').toLowerCase().includes('not authenticated')) {
+                        await markServerAuthLost('logTwitchEvent');
+                    }
+                }
+            } catch (error) {
+                console.error('Error logging Twitch event:', error);
             }
         }
         // Chat message handling
