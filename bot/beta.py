@@ -1451,6 +1451,23 @@ async def process_twitch_eventsub_message(message):
                                     pass
                                 outgoing_raid_task = None
                             event_logger.info("Outgoing raid canceled (unraid)")
+                    elif notice_type == "watch_streak":
+                        watch_streak_data = event_data.get("watch_streak", {})
+                        consecutive = watch_streak_data.get("consecutive_months", 0)
+                        chatter_name = event_data.get("chatter_user_name", "")
+                        await cursor.execute(
+                            "SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s",
+                            ("watch_streak",)
+                        )
+                        result = await cursor.fetchone()
+                        if result and result.get("alert_message"):
+                            streak_message = result.get("alert_message")
+                        else:
+                            streak_message = "Congrats (user)! They've watched (streak) streams in a row!"
+                        streak_message = streak_message.replace("(user)", chatter_name)
+                        streak_message = streak_message.replace("(streak)", str(consecutive))
+                        await send_chat_message(streak_message)
+                        event_logger.info(f"Watch streak: {chatter_name} has watched {consecutive} streams in a row")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
