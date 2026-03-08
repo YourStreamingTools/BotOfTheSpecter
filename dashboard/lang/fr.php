@@ -307,7 +307,7 @@ return [
     'custom_commands_error_generic' => 'Une erreur est survenue. Veuillez réessayer plus tard.',
     // Timed Message Page
     'timed_messages_title' => 'Messages programmés',
-    'timed_messages_info' => "Les messages programmés sont envoyés automatiquement par le bot à des intervalles définis et selon l'activité du chat.<br>Le bot enverra automatiquement les messages programmés en trois étapes :<br>1. Message envoyé après X intervalle<br>2. Message envoyé après C messages de chat (déclencheurs de ligne)<br>3. Message envoyé après C messages de chat avec un délai d'intervalle X<br>Les trois méthodes fonctionnent ensemble pour garantir que votre chat ne manque jamais ces messages programmés.",
+    'timed_messages_info' => "Les messages programmés sont envoyés automatiquement par le bot selon le mode de déclenchement choisi pour chaque message.<br>Trois modes sont disponibles :<br><strong>Minuterie</strong> — le message est envoyé toutes les X minutes, indépendamment de l'activité du chat.<br><strong>Lignes de chat</strong> — le message est envoyé après C messages de chat, le gardant pertinent pour les chats actifs.<br><strong>Les deux</strong> — le message se déclenche dès que l'une des conditions est remplie : la minuterie <em>ou</em> le seuil de lignes de chat, les deux compteurs fonctionnant simultanément.<br>Choisissez le mode le mieux adapté à chaque message pour informer votre chat sans être répétitif.",
     'timed_messages_add_title' => 'Ajouter un message programmé',
     'timed_messages_edit_title' => 'Modifier un message programmé',
     'timed_messages_remove_title' => 'Supprimer un message programmé',
