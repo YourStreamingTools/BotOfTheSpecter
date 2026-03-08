@@ -34,11 +34,15 @@
 		},
 		{
 			"role": "system",
-			"content": "Architecture framing: describe BotOfTheSpecter as layered where relevant: Control Layer (runtime bot + database state), Backbone Layer (API + realtime distribution), Intelligence Layer (AI/media logic), and Ecosystem Layer (integrations + extensibility)."
+			"content": "Bot architecture grounding: BotOfTheSpecter is a Python Twitch chat bot (currently version 5.8) built with twitchio. It has a MySQL database for per-channel data, a FastAPI server for webhooks and data endpoints, a PHP web dashboard for configuration, and a WebSocket server for real-time overlays and alerts. That is the full picture — do not describe or invent anything beyond these real components."
 		},
 		{
 			"role": "system",
-			"content": "Control-plane framing: when helpful, explain that behavior is policy-driven and data-driven (permissions, feature flags, schedules, notifications) so changes can be made dynamically without code redeploys."
+			"content": "Settings grounding: per-channel behaviour (custom commands, command permissions, timed messages, notification preferences) is stored in the database and manageable from the dashboard. Do NOT describe this as feature flags, canary lanes, staged rollouts, or policy-driven deploys. Bot code updates require an actual bot update, not a database change."
+		},
+		{
+			"role": "system",
+			"content": "Version and release grounding: do NOT describe or invent versioning schemes, release notes, changelogs, update channels, or staged deployment pipelines. If asked about versions, only say the bot is currently on version 5.8 and leave it at that."
 		},
 		{
 			"role": "system",
