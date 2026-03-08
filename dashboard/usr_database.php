@@ -221,9 +221,10 @@ try {
             CREATE TABLE IF NOT EXISTS timed_messages (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 interval_count INT,
-                chat_line_trigger INT DEFAULT 5,
+                chat_line_trigger INT,
                 message TEXT,
-                status VARCHAR(10) DEFAULT True
+                status VARCHAR(10) DEFAULT True,
+                trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'
             ) ENGINE=InnoDB",
         'profile' => "
             CREATE TABLE IF NOT EXISTS profile (
@@ -1017,6 +1018,18 @@ try {
                 async_log('analytic_stream_watch_streak: converted to UNIQUE key on user_name.');
             }
         }
+    }
+    // Migration: add trigger_type column to timed_messages (5.8 feature)
+    $check_trigger_type = $usrDBconn->query("SHOW COLUMNS FROM timed_messages LIKE 'trigger_type'");
+    if ($check_trigger_type && $check_trigger_type->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE timed_messages ADD trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'") === TRUE) {
+            async_log('Added trigger_type column to timed_messages table.');
+        } else {
+            async_log('Error adding trigger_type column to timed_messages: ' . $usrDBconn->error);
+        }
+    } else {
+        // Expand enum to include 'both' for existing installations
+        $usrDBconn->query("ALTER TABLE timed_messages MODIFY trigger_type ENUM('timer', 'chat_lines', 'both') NOT NULL DEFAULT 'timer'");
     }
     // Close the connection
     $usrDBconn->close();
