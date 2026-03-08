@@ -316,33 +316,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'load_chat_history') {
         $fileDate = date('Y-m-d', filemtime($historyFile));
         $today = date('Y-m-d');
         if ($fileDate !== $today) {
-            echo json_encode(['success' => true, 'messages' => []]);
+            echo json_encode(['success' => true, 'messages' => [], 'reason' => 'stale_date']);
             exit;
-        }
-        // Check Twitch stream uptime — only return messages saved during the current stream session
-        if (isset($_SESSION['access_token']) && isset($_SESSION['user_id'])) {
-            $ch = curl_init('https://api.twitch.tv/helix/streams?user_id=' . urlencode($_SESSION['user_id']));
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Bearer ' . $_SESSION['access_token'],
-                'Client-Id: ' . $clientID
-            ]);
-            $streamResponse = curl_exec($ch);
-            $streamHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($streamResponse && $streamHttpCode === 200) {
-                $streamData = json_decode($streamResponse, true);
-                if (!empty($streamData['data']) && isset($streamData['data'][0]['started_at'])) {
-                    $streamStartedAt = strtotime($streamData['data'][0]['started_at']);
-                    // If the history file was last written before this stream started, discard it
-                    if (filemtime($historyFile) < $streamStartedAt) {
-                        echo json_encode(['success' => true, 'messages' => []]);
-                        exit;
-                    }
-                }
-            }
         }
         $historyData = file_get_contents($historyFile);
         $messages = json_decode($historyData, true);
@@ -352,7 +327,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'load_chat_history') {
             echo json_encode(['success' => false, 'error' => 'Invalid history file']);
         }
     } else {
-        echo json_encode(['success' => true, 'messages' => []]);
+        echo json_encode(['success' => true, 'messages' => [], 'reason' => 'no_file']);
     }
     exit;
 }
@@ -1711,6 +1686,13 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 try {
                     const response = await fetch('?action=load_chat_history');
                     const result = await response.json();
+                    if (!result.success) {
+                        console.error('Chat history load failed:', result.error);
+                        return;
+                    }
+                    const count = result.messages ? result.messages.length : 0;
+                    console.log(`Chat history: ${count} message(s) from server${result.reason ? ' (reason: ' + result.reason + ')' : ''}`);
+                    if (count === 0) return;
                     if (result.success && result.messages && result.messages.length > 0) {
                         const overlay = document.getElementById('chat-overlay');
                         // Only restore if no real chat messages are present yet
