@@ -3337,11 +3337,12 @@ class TwitchBot(commands.Bot):
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         global stream_online
+        chat_logger.info(f"[WELCOME] message_counting called: author={messageAuthor!r} id={messageAuthorID!r} stream_online={stream_online} content={messageContent!r:.60}")
         if messageAuthor in [bannedUser, None, ""]:
-            chat_logger.info(f"Blocked message from {messageAuthor} - banned or invalid.")
+            chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: banned/invalid (bannedUser={bannedUser!r})")
             return
         if messageAuthor.lower() in IGNORED_WELCOME_USERNAMES:
-            # Skip message counting and welcome message for the bot itself
+            chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: in IGNORED_WELCOME_USERNAMES")
             return
         send_shoutout = False
         shoutout_message = None
@@ -3364,8 +3365,10 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 seen_today_result = await cursor.fetchone()
                 already_seen_today = seen_today_result is not None
+                chat_logger.info(f"[WELCOME] {messageAuthor!r}: already_seen_today={already_seen_today} is_broadcaster={is_broadcaster} is_mod={is_mod} is_vip={is_vip}")
                 # Skip further handling for broadcaster
                 if is_broadcaster:
+                    chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: is_broadcaster")
                     return
                 # Check if the user is new or returning
                 await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
@@ -3410,6 +3413,7 @@ class TwitchBot(commands.Bot):
                     return message.replace("(user)", username)
                 # If user has not been seen today and stream is online, ONLY insert them when the message is NOT a command
                 is_command_message = bool(messageContent and messageContent.strip().startswith('!'))
+                chat_logger.info(f"[WELCOME] {messageAuthor!r}: stream_online={stream_online} already_seen={already_seen_today} is_cmd={is_command_message} user_status_enabled={user_status_enabled} send_welcome_messages={send_welcome_messages}")
                 if not already_seen_today and stream_online and not is_command_message:
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
@@ -3455,10 +3459,14 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
                         create_task(self.safe_walkon(messageAuthor))
                 elif not already_seen_today and stream_online and is_command_message:
-                    # First message is a command — do not mark as seen yet. This ensures the user must send a non-command chat message to be considered "seen".
+                    # First message is a command — do not mark as seen yet.
                     chat_logger.info(f"{messageAuthor} sent a command as their first message; deferring 'seen' until a non-command message is received.")
+                elif not stream_online:
+                    chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: stream_online is False")
+                elif already_seen_today:
+                    chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: already_seen_today")
         except Exception as e:
-            chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}")
+            chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}", exc_info=True)
         finally:
             await self.user_points(messageAuthor, messageAuthorID)
             await self.user_grouping(messageAuthor, messageAuthorID)
@@ -14361,11 +14369,14 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
 async def process_chat_message_event(user_id: str, user_name: str, message: str = ""):
     try:
         get_function_from = BOTS_TWITCH_BOT
+        if get_function_from is None:
+            event_logger.error(f"process_chat_message_event: BOTS_TWITCH_BOT is None for {user_name} — bot not ready yet")
+            return
+        event_logger.info(f"process_chat_message_event: called for {user_name} (id={user_id}) message={message!r:.80}")
         await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
         await get_function_from.user_points(user_name, user_id)
-        event_logger.info(f"Processed chat message from {user_name}: welcome check + points awarded")
     except Exception as e:
-        event_logger.error(f"Error processing chat message event for {user_name}: {e}")
+        event_logger.error(f"Error processing chat message event for {user_name}: {e}", exc_info=True)
 
 async def cleanup_gift_sub_tracking():
     global gift_sub_recipients
