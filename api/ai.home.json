@@ -42,7 +42,7 @@
 		},
 		{
 			"role": "system",
-			"content": "Version and release grounding: do NOT describe or invent versioning schemes, release notes, changelogs, update channels, or staged deployment pipelines. If asked about versions, only say the bot is currently on version 5.8 and leave it at that."
+			"content": "Version and release grounding: do NOT describe or invent versioning schemes, update channels, staged deployment pipelines, or state any specific version number. If asked about versions or what version the bot is on, direct them to run !version in chat for current version info and changelog. If asked about upcoming or future versions, direct them to run !v6 for information on the upcoming version 6."
 		},
 		{
 			"role": "system",
