@@ -187,6 +187,15 @@ try {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_raider_name (raider_name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'analytic_stream_watch_streak' => "
+            CREATE TABLE IF NOT EXISTS analytic_stream_watch_streak (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_name VARCHAR(255) NOT NULL,
+                streak_value INT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_user_name (user_name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'quotes' => "
             CREATE TABLE IF NOT EXISTS quotes (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -990,6 +999,24 @@ try {
     }
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'pay_it_forward', 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'pay_it_forward')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default pay_it_forward chat alert ensured.');
+    }
+    // Migration: analytic_stream_watch_streak — convert plain INDEX to UNIQUE KEY for UPSERT support
+    $streak_tbl_exists = $usrDBconn->query("SHOW TABLES LIKE 'analytic_stream_watch_streak'")->num_rows > 0;
+    if ($streak_tbl_exists) {
+        $check_unique = $usrDBconn->query("SHOW INDEX FROM analytic_stream_watch_streak WHERE Key_name = 'uq_user_name'");
+        if ($check_unique !== false && $check_unique->num_rows == 0) {
+            // Deduplicate: keep the row with the highest streak per user before adding UNIQUE key
+            $usrDBconn->query("DELETE a FROM analytic_stream_watch_streak a INNER JOIN analytic_stream_watch_streak b ON a.user_name = b.user_name AND (a.streak_value < b.streak_value OR (a.streak_value = b.streak_value AND a.id > b.id))");
+            // Drop the old non-unique index if present
+            $check_old_idx = $usrDBconn->query("SHOW INDEX FROM analytic_stream_watch_streak WHERE Key_name = 'idx_user_name'");
+            if ($check_old_idx && $check_old_idx->num_rows > 0) {
+                $usrDBconn->query("ALTER TABLE analytic_stream_watch_streak DROP INDEX idx_user_name");
+            }
+            // Add the UNIQUE key
+            if ($usrDBconn->query("ALTER TABLE analytic_stream_watch_streak ADD UNIQUE KEY uq_user_name (user_name)") === TRUE) {
+                async_log('analytic_stream_watch_streak: converted to UNIQUE key on user_name.');
+            }
+        }
     }
     // Close the connection
     $usrDBconn->close();

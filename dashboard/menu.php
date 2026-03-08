@@ -30,6 +30,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_moderators'), 'icon' => 'fas fa-user-shield', 'href' => 'mods.php' ],
             [ 'label' => t('navbar_vips'), 'icon' => 'fas fa-crown', 'href' => 'vips.php' ],
             [ 'label' => t('navbar_raids'), 'icon' => 'fas fa-bullhorn', 'href' => 'raids.php' ],
+            [ 'label' => 'Stream Watch Streaks', 'icon' => 'fas fa-fire', 'href' => 'stream_streak.php' ],
         ]],
         [ 'label' => t('navbar_stream_tools'), 'icon' => 'fas fa-video', 'submenu' => [
             [ 'label' => t('navbar_recording'), 'icon' => 'fas fa-video', 'href' => 'recording.php' ],
