@@ -36,17 +36,28 @@ $displayMessages = "";
 
 // Handle POST requests for adding, editing, or removing timed messages
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Quick toggle enable/disable
+    // Quick toggle enable/disable (supports both AJAX and normal POST)
     if (isset($_POST['toggle_status']) && isset($_POST['toggle_id'])) {
         $toggle_id = (int)$_POST['toggle_id'];
         $new_status = ((int)$_POST['toggle_status'] === 1) ? 0 : 1;
+        $is_ajax = !empty($_POST['ajax_action']) && $_POST['ajax_action'] === 'toggle_status';
         try {
             $stmt = $db->prepare("UPDATE timed_messages SET status = ? WHERE id = ?");
             $stmt->bind_param("ii", $new_status, $toggle_id);
             $stmt->execute();
-            $successMessage = 'Message ID ' . $toggle_id . ' has been ' . ($new_status ? 'enabled' : 'disabled') . '.';
             $stmt->close();
+            if ($is_ajax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'id' => $toggle_id, 'new_status' => $new_status]);
+                exit();
+            }
+            $successMessage = 'Message ID ' . $toggle_id . ' has been ' . ($new_status ? 'enabled' : 'disabled') . '.';
         } catch (mysqli_sql_exception $e) {
+            if ($is_ajax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                exit();
+            }
             $errorMessage = "Error updating status: " . $e->getMessage();
         }
     }
@@ -450,14 +461,14 @@ ob_start();
                                                         ?>
                                                     </td>
                                                     <td style="text-align: center; vertical-align: middle;">
-                                                        <form method="post" action="" style="display:inline;">
-                                                            <input type="hidden" name="toggle_id" value="<?php echo $msg['id']; ?>">
-                                                            <input type="hidden" name="toggle_status" value="<?php echo $msg['status']; ?>">
-                                                            <button type="submit" class="button is-small <?php echo $msg['status'] == 1 ? 'is-success' : 'is-light'; ?>" title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
-                                                                <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
-                                                                <span><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></span>
-                                                            </button>
-                                                        </form>
+                                                        <button type="button"
+                                                            class="button is-small toggle-status-btn <?php echo $msg['status'] == 1 ? 'is-success' : 'is-light'; ?>"
+                                                            data-id="<?php echo $msg['id']; ?>"
+                                                            data-status="<?php echo $msg['status']; ?>"
+                                                            title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
+                                                            <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
+                                                            <span><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></span>
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -775,6 +786,41 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('remove_message').addEventListener('change', function() {
         showMessage();
         toggleRemoveButton();
+    });
+});
+
+// AJAX toggle enable/disable
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.toggle-status-btn');
+        if (!btn) return;
+        var id = btn.dataset.id;
+        var currentStatus = btn.dataset.status;
+        btn.disabled = true;
+        var body = new URLSearchParams();
+        body.append('ajax_action', 'toggle_status');
+        body.append('toggle_id', id);
+        body.append('toggle_status', currentStatus);
+        fetch(window.location.pathname, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var newStatus = data.new_status;
+                btn.dataset.status = newStatus;
+                btn.className = 'button is-small toggle-status-btn ' + (newStatus == 1 ? 'is-success' : 'is-light');
+                btn.title = newStatus == 1 ? 'Click to disable' : 'Click to enable';
+                var icon = btn.querySelector('.icon i');
+                if (icon) icon.className = 'fas ' + (newStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off');
+                var label = btn.querySelector('span:not(.icon)');
+                if (label) label.textContent = newStatus == 1 ? 'Enabled' : 'Disabled';
+            }
+            btn.disabled = false;
+        })
+        .catch(function() { btn.disabled = false; });
     });
 });
 </script>
