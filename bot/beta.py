@@ -1226,7 +1226,10 @@ async def process_twitch_eventsub_message(message):
         # channel.chat.message fires on every chat message — handle it before acquiring
         # a DB connection to prevent pool exhaustion under load
         if event_type == "channel.chat.message":
-            if event_data.get("source_broadcaster_user_id") and event_data["source_broadcaster_user_id"] != CHANNEL_ID:
+            source_bcast = event_data.get("source_broadcaster_user_id")
+            chat_logger.info(f"[EVENTSUB] channel.chat.message received: chatter={event_data.get('chatter_user_name')!r} source_broadcaster_user_id={source_bcast!r} CHANNEL_ID={CHANNEL_ID!r}")
+            if source_bcast and source_bcast != CHANNEL_ID:
+                chat_logger.info(f"[EVENTSUB] DROPPED: source_broadcaster_user_id {source_bcast!r} != CHANNEL_ID {CHANNEL_ID!r}")
                 return
             chatter_user_id = event_data["chatter_user_id"]
             chatter_user_name = event_data["chatter_user_name"]
@@ -3112,6 +3115,7 @@ class TwitchBot(commands.Bot):
             await self.handle_commands(message)
             messageContent = messageContentRaw.lower()
             AuthorMessage = str(message.content) if message.content else ""
+            create_task(self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContentRaw))
             # Check if the message matches the spam pattern (Has its own DB logic internally)
             spam_pattern = await get_spam_patterns()
             if spam_pattern:  # Check if spam_pattern is not empty
