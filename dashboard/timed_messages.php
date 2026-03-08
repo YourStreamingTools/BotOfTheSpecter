@@ -82,15 +82,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (empty($errorMessage)) {
             try {
                 $status = 1;
+                // Find the lowest unused ID to fill gaps left by previous deletions
+                $gapResult = $db->query(
+                    'SELECT MIN(seq.id) AS next_id FROM ' .
+                    '(SELECT 1 AS id UNION ALL SELECT id + 1 FROM timed_messages) seq ' .
+                    'LEFT JOIN timed_messages t ON seq.id = t.id WHERE t.id IS NULL'
+                );
+                $nextId = ($gapResult && ($gapRow = $gapResult->fetch_assoc())) ? (int)$gapRow['next_id'] : null;
                 if ($trigger_type === 'timer') {
-                    $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, ?, ?)');
-                    $stmt->bind_param("isis", $interval, $message, $status, $trigger_type);
+                    if ($nextId) {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, NULL, ?, ?, ?)');
+                        $stmt->bind_param("iisis", $nextId, $interval, $message, $status, $trigger_type);
+                    } else {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, ?, ?)');
+                        $stmt->bind_param("isis", $interval, $message, $status, $trigger_type);
+                    }
                 } elseif ($trigger_type === 'chat_lines') {
-                    $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (NULL, ?, ?, ?, ?)');
-                    $stmt->bind_param("isis", $chat_line_trigger, $message, $status, $trigger_type);
+                    if ($nextId) {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, ?, ?, ?)');
+                        $stmt->bind_param("iisis", $nextId, $chat_line_trigger, $message, $status, $trigger_type);
+                    } else {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (NULL, ?, ?, ?, ?)');
+                        $stmt->bind_param("isis", $chat_line_trigger, $message, $status, $trigger_type);
+                    }
                 } else {
-                    $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, ?, ?)');
-                    $stmt->bind_param("iisis", $interval, $chat_line_trigger, $message, $status, $trigger_type);
+                    if ($nextId) {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`id`, `interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param("iiisis", $nextId, $interval, $chat_line_trigger, $message, $status, $trigger_type);
+                    } else {
+                        $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, ?, ?)');
+                        $stmt->bind_param("iisis", $interval, $chat_line_trigger, $message, $status, $trigger_type);
+                    }
                 }
                 $stmt->execute();
                 if ($trigger_type === 'both') {
@@ -462,7 +484,7 @@ ob_start();
                                                     </td>
                                                     <td style="text-align: center; vertical-align: middle;">
                                                         <button type="button"
-                                                            class="button is-small toggle-status-btn <?php echo $msg['status'] == 1 ? 'is-success' : 'is-light'; ?>"
+                                                            class="button is-small toggle-status-btn <?php echo $msg['status'] == 1 ? 'is-success' : 'is-danger'; ?>"
                                                             data-id="<?php echo $msg['id']; ?>"
                                                             data-status="<?php echo $msg['status']; ?>"
                                                             title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
@@ -797,6 +819,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var id = btn.dataset.id;
         var currentStatus = btn.dataset.status;
         btn.disabled = true;
+        // Show spinner while processing
+        btn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Updating...</span>';
         var body = new URLSearchParams();
         body.append('ajax_action', 'toggle_status');
         body.append('toggle_id', id);
@@ -811,16 +835,25 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 var newStatus = data.new_status;
                 btn.dataset.status = newStatus;
-                btn.className = 'button is-small toggle-status-btn ' + (newStatus == 1 ? 'is-success' : 'is-light');
+                btn.className = 'button is-small toggle-status-btn ' + (newStatus == 1 ? 'is-success' : 'is-danger');
                 btn.title = newStatus == 1 ? 'Click to disable' : 'Click to enable';
-                var icon = btn.querySelector('.icon i');
-                if (icon) icon.className = 'fas ' + (newStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off');
-                var label = btn.querySelector('span:not(.icon)');
-                if (label) label.textContent = newStatus == 1 ? 'Enabled' : 'Disabled';
+                btn.innerHTML = '<span class="icon"><i class="fas ' + (newStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
+                              + '<span>' + (newStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
+            } else {
+                // Restore original state on failure
+                btn.className = 'button is-small toggle-status-btn ' + (currentStatus == 1 ? 'is-success' : 'is-danger');
+                btn.innerHTML = '<span class="icon"><i class="fas ' + (currentStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
+                              + '<span>' + (currentStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
             }
             btn.disabled = false;
         })
-        .catch(function() { btn.disabled = false; });
+        .catch(function() {
+            // Restore original state on network error
+            btn.className = 'button is-small toggle-status-btn ' + (currentStatus == 1 ? 'is-success' : 'is-danger');
+            btn.innerHTML = '<span class="icon"><i class="fas ' + (currentStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
+                          + '<span>' + (currentStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
+            btn.disabled = false;
+        });
     });
 });
 </script>
