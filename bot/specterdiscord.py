@@ -3669,13 +3669,16 @@ class BotOfTheSpecter(commands.Bot):
                                 self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
                                 self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
                                 self.logger.error(f"   Error details: {e}")
+                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Permission denied — bot is missing Send Messages / Embed Links in #{stream_channel.name}.")
                             except discord.HTTPException as e:
                                 self.logger.error(f"❌ Discord HTTP error sending notification to #{stream_channel.name}: Status {e.status}")
                                 self.logger.error(f"   Response: {e.text}")
+                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Discord HTTP error {e.status} when posting to #{stream_channel.name}: {e.text}")
                             except Exception as e:
                                 self.logger.error(f"❌ Unexpected error sending live notification to #{stream_channel.name}: {type(e).__name__}")
                                 self.logger.error(f"   Details: {e}")
                                 self.logger.error(f"   Traceback: {traceback.format_exc()}")
+                                await self._send_failure_dm(guild, "Stream alert post", account_username, f"Unexpected error ({type(e).__name__}) when posting to #{stream_channel.name}: {e}")
                             # After send attempt, if successful persist the live notification and mark online
                             if sent_success:
                                 try:
@@ -3721,11 +3724,13 @@ class BotOfTheSpecter(commands.Bot):
                                     self.logger.debug(f"Error persisting live notification or marking online for {code}: {e}")
                 else:
                     self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
+                    await self._send_failure_dm(guild, "Stream alert post", account_username, f"The configured stream alert channel (ID: `{stream_channel_id}`) could not be found in the server. Please re-configure it in the BotOfTheSpecter dashboard.")
             except Exception as e:
                 self.logger.error(f"❌ CRITICAL ERROR in stream notification block for {code}: {type(e).__name__}")
                 self.logger.error(f"   Details: {e}")
                 self.logger.error(f"   Full traceback: {traceback.format_exc()}")
                 self.logger.error(f"   This error prevented the notification from being sent, but channel rename will still be attempted.")
+                await self._send_failure_dm(guild, "Stream alert post", account_username if 'account_username' in locals() else 'Unknown', f"Critical error ({type(e).__name__}) in the stream alert block: {e}")
         else:
             # Log exactly what was checked and found
             databases_info = " | ".join(databases_checked)
@@ -3788,6 +3793,59 @@ class BotOfTheSpecter(commands.Bot):
             except Exception as e:
                 self.logger.error(f"Error clearing live notifications on OFFLINE for {code}: {e}")
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
+
+    async def _send_failure_dm(self, guild, action, username, reason):
+        """Send a failure notification DM to both the server owner and the bot owner.
+
+        Server owner receives a user-friendly message directing them to contact support.
+        Bot owner receives full technical detail so they can diagnose the issue.
+        """
+        BOT_OWNER_ID = 127783626917150720
+        guild_name = guild.name if guild else "Unknown Server"
+        guild_id = guild.id if guild else "N/A"
+        # Message for the server owner — plain and actionable
+        owner_message = (
+            f"⚠️ **{action}** failed because of: {reason}\n"
+            f"Please contact <@{BOT_OWNER_ID}> for more help."
+        )
+        # Message for the bot owner — full technical context
+        bot_owner_message = (
+            f"⚠️ **{action}** failed\n"
+            f"**Server:** {guild_name} (ID: `{guild_id}`)\n"
+            f"**Affected user/channel:** {username}\n"
+            f"**Reason:** {reason}"
+        )
+        # Look up the server owner's Discord ID from the database
+        server_owner_discord_id = None
+        try:
+            mysql_helper = MySQLHelper(self.logger)
+            owner_row = await mysql_helper.fetchone(
+                "SELECT discord_id FROM discord_users WHERE guild_id = %s",
+                (guild_id,), database_name='website', dict_cursor=True
+            )
+            if owner_row and owner_row.get('discord_id'):
+                server_owner_discord_id = int(owner_row['discord_id'])
+        except Exception as e:
+            self.logger.error(f"Failed to look up server owner Discord ID for guild {guild_id}: {e}")
+        # DM the server owner (if found and not the bot owner)
+        if server_owner_discord_id and server_owner_discord_id != BOT_OWNER_ID:
+            try:
+                owner_user = await self.fetch_user(server_owner_discord_id)
+                await owner_user.send(owner_message)
+                self.logger.info(f"Sent failure DM to server owner {server_owner_discord_id} for guild {guild_id}")
+            except discord.Forbidden:
+                self.logger.warning(f"Cannot DM server owner {server_owner_discord_id} (DMs disabled or blocked)")
+            except Exception as e:
+                self.logger.error(f"Failed to DM server owner {server_owner_discord_id}: {e}")
+        # Always DM the bot owner
+        try:
+            bot_owner_user = await self.fetch_user(BOT_OWNER_ID)
+            await bot_owner_user.send(bot_owner_message)
+            self.logger.info(f"Sent failure DM to bot owner for guild {guild_id}: {action}")
+        except discord.Forbidden:
+            self.logger.warning(f"Cannot DM bot owner {BOT_OWNER_ID} (DMs disabled or blocked)")
+        except Exception as e:
+            self.logger.error(f"Failed to DM bot owner {BOT_OWNER_ID}: {e}")
 
     async def _process_stream_alert(self, guild, code, stream_channel_id, event_type):
         try:
