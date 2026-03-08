@@ -216,6 +216,7 @@ song_requests = {}                                                              
 looped_tasks = {}                                                                       # Set for looped tasks
 active_timed_messages = {}                                                              # Dictionary to track active timed message IDs and their details
 message_tasks = {}                                                                      # Dictionary to track individual message tasks by ID
+active_timer_routines = {}                                                              # Dictionary to track active user timer routines by user_id
 gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
 
@@ -5626,7 +5627,7 @@ class TwitchBot(commands.Bot):
 
     @commands.command(name='timer')
     async def timer_command(self, ctx):
-        global bot_owner
+        global bot_owner, active_timer_routines
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -5667,14 +5668,33 @@ class TwitchBot(commands.Bot):
                 end_time = time_right_now(timezone.utc) + timedelta(minutes=minutes)
                 await cursor.execute("INSERT INTO active_timers (user_id, end_time) VALUES (%s, %s)", (ctx.author.id, end_time))
                 await connection.commit()
-                await send_chat_message(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
-                await sleep(minutes * 60)
-                await send_chat_message(f"The {minutes} minute timer has ended @{ctx.author.name}!")
-                # Remove the timer from the active_timers table
-                await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
-                await connection.commit()
                 # Record usage
                 add_usage('timer', bucket_key, cooldown_bucket)
+            # Cursor and DB work done; now schedule the end-of-timer notification via a routine
+            await send_chat_message(f"Timer started for {minutes} minute(s) @{ctx.author.name}.")
+            user_id = ctx.author.id
+            user_name = ctx.author.name
+            duration_seconds = minutes * 60
+            @routines.routine(seconds=duration_seconds, iterations=1, wait_first=True)
+            async def timer_end_routine():
+                conn = None
+                try:
+                    conn = await mysql_handler.get_connection()
+                    async with conn.cursor(DictCursor) as cur:
+                        await cur.execute("SELECT user_id FROM active_timers WHERE user_id=%s", (user_id,))
+                        still_active = await cur.fetchone()
+                        if still_active:
+                            await cur.execute("DELETE FROM active_timers WHERE user_id=%s", (user_id,))
+                            await conn.commit()
+                            await send_chat_message(f"The {minutes} minute timer has ended @{user_name}!")
+                except Exception as e:
+                    chat_logger.error(f"Error in timer end routine for {user_name}: {e}")
+                finally:
+                    if conn:
+                        await conn.release()
+                    active_timer_routines.pop(user_id, None)
+            active_timer_routines[user_id] = timer_end_routine
+            timer_end_routine.start()
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of the timer command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
@@ -5716,6 +5736,13 @@ class TwitchBot(commands.Bot):
                     return
                 await cursor.execute("DELETE FROM active_timers WHERE user_id=%s", (ctx.author.id,))
                 await connection.commit()
+                # Cancel the running timer routine if present
+                if ctx.author.id in active_timer_routines:
+                    try:
+                        active_timer_routines[ctx.author.id].cancel()
+                    except Exception:
+                        pass
+                    active_timer_routines.pop(ctx.author.id, None)
                 await send_chat_message(f"Your timer has been stopped @{ctx.author.name}.")
                 # Record usage
                 add_usage('stoptimer', bucket_key, cooldown_bucket)
