@@ -12442,6 +12442,7 @@ async def process_channel_point_rewards(event_data, event_type):
                                     json_flag = True
                                     url = url[5:]
                                 url = url.replace('(message)', quote(user_input_value, safe=''))
+                                url = url.replace('(user)', quote(user_name, safe=''))
                                 if json_flag:
                                     api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
                                     if api_response == "Error":
