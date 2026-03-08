@@ -10281,6 +10281,7 @@ async def process_stream_offline_websocket():
     os.makedirs(f'/home/botofthespecter/logs/online', exist_ok=True)
     with open(f'/home/botofthespecter/logs/online/{CHANNEL_NAME}.txt', 'w') as file:
         file.write('False')
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10288,7 +10289,8 @@ async def process_stream_offline_websocket():
             await cursor.execute("UPDATE stream_status SET status = %s", ("False",))
             await connection.commit()
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 # Function to clear both tables if the stream remains offline after 5 minutes
 async def delayed_clear_tables():
@@ -10451,6 +10453,7 @@ async def update_timed_messages():
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, stream_online
     if not stream_online:
         return
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -10493,7 +10496,8 @@ async def update_timed_messages():
     except Exception as e:
         bot_logger.error(f"Error in update_timed_messages: {e}")
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 async def start_timed_message(message_id, row):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks, chat_line_count
@@ -10510,8 +10514,8 @@ async def start_timed_message(message_id, row):
         message_tasks[message_id] = task
         scheduled_tasks.add(task)
         chat_logger.info(f"Started interval message ID: {message_id} every {interval_mins} minutes")
-    # If chat_line_trigger is set, this is a chat-count based message
-    elif chat_line_trigger and int(chat_line_trigger) > 0:
+    # If chat_line_trigger is set, also track by chat line count
+    if chat_line_trigger and int(chat_line_trigger) > 0:
         chat_trigger_tasks[message_id] = {
             "chat_line_trigger": int(chat_line_trigger),
             "message": message,
@@ -11665,6 +11669,7 @@ async def wait_and_persist_outgoing_raid():
 async def check_stream_online():
     global stream_online, current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_NAME, CHANNEL_ID
     global ad_upcoming_notified, ad_upcoming_last_notified_next_ad_at, last_ad_message_ts, stream_session_started_at
+    connection = None
     try:
         was_online = stream_online
         connection = await mysql_handler.get_connection()
@@ -11715,7 +11720,8 @@ async def check_stream_online():
                         bot_logger.info(f"Bot Starting, Stream is online.")
                 await connection.commit()
     finally:
-        pass
+        if connection:
+            await connection.release()
 
 async def refresh_stream_metadata():
     global current_game, stream_title, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID, stream_online
