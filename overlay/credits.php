@@ -83,9 +83,8 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
             $stmt->close();
         }
     }
-    // Add placeholder message if no data
     if (!$has_data) {
-        $column_html .= "<li>No " . $section_name . " today</li>";
+        return '';
     }
     $column_html .= "</ul>";
     $column_html .= "</div>";
@@ -108,9 +107,8 @@ function build_chatters_column($user_db) {
         }
         $stmt->close();
     }
-    // Add placeholder message if no data
     if (!$has_data) {
-        $column_html .= "<li>No Chatters today</li>";
+        return '';
     }
     $column_html .= "</ul>";
     $column_html .= "</div>";
@@ -142,16 +140,17 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                     die("Connection failed: " . $user_db->connect_error);
                 }
                 // Only build the scrolling credits section
-                $scrolling_credits = "<section class='scrolling-credits'>";
-                $scrolling_credits .= "<div class='columns is-vcentered is-centered is-flex is-flex-direction-row no-wrap-columns'>";
-                $scrolling_credits .= build_event_column($user_db, 'raid', 'Raiders');
-                $scrolling_credits .= build_event_column($user_db, 'bits', 'Cheers');
-                $scrolling_credits .= build_event_column($user_db, 'subscriptions', 'Subscriptions');
-                $scrolling_credits .= build_event_column($user_db, 'follow', 'Followers', true);
-                $scrolling_credits .= build_chatters_column($user_db);
-                $scrolling_credits .= "</div>";
-                $scrolling_credits .= "</section>";
-                $status = $scrolling_credits;
+                $columns = '';
+                $columns .= build_event_column($user_db, 'raid', 'Raiders');
+                $columns .= build_event_column($user_db, 'bits', 'Cheers');
+                $columns .= build_event_column($user_db, 'subscriptions', 'Subscriptions');
+                $columns .= build_event_column($user_db, 'follow', 'Followers', true);
+                $columns .= build_chatters_column($user_db);
+                if ($columns !== '') {
+                    $status = "<section class='scrolling-credits'><div class='columns is-vcentered is-centered is-flex is-flex-direction-row no-wrap-columns'>" . $columns . "</div></section>";
+                } else {
+                    $status = '';
+                }
                 $user_db->close();
             } else {
                 $status = "<section class='section'><div class='container'><h2 class='subtitle has-text-white'>I'm sorry, there was a problem accessing your data. Please try again later.</h2></div></section>";
@@ -441,14 +440,17 @@ a, a:visited, a:active {
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     // PAGE-LEVEL auto-scroll for the entire credits section
+    // Deferred into rAF so layout is fully calculated before measuring heights
+    requestAnimationFrame(function() {
     (function() {
         const main = document.querySelector('.container.is-fluid');
         if (!main) return;
         const credits = main.querySelector('.scrolling-credits');
         if (!credits) return;
-        const viewH = window.innerHeight;
-        // If credits content is not taller than the viewport, no page-level scroll needed
-        if (credits.scrollHeight <= viewH - 100) return;
+        // Only scroll if the credits list actually overflows below the visible area
+        const rect = credits.getBoundingClientRect();
+        const availableH = window.innerHeight - rect.top;
+        if (credits.scrollHeight <= availableH) return;
         // If we haven't created the page scroll container, create one that contains two stacked copies
         if (!main.querySelector('.page-scroll-wrap-container')) {
             const wrapper = document.createElement('div');
@@ -506,6 +508,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         requestAnimationFrame(animatePage);
     })();
+    }); // end rAF
 });
 </script>
 </body>
