@@ -50,10 +50,6 @@ function build_chatters_section($user_db) {
 
 function build_event_column($user_db, $event, $section_name, $clean_data = false) {
     $column_html = "<div class='column has-text-centered'>";
-    // Put the title inside the scroll area so the title scrolls with the list
-    $column_html .= "<div class='scroll-area'>";
-    // Wrap title+list together so they can be animated as a single block
-    $column_html .= "<div class='scroll-wrap'>";
     $column_html .= "<h2 class='subtitle has-text-white'>$section_name</h2>";
     $column_html .= "<ul class='content has-text-white'>";
     $has_data = false;
@@ -91,17 +87,13 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
     if (!$has_data) {
         $column_html .= "<li>No " . $section_name . " today</li>";
     }
-    $column_html .= "</ul></div></div>";
+    $column_html .= "</ul>";
     $column_html .= "</div>";
     return $column_html;
 }
 
 function build_chatters_column($user_db) {
     $column_html = "<div class='column has-text-centered'>";
-    // Put the title inside the scroll area so the title scrolls with the list
-    $column_html .= "<div class='scroll-area'>";
-    // Wrap title+list together so they can be animated as a single block
-    $column_html .= "<div class='scroll-wrap'>";
     $column_html .= "<h2 class='subtitle has-text-white'>Chatters</h2>";
     $column_html .= "<ul class='content has-text-white'>";
     $has_data = false;
@@ -120,7 +112,7 @@ function build_chatters_column($user_db) {
     if (!$has_data) {
         $column_html .= "<li>No Chatters today</li>";
     }
-    $column_html .= "</ul></div></div>";
+    $column_html .= "</ul>";
     $column_html .= "</div>";
     return $column_html;
 }
@@ -389,35 +381,12 @@ a, a:visited, a:active {
         width: 100%;
         max-width: 100%;
     }
-    .scrolling-credits .scroll-area {
-        min-height: auto;
-    }
 }
 .scrolling-credits .subtitle {
     margin-bottom: 16px;
     color: #FFFFFF !important;
     z-index: 2;
     font-weight: bold !important;
-}
-.scrolling-credits .scroll-area {
-    position: relative;
-    width: 100%;
-    flex: 0 1 auto;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    /* Hide native scrollbars and allow JS-driven auto-scroll when needed */
-    overflow: hidden;
-    max-height: 60vh;
-    min-height: 96px;
-}
-.scrolling-credits .scroll-wrap {
-    /* This is the element we will animate (contains title + list) */
-    position: relative;
-    width: 100%;
-}
-.scrolling-credits .scroll-wrap > h2 {
-    margin-bottom: 16px;
 }
 .scrolling-credits ul {
     list-style-type: none;
@@ -433,14 +402,6 @@ a, a:visited, a:active {
     margin: 5px 0;
     color: #FFFFFF !important;
     text-align: center;
-}
-@keyframes scroll-up {
-    0% {
-        transform: translateY(100%);
-    }
-    100% {
-        transform: translateY(-100%);
-    }
 }
 .section .container > h2 {
     text-align: center;
@@ -478,52 +439,7 @@ a, a:visited, a:active {
         </section>
     </div>
 <script>
-// Scroll each column's list independently, always centered, never above the title
 document.addEventListener('DOMContentLoaded', function () {
-    function initColumnScroll(root) {
-        root.querySelectorAll('.scrolling-credits .scroll-area').forEach(function(area) {
-            const ul = area.querySelector('ul');
-            if (!ul) return;
-            // Check if list has content
-            const listItems = ul.querySelectorAll('li');
-            if (listItems.length === 0) return;
-            // Animate the title+list block (.scroll-wrap) if its content is taller than the visible area
-            const wrap = area.querySelector('.scroll-wrap');
-            if (!wrap) return;
-            // Ensure initial state
-            wrap.style.transform = 'translateY(0)';
-            wrap.style.willChange = 'transform';
-            let contentHeight = wrap.scrollHeight;
-            let visibleHeight = area.clientHeight;
-            // If content is taller than the visible area, create a seamless loop and animate
-            if (contentHeight > visibleHeight + 10 && listItems.length > 0) {
-                // Avoid double-duplicating on re-run
-                if (!wrap.dataset.duplicated) {
-                    wrap.innerHTML += wrap.innerHTML;
-                    wrap.dataset.duplicated = '1';
-                }
-                let singleHeight = wrap.scrollHeight / 2;
-                wrap.style.position = 'absolute';
-                // Duration proportional to height (pixels -> seconds), tweak as needed
-                let duration = Math.max(2, singleHeight / 50); // base speed
-                let start = null;
-                function animateWrap(ts) {
-                    if (!start) start = ts;
-                    let elapsed = (ts - start) / 1000;
-                    let progress = (elapsed % duration) / duration;
-                    let translateY = -progress * singleHeight;
-                    wrap.style.transform = `translateY(${translateY}px)`;
-                    requestAnimationFrame(animateWrap);
-                }
-                requestAnimationFrame(animateWrap);
-            }
-            // Set scroll area height
-            area.style.display = 'flex';
-            area.style.flexDirection = 'column';
-            area.style.justifyContent = 'flex-start';
-            area.style.alignItems = 'center';
-        });
-    }
     // PAGE-LEVEL auto-scroll for the entire credits section
     (function() {
         const main = document.querySelector('.container.is-fluid');
@@ -590,7 +506,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         requestAnimationFrame(animatePage);
     })();
-    initColumnScroll(document);
 });
 </script>
 </body>
