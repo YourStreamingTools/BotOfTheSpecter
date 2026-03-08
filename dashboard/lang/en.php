@@ -364,7 +364,7 @@ return [
     'user_commands_reject_tooltip' => 'Disable this command',
     // Timed Message Page
     'timed_messages_title' => 'Timed Messages',
-    'timed_messages_info' => 'Timed messages are sent automatically by the bot at set intervals and chat activity.<br>The bot will automatically send timed messages in three stages:<br>1. Message sent after X interval<br>2. Message sent after C chat messages (line triggers)<br>3. Message sent after C chat messages on an X interval delay<br>All three work together to ensure that your chat never misses these timed messages.',
+    'timed_messages_info' => 'Timed messages are sent automatically by the bot based on the trigger mode you choose for each message.<br>There are three trigger modes available:<br><strong>Timer</strong> — the message is sent every X minutes, regardless of chat activity.<br><strong>Chat Lines</strong> — the message is sent after C chat messages have been posted, keeping it relevant to active chats.<br><strong>Both</strong> — the message fires on whichever condition is met first: the timer <em>or</em> the chat line threshold, running both counters simultaneously.<br>Choose the mode that best fits each message to keep your chat informed without being repetitive.',
     'timed_messages_add_title' => 'Add a Timed Message',
     'timed_messages_edit_title' => 'Edit a Timed Message',
     'timed_messages_remove_title' => 'Remove a Timed Message',
