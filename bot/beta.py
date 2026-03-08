@@ -1221,10 +1221,54 @@ async def process_tipping_message(data, source):
 async def process_twitch_eventsub_message(message):
     global pending_outgoing_raid, outgoing_raid_task
     try:
+        event_type = message.get("payload", {}).get("subscription", {}).get("type")
+        event_data = message.get("payload", {}).get("event") or {}
+        # channel.chat.message fires on every chat message — handle it before acquiring
+        # a DB connection to prevent pool exhaustion under load
+        if event_type == "channel.chat.message":
+            if event_data.get("source_broadcaster_user_id") and event_data["source_broadcaster_user_id"] != CHANNEL_ID:
+                return
+            chatter_user_id = event_data["chatter_user_id"]
+            chatter_user_name = event_data["chatter_user_name"]
+            message_text = event_data["message"]["text"]
+            # Capture chat for AI Ad Breaks
+            try:
+                is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
+                is_auto_message = False
+                auto_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
+                if message_text in auto_messages:
+                    is_auto_message = True
+                if not is_auto_message and not is_bot_message:
+                    Path(AD_BREAK_CHAT_DIR).mkdir(parents=True, exist_ok=True)
+                    chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
+                    chat_entry = {
+                        "user": chatter_user_name,
+                        "message": message_text,
+                        "timestamp": time.time()
+                    }
+                    current_chat = []
+                    if chat_file.exists():
+                        try:
+                            with chat_file.open('r', encoding='utf-8') as f:
+                                content = f.read()
+                                if content:
+                                    current_chat = json.loads(content)
+                        except json.JSONDecodeError:
+                            # If file is corrupted, start fresh
+                            current_chat = []
+                        except Exception as e:
+                            event_logger.error(f"Error reading ad break chat log: {e}")
+                    current_chat.append(chat_entry)
+                    with chat_file.open('w', encoding='utf-8') as f:
+                        json.dump(current_chat, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                event_logger.error(f"Error logging chat for ad break: {e}")
+            create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
+            return
+        if not event_type:
+            return
         async with await mysql_handler.get_connection() as connection:
          async with connection.cursor(DictCursor) as cursor:
-            event_type = message.get("payload", {}).get("subscription", {}).get("type")
-            event_data = message.get("payload", {}).get("event")
             if event_type:
                 # Tier mapping for all subscription-related events
                 tier_mapping = {
@@ -1804,47 +1848,6 @@ async def process_twitch_eventsub_message(message):
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct information from twitch to process the request."
                         await send_chat_message(shoutout_message)
                         twitch_logger.info(f"Shoutout message sent: {shoutout_message}")
-                elif event_type == "channel.chat.message":
-                    if event_data.get("source_broadcaster_user_id") and event_data["source_broadcaster_user_id"] != CHANNEL_ID:
-                        return
-                    chatter_user_id = event_data["chatter_user_id"]
-                    chatter_user_name = event_data["chatter_user_name"]
-                    message_text = event_data["message"]["text"]
-                    # Capture chat for AI Ad Breaks
-                    try:
-                        # Skip bot-authored messages so ad AI context only contains viewer chat
-                        is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
-                        # Skip if it matches an auto-posted timed message
-                        is_auto_message = False
-                        auto_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
-                        if message_text in auto_messages:
-                            is_auto_message = True
-                        if not is_auto_message and not is_bot_message:
-                            Path(AD_BREAK_CHAT_DIR).mkdir(parents=True, exist_ok=True)
-                            chat_file = Path(AD_BREAK_CHAT_DIR) / f"{CHANNEL_NAME}.json"
-                            chat_entry = {
-                                "user": chatter_user_name,
-                                "message": message_text,
-                                "timestamp": time.time()
-                            }
-                            current_chat = []
-                            if chat_file.exists():
-                                try:
-                                    with chat_file.open('r', encoding='utf-8') as f:
-                                        content = f.read()
-                                        if content:
-                                            current_chat = json.loads(content)
-                                except json.JSONDecodeError:
-                                    # If file is corrupted, start fresh
-                                    current_chat = []
-                                except Exception as e:
-                                    event_logger.error(f"Error reading ad break chat log: {e}")
-                            current_chat.append(chat_entry)
-                            with chat_file.open('w', encoding='utf-8') as f:
-                                json.dump(current_chat, f, ensure_ascii=False, indent=2)
-                    except Exception as e:
-                        event_logger.error(f"Error logging chat for ad break: {e}")
-                    create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
