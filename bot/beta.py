@@ -1967,6 +1967,15 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     )
                     authenticated = True
             if not authenticated:
+                force_refresh = True
+                if auth_failed:
+                    bot_logger.info("IRC Presence: Auth failure — waiting 120s before retry...")
+                    await sleep(120)
+                    reconnect_delay = 30
+                else:
+                    bot_logger.info(f"IRC Presence: Reconnecting in {reconnect_delay}s...")
+                    await sleep(reconnect_delay)
+                    reconnect_delay = min(reconnect_delay * 2, 300)
                 continue
             # Authenticated — join the target channel
             writer.write(f"JOIN #{CHANNEL_NAME}\r\n".encode())
