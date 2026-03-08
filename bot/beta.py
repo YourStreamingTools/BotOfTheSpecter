@@ -9968,6 +9968,33 @@ async def process_dynamic_message_variables(
                         else:
                             chat_logger.warning(f"Command {sub_command} referenced but not found")
                             response = response.replace(f"(command.{sub_command})", "[Command Not Found]")
+                # Handle (random.pick.list.<cmd>) - list all options for a given command
+                if '(random.pick.list.' in response:
+                    list_pick_matches = list(re.finditer(r'\(random\.pick\.list\.(\w+)\)', response))
+                    for list_match in list_pick_matches:
+                        ref_command = list_match.group(1)
+                        try:
+                            await cursor.execute(
+                                "SELECT options FROM custom_command_random_pick_options WHERE command = %s",
+                                (ref_command,),
+                            )
+                            list_row = await cursor.fetchone()
+                            if list_row and list_row.get("options"):
+                                options_raw = list_row.get("options")
+                                if isinstance(options_raw, (bytes, bytearray)):
+                                    options_raw = options_raw.decode("utf-8", errors="ignore")
+                                parsed = json.loads(options_raw) if isinstance(options_raw, str) else options_raw
+                                if isinstance(parsed, list):
+                                    opt_list = [str(x).strip() for x in parsed if str(x).strip()]
+                                    list_str = ", ".join(opt_list)
+                                else:
+                                    list_str = ""
+                            else:
+                                list_str = ""
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (random.pick.list.{ref_command}): {e}")
+                            list_str = ""
+                        response = response.replace(list_match.group(0), list_str)
                 # Handle random replacements
                 if '(random.percent' in response or '(random.number' in response or '(random.pick' in response:
                     pattern = r'\((random\.(percent|number|pick))(?:\.(.+?))?\)'
@@ -10042,7 +10069,7 @@ async def process_dynamic_message_variables(
                         response = response.replace(full_placeholder, replacement)
             # Send the main response to chat if requested
             if send_to_chat:
-                await send_chat_message(response)
+                await send_long_chat_message(response)
             # Send any additional responses from (command.) references
             if emit_additional:
                 for resp in responses_to_send:
@@ -14290,6 +14317,25 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
     # All retries failed
     chat_logger.error("Exhausted retries sending chat message")
     return False
+
+async def send_long_chat_message(message):
+    if len(message) <= MAX_CHAT_MESSAGE_LENGTH:
+        await send_chat_message(message)
+        return
+    remaining = message
+    while remaining:
+        if len(remaining) <= MAX_CHAT_MESSAGE_LENGTH:
+            await send_chat_message(remaining)
+            break
+        # Back-track to the last space within the limit
+        split_at = remaining.rfind(' ', 0, MAX_CHAT_MESSAGE_LENGTH)
+        if split_at <= 0:
+            # No space found; force-split at the limit
+            split_at = MAX_CHAT_MESSAGE_LENGTH
+        await send_chat_message(remaining[:split_at])
+        remaining = remaining[split_at:].lstrip()
+        if remaining:
+            await sleep(0.5)
 
 # Function to generate shoutout message with game info
 async def get_shoutout_message(user_id, user_name, action="command"):

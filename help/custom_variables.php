@@ -138,6 +138,19 @@
     <div class="column is-4">
         <div class="card has-background-dark has-shadow mb-4">
             <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
+                <span class="has-text-weight-bold variable-title" style="color: #c813e0ff;">(random.pick.list.COMMAND)</span><br>
+                <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
+                Outputs the full list of options configured for another command's random pick options, separated by commas. Replace COMMAND with the command name whose list you want to display. If the list exceeds 500 characters it is automatically split into multiple chat messages.<br>
+                <span class="has-text-weight-bold">Example:</span><br>
+                <code>(random.pick.list.snack)</code><br>
+                <span class="has-text-weight-bold">In Chat:</span><br>
+                <code>chips, cookies, pretzels, popcorn</code>
+            </div>
+        </div>
+    </div>
+    <div class="column is-4">
+        <div class="card has-background-dark has-shadow mb-4">
+            <div class="card-content has-background-dark has-text-light" style="height: 340px; word-break: break-word;">
                 <span class="has-text-weight-bold variable-title" style="color: #3273dc;">(math.*)</span><br>
                 <span class="tag is-info is-light mb-2">Used in: Custom Commands & Timed Messages</span><br>
                 Performs mathematical calculations. Supports +, -, *, /, and parentheses.<br>
