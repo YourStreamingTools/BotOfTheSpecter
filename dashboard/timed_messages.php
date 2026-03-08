@@ -36,27 +36,60 @@ $displayMessages = "";
 
 // Handle POST requests for adding, editing, or removing timed messages
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Check if the form was submitted for adding a new message
-    if (isset($_POST['message']) && isset($_POST['interval'])) {
-        $message = $_POST['message'];
-        $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
-        $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
-        // If chat_line_trigger is NULL or FALSE, set default value
-        if ($chat_line_trigger === null || $chat_line_trigger === false) {
-            $chat_line_trigger = 5; // Default value
+    // Quick toggle enable/disable
+    if (isset($_POST['toggle_status']) && isset($_POST['toggle_id'])) {
+        $toggle_id = (int)$_POST['toggle_id'];
+        $new_status = ((int)$_POST['toggle_status'] === 1) ? 0 : 1;
+        try {
+            $stmt = $db->prepare("UPDATE timed_messages SET status = ? WHERE id = ?");
+            $stmt->bind_param("ii", $new_status, $toggle_id);
+            $stmt->execute();
+            $successMessage = 'Message ID ' . $toggle_id . ' has been ' . ($new_status ? 'enabled' : 'disabled') . '.';
+            $stmt->close();
+        } catch (mysqli_sql_exception $e) {
+            $errorMessage = "Error updating status: " . $e->getMessage();
         }
-        // Validate input data
-        if ($interval === false) {
-            $errorMessage = "Interval must be a valid integer between 5 and 60.";
-        } elseif ($chat_line_trigger < 5) {
-            $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
-        } else {
+    }
+    // Check if the form was submitted for adding a new message
+    if (isset($_POST['message']) && isset($_POST['trigger_type'])) {
+        $message = $_POST['message'];
+        $trigger_type = in_array($_POST['trigger_type'], ['timer', 'chat_lines', 'both']) ? $_POST['trigger_type'] : 'timer';
+        $interval = null;
+        $chat_line_trigger = null;
+        if ($trigger_type === 'timer' || $trigger_type === 'both') {
+            $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+            if ($interval === false || $interval === null) {
+                $errorMessage = "Interval must be a valid integer between 5 and 60.";
+            }
+        }
+        if (empty($errorMessage) && ($trigger_type === 'chat_lines' || $trigger_type === 'both')) {
+            $chat_line_trigger = filter_input(INPUT_POST, 'chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+            if ($chat_line_trigger === false || $chat_line_trigger === null) {
+                $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
+            }
+        }
+        if (empty($errorMessage)) {
             try {
-                $status = 1; // 1 for enabled
-                $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `message`, `status`, `chat_line_trigger`) VALUES (?, ?, ?, ?)');
-                $stmt->bind_param("isii", $interval, $message, $status, $chat_line_trigger);
+                $status = 1;
+                if ($trigger_type === 'timer') {
+                    $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, NULL, ?, ?, ?)');
+                    $stmt->bind_param("isis", $interval, $message, $status, $trigger_type);
+                } elseif ($trigger_type === 'chat_lines') {
+                    $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (NULL, ?, ?, ?, ?)');
+                    $stmt->bind_param("isis", $chat_line_trigger, $message, $status, $trigger_type);
+                } else {
+                    $stmt = $db->prepare('INSERT INTO timed_messages (`interval_count`, `chat_line_trigger`, `message`, `status`, `trigger_type`) VALUES (?, ?, ?, ?, ?)');
+                    $stmt->bind_param("iisis", $interval, $chat_line_trigger, $message, $status, $trigger_type);
+                }
                 $stmt->execute();
-                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with the interval: ' . $_POST['interval'] . ($chat_line_trigger ? ' and chat line trigger: ' . $chat_line_trigger : '') . ' has been successfully added to the database.';
+                if ($trigger_type === 'both') {
+                    $modeLabel = 'timer: ' . $interval . ' min & chat lines: ' . $chat_line_trigger;
+                } elseif ($trigger_type === 'timer') {
+                    $modeLabel = 'interval: ' . $interval . ' minute(s)';
+                } else {
+                    $modeLabel = 'chat lines: ' . $chat_line_trigger;
+                }
+                $successMessage = 'Timed Message: "' . $_POST['message'] . '" with ' . $modeLabel . ' has been successfully added to the database.';
                 $stmt->close();
             } catch (mysqli_sql_exception $e) {
                 $errorMessage = "Error adding message: " . $e->getMessage();
@@ -84,44 +117,60 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
     // Check if the form was submitted for editing the message, interval, or status
-    elseif (isset($_POST['edit_message']) && isset($_POST['edit_interval']) && isset($_POST['edit_status'])) {
+    elseif (isset($_POST['edit_message']) && isset($_POST['edit_status']) && isset($_POST['edit_trigger_type'])) {
         $edit_message_id = $_POST['edit_message'];
-        $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
-        $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
-        // If edit_chat_line_trigger is NULL or FALSE, set default value
-        if ($edit_chat_line_trigger === null || $edit_chat_line_trigger === false) {
-            $edit_chat_line_trigger = 5; // Default value
-        }
-        // Check if the edit_message_id exists in the timed_messages table
-        $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
-        $stmt->bind_param("i", $edit_message_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $message_exists = $result->fetch_row()[0];
-        $stmt->close();
-        if ($message_exists && $edit_interval !== false) {
-            // Update the message, interval, and status for the selected message in the database
-            try {
-                // Convert string status to integer (True -> 1, False -> 0)
-                $status_int = ($edit_status === 'True') ? 1 : 0;
-                $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `message` = ?, `status` = ?, `chat_line_trigger` = ? WHERE id = ?');
-                $stmt->bind_param("isiii", $edit_interval, $edit_message_content, $status_int, $edit_chat_line_trigger, $edit_message_id);
-                $stmt->execute();
-                // Check if the update was successful and provide feedback to the user
-                $updated = $stmt->affected_rows > 0; // Check if any rows were affected
-                if ($updated) {
-                    $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
-                } else {
-                    $errorMessage = "Failed to update message.";
-                }
-                $stmt->close();
-            } catch (mysqli_sql_exception $e) {
-                $errorMessage = "Error updating message: " . $e->getMessage();
+        $edit_trigger_type = in_array($_POST['edit_trigger_type'], ['timer', 'chat_lines', 'both']) ? $_POST['edit_trigger_type'] : 'timer';
+        $edit_interval = null;
+        $edit_chat_line_trigger = null;
+        if ($edit_trigger_type === 'timer' || $edit_trigger_type === 'both') {
+            $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+            if ($edit_interval === false || $edit_interval === null) {
+                $errorMessage = "Interval must be a valid integer between 5 and 60.";
             }
-        } else {
-            $errorMessage = "Invalid input data.";
+        }
+        if (empty($errorMessage) && ($edit_trigger_type === 'chat_lines' || $edit_trigger_type === 'both')) {
+            $edit_chat_line_trigger = filter_input(INPUT_POST, 'edit_chat_line_trigger', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5)));
+            if ($edit_chat_line_trigger === false || $edit_chat_line_trigger === null) {
+                $errorMessage = "Chat Line Trigger must be a valid integer greater than or equal to 5.";
+            }
+        }
+        if (empty($errorMessage)) {
+            // Check if the edit_message_id exists in the timed_messages table
+            $stmt = $db->prepare("SELECT COUNT(*) FROM timed_messages WHERE id = ?");
+            $stmt->bind_param("i", $edit_message_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $message_exists = $result->fetch_row()[0];
+            $stmt->close();
+            if ($message_exists) {
+                try {
+                    $status_int = ($edit_status === 'True') ? 1 : 0;
+                    if ($edit_trigger_type === 'timer') {
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `chat_line_trigger` = NULL, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt->bind_param("isisi", $edit_interval, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
+                    } elseif ($edit_trigger_type === 'chat_lines') {
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = NULL, `chat_line_trigger` = ?, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt->bind_param("isisi", $edit_chat_line_trigger, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
+                    } else {
+                        $stmt = $db->prepare('UPDATE timed_messages SET `interval_count` = ?, `chat_line_trigger` = ?, `message` = ?, `status` = ?, `trigger_type` = ? WHERE id = ?');
+                        $stmt->bind_param("iisisi", $edit_interval, $edit_chat_line_trigger, $edit_message_content, $status_int, $edit_trigger_type, $edit_message_id);
+                    }
+                    $stmt->execute();
+                    $updated = $stmt->affected_rows > 0;
+                    if ($updated) {
+                        $successMessage = 'Message with ID ' . $edit_message_id . ' updated successfully.';
+                    } else {
+                        $errorMessage = "Failed to update message.";
+                    }
+                    $stmt->close();
+                } catch (mysqli_sql_exception $e) {
+                    $errorMessage = "Error updating message: " . $e->getMessage();
+                }
+            } else {
+                $errorMessage = "Invalid input data.";
+            }
         }
     }
     // Redirect with message
@@ -213,13 +262,26 @@ ob_start();
                                             </div>
                                         </div>
                                         <div class="field">
+                                            <label class="label">Trigger Type <span class="tag is-warning is-light ml-2" style="font-size:0.7rem; vertical-align:middle;">5.8 Beta</span></label>
+                                            <div class="control">
+                                                <div class="select is-fullwidth">
+                                                    <select name="trigger_type" id="trigger_type" onchange="toggleAddTriggerType(); toggleAddButton();">
+                                                        <option value="timer">Timer (minutes)</option>
+                                                        <option value="chat_lines">Chat Lines</option>
+                                                        <option value="both">Both (Timer &amp; Chat Lines)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <p class="help">Fire on a fixed time interval, or after a set number of chat messages.</p>
+                                        </div>
+                                        <div class="field" id="add_interval_field">
                                             <label class="label" for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
                                             <div class="control">
-                                                <input class="input" type="number" name="interval" id="interval" min="5" max="60" required value="5" oninput="toggleAddButton();">
+                                                <input class="input" type="number" name="interval" id="interval" min="5" max="60" value="5" oninput="toggleAddButton();">
                                                 <span id="intervalError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_interval_error'); ?></span>
                                             </div>
                                         </div>
-                                        <div class="field">
+                                        <div class="field" id="add_chat_line_field" style="display:none;">
                                             <label class="label" for="chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
                                             <div class="control">
                                                 <input class="input" type="number" name="chat_line_trigger" id="chat_line_trigger" min="5" value="5" oninput="toggleAddButton();">
@@ -227,7 +289,6 @@ ob_start();
                                             </div>
                                         </div>
                                         <div style="flex-grow:1"></div>
-                                        <div style="height: 165px;"></div>
                                         <div class="control">
                                             <button type="submit" id="addMessageButton" class="button is-primary is-fullwidth" disabled><?php echo t('timed_messages_add_btn'); ?></button>
                                         </div>
@@ -260,12 +321,24 @@ ob_start();
                                             </div>
                                         </div>
                                         <div class="field">
-                                            <label class="label" for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
+                                            <label class="label">Trigger Type <span class="tag is-warning is-light ml-2" style="font-size:0.7rem; vertical-align:middle;">5.8 Beta</span></label>
                                             <div class="control">
-                                                <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" required oninput="toggleEditButton();">
+                                                <div class="select is-fullwidth">
+                                                    <select name="edit_trigger_type" id="edit_trigger_type" onchange="toggleEditTriggerType();">
+                                                        <option value="timer">Timer (minutes)</option>
+                                                        <option value="chat_lines">Chat Lines</option>
+                                                        <option value="both">Both (Timer &amp; Chat Lines)</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div class="field">
+                                        <div class="field" id="edit_interval_field">
+                                            <label class="label" for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
+                                            <div class="control">
+                                                <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" oninput="toggleEditButton();">
+                                            </div>
+                                        </div>
+                                        <div class="field" id="edit_chat_line_field" style="display:none;">
                                             <label class="label" for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
                                             <div class="control">
                                                 <input class="input" type="number" name="edit_chat_line_trigger" id="edit_chat_line_trigger" min="5" oninput="toggleEditButton();">
@@ -326,7 +399,6 @@ ob_start();
                                             </div>
                                         </div>
                                         <div style="flex-grow:1"></div>
-                                        <div style="height: 118px;"></div>
                                         <div class="control">
                                             <button type="submit" id="removeMessageButton" class="button is-danger is-fullwidth" disabled><?php echo t('timed_messages_remove_btn'); ?></button>
                                         </div>
@@ -355,9 +427,8 @@ ob_start();
                                         <tr>
                                             <th style="width: 42px; text-align: center; vertical-align: middle;">ID</th>
                                             <th style="vertical-align: middle;">Message</th>
-                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Interval (min)</th>
-                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Chat Line Trigger</th>
-                                            <th style="width: 120px; text-align: center; vertical-align: middle;">Status</th>
+                                            <th style="width: 150px; text-align: center; vertical-align: middle;">Trigger Type <span class="tag is-warning is-light ml-1" style="font-size:0.65rem;">5.8</span></th>
+                                            <th style="width: 130px; text-align: center; vertical-align: middle;">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -366,14 +437,33 @@ ob_start();
                                                 <tr>
                                                     <td style="text-align: center; vertical-align: middle;"><?php echo $msg['id']; ?></td>
                                                     <td><?php echo htmlspecialchars($msg['message']); ?></td>
-                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['interval_count']; ?></td>
-                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['chat_line_trigger']; ?></td>
-                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></td>
+                                                    <td style="text-align: center; vertical-align: middle;">
+                                                        <?php
+                                                        $triggerType = $msg['trigger_type'] ?? 'timer';
+                                                        if ($triggerType === 'chat_lines') {
+                                                            echo '<span class="tag is-info">Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                                        } elseif ($triggerType === 'both') {
+                                                            echo '<span class="tag is-warning">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min &amp; Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                                        } else {
+                                                            echo '<span class="tag is-primary">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min</span>';
+                                                        }
+                                                        ?>
+                                                    </td>
+                                                    <td style="text-align: center; vertical-align: middle;">
+                                                        <form method="post" action="" style="display:inline;">
+                                                            <input type="hidden" name="toggle_id" value="<?php echo $msg['id']; ?>">
+                                                            <input type="hidden" name="toggle_status" value="<?php echo $msg['status']; ?>">
+                                                            <button type="submit" class="button is-small <?php echo $msg['status'] == 1 ? 'is-success' : 'is-light'; ?>" title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
+                                                                <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
+                                                                <span><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></span>
+                                                            </button>
+                                                        </form>
+                                                    </td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                             <tr>
-                                                <td colspan="5" class="has-text-centered">No timed messages found.</td>
+                                                <td colspan="4" class="has-text-centered">No timed messages found.</td>
                                             </tr>
                                         <?php endif; ?>
                                     </tbody>
@@ -453,21 +543,25 @@ function showResponse() {
     var editIntervalInput = document.getElementById('edit_interval');
     var editChatLineTriggerInput = document.getElementById('edit_chat_line_trigger');
     var editStatus = document.getElementById('edit_status');
+    var editTriggerType = document.getElementById('edit_trigger_type');
     var messageData = timedMessagesData.find(m => m.id == editMessage);
     if (messageData) {
         editMessageContent.value = messageData.message;
-        editIntervalInput.value = messageData.interval_count;
+        editIntervalInput.value = messageData.interval_count || 5;
         editChatLineTriggerInput.value = messageData.chat_line_trigger || 5;
-        // Convert integer status (1/0) to string for dropdown (True/False)
         if (editStatus) editStatus.value = (messageData.status == 1) ? 'True' : 'False';
+        if (editTriggerType) editTriggerType.value = messageData.trigger_type || 'timer';
         updateCharCount('edit_message_content', 'editCharCount');
+        toggleEditTriggerType();
     } else {
         editMessageContent.value = '';
         editIntervalInput.value = '';
         editChatLineTriggerInput.value = '';
         if (editStatus) editStatus.value = '';
+        if (editTriggerType) editTriggerType.value = 'timer';
         document.getElementById('editCharCount').textContent = '0/255 characters';
         document.getElementById('editCharCount').className = 'help';
+        toggleEditTriggerType();
     }
     toggleEditButton();
 }
@@ -504,36 +598,57 @@ function updateCharCount(inputId, counterId) {
     }
 }
 
+// Show/hide add form fields based on trigger type
+function toggleAddTriggerType() {
+    var triggerType = document.getElementById('trigger_type').value;
+    document.getElementById('add_interval_field').style.display = (triggerType === 'timer' || triggerType === 'both') ? '' : 'none';
+    document.getElementById('add_chat_line_field').style.display = (triggerType === 'chat_lines' || triggerType === 'both') ? '' : 'none';
+}
+
+// Show/hide edit form fields based on trigger type
+function toggleEditTriggerType() {
+    var triggerType = document.getElementById('edit_trigger_type') ? document.getElementById('edit_trigger_type').value : 'timer';
+    var intervalField = document.getElementById('edit_interval_field');
+    var chatLineField = document.getElementById('edit_chat_line_field');
+    if (intervalField) intervalField.style.display = (triggerType === 'timer' || triggerType === 'both') ? '' : 'none';
+    if (chatLineField) chatLineField.style.display = (triggerType === 'chat_lines' || triggerType === 'both') ? '' : 'none';
+    toggleEditButton();
+}
+
 // Enable/disable add button based on input
 function toggleAddButton() {
     var message = document.getElementById('message').value.trim();
-    var interval = document.getElementById('interval').value;
-    var chatLine = document.getElementById('chat_line_trigger').value;
+    var triggerType = document.getElementById('trigger_type').value;
     var addBtn = document.getElementById('addMessageButton');
-    // All fields must be filled and valid
-    var valid = (
-        message.length > 0 &&
-        interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60 &&
-        chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5
-    );
+    var valid = message.length > 0;
+    if (triggerType === 'timer' || triggerType === 'both') {
+        var interval = document.getElementById('interval').value;
+        valid = valid && interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60;
+    }
+    if (triggerType === 'chat_lines' || triggerType === 'both') {
+        var chatLine = document.getElementById('chat_line_trigger').value;
+        valid = valid && chatLine !== "" && !isNaN(chatLine) && Number(chatLine) >= 5;
+    }
     addBtn.disabled = !valid;
 }
 
 // Enable/disable edit button based on input
 function toggleEditButton() {
-    var editMessage = document.getElementById('edit_message').value;
-    var editInterval = document.getElementById('edit_interval').value;
+    var editMessage = document.getElementById('edit_message') ? document.getElementById('edit_message').value : '';
     var editMessageContent = document.getElementById('edit_message_content').value.trim();
-    var editStatus = document.getElementById('edit_status').value;
-    var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
+    var editStatus = document.getElementById('edit_status') ? document.getElementById('edit_status').value : '';
+    var editTriggerType = document.getElementById('edit_trigger_type') ? document.getElementById('edit_trigger_type').value : 'timer';
     var editBtn = document.getElementById('editMessageButton');
-    var valid = (
-        editMessage !== "" &&
-        editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60 &&
-        editMessageContent.length > 0 && editMessageContent.length <= 255 &&
-        editStatus !== "" &&
-        editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5
-    );
+    if (!editBtn) return;
+    var valid = editMessage !== "" && editMessageContent.length > 0 && editMessageContent.length <= 255 && editStatus !== "";
+    if (editTriggerType === 'timer' || editTriggerType === 'both') {
+        var editInterval = document.getElementById('edit_interval').value;
+        valid = valid && editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60;
+    }
+    if (editTriggerType === 'chat_lines' || editTriggerType === 'both') {
+        var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
+        valid = valid && editChatLineTrigger !== "" && !isNaN(editChatLineTrigger) && Number(editChatLineTrigger) >= 5;
+    }
     editBtn.disabled = !valid;
 }
 
@@ -553,11 +668,14 @@ function validateForm() {
         document.getElementById('messageError').style.display = 'block';
         return false;
     }
-    // Interval validation
-    const intervalInput = document.getElementById('interval');
-    if (intervalInput.value < 5 || intervalInput.value > 60) {
-        document.getElementById('intervalError').style.display = 'block';
-        return false;
+    // Validate trigger-type-specific field
+    const triggerType = document.getElementById('trigger_type').value;
+    if (triggerType === 'timer' || triggerType === 'both') {
+        const intervalInput = document.getElementById('interval');
+        if (intervalInput.value < 5 || intervalInput.value > 60) {
+            document.getElementById('intervalError').style.display = 'block';
+            return false;
+        }
     }
     return true;
 }
@@ -582,6 +700,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // SweetAlert2 for remove confirmation
 document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('edit_trigger_type')) toggleEditTriggerType();
     toggleEditButton();
     toggleRemoveButton();
     var removeForm = document.getElementById('removeMessageForm');
@@ -610,6 +729,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Call the function initially to pre-fill the fields if a default message is selected
 window.onload = function() {
+    toggleAddTriggerType();
     showResponse();
     updateCharCount('message', 'charCount');
     showMessage();
@@ -626,14 +746,29 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('message').addEventListener('input', toggleAddButton);
     document.getElementById('interval').addEventListener('input', toggleAddButton);
     document.getElementById('chat_line_trigger').addEventListener('input', toggleAddButton);
-    document.getElementById('edit_interval').addEventListener('input', toggleEditButton);
-    document.getElementById('edit_chat_line_trigger').addEventListener('input', toggleEditButton);
-    document.getElementById('edit_message_content').addEventListener('input', function() {
+    document.getElementById('trigger_type').addEventListener('change', function() {
+        toggleAddTriggerType();
+        toggleAddButton();
+    });
+    var editTriggerTypeEl = document.getElementById('edit_trigger_type');
+    if (editTriggerTypeEl) {
+        editTriggerTypeEl.addEventListener('change', function() {
+            toggleEditTriggerType();
+        });
+    }
+    var editIntervalEl = document.getElementById('edit_interval');
+    if (editIntervalEl) editIntervalEl.addEventListener('input', toggleEditButton);
+    var editChatLineEl = document.getElementById('edit_chat_line_trigger');
+    if (editChatLineEl) editChatLineEl.addEventListener('input', toggleEditButton);
+    var editMsgContentEl = document.getElementById('edit_message_content');
+    if (editMsgContentEl) editMsgContentEl.addEventListener('input', function() {
         updateCharCount('edit_message_content', 'editCharCount');
         toggleEditButton();
     });
-    document.getElementById('edit_status').addEventListener('change', toggleEditButton);
-    document.getElementById('edit_message').addEventListener('change', function() {
+    var editStatusEl = document.getElementById('edit_status');
+    if (editStatusEl) editStatusEl.addEventListener('change', toggleEditButton);
+    var editMessageSelectEl = document.getElementById('edit_message');
+    if (editMessageSelectEl) editMessageSelectEl.addEventListener('change', function() {
         showResponse();
         toggleEditButton();
     });

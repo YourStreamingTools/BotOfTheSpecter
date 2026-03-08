@@ -10835,7 +10835,7 @@ async def update_timed_messages():
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
             # Fetch all enabled messages
-            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger FROM timed_messages WHERE status = 1")
+            await cursor.execute("SELECT id, interval_count, message, status, chat_line_trigger, trigger_type FROM timed_messages WHERE status = 1")
             current_messages = await cursor.fetchall()
             if not current_messages:
                 return
@@ -10865,7 +10865,8 @@ async def update_timed_messages():
                 # Check if message content or settings have changed
                 if (current_row["message"] != active_row["message"] or
                     current_row["interval_count"] != active_row["interval_count"] or
-                    current_row["chat_line_trigger"] != active_row["chat_line_trigger"]):
+                    current_row["chat_line_trigger"] != active_row["chat_line_trigger"] or
+                    current_row.get("trigger_type", "timer") != active_row.get("trigger_type", "timer")):
                     # Restart the message with new settings
                     await stop_timed_message(message_id)
                     await start_timed_message(message_id, current_row)
@@ -10881,24 +10882,27 @@ async def start_timed_message(message_id, row):
     message = row["message"]
     interval = row["interval_count"]
     chat_line_trigger = row["chat_line_trigger"]
+    trigger_type = row.get("trigger_type", "timer")
     # Store message details in memory
     active_timed_messages[message_id] = dict(row)
-    # If interval_count is set, this is an interval-based message
-    if interval and int(interval) > 0:
-        interval_mins = max(5, min(60, int(interval)))
-        wait_time = interval_mins * 60
-        task = create_task(send_interval_message(message_id, message, wait_time))
-        message_tasks[message_id] = task
-        scheduled_tasks.add(task)
-        chat_logger.info(f"Started interval message ID: {message_id} every {interval_mins} minutes")
-    # If chat_line_trigger is set, also track by chat line count
-    if chat_line_trigger and int(chat_line_trigger) > 0:
-        chat_trigger_tasks[message_id] = {
-            "chat_line_trigger": int(chat_line_trigger),
-            "message": message,
-            "last_trigger_count": chat_line_count
-        }
-        chat_logger.info(f"Started chat count message ID: {message_id} - trigger after {chat_line_trigger} messages")
+    if trigger_type in ("timer", "both"):
+        # Timer-based: fire on a fixed minute interval
+        if interval and int(interval) > 0:
+            interval_mins = max(5, min(60, int(interval)))
+            wait_time = interval_mins * 60
+            task = create_task(send_interval_message(message_id, message, wait_time))
+            message_tasks[message_id] = task
+            scheduled_tasks.add(task)
+            chat_logger.info(f"Started timer message ID: {message_id} every {interval_mins} minutes")
+    if trigger_type in ("chat_lines", "both"):
+        # Chat-line-based: fire after N non-command chat messages
+        if chat_line_trigger and int(chat_line_trigger) > 0:
+            chat_trigger_tasks[message_id] = {
+                "chat_line_trigger": int(chat_line_trigger),
+                "message": message,
+                "last_trigger_count": chat_line_count
+            }
+            chat_logger.info(f"Started chat-lines message ID: {message_id} - trigger after {chat_line_trigger} chat lines")
 
 async def stop_timed_message(message_id):
     global active_timed_messages, message_tasks, chat_trigger_tasks, scheduled_tasks
