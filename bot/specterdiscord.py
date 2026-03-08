@@ -3514,8 +3514,10 @@ class BotOfTheSpecter(commands.Bot):
         except discord.Forbidden as e:
             self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{channel.name} (ID: {channel.id})")
             self.logger.error(f"   Error: {e}")
+            await self._send_failure_dm(guild, "Stream status update", channel.name, f"Permission denied — bot cannot post messages in #{channel.name}. Please grant Send Messages permission.")
         except Exception as e:
             self.logger.error(f"❌ Failed to send status message to #{channel.name}: {type(e).__name__}: {e}")
+            await self._send_failure_dm(guild, "Stream status update", channel.name, f"Unexpected error ({type(e).__name__}) posting to #{channel.name}: {e}")
         # Send notification to stream_channel_id for online events
         # Always check database first to ensure we have the latest channel settings
         databases_checked = []
@@ -3773,12 +3775,15 @@ class BotOfTheSpecter(commands.Bot):
                             break
                     else:
                         self.logger.error(f"❌ Discord HTTP error renaming channel: {e.status} - {e.text}")
+                        await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Discord HTTP error {e.status} renaming #{channel.name}: {e.text}")
                         break
                 except discord.Forbidden:
                     self.logger.error(f"❌ PERMISSION DENIED: Cannot rename channel #{channel.name} (ID: {channel.id}). Check 'Manage Channels' permission!")
+                    await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Permission denied — bot lacks Manage Channels permission for #{channel.name}.")
                     break
                 except Exception as e:
                     self.logger.error(f"❌ Failed to update channel name: {type(e).__name__}: {e}")
+                    await self._send_failure_dm(guild, "Stream channel rename", channel.name, f"Unexpected error ({type(e).__name__}) renaming #{channel.name}: {e}")
                     break
         else:
             self.logger.info(f"Channel name already matches target '{channel_update}' - skipping rename")
@@ -4381,6 +4386,7 @@ class TicketCog(commands.Cog, name='Tickets'):
                 self.logger.info(f"Ticket #{ticket_id} closed and archived successfully")
             except discord.Forbidden:
                 self.logger.error(f"Missing permissions to modify channel for ticket #{ticket_id}")
+                await self.bot._send_failure_dm(channel.guild, "Ticket closure", f"ticket #{ticket_id} in #{channel.name}", f"Permission denied — bot cannot modify/move ticket channel #{channel.name}. Please grant Manage Channels permission.")
                 raise
             except Exception as e:
                 self.logger.error(f"Error archiving ticket #{ticket_id}: {e}")
@@ -6680,11 +6686,13 @@ class RoleButton(discord.ui.Button):
                     self.logger.error(f"[ROLE_BUTTON] Forbidden error when removing role: {e}")
                     await interaction.followup.send("❌ I don't have permission to remove this role. Please contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to remove role '{self.role.name}' from {member.name}#{member.discriminator}")
+                    await interaction.client._send_failure_dm(interaction.guild, "Role removal", f"Role '{self.role.name}' from {member.name}", f"Permission denied — bot cannot remove role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when removing role: {type(e).__name__} - {e}")
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
                     await interaction.followup.send("❌ An error occurred while removing the role. Please try again or contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Error removing role '{self.role.name}' from {member.name}#{member.discriminator}: {e}")
+                    await interaction.client._send_failure_dm(interaction.guild, "Role removal", f"Role '{self.role.name}' from {member.name}", f"Unexpected error ({type(e).__name__}): {e}")
             else:
                 try:
                     self.logger.info(f"[ROLE_BUTTON] User doesn't have role, attempting to add...")
@@ -6696,11 +6704,13 @@ class RoleButton(discord.ui.Button):
                     self.logger.error(f"[ROLE_BUTTON] Forbidden error when adding role: {e}")
                     await interaction.followup.send("❌ I don't have permission to assign this role. Please contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Missing permissions to assign role '{self.role.name}' to {member.name}#{member.discriminator}")
+                    await interaction.client._send_failure_dm(interaction.guild, "Role assignment", f"Role '{self.role.name}' to {member.name}", f"Permission denied — bot cannot assign role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
                 except Exception as e:
                     self.logger.error(f"[ROLE_BUTTON] Exception when adding role: {type(e).__name__} - {e}")
                     self.logger.error(f"[ROLE_BUTTON] Traceback: {traceback.format_exc()}")
                     await interaction.followup.send("❌ An error occurred while assigning the role. Please try again or contact a server administrator.", ephemeral=True)
                     self.logger.error(f"[ROLE_BUTTON] Error assigning role '{self.role.name}' to {member.name}#{member.discriminator}: {e}")
+                    await interaction.client._send_failure_dm(interaction.guild, "Role assignment", f"Role '{self.role.name}' to {member.name}", f"Unexpected error ({type(e).__name__}): {e}")
         except Exception as e:
             self.logger.error(f"[ROLE_BUTTON] Unexpected error in RoleButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
             self.logger.error(f"[ROLE_BUTTON] Full traceback: {traceback.format_exc()}")
@@ -6767,6 +6777,7 @@ class RulesAcceptButton(discord.ui.Button):
                     ephemeral=True
                 )
                 self.logger.error(f"[RULES_ACCEPT] Missing permissions to assign rules role '{self.role.name}' to {user.name}#{user.discriminator}")
+                await interaction.client._send_failure_dm(interaction.guild, "Rules role assignment", f"Role '{self.role.name}' to {user.name}", f"Permission denied — bot cannot assign rules acceptance role '{self.role.name}'. Check role hierarchy and Manage Roles permission.")
             except Exception as e:
                 self.logger.error(f"[RULES_ACCEPT] Exception when assigning role: {type(e).__name__} - {e}")
                 self.logger.error(f"[RULES_ACCEPT] Traceback: {traceback.format_exc()}")
@@ -6775,6 +6786,7 @@ class RulesAcceptButton(discord.ui.Button):
                     ephemeral=True
                 )
                 self.logger.error(f"[RULES_ACCEPT] Error assigning rules role '{self.role.name}' to {user.name}#{user.discriminator}: {e}")
+                await interaction.client._send_failure_dm(interaction.guild, "Rules role assignment", f"Role '{self.role.name}' to {user.name}", f"Unexpected error ({type(e).__name__}): {e}")
         except Exception as e:
             self.logger.error(f"[RULES_ACCEPT] Unexpected error in RulesAcceptButton callback for user {interaction.user.name}#{interaction.user.discriminator}: {type(e).__name__} - {e}")
             self.logger.error(f"[RULES_ACCEPT] Full traceback: {traceback.format_exc()}")
@@ -9135,6 +9147,7 @@ class ModerationCog(commands.Cog, name='Moderation'):
             except discord.Forbidden:
                 await ctx.send("❌ I don't have permission to delete messages in this channel.", delete_after=5)
                 self.logger.error(f"Missing permissions to purge messages in #{ctx.channel.name} ({ctx.channel.id})")
+                await self.bot._send_failure_dm(ctx.guild, "Message purge", f"#{ctx.channel.name}", f"Permission denied — bot cannot delete messages in #{ctx.channel.name}. Please grant Manage Messages permission.")
                 break
             except Exception as e:
                 await ctx.send(f"❌ An unexpected error occurred: {e}", delete_after=5)
