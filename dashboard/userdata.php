@@ -1,5 +1,5 @@
 <?php
-$isActAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
+$isActAs = !defined('ADMIN_PANEL_CONTEXT') && isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
 $sessionAccessToken = $_SESSION['access_token'] ?? null;
 $originalContext = (isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original']))
     ? $_SESSION['admin_act_as_original']
