@@ -7,7 +7,7 @@ from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, timezone, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 from logging import getLogger
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
@@ -12348,7 +12348,7 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Apply all replacements in a loop until no more variables are found
                     max_iterations = 8
                     iteration = 0
-                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(customapi.', '(json.']
+                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(message)', '(customapi.', '(json.']
                     while iteration < max_iterations:
                         iteration += 1
                         has_vars = any(var in custom_message for var in vars_to_replace if var not in ('(customapi.', '(json.'))
@@ -12417,6 +12417,9 @@ async def process_channel_point_rewards(event_data, event_type):
                             tts_message = event_data.get("user_input", "")
                             create_task(websocket_notice(event="TTS", text=tts_message))
                             replacements['(tts)'] = ""
+                        # Handle (message)
+                        if '(message)' in custom_message:
+                            replacements['(message)'] = event_data.get("user_input", "")
                         # Handle (lotto)
                         if '(lotto)' in custom_message:
                             winning_numbers_str = await generate_user_lotto_numbers(user_name)
@@ -12432,11 +12435,13 @@ async def process_channel_point_rewards(event_data, event_type):
                         # Handle (customapi.) after other replacements are available
                         if '(customapi.' in custom_message:
                             placeholders = extract_customapi_placeholders(custom_message)
+                            user_input_value = event_data.get("user_input", "")
                             for full_placeholder, url in placeholders:
                                 json_flag = False
                                 if url.startswith('json.'):
                                     json_flag = True
                                     url = url[5:]
+                                url = url.replace('(message)', quote(user_input_value, safe=''))
                                 if json_flag:
                                     api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
                                     if api_response == "Error":
