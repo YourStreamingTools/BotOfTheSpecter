@@ -9743,6 +9743,7 @@ async def update_twitch_game(game_name: str):
 
 # Helper function to check if user has received automated shoutout today
 async def get_automated_shoutout_cooldown():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9752,6 +9753,9 @@ async def get_automated_shoutout_cooldown():
                 return max(60, int(result['cooldown_minutes']))  # Enforce minimum of 60 minutes
     except Exception as e:
         twitch_logger.error(f"Error fetching automated shoutout cooldown: {e}")
+    finally:
+        if connection:
+            await connection.release()
     return 60  # Default to 60 minutes
 
 # Normalize user IDs used for shoutout cooldown tracking
@@ -9785,6 +9789,7 @@ async def record_automated_shoutout(user_id, user_name):
     recent_shoutouts[normalized_user_id] = now
     twitch_logger.info(f"Recorded automated shoutout for {user_name} (user_id: {user_id}) at {now}")
     # Store in database
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9797,9 +9802,13 @@ async def record_automated_shoutout(user_id, user_name):
             await connection.commit()
     except Exception as e:
         twitch_logger.error(f"Error storing automated shoutout in database: {e}")
+    finally:
+        if connection:
+            await connection.release()
 
 # Helper function to load automated shoutout tracking from database
 async def load_automated_shoutout_tracking():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9810,9 +9819,13 @@ async def load_automated_shoutout_tracking():
             twitch_logger.info(f"Loaded {len(results)} automated shoutout tracking entries from database")
     except Exception as e:
         twitch_logger.error(f"Error loading automated shoutout tracking: {e}")
+    finally:
+        if connection:
+            await connection.release()
 
 # Helper function to clear automated shoutout tracking
 async def clear_automated_shoutout_tracking():
+    connection = None
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
@@ -9822,6 +9835,9 @@ async def clear_automated_shoutout_tracking():
         twitch_logger.info("Cleared automated shoutout tracking")
     except Exception as e:
         twitch_logger.error(f"Error clearing automated shoutout tracking: {e}")
+    finally:
+        if connection:
+            await connection.release()
 
 # Background task to cleanup expired shoutout entries
 async def cleanup_expired_shoutouts():
@@ -9838,16 +9854,21 @@ async def cleanup_expired_shoutouts():
             if expired_user_ids:
                 twitch_logger.info(f"Removed {len(expired_user_ids)} expired shoutout entries from memory")
             # Remove expired entries from database
-            connection = await mysql_handler.get_connection()
-            async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute(
-                    "DELETE FROM automated_shoutout_tracking WHERE shoutout_time < %s",
-                    (cutoff_time,)
-                )
-                deleted_count = cursor.rowcount
-                await connection.commit()
-                if deleted_count > 0:
-                    twitch_logger.info(f"Removed {deleted_count} expired shoutout entries from database")
+            db_conn = None
+            try:
+                db_conn = await mysql_handler.get_connection()
+                async with db_conn.cursor(DictCursor) as cursor:
+                    await cursor.execute(
+                        "DELETE FROM automated_shoutout_tracking WHERE shoutout_time < %s",
+                        (cutoff_time,)
+                    )
+                    deleted_count = cursor.rowcount
+                    await db_conn.commit()
+                    if deleted_count > 0:
+                        twitch_logger.info(f"Removed {deleted_count} expired shoutout entries from database")
+            finally:
+                if db_conn:
+                    await db_conn.release()
         except Exception as e:
             twitch_logger.error(f"Error in cleanup_expired_shoutouts: {e}")
             await sleep(60)  # Wait a minute before retrying on error
@@ -9887,9 +9908,7 @@ async def shoutout_worker():
         if trigger_api:
             shoutout_sent = await trigger_twitch_shoutout(user_to_shoutout, user_id)
             if not shoutout_sent:
-                twitch_logger.info(f"Shoutout was not sent for {user_to_shoutout}; skipping shoutout chat line. [source={source}]")
-                shoutout_queue.task_done()
-                continue
+                twitch_logger.info(f"Twitch API shoutout failed for {user_to_shoutout}; still sending chat message. [source={source}]")
         if shoutout_message:
             await send_chat_message(shoutout_message)
         twitch_logger.info(f"Shoutout processed for {user_to_shoutout}. [source={source}]")
@@ -9905,38 +9924,46 @@ async def shoutout_worker():
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, user_id):
+    connection = None
     try:
         connection = await mysql_handler.get_connection(db_name="website")
     except Exception as e:
         twitch_logger.error(f"Database connection error while fetching bot access token: {e}")
         return False
-    async with connection.cursor(DictCursor) as cursor:
-        bot_id = "971436498"
-        await cursor.execute(f"SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = {bot_id} LIMIT 1")
-        result = await cursor.fetchone()
-        bot_auth = result.get('twitch_access_token')
-        url = 'https://api.twitch.tv/helix/chat/shoutouts'
-        headers = {
-            "Authorization": f"Bearer {bot_auth}",
-            "Client-ID": CLIENT_ID,
-        }
-        payload = {
-            "from_broadcaster_id": CHANNEL_ID,
-            "to_broadcaster_id": user_id,
-            "moderator_id": bot_id
-        }
-        try:
-            async with httpClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    if response.status in (200, 204):
-                        twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
-                        return True
-                    else:
-                        twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
-                        return False
-        except aiohttpClientError as e:
-            twitch_logger.error(f"Error triggering shoutout: {e}")
-            return False
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            bot_id = "971436498"
+            await cursor.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1", (bot_id,))
+            result = await cursor.fetchone()
+            bot_auth = result.get('twitch_access_token') if result else None
+            if not bot_auth:
+                twitch_logger.error(f"No bot access token found for bot_id={bot_id}")
+                return False
+            url = 'https://api.twitch.tv/helix/chat/shoutouts'
+            headers = {
+                "Authorization": f"Bearer {bot_auth}",
+                "Client-ID": CLIENT_ID,
+            }
+            payload = {
+                "from_broadcaster_id": CHANNEL_ID,
+                "to_broadcaster_id": user_id,
+                "moderator_id": bot_id
+            }
+            try:
+                async with httpClientSession() as session:
+                    async with session.post(url, headers=headers, json=payload) as response:
+                        if response.status in (200, 204):
+                            twitch_logger.info(f"Shoutout triggered successfully for {user_to_shoutout}.")
+                            return True
+                        else:
+                            twitch_logger.error(f"Failed to trigger shoutout. Status: {response.status}. Message: {await response.text()}")
+                            return False
+            except aiohttpClientError as e:
+                twitch_logger.error(f"Error triggering shoutout: {e}")
+                return False
+    finally:
+        if connection:
+            await connection.release()
 
 # Function to get the last stream category for a user to shoutout
 async def get_latest_stream_game(broadcaster_id, user_to_shoutout):
