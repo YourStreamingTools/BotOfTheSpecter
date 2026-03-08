@@ -1991,6 +1991,7 @@ class BotOfTheSpecter(commands.Bot):
         self.live_channel_manager = LiveChannelManager(self, self.logger)
         self.mysql_helper = MySQLHelper(logger=discord_logger)
         self.cooldowns = {}
+        self._stream_alert_locks = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
             # Voice commands
@@ -3541,164 +3542,183 @@ class BotOfTheSpecter(commands.Bot):
                     mysql_helper = MySQLHelper(self.logger)
                     user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
                     account_username = user_row['username'] if user_row else "Unknown User"
-                    # Get stream alert settings from database
-                    discord_info = await mysql_helper.fetchone(
-                        "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
-                        (guild.id,), database_name='website', dict_cursor=True)
-                    mention_text = ""
-                    if discord_info:
-                        if discord_info.get('stream_alert_everyone') == 1:
-                            mention_text = "@everyone "
-                        elif discord_info.get('stream_alert_custom_role'):
-                            try:
-                                role_id = int(discord_info['stream_alert_custom_role'])
-                                role = guild.get_role(role_id)
-                                if role:
-                                    mention_text = f"{role.mention} "
-                            except (ValueError, TypeError):
-                                self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
-                    else:
-                        self.logger.info("No discord_info found for guild")
-                    self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
-                    # Decide if we should skip this posting due to existing notification already sent
-                    skip_post = False
-                    try:
-                        # Check if we've already posted a live notification for this user in THIS specific guild
-                        existing_notification = await mysql_helper.fetchone(
-                            "SELECT * FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
-                            (guild.id, str(account_username).lower()),
-                            database_name='specterdiscordbot',
-                            dict_cursor=True
-                        )
-                        if existing_notification:
-                            # Check if the notification is stale (older than 6 hours)
-                            posted_at = existing_notification.get('posted_at')
-                            self.logger.debug(f"Checking notification age: posted_at={posted_at}, type={type(posted_at)}")
-                            if posted_at:
+                    alert_lock_key = (guild.id, str(account_username).lower())
+                    if alert_lock_key not in self._stream_alert_locks:
+                        self._stream_alert_locks[alert_lock_key] = asyncio.Lock()
+                    async with self._stream_alert_locks[alert_lock_key]:
+                        # Get stream alert settings from database
+                        discord_info = await mysql_helper.fetchone(
+                            "SELECT stream_alert_everyone, stream_alert_custom_role FROM discord_users WHERE guild_id = %s",
+                            (guild.id,), database_name='website', dict_cursor=True)
+                        mention_text = ""
+                        if discord_info:
+                            if discord_info.get('stream_alert_everyone') == 1:
+                                mention_text = "@everyone "
+                            elif discord_info.get('stream_alert_custom_role'):
                                 try:
-                                    # Handle both datetime objects and timezone-aware datetimes
-                                    if isinstance(posted_at, datetime):
-                                        if posted_at.tzinfo is None:
-                                            time_diff = datetime.now(timezone.utc) - posted_at.replace(tzinfo=timezone.utc)
+                                    role_id = int(discord_info['stream_alert_custom_role'])
+                                    role = guild.get_role(role_id)
+                                    if role:
+                                        mention_text = f"{role.mention} "
+                                except (ValueError, TypeError):
+                                    self.logger.warning(f"Invalid custom role ID for guild {guild.id}: {discord_info['stream_alert_custom_role']}")
+                        else:
+                            self.logger.info("No discord_info found for guild")
+                        self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
+                        skip_post = False
+                        try:
+                            # Check if we've already posted a live notification for this user in THIS specific guild
+                            existing_notification = await mysql_helper.fetchone(
+                                "SELECT * FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
+                                (guild.id, str(account_username).lower()),
+                                database_name='specterdiscordbot',
+                                dict_cursor=True
+                            )
+                            if existing_notification:
+                                posted_at = existing_notification.get('posted_at')
+                                is_stale = False
+                                if posted_at:
+                                    try:
+                                        if isinstance(posted_at, datetime):
+                                            if posted_at.tzinfo is None:
+                                                time_diff = datetime.now(timezone.utc) - posted_at.replace(tzinfo=timezone.utc)
+                                            else:
+                                                time_diff = datetime.now(timezone.utc) - posted_at
+                                            if time_diff > timedelta(hours=6):
+                                                is_stale = True
+                                                self.logger.info(f"Notification for {account_username} in guild {guild.id} is {time_diff.total_seconds()/3600:.1f}h old - verifying stream is still live")
+                                            else:
+                                                self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at} ({time_diff.total_seconds()/3600:.1f}h ago) - skipping")
+                                                skip_post = True
                                         else:
-                                            time_diff = datetime.now(timezone.utc) - posted_at
-                                    else:
-                                        # If it's a string, skip the age check and just use the notification
-                                        self.logger.warning(f"posted_at is not a datetime object, it's {type(posted_at)}: {posted_at}")
-                                        self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at}")
+                                            # Can't parse age; treat as fresh and skip
+                                            self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at} - skipping")
+                                            skip_post = True
+                                    except Exception as time_check_err:
+                                        self.logger.error(f"Error checking notification age for {account_username}: {time_check_err}", exc_info=True)
                                         skip_post = True
-                                        time_diff = None
-                                    if time_diff and time_diff > timedelta(hours=6):
-                                        self.logger.warning(f"Found stale notification for {account_username} in guild {guild.id} from {posted_at} ({time_diff.total_seconds()/3600:.1f}h ago) - treating as expired")
-                                        # Delete the stale notification
-                                        try:
+                                else:
+                                    # No timestamp but record exists — skip
+                                    self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} - skipping")
+                                    skip_post = True
+                                # If stale, check Twitch to see if they're actually still live
+                                if is_stale:
+                                    try:
+                                        still_live = False
+                                        auth_token = await mysql_helper.get_bot_access_token()
+                                        if auth_token:
+                                            async with aiohttp.ClientSession() as check_session:
+                                                headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
+                                                async with check_session.get(
+                                                    f"https://api.twitch.tv/helix/streams?user_login={account_username}&type=live&first=1",
+                                                    headers=headers
+                                                ) as resp:
+                                                    if resp.status == 200:
+                                                        resp_data = await resp.json()
+                                                        still_live = bool(resp_data.get("data"))
+                                        if still_live:
+                                            self.logger.info(f"{account_username} is still live after 6h - skipping re-post")
+                                            skip_post = True
+                                        else:
+                                            self.logger.warning(f"Stale notification found for {account_username} in guild {guild.id} but stream is no longer live - deleting expired record")
                                             await mysql_helper.execute(
                                                 "DELETE FROM live_notifications WHERE guild_id = %s AND LOWER(username) = %s",
                                                 (guild.id, str(account_username).lower()),
                                                 database_name='specterdiscordbot'
                                             )
-                                            self.logger.info(f"Deleted stale notification for {account_username} in guild {guild.id}")
-                                        except Exception as e:
-                                            self.logger.error(f"Error deleting stale notification: {e}")
-                                    elif time_diff:
-                                        self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at} ({time_diff.total_seconds()/3600:.1f}h ago)")
+                                            # skip_post remains False so we re-post when they go live again
+                                    except Exception as live_check_err:
+                                        self.logger.error(f"Error verifying live status for stale notification ({account_username}): {live_check_err}", exc_info=True)
+                                        # Can't confirm either way — keep skipping to avoid duplicate spam
                                         skip_post = True
-                                except Exception as time_check_err:
-                                    self.logger.error(f"Error checking notification age for {account_username}: {time_check_err}", exc_info=True)
-                                    # If we can't check the age, assume it's fresh and skip
-                                    self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at} (age check failed)")
-                                    skip_post = True
-                            else:
-                                self.logger.info(f"Live notification already posted for {account_username} in guild {guild.id} at {posted_at}")
-                                skip_post = True
-                    except Exception as e:
-                        self.logger.error(f"Error checking existing live notifications for {account_username}: {e}", exc_info=True)
-                    # Get user profile image and stream info
-                    if skip_post:
-                        self.logger.info(f"Skipping live notification for {account_username} - already posted to guild {guild.id}")
-                    else:
-                        self.logger.info(f"Fetching user profile image and stream info for {account_username}")
-                        profile_image_url = await self.get_user_profile_image(account_username)
-                        self.logger.info(f"User profile image - {profile_image_url}")
-                        game_name, stream_title = await self.get_stream_info(account_username)
-                        self.logger.info(f"Stream info - Game: {game_name}, Title: {stream_title}")
-                        # Get current date for footer
-                        self.logger.info(f"Getting timestamp for embed footer...")
-                        current_date = await self.format_discord_embed_timestamp(code)
-                        self.logger.info(f"Timestamp retrieved: {current_date}")
-                        # Create embed
-                        embed = discord.Embed(
-                            title=f"{account_username} is now live on Twitch!",
-                            url=f"https://twitch.tv/{account_username}",
-                            description=f"Stream is now online!\nStreaming: {game_name}\nStream Title: {stream_title}",
-                            color=discord.Color.from_rgb(145, 70, 255)
-                        )
-                        # Set thumbnail to user profile image
-                        profile_image_to_use = profile_image_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
-                        embed.set_thumbnail(url=profile_image_to_use)
-                        self.logger.info(f"Using profile image: {profile_image_to_use}")
-                        # Set footer
-                        embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
-                        self.logger.info(f"Attempting to send live notification to #{stream_channel.name} (ID: {stream_channel.id}) with mention: '{mention_text.strip() or 'none'}'")
-                        sent_success = False
-                        try:
-                            message = await stream_channel.send(content=mention_text, embed=embed)
-                            sent_success = True
-                            self.logger.info(f"✅ SUCCESS: Sent live notification (message ID: {message.id}) for {account_username} in #{stream_channel.name}")
-                        except discord.Forbidden as e:
-                            self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
-                            self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
-                            self.logger.error(f"   Error details: {e}")
-                        except discord.HTTPException as e:
-                            self.logger.error(f"❌ Discord HTTP error sending notification to #{stream_channel.name}: Status {e.status}")
-                            self.logger.error(f"   Response: {e.text}")
                         except Exception as e:
-                            self.logger.error(f"❌ Unexpected error sending live notification to #{stream_channel.name}: {type(e).__name__}")
-                            self.logger.error(f"   Details: {e}")
-                            self.logger.error(f"   Traceback: {traceback.format_exc()}")
-                        # After send attempt, if successful persist the live notification and mark online
-                        if sent_success:
+                            self.logger.error(f"Error checking existing live notifications for {account_username}: {e}", exc_info=True)
+                        # Get user profile image and stream info
+                        if skip_post:
+                            self.logger.info(f"Skipping live notification for {account_username} - already posted to guild {guild.id}")
+                        else:
+                            self.logger.info(f"Fetching user profile image and stream info for {account_username}")
+                            profile_image_url = await self.get_user_profile_image(account_username)
+                            self.logger.info(f"User profile image - {profile_image_url}")
+                            game_name, stream_title = await self.get_stream_info(account_username)
+                            self.logger.info(f"Stream info - Game: {game_name}, Title: {stream_title}")
+                            # Get current date for footer
+                            self.logger.info(f"Getting timestamp for embed footer...")
+                            current_date = await self.format_discord_embed_timestamp(code)
+                            self.logger.info(f"Timestamp retrieved: {current_date}")
+                            # Create embed
+                            embed = discord.Embed(
+                                title=f"{account_username} is now live on Twitch!",
+                                url=f"https://twitch.tv/{account_username}",
+                                description=f"Stream is now online!\nStreaming: {game_name}\nStream Title: {stream_title}",
+                                color=discord.Color.from_rgb(145, 70, 255)
+                            )
+                            # Set thumbnail to user profile image
+                            profile_image_to_use = profile_image_url or "https://static-cdn.jtvnw.net/ttv-static/404_preview-1280x720.jpg"
+                            embed.set_thumbnail(url=profile_image_to_use)
+                            self.logger.info(f"Using profile image: {profile_image_to_use}")
+                            # Set footer
+                            embed.set_footer(text=f"Auto posted by BotOfTheSpecter | {current_date}")
+                            self.logger.info(f"Attempting to send live notification to #{stream_channel.name} (ID: {stream_channel.id}) with mention: '{mention_text.strip() or 'none'}'")
+                            sent_success = False
                             try:
-                                posted_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-                                started_at = posted_at
-                                # Fetch stream_id and full stream details from Twitch API
-                                stream_id = None
-                                twitch_user_id = None
-                                stream_data = None
-                                try:
-                                    user_row = await mysql_helper.fetchone(
-                                        "SELECT twitch_user_id FROM users WHERE LOWER(username) = %s",
-                                        (str(account_username).lower(),), database_name='website', dict_cursor=True
-                                    )
-                                    if user_row and user_row.get('twitch_user_id'):
-                                        twitch_user_id = user_row['twitch_user_id']
-                                        # Use bot's access token
-                                        auth_token = await mysql_helper.get_bot_access_token()
-                                        if auth_token:
-                                            async with aiohttp.ClientSession() as session:
-                                                headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
-                                                async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
-                                                    if resp.status == 200:
-                                                        data = await resp.json()
-                                                        stream_data = data.get("data", [{}])[0]
-                                                        stream_id = stream_data.get("id")
-                                except Exception as e:
-                                    self.logger.debug(f"Error fetching stream_id from Twitch API for {account_username}: {e}")
-                                # Use stream_id or empty string as fallback (database may require non-null)
-                                stream_id = stream_id or ""
-                                await mysql_helper.insert_live_notification(guild.id, account_username, stream_id, started_at, posted_at)
-                                if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
-                                    # Pass twitch_user_id and stream_data to properly populate online_streams table
-                                    await self.live_channel_manager.mark_online(
-                                        code,
-                                        username=account_username,
-                                        twitch_user_id=twitch_user_id,
-                                        stream_id=stream_id or None,
-                                        started_at=started_at,
-                                        details=stream_data
-                                    )
+                                message = await stream_channel.send(content=mention_text, embed=embed)
+                                sent_success = True
+                                self.logger.info(f"✅ SUCCESS: Sent live notification (message ID: {message.id}) for {account_username} in #{stream_channel.name}")
+                            except discord.Forbidden as e:
+                                self.logger.error(f"❌ PERMISSION DENIED: Cannot send messages in #{stream_channel.name} (ID: {stream_channel.id})!")
+                                self.logger.error(f"   Missing permissions. Bot needs: View Channel, Send Messages, Embed Links")
+                                self.logger.error(f"   Error details: {e}")
+                            except discord.HTTPException as e:
+                                self.logger.error(f"❌ Discord HTTP error sending notification to #{stream_channel.name}: Status {e.status}")
+                                self.logger.error(f"   Response: {e.text}")
                             except Exception as e:
-                                self.logger.debug(f"Error persisting live notification or marking online for {code}: {e}")
+                                self.logger.error(f"❌ Unexpected error sending live notification to #{stream_channel.name}: {type(e).__name__}")
+                                self.logger.error(f"   Details: {e}")
+                                self.logger.error(f"   Traceback: {traceback.format_exc()}")
+                            # After send attempt, if successful persist the live notification and mark online
+                            if sent_success:
+                                try:
+                                    posted_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                                    started_at = posted_at
+                                    # Fetch stream_id and full stream details from Twitch API
+                                    stream_id = None
+                                    twitch_user_id = None
+                                    stream_data = None
+                                    try:
+                                        user_row = await mysql_helper.fetchone(
+                                            "SELECT twitch_user_id FROM users WHERE LOWER(username) = %s",
+                                            (str(account_username).lower(),), database_name='website', dict_cursor=True
+                                        )
+                                        if user_row and user_row.get('twitch_user_id'):
+                                            twitch_user_id = user_row['twitch_user_id']
+                                            # Use bot's access token
+                                            auth_token = await mysql_helper.get_bot_access_token()
+                                            if auth_token:
+                                                async with aiohttp.ClientSession() as session:
+                                                    headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
+                                                    async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
+                                                        if resp.status == 200:
+                                                            data = await resp.json()
+                                                            stream_data = data.get("data", [{}])[0]
+                                                            stream_id = stream_data.get("id")
+                                    except Exception as e:
+                                        self.logger.debug(f"Error fetching stream_id from Twitch API for {account_username}: {e}")
+                                    # Use stream_id or empty string as fallback (database may require non-null)
+                                    stream_id = stream_id or ""
+                                    await mysql_helper.insert_live_notification(guild.id, account_username, stream_id, started_at, posted_at)
+                                    if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
+                                        # Pass twitch_user_id and stream_data to properly populate online_streams table
+                                        await self.live_channel_manager.mark_online(
+                                            code,
+                                            username=account_username,
+                                            twitch_user_id=twitch_user_id,
+                                            stream_id=stream_id or None,
+                                            started_at=started_at,
+                                            details=stream_data
+                                        )
+                                except Exception as e:
+                                    self.logger.debug(f"Error persisting live notification or marking online for {code}: {e}")
                 else:
                     self.logger.warning(f"Stream channel not found for id {stream_channel_id} in guild {guild.id}")
             except Exception as e:
