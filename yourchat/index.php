@@ -319,6 +319,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'load_chat_history') {
             echo json_encode(['success' => true, 'messages' => []]);
             exit;
         }
+        // Check Twitch stream uptime — only return messages saved during the current stream session
+        if (isset($_SESSION['access_token']) && isset($_SESSION['user_id'])) {
+            $ch = curl_init('https://api.twitch.tv/helix/streams?user_id=' . urlencode($_SESSION['user_id']));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $_SESSION['access_token'],
+                'Client-Id: ' . $clientID
+            ]);
+            $streamResponse = curl_exec($ch);
+            $streamHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($streamResponse && $streamHttpCode === 200) {
+                $streamData = json_decode($streamResponse, true);
+                if (!empty($streamData['data']) && isset($streamData['data'][0]['started_at'])) {
+                    $streamStartedAt = strtotime($streamData['data'][0]['started_at']);
+                    // If the history file was last written before this stream started, discard it
+                    if (filemtime($historyFile) < $streamStartedAt) {
+                        echo json_encode(['success' => true, 'messages' => []]);
+                        exit;
+                    }
+                }
+            }
+        }
         $historyData = file_get_contents($historyFile);
         $messages = json_decode($historyData, true);
         if (json_last_error() === JSON_ERROR_NONE && is_array($messages)) {
