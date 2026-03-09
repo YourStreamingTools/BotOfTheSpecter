@@ -564,7 +564,7 @@ else:
     $total   = count($secDocs);
     $visible = count(array_filter($secDocs, fn($d) => $d['is_visible']));
 ?>
-<div class="sp-cms-section-card">
+<div class="sp-cms-section-card" data-sec="<?php echo htmlspecialchars($secKey); ?>">
     <div class="sp-cms-section-head">
         <div class="sp-cms-section-title">
             <i class="<?php echo htmlspecialchars($sec['section_icon']); ?>"></i>
@@ -590,9 +590,13 @@ else:
                class="sp-btn sp-btn-ghost sp-btn-sm" title="View on site">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i>
             </a>
+            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-collapse-toggle" title="Collapse / expand">
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
         </div>
     </div>
 
+    <div class="sp-cms-section-body">
     <?php if (empty($secDocs)): ?>
     <div class="sp-cms-empty-section">
         <i class="fa-solid fa-file-circle-plus"></i>
@@ -675,6 +679,7 @@ else:
         </tbody>
     </table>
     <?php endif; ?>
+    </div><!-- /.sp-cms-section-body -->
 
 </div><!-- /.sp-cms-section-card -->
 <?php endforeach; ?>
@@ -755,6 +760,34 @@ document.addEventListener('DOMContentLoaded', function () {
     Object.keys(snippets).forEach(function (id) {
         var btn = document.getElementById(id);
         if (btn) btn.addEventListener('click', function () { insertSnippet(snippets[id]); });
+    });
+
+    /* ---- Collapsible section cards ---- */
+    var STORAGE_KEY = 'sp_cms_collapsed';
+    function getCollapsed() {
+        try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
+    }
+    function setCollapsed(list) {
+        try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+    }
+    document.querySelectorAll('.sp-cms-section-card[data-sec]').forEach(function (card) {
+        var key = card.dataset.sec;
+        // Restore from session
+        if (getCollapsed().indexOf(key) !== -1) {
+            card.classList.add('collapsed');
+        }
+        card.querySelector('.sp-cms-section-head').addEventListener('click', function (e) {
+            // Don't toggle when clicking links or buttons inside (except the chevron toggle)
+            if (e.target.closest('a, button:not(.sp-collapse-toggle), form')) return;
+            card.classList.toggle('collapsed');
+            var collapsed = getCollapsed();
+            if (card.classList.contains('collapsed')) {
+                if (collapsed.indexOf(key) === -1) collapsed.push(key);
+            } else {
+                collapsed = collapsed.filter(function (k) { return k !== key; });
+            }
+            setCollapsed(collapsed);
+        });
     });
 
 });
