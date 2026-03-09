@@ -393,6 +393,12 @@ if ($action === 'edit' || $action === 'new'):
             </div>
             <textarea id="doc_content" name="doc_content" class="sp-code-editor" spellcheck="false"
                       required placeholder="Enter HTML content here…"><?php echo htmlspecialchars($d['content'] ?? ''); ?></textarea>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.75rem;align-items:center;">
+                <button type="submit" class="sp-btn sp-btn-primary">
+                    <i class="fa-solid fa-floppy-disk"></i> <?php echo $isNew ? 'Create Doc Block' : 'Save Changes'; ?>
+                </button>
+                <a href="/docs.php" class="sp-btn sp-btn-ghost">Cancel</a>
+            </div>
         </div>
         <div class="sp-preview-col">
             <div class="sp-editor-col-header">
@@ -401,13 +407,6 @@ if ($action === 'edit' || $action === 'new'):
             </div>
             <div class="sp-preview-pane sp-doc-content" id="sp-preview"></div>
         </div>
-    </div>
-
-    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.25rem;align-items:center;">
-        <button type="submit" class="sp-btn sp-btn-primary">
-            <i class="fa-solid fa-floppy-disk"></i> <?php echo $isNew ? 'Create Doc Block' : 'Save Changes'; ?>
-        </button>
-        <a href="/docs.php" class="sp-btn sp-btn-ghost">Cancel</a>
     </div>
 </form>
 
