@@ -3396,11 +3396,14 @@ class BotOfTheSpecter(commands.Bot):
     async def get_stream_info(self, channel_name):
         channel_name = channel_name.lower()
         mysql_helper = MySQLHelper(self.logger)
-        twitch_user_id = await mysql_helper.fetchone(
+        twitch_user_id_row = await mysql_helper.fetchone(
             "SELECT twitch_user_id FROM users WHERE LOWER(username) = %s",
             (channel_name,), database_name='website', dict_cursor=True
         )
-        twitch_user_id = twitch_user_id["twitch_user_id"]
+        if not twitch_user_id_row or not twitch_user_id_row.get("twitch_user_id"):
+            self.logger.warning(f"No twitch_user_id found in database for username: {channel_name}")
+            return "Unknown Game", "No Title"
+        twitch_user_id = twitch_user_id_row["twitch_user_id"]
         # Use bot's access token
         auth_token = await mysql_helper.get_bot_access_token()
         if not auth_token:
