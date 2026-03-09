@@ -3059,12 +3059,12 @@ class TwitchBot(commands.Bot):
             try:
                 await hedgehogobrien_module.ensure_tables(mysql_handler)
                 bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
-                await hedgehogobrien_module.handle_ready(
+                create_task(hedgehogobrien_module.handle_ready(
                     broadcaster_id=CHANNEL_ID,
                     mysql_handler=mysql_handler,
                     http_session=_shared_http_session,
                     chat_logger=chat_logger,
-                )
+                ))
             except Exception as _hh_err:
                 bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
