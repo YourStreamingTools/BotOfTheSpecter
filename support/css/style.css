@@ -1400,3 +1400,367 @@ hr {
         min-width: 0;
     }
 }
+
+/* =================================================================
+   STAFF / CMS ADMIN COMPONENTS
+   ================================================================= */
+
+/* ---- Sidebar: staff CMS link ---- */
+.sp-nav-link-staff {
+    border-top: 1px solid var(--border);
+    margin-top: 0.25rem;
+    padding-top: 0.5rem;
+    color: var(--accent) !important;
+}
+.sp-nav-link-staff:hover {
+    background: rgba(124, 92, 191, 0.12) !important;
+}
+
+/* ---- Page header row with title + actions ---- */
+.sp-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+.sp-page-header h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.sp-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-bottom: 0.35rem;
+}
+.sp-back-link:hover { color: var(--accent); }
+
+/* ---- Admin bar in index.php tab panels ---- */
+.sp-admin-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    background: rgba(124, 92, 191, 0.08);
+    border: 1px solid rgba(124, 92, 191, 0.22);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+}
+.sp-admin-bar-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.sp-admin-bar-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+.sp-admin-note {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ---- Doc block wrappers in index.php ---- */
+.sp-doc-block {
+    margin-bottom: 1rem;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    transition: opacity 0.2s;
+}
+.sp-doc-block-hidden {
+    opacity: 0.45;
+    border-style: dashed;
+}
+.sp-doc-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    background: rgba(240, 80, 80, 0.07);
+    border-bottom: 1px solid var(--border);
+}
+.sp-doc-block-actions {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+/* "Add doc block" dashed card in the tab panel */
+.sp-doc-card-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: border-color 0.15s, color 0.15s;
+    margin-top: 0.5rem;
+}
+.sp-doc-card-add:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ---- Badge variants ---- */
+.sp-badge-accent {
+    background: rgba(124, 92, 191, 0.18);
+    color: var(--accent);
+    border: 1px solid rgba(124, 92, 191, 0.3);
+}
+
+/* ---- CMS section list cards ---- */
+.sp-cms-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+.sp-cms-section-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.sp-cms-section-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+}
+.sp-cms-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 1rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.sp-cms-section-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.sp-cms-section-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+.sp-cms-empty-section {
+    padding: 1rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.sp-cms-empty-section a {
+    color: var(--accent);
+    text-decoration: none;
+    font-style: normal;
+}
+.sp-cms-empty-section a:hover { text-decoration: underline; }
+
+/* ---- Compact table ---- */
+.sp-table-compact td,
+.sp-table-compact th {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.82rem;
+}
+.sp-doc-list-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+}
+.sp-doc-list-preview {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+}
+.sp-row-hidden td {
+    opacity: 0.5;
+}
+
+/* ---- Editor split layout ---- */
+.sp-editor-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: start;
+}
+.sp-editor-col,
+.sp-preview-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.sp-editor-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.sp-code-editor {
+    font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    min-height: 480px;
+    resize: vertical;
+    background: #0a0a0c;
+    color: #c5c5d0;
+    border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    padding: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: pre;
+    overflow-x: auto;
+    tab-size: 4;
+}
+.sp-code-editor:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.sp-preview-pane {
+    min-height: 480px;
+    padding: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow-y: auto;
+    word-break: break-word;
+}
+
+/* ---- Toggle (checkbox) ---- */
+.sp-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    user-select: none;
+}
+.sp-toggle-label input[type="checkbox"] {
+    display: none;
+}
+.sp-toggle-track {
+    width: 38px;
+    height: 20px;
+    background: var(--border);
+    border-radius: 999px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+.sp-toggle-label input:checked + .sp-toggle-track {
+    background: var(--accent);
+}
+.sp-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: left 0.2s;
+}
+.sp-toggle-label input:checked + .sp-toggle-track .sp-toggle-thumb {
+    left: 20px;
+}
+.sp-toggle-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* ---- Required asterisk ---- */
+.sp-req {
+    color: var(--red);
+    margin-left: 0.1em;
+}
+
+/* ---- Field hint ---- */
+.sp-field-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+}
+
+/* ---- Empty state ---- */
+.sp-empty-state {
+    text-align: center;
+    color: var(--text-muted);
+}
+.sp-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+    color: var(--border);
+}
+.sp-empty-state h3 {
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem;
+}
+.sp-mt-2 { margin-top: 0.75rem; }
+
+/* ---- CMS responsive ---- */
+@media (max-width: 900px) {
+    .sp-editor-wrap {
+        grid-template-columns: 1fr;
+    }
+    .sp-preview-pane {
+        min-height: 260px;
+    }
+    .sp-code-editor {
+        min-height: 300px;
+    }
+}
+@media (max-width: 640px) {
+    .sp-cms-section-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .sp-cms-section-actions {
+        width: 100%;
+    }
+    .sp-page-header {
+        flex-direction: column;
+    }
+}
