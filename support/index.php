@@ -51,7 +51,7 @@ $extraHead       = '<script>document.addEventListener("DOMContentLoaded",functio
 ob_start();
 ?>
 <!-- ===== HERO ===== -->
-<div class="sp-hero" style="text-align:center;padding:2.5rem 1rem 2rem;border-bottom:1px solid var(--border);margin-bottom:2rem;">
+<div class="sp-hero" style="text-align:center;padding:1.5rem 1rem 1.25rem;border-bottom:1px solid var(--border);margin-bottom:1.5rem;">
     <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter"
          style="width:72px;height:72px;border-radius:50%;margin:0 auto 1rem;border:2px solid var(--border);display:block;">
     <h1 style="font-size:1.75rem;font-weight:800;margin-bottom:0.5rem;">BotOfTheSpecter Documentation</h1>
@@ -236,7 +236,7 @@ ob_start();
                 </div>
             </div>
             <?php endif; ?>
-            <?php echo $doc['content']; ?>
+            <div class="sp-doc-block-body"><?php echo $doc['content']; ?></div>
         </div>
         <?php endforeach; ?>
     <?php endif; ?>
