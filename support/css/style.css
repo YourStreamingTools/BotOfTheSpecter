@@ -1549,6 +1549,27 @@ hr {
     padding: 0.75rem 1rem;
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+}
+.sp-cms-section-body {
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+    max-height: 9999px;
+    opacity: 1;
+}
+.sp-cms-section-card.collapsed .sp-cms-section-body {
+    max-height: 0;
+    opacity: 0;
+}
+.sp-cms-section-card.collapsed .sp-cms-section-head {
+    border-bottom-color: transparent;
+}
+.sp-collapse-toggle i {
+    transition: transform 0.2s ease;
+}
+.sp-cms-section-card.collapsed .sp-collapse-toggle i {
+    transform: rotate(-90deg);
 }
 .sp-cms-section-title {
     display: flex;
