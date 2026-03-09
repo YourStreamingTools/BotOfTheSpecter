@@ -46,6 +46,7 @@ load_dotenv()
 
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
+from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -3054,6 +3055,18 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
+        if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
+            try:
+                await hedgehogobrien_module.ensure_tables(mysql_handler)
+                bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
+                await hedgehogobrien_module.handle_ready(
+                    broadcaster_id=CHANNEL_ID,
+                    mysql_handler=mysql_handler,
+                    http_session=_shared_http_session,
+                    chat_logger=chat_logger,
+                )
+            except Exception as _hh_err:
+                bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -3247,6 +3260,23 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"Custom command '{command}' not found.")
                 else:
                     chat_logger.info(f"Custom command '{command}' not found.")
+            # Handle hedgehogobrien module commands
+            if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME) and hedgehogobrien_module.is_bureau_command(messageContent):
+                async def _hh_send(msg):
+                    await hedgehogobrien_module.send_module_message(
+                        message=msg,
+                        broadcaster_id=CHANNEL_ID,
+                        mysql_handler=mysql_handler,
+                        http_session=_shared_http_session,
+                        chat_logger=chat_logger,
+                    )
+                await hedgehogobrien_module.handle_bureau_command(
+                    command=AuthorMessage,
+                    username=messageAuthor,
+                    mysql_handler=mysql_handler,
+                    send_message=_hh_send,
+                    chat_logger=chat_logger,
+                )
             # Handle AI responses
             if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
                 ai_text = await botofthespecter_module.handle_bot_home_channel_ai(
@@ -3456,6 +3486,19 @@ class TwitchBot(commands.Bot):
                     )
                     await connection.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today.")
+                    # Forward to custom module if applicable — module handles message and returns True
+                    if hedgehogobrien_module is not None:
+                        _hh_handled = await hedgehogobrien_module.handle_first_chat(
+                            channel_name=CHANNEL_NAME,
+                            username=messageAuthor,
+                            broadcaster_id=CHANNEL_ID,
+                            mysql_handler=mysql_handler,
+                            http_session=_shared_http_session,
+                            chat_logger=chat_logger,
+                        )
+                        if _hh_handled:
+                            create_task(self.safe_walkon(messageAuthor))
+                            return
                     # Only send welcome message if enabled
                     if user_status_enabled and send_welcome_messages:
                         if not user_data:
@@ -3492,7 +3535,7 @@ class TwitchBot(commands.Bot):
                                 source="welcome_message"
                             )
                         chat_logger.info(f"Sent welcome message to {messageAuthor}")
-                        create_task(self.safe_walkon(messageAuthor))
+                    create_task(self.safe_walkon(messageAuthor))
                 elif not already_seen_today and stream_online and is_command_message:
                     # First message is a command — do not mark as seen yet.
                     chat_logger.info(f"{messageAuthor} sent a command as their first message; deferring 'seen' until a non-command message is received.")
