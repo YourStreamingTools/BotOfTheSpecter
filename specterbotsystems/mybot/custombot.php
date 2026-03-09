@@ -15,6 +15,86 @@ if (isset($_SERVER['HTTP_HOST']) && strtolower($_SERVER['HTTP_HOST']) !== 'mybot
 // Simple helper to render escaped output
 function e($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 
+// Verify a bot account in both custom_bots and custom_module_bots tables.
+// Updates is_verified, access_token, refresh_token, and token_expires for any row
+// matching bot_channel_id. Sets $message on success, $error if no rows matched.
+function verifyBot($conn, $twitchUserId, $twitchLogin, $access_token, $refresh_token, $validateData, $tokenData, $client_id, $client_secret, &$message, &$error) {
+    $expiresIn    = $validateData['expires_in'] ?? $tokenData['expires_in'] ?? null;
+    $tokenExpires = $expiresIn !== null ? date('Y-m-d H:i:s', time() + intval($expiresIn)) : null;
+    // --- custom_bots (one row per channel; refresh_token column may not exist on older installs) ---
+    $customBotsUpdated = false;
+    $hasRefreshColumn  = false;
+    try {
+        $colCheck = $conn->query("SHOW COLUMNS FROM custom_bots LIKE 'refresh_token'");
+        if ($colCheck && $colCheck->num_rows > 0) { $hasRefreshColumn = true; }
+    } catch (Exception $ex) { /* ignore */ }
+    if ($hasRefreshColumn) {
+        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
+        if ($stmt) { $stmt->bind_param('ssss', $access_token, $tokenExpires, $refresh_token, $twitchUserId); }
+    } else {
+        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
+        if ($stmt) { $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId); }
+    }
+    if ($stmt) { $stmt->execute(); $customBotsUpdated = $stmt->affected_rows > 0; $stmt->close(); }
+    // --- custom_module_bots (always has refresh_token; update ALL rows for this bot across all channels) ---
+    $moduleBotsUpdated = false;
+    $modStmt = $conn->prepare('UPDATE custom_module_bots SET is_verified = 1, access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ?');
+    if ($modStmt) {
+        $modStmt->bind_param('ssss', $access_token, $tokenExpires, $refresh_token, $twitchUserId);
+        $modStmt->execute();
+        $moduleBotsUpdated = $modStmt->affected_rows > 0;
+        $modStmt->close();
+    }
+    if (!$customBotsUpdated && !$moduleBotsUpdated) {
+        $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
+        return;
+    }
+    $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
+    // Attempt immediate token rotation to extend validity
+    if (!empty($refresh_token) && !empty($client_id) && !empty($client_secret)) {
+        try {
+            $rch = curl_init('https://id.twitch.tv/oauth2/token');
+            curl_setopt($rch, CURLOPT_POST, true);
+            curl_setopt($rch, CURLOPT_POSTFIELDS, http_build_query([
+                'grant_type'    => 'refresh_token',
+                'refresh_token' => $refresh_token,
+                'client_id'     => $client_id,
+                'client_secret' => $client_secret,
+            ]));
+            curl_setopt($rch, CURLOPT_RETURNTRANSFER, true);
+            $refreshResp = curl_exec($rch);
+            $refreshCode = curl_getinfo($rch, CURLINFO_HTTP_CODE);
+            curl_close($rch);
+            if ($refreshResp !== false && $refreshCode === 200) {
+                $refreshData = json_decode($refreshResp, true);
+                $newAccess  = $refreshData['access_token'] ?? null;
+                $newRefresh = $refreshData['refresh_token'] ?? $refresh_token;
+                $newExpires = isset($refreshData['expires_in']) ? date('Y-m-d H:i:s', time() + intval($refreshData['expires_in'])) : $tokenExpires;
+                if ($newAccess) {
+                    if ($customBotsUpdated) {
+                        if ($hasRefreshColumn) {
+                            $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
+                            if ($upd) { $upd->bind_param('ssss', $newAccess, $newExpires, $newRefresh, $twitchUserId); $upd->execute(); $upd->close(); }
+                        } else {
+                            $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
+                            if ($upd) { $upd->bind_param('sss', $newAccess, $newExpires, $twitchUserId); $upd->execute(); $upd->close(); }
+                        }
+                    }
+                    if ($moduleBotsUpdated) {
+                        $upd = $conn->prepare('UPDATE custom_module_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ?');
+                        if ($upd) { $upd->bind_param('ssss', $newAccess, $newExpires, $newRefresh, $twitchUserId); $upd->execute(); $upd->close(); }
+                    }
+                    $message .= ' (token refreshed)';
+                }
+            } else {
+                error_log('Token refresh failed after verification: HTTP ' . $refreshCode);
+            }
+        } catch (Exception $ex) {
+            error_log('Token refresh exception: ' . $ex->getMessage());
+        }
+    }
+}
+
 $message = '';
 $error = '';
 
@@ -63,7 +143,6 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
     if (!$decoded && isset($_GET['auth_data'])) {
         $decoded = json_decode(base64_decode($_GET['auth_data']), true);
     }
-
     if (!is_array($decoded) || empty($decoded['success'])) {
         $error = 'Authentication failed or was cancelled.';
     } elseif (isset($decoded['service']) && $decoded['service'] === 'twitch') {
@@ -112,91 +191,12 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                         if (!$twitchUserId) {
                             $error = 'Could not determine Twitch user id.';
                         } else {
-                            // Update custom_bots row where bot_channel_id matches
+                            // Update custom_bots and custom_module_bots where bot_channel_id matches
                             $conn = $conn ?? null; // from db_connect
                             if (!$conn) {
                                 $error = 'Database connection not available.';
                             } else {
-                                $expiresIn = $validateData['expires_in'] ?? $tokenData['expires_in'] ?? null;
-                                $tokenExpires = null;
-                                if ($expiresIn !== null) {
-                                    $tokenExpires = date('Y-m-d H:i:s', time() + intval($expiresIn));
-                                }
-                                $hasRefreshColumn = false;
-                                try {
-                                    $colCheck = $conn->query("SHOW COLUMNS FROM custom_bots LIKE 'refresh_token'");
-                                    if ($colCheck && $colCheck->num_rows > 0) { $hasRefreshColumn = true; }
-                                } catch (Exception $e) {
-                                    // ignore
-                                }
-                                if ($hasRefreshColumn) {
-                                    $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
-                                    if ($stmt) {
-                                        $stmt->bind_param('ssss', $access_token, $tokenExpires, $refresh_token, $twitchUserId);
-                                        if ($stmt->execute() && $stmt->affected_rows > 0) {
-                                            $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
-                                        } else {
-                                            $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
-                                        }
-                                    } else {
-                                        $error = 'Failed to prepare DB statement: ' . $conn->error;
-                                    }
-                                } else {
-                                    $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
-                                    if ($stmt) {
-                                        $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId);
-                                        if ($stmt->execute() && $stmt->affected_rows > 0) {
-                                            $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
-                                        } else {
-                                            $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
-                                        }
-                                    } else {
-                                        $error = 'Failed to prepare DB statement: ' . $conn->error;
-                                    }
-                                }
-                                // Attempt immediate refresh if we have a refresh token
-                                if (empty($error) && !empty($refresh_token) && !empty($client_id) && !empty($client_secret)) {
-                                    try {
-                                        $refreshPost = http_build_query([
-                                            'grant_type' => 'refresh_token',
-                                            'refresh_token' => $refresh_token,
-                                            'client_id' => $client_id,
-                                            'client_secret' => $client_secret,
-                                        ]);
-                                        $rch = curl_init('https://id.twitch.tv/oauth2/token');
-                                        curl_setopt($rch, CURLOPT_POST, true);
-                                        curl_setopt($rch, CURLOPT_POSTFIELDS, $refreshPost);
-                                        curl_setopt($rch, CURLOPT_RETURNTRANSFER, true);
-                                        $refreshResp = curl_exec($rch);
-                                        $refreshCode = curl_getinfo($rch, CURLINFO_HTTP_CODE);
-                                        $refreshErr = curl_error($rch);
-                                        curl_close($rch);
-                                        if ($refreshResp !== false && $refreshCode === 200) {
-                                            $refreshData = json_decode($refreshResp, true);
-                                            $newAccess = $refreshData['access_token'] ?? null;
-                                            $newRefresh = $refreshData['refresh_token'] ?? null;
-                                            $newExpiresIn = $refreshData['expires_in'] ?? null;
-                                            if ($newAccess) {
-                                                $newTokenExpires = $newExpiresIn ? date('Y-m-d H:i:s', time() + intval($newExpiresIn)) : $tokenExpires;
-                                                if ($hasRefreshColumn) {
-                                                    $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
-                                                    if ($upd) { $upd->bind_param('ssss', $newAccess, $newTokenExpires, $newRefresh, $twitchUserId); $upd->execute(); $upd->close(); }
-                                                } else {
-                                                    $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
-                                                    if ($upd) { $upd->bind_param('sss', $newAccess, $newTokenExpires, $twitchUserId); $upd->execute(); $upd->close(); }
-                                                }
-                                                $access_token = $newAccess;
-                                                if (!empty($newRefresh)) { $refresh_token = $newRefresh; }
-                                                $tokenExpires = $newTokenExpires;
-                                                $message .= ' (token refreshed)';
-                                            }
-                                        } else {
-                                            error_log('Token refresh failed: ' . ($refreshErr ?: "HTTP {$refreshCode}"));
-                                        }
-                                    } catch (Exception $e) {
-                                        error_log('Token refresh exception: ' . $e->getMessage());
-                                    }
-                                }
+                                verifyBot($conn, $twitchUserId, $twitchLogin, $access_token, $refresh_token, $validateData, $decoded, $client_id, $client_secret, $message, $error);
                             }
                         }
                     }
@@ -285,97 +285,13 @@ if (isset($_GET['code'])) {
                             if (!$twitchUserId) {
                                 $error = 'Could not determine Twitch user id.';
                             } else {
-                                // Update custom_bots row where bot_channel_id matches
+                                // Update custom_bots and custom_module_bots where bot_channel_id matches
                                 $conn = $conn ?? null; // from db_connect
                                 if (!$conn) {
                                     $error = 'Database connection not available.';
                                 } else {
-                                    // Compute token expiry datetime in SQL DATETIME format
-                                    $expiresIn = $validateData['expires_in'] ?? $tokenData['expires_in'] ?? null;
-                                    $tokenExpires = null;
-                                    if ($expiresIn !== null) {
-                                        $tokenExpires = date('Y-m-d H:i:s', time() + intval($expiresIn));
-                                    }
-                                    // Detect whether the custom_bots table has a refresh_token column
-                                    $hasRefreshColumn = false;
-                                    try {
-                                        $colCheck = $conn->query("SHOW COLUMNS FROM custom_bots LIKE 'refresh_token'");
-                                        if ($colCheck && $colCheck->num_rows > 0) { $hasRefreshColumn = true; }
-                                    } catch (Exception $e) {
-                                        // Ignore - we'll fall back to the safer update
-                                    }
                                     $refresh_token = $tokenData['refresh_token'] ?? null;
-                                    if ($hasRefreshColumn) {
-                                        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
-                                        if ($stmt) {
-                                            $stmt->bind_param('ssss', $access_token, $tokenExpires, $refresh_token, $twitchUserId);
-                                            if ($stmt->execute() && $stmt->affected_rows > 0) {
-                                                $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
-                                            } else {
-                                                $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
-                                            }
-                                        } else {
-                                            $error = 'Failed to prepare DB statement: ' . $conn->error;
-                                        }
-                                    } else {
-                                        // Fallback if refresh_token column is not present
-                                        $stmt = $conn->prepare('UPDATE custom_bots SET is_verified = 1, access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
-                                        if ($stmt) {
-                                            $stmt->bind_param('sss', $access_token, $tokenExpires, $twitchUserId);
-                                            if ($stmt->execute() && $stmt->affected_rows > 0) {
-                                                $message = 'Bot verified successfully for Twitch user: ' . e($twitchLogin) . ' (' . e($twitchUserId) . ').';
-                                            } else {
-                                                $error = 'No matching custom bot record found for this Twitch account. Make sure you saved the bot settings in your channel first.';
-                                            }
-                                        } else {
-                                            $error = 'Failed to prepare DB statement: ' . $conn->error;
-                                        }
-                                    }
-                                    // If we have a refresh token, try to refresh immediately to rotate tokens and extend validity
-                                    if (empty($error) && !empty($refresh_token) && !empty($client_id) && !empty($client_secret)) {
-                                        try {
-                                            $refreshPost = http_build_query([
-                                                'grant_type' => 'refresh_token',
-                                                'refresh_token' => $refresh_token,
-                                                'client_id' => $client_id,
-                                                'client_secret' => $client_secret,
-                                            ]);
-                                            $rch = curl_init('https://id.twitch.tv/oauth2/token');
-                                            curl_setopt($rch, CURLOPT_POST, true);
-                                            curl_setopt($rch, CURLOPT_POSTFIELDS, $refreshPost);
-                                            curl_setopt($rch, CURLOPT_RETURNTRANSFER, true);
-                                            $refreshResp = curl_exec($rch);
-                                            $refreshCode = curl_getinfo($rch, CURLINFO_HTTP_CODE);
-                                            $refreshErr = curl_error($rch);
-                                            curl_close($rch);
-                                            if ($refreshResp !== false && $refreshCode === 200) {
-                                                $refreshData = json_decode($refreshResp, true);
-                                                $newAccess = $refreshData['access_token'] ?? null;
-                                                $newRefresh = $refreshData['refresh_token'] ?? null;
-                                                $newExpiresIn = $refreshData['expires_in'] ?? null;
-                                                if ($newAccess) {
-                                                    $newTokenExpires = $newExpiresIn ? date('Y-m-d H:i:s', time() + intval($newExpiresIn)) : $tokenExpires;
-                                                    // Persist rotated tokens
-                                                    if ($hasRefreshColumn) {
-                                                        $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1');
-                                                        if ($upd) { $upd->bind_param('ssss', $newAccess, $newTokenExpires, $newRefresh, $twitchUserId); $upd->execute(); $upd->close(); }
-                                                    } else {
-                                                        $upd = $conn->prepare('UPDATE custom_bots SET access_token = ?, token_expires = ? WHERE bot_channel_id = ? LIMIT 1');
-                                                        if ($upd) { $upd->bind_param('sss', $newAccess, $newTokenExpires, $twitchUserId); $upd->execute(); $upd->close(); }
-                                                    }
-                                                    // Reflect rotated token in the local variables
-                                                    $access_token = $newAccess;
-                                                    if (!empty($newRefresh)) { $refresh_token = $newRefresh; }
-                                                    $tokenExpires = $newTokenExpires;
-                                                    $message .= ' (token refreshed)';
-                                                }
-                                            } else {
-                                                error_log('Token refresh failed: ' . ($refreshErr ?: "HTTP {$refreshCode}") );
-                                            }
-                                        } catch (Exception $e) {
-                                            error_log('Token refresh exception: ' . $e->getMessage());
-                                        }
-                                    }
+                                    verifyBot($conn, $twitchUserId, $twitchLogin, $access_token, $refresh_token, $validateData, $tokenData, $client_id, $client_secret, $message, $error);
                                 }
                             }
                         }
