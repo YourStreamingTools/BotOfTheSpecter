@@ -129,9 +129,6 @@ ob_start();
             <h1 style="margin:0 0 0.25rem;">Command Reference</h1>
             <p style="margin:0;color:var(--text-secondary);">All commands use the <code>!</code> prefix. Some require moderator or broadcaster permissions.</p>
         </div>
-        <?php if ($staff): ?>
-        <span class="sp-admin-note"><i class="fa-solid fa-circle-info"></i> Commands are sourced from the bot JSON — not DB-managed.</span>
-        <?php endif; ?>
     </div>
 
     <?php if (!empty($commands)): ?>
