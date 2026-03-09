@@ -1215,7 +1215,6 @@ hr {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
     background: var(--bg-base);
     padding: 2rem;
     text-align: center;
@@ -1485,6 +1484,9 @@ hr {
 .sp-doc-block-hidden {
     opacity: 0.45;
     border-style: dashed;
+}
+.sp-doc-block-body {
+    padding: 1rem 1.25rem;
 }
 .sp-doc-block-header {
     display: flex;
