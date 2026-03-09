@@ -220,12 +220,20 @@ if ($countsResult) {
 }
 
 // Max doc_order per section (used to auto-fill the order field on new doc forms)
-$maxOrdersResult = $db->query('SELECT section_key, COALESCE(MAX(doc_order), -1) AS max_order FROM support_docs GROUP BY section_key');
+$maxOrdersResult = $db->query('SELECT section_key, COALESCE(MAX(doc_order), 0) AS max_order FROM support_docs GROUP BY section_key');
 $maxOrdersBySec = [];
 if ($maxOrdersResult) {
     while ($r = $maxOrdersResult->fetch_assoc()) {
         $maxOrdersBySec[$r['section_key']] = (int)$r['max_order'];
     }
+}
+
+// Next section_order for new sections
+$maxSecOrderResult = $db->query('SELECT COALESCE(MAX(section_order), 0) AS max_order FROM support_doc_sections');
+$nextSecOrder = 1;
+if ($maxSecOrderResult) {
+    $r = $maxSecOrderResult->fetch_assoc();
+    $nextSecOrder = (int)$r['max_order'] + 1;
 }
 
 // ----------------------------------------------------------------
@@ -257,7 +265,7 @@ foreach ($flash as $f): ?>
 // ================================================================
 if ($action === 'edit' || $action === 'new'):
     $isNew = ($action === 'new');
-    $defaultOrder = 0;
+    $defaultOrder = 1;
     if ($isNew && $newInSection !== '' && isset($maxOrdersBySec[$newInSection])) {
         $defaultOrder = $maxOrdersBySec[$newInSection] + 1;
     }
@@ -427,7 +435,7 @@ if ($action === 'edit' || $action === 'new'):
 // ================================================================
 elseif ($action === 'new_section' || $action === 'edit_section'):
     $isNewSec = ($action === 'new_section');
-    $s = $editSection ?? ['id'=>0,'section_key'=>'','section_label'=>'','section_icon'=>'fa-solid fa-file','section_order'=>0];
+    $s = $editSection ?? ['id'=>0,'section_key'=>'','section_label'=>'','section_icon'=>'fa-solid fa-file','section_order'=>$nextSecOrder];
     $heading = $isNewSec ? 'New Section' : 'Edit Section: ' . ($editSection['section_label'] ?? '');
 ?>
 
@@ -496,9 +504,21 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
                 <label class="sp-label" for="section_order">Sort Order</label>
                 <input type="number" id="section_order" name="section_order" class="sp-input"
                        min="0" max="9999" style="max-width:140px;"
-                       value="<?php echo (int)$s['section_order']; ?>">
+                       value="<?php echo (int)$s['section_order']; ?>"
+                       <?php if ($isNewSec): ?>data-auto="1"<?php endif; ?>>
                 <span class="sp-field-hint">Lower numbers appear first. Sections with the same order are sorted alphabetically.</span>
             </div>
+            <?php if ($isNewSec): ?>
+            <script>
+            (function () {
+                var orderInput = document.getElementById('section_order');
+                if (!orderInput) return;
+                orderInput.addEventListener('input', function () {
+                    delete orderInput.dataset.auto;
+                });
+            }());
+            </script>
+            <?php endif; ?>
 
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1rem;">
                 <button type="submit" class="sp-btn sp-btn-primary">
