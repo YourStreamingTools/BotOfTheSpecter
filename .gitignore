@@ -25,6 +25,9 @@ bot/phpmyadmin.txt
 bot/all_events.py
 bot/heartrate_test.py
 
+# Custom Bot Modules for channels
+bot/custom_channel_modules/hedgehogobrien.py
+
 # Log files
 api/log.txt
 stream/stream_server.log
