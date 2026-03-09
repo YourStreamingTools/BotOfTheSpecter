@@ -485,7 +485,7 @@ if ($isLoggedIn) {
                             </div>
                             <h4 class="title is-5">Documentation</h4>
                             <p class="subtitle is-6">Learn how to use BotOfTheSpecter</p>
-                            <a href="https://help.botofthespecter.com/" class="button is-light is-fullwidth" target="_blank">
+                            <a href="/generate_handoff.php" class="button is-light is-fullwidth">
                                 <span class="icon"><i class="fas fa-external-link-alt"></i></span>
                                 <span>View Docs</span>
                             </a>
