@@ -128,8 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->bind_param('sssiisi', $secKey, $title, $content, $order, $visible, $author, $editDocId);
                     $stmt->execute();
                     $stmt->close();
-                    $flash[] = ['type'=>'success','msg'=>'Doc block updated.'];
-                    header('Location: /docs.php?action=edit&id=' . $editDocId . '&saved=1');
+                    header('Location: /docs.php?saved=1');
                     exit;
                 } else {
                     // 7 params: section_key(s) title(s) content(s) doc_order(i) is_visible(i) created_by(s) updated_by(s)
