@@ -1,38 +1,63 @@
 <?php
 // support/index.php
 // ----------------------------------------------------------------
-// Public landing page — all documentation on a single tabbed page.
-// No auth required to view docs.
+// Public documentation landing page.
+// Doc content is loaded from support_doc_sections + support_docs tables
+// so staff can manage it via docs.php.
+// The built-in "Commands" tab reads from api/builtin_commands.json
+// and is not DB-managed.
 // ----------------------------------------------------------------
 
 require_once __DIR__ . '/includes/session.php';
 support_session_start();
 
-// Load command data (same source as help/command_reference.php)
+$db    = support_db();
+$staff = is_staff();
+
+// Load doc sections (ordered)
+$secResult = $db->query(
+    'SELECT * FROM support_doc_sections ORDER BY section_order ASC, section_label ASC'
+);
+$sections = $secResult ? $secResult->fetch_all(MYSQLI_ASSOC) : [];
+
+// Load doc blocks (staff see all; guests see only visible)
+$visFilter  = $staff ? '' : 'WHERE is_visible = 1';
+$docsResult = $db->query(
+    "SELECT * FROM support_docs $visFilter ORDER BY section_key ASC, doc_order ASC, id ASC"
+);
+$allDocs = $docsResult ? $docsResult->fetch_all(MYSQLI_ASSOC) : [];
+
+$docsBySection = [];
+foreach ($allDocs as $doc) {
+    $docsBySection[$doc['section_key']][] = $doc;
+}
+
+// Load built-in commands from JSON
 $commandsJson = @file_get_contents(__DIR__ . '/../api/builtin_commands.json');
-$cmdData = $commandsJson ? (json_decode($commandsJson, true)['commands'] ?? []) : [];
-$commands = [];
+$cmdData      = $commandsJson ? (json_decode($commandsJson, true)['commands'] ?? []) : [];
+$commands     = [];
 foreach ($cmdData as $k => $v) {
     $commands[$k] = is_array($v)
-        ? ['description' => $v['description'] ?? 'No description available', 'usage' => $v['usage'] ?? '!' . $k]
-        : ['description' => (string)$v, 'usage' => '!' . $k];
+        ? ['description' => $v['description'] ?? 'No description available']
+        : ['description' => (string)$v];
 }
 ksort($commands);
 
-$pageTitle    = 'Documentation & Support';
-$topbarTitle  = 'BotOfTheSpecter Documentation';
-$pageDescription = 'Complete documentation for BotOfTheSpecter — setup guides, command reference, custom variables, integrations, and support tickets.';
-
-// Show the search bar in the topbar when on this page
-$extraHead = '<script>document.addEventListener("DOMContentLoaded",function(){var w=document.getElementById("sp-search-wrap");if(w)w.style.display="block";});</script>';
+$pageTitle       = 'Documentation';
+$topbarTitle     = 'BotOfTheSpecter Documentation';
+$pageDescription = 'Complete documentation for BotOfTheSpecter — setup guides, command reference, integrations, and support tickets.';
+$extraHead       = '<script>document.addEventListener("DOMContentLoaded",function(){var w=document.getElementById("sp-search-wrap");if(w)w.style.display="block";});</script>';
 
 ob_start();
 ?>
 <!-- ===== HERO ===== -->
-<div style="text-align:center;padding:2.5rem 1rem 2rem;border-bottom:1px solid var(--border);margin-bottom:2rem;">
-    <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter" style="width:72px;height:72px;border-radius:50%;margin:0 auto 1rem;border:2px solid var(--border);">
+<div class="sp-hero" style="text-align:center;padding:2.5rem 1rem 2rem;border-bottom:1px solid var(--border);margin-bottom:2rem;">
+    <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter"
+         style="width:72px;height:72px;border-radius:50%;margin:0 auto 1rem;border:2px solid var(--border);display:block;">
     <h1 style="font-size:1.75rem;font-weight:800;margin-bottom:0.5rem;">BotOfTheSpecter Documentation</h1>
-    <p style="color:var(--text-secondary);max-width:560px;margin:0 auto 1.5rem;">Everything you need to set up, configure, and get the most out of your streaming bot.</p>
+    <p style="color:var(--text-secondary);max-width:560px;margin:0 auto 1.5rem;">
+        Everything you need to set up, configure, and get the most from your streaming bot.
+    </p>
     <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
         <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" rel="noopener" class="sp-btn sp-btn-secondary">
             <i class="fa-brands fa-github"></i> View on GitHub
@@ -46,67 +71,193 @@ ob_start();
             <i class="fa-solid fa-ticket"></i> Submit a Support Ticket
         </a>
         <?php endif; ?>
+        <?php if ($staff): ?>
+        <a href="/docs.php" class="sp-btn sp-btn-ghost">
+            <i class="fa-solid fa-pen-to-square"></i> Manage Docs
+        </a>
+        <?php endif; ?>
     </div>
 </div>
 <!-- ===== QUICK LINKS GRID ===== -->
 <div class="sp-doc-grid sp-mb-3">
-    <a href="#" class="sp-doc-card" data-goto="setup">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-rocket"></i></div>
-        <div class="sp-doc-card-title">First Time Setup</div>
-        <div class="sp-doc-card-desc">Get your bot connected and running in minutes.</div>
-    </a>
+    <!-- Commands is always a built-in section -->
     <a href="#" class="sp-doc-card" data-goto="commands">
         <div class="sp-doc-card-icon"><i class="fa-solid fa-terminal"></i></div>
         <div class="sp-doc-card-title">Command Reference</div>
-        <div class="sp-doc-card-desc">Full list of all built-in bot commands.</div>
+        <div class="sp-doc-card-desc">All built-in bot commands.</div>
     </a>
-    <a href="#" class="sp-doc-card" data-goto="variables">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-code"></i></div>
-        <div class="sp-doc-card-title">Custom Variables</div>
-        <div class="sp-doc-card-desc">Dynamic variables for commands and messages.</div>
+    <?php foreach ($sections as $sec): ?>
+    <a href="#" class="sp-doc-card" data-goto="<?php echo htmlspecialchars($sec['section_key']); ?>">
+        <div class="sp-doc-card-icon"><i class="<?php echo htmlspecialchars($sec['section_icon']); ?>"></i></div>
+        <div class="sp-doc-card-title"><?php echo htmlspecialchars($sec['section_label']); ?></div>
+        <div class="sp-doc-card-desc">
+            <?php
+            $cnt = count($docsBySection[$sec['section_key']] ?? []);
+            echo $cnt . ' doc block' . ($cnt !== 1 ? 's' : '');
+            ?>
+        </div>
     </a>
-    <a href="#" class="sp-doc-card" data-goto="faq">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-circle-question"></i></div>
-        <div class="sp-doc-card-title">FAQ</div>
-        <div class="sp-doc-card-desc">Answers to the most common questions.</div>
+    <?php endforeach; ?>
+    <?php if ($staff): ?>
+    <a href="/docs.php?action=new_section" class="sp-doc-card sp-doc-card-add">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-plus"></i></div>
+        <div class="sp-doc-card-title">Add Section</div>
+        <div class="sp-doc-card-desc">Create a new documentation section.</div>
     </a>
-    <a href="#" class="sp-doc-card" data-goto="troubleshooting">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-wrench"></i></div>
-        <div class="sp-doc-card-title">Troubleshooting</div>
-        <div class="sp-doc-card-desc">Fix common issues and errors.</div>
-    </a>
-    <a href="#" class="sp-doc-card" data-goto="integrations">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-plug"></i></div>
-        <div class="sp-doc-card-title">Integrations</div>
-        <div class="sp-doc-card-desc">Spotify, TTS, Channel Points, and more.</div>
-    </a>
-    <a href="#" class="sp-doc-card" data-goto="advanced">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-flask"></i></div>
-        <div class="sp-doc-card-title">Advanced</div>
-        <div class="sp-doc-card-desc">Self-hosting, Custom API, OBS, and module variables.</div>
-    </a>
-    <a href="https://api.botofthespecter.com/docs" target="_blank" rel="noopener" class="sp-doc-card">
-        <div class="sp-doc-card-icon"><i class="fa-solid fa-book"></i></div>
-        <div class="sp-doc-card-title">API Docs <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;opacity:0.5;"></i></div>
-        <div class="sp-doc-card-desc">REST API reference for developers.</div>
-    </a>
+    <?php endif; ?>
 </div>
 <hr class="sp-divider">
-<!-- ===== TABS ===== -->
+
+<!-- ===== TABS BAR ===== -->
 <div class="sp-tabs" id="sp-doc-tabs">
-    <button class="sp-tab" data-tab="setup">           <i class="fa-solid fa-rocket"></i> Setup</button>
-    <button class="sp-tab" data-tab="commands">        <i class="fa-solid fa-terminal"></i> Commands</button>
-    <button class="sp-tab" data-tab="variables">       <i class="fa-solid fa-code"></i> Variables</button>
-    <button class="sp-tab" data-tab="faq">             <i class="fa-solid fa-circle-question"></i> FAQ</button>
-    <button class="sp-tab" data-tab="troubleshooting"> <i class="fa-solid fa-wrench"></i> Troubleshooting</button>
-    <button class="sp-tab" data-tab="integrations">    <i class="fa-solid fa-plug"></i> Integrations</button>
-    <button class="sp-tab" data-tab="advanced">        <i class="fa-solid fa-flask"></i> Advanced</button>
+    <button class="sp-tab" data-tab="commands">
+        <i class="fa-solid fa-terminal"></i> Commands
+    </button>
+    <?php foreach ($sections as $sec): ?>
+    <button class="sp-tab" data-tab="<?php echo htmlspecialchars($sec['section_key']); ?>">
+        <i class="<?php echo htmlspecialchars($sec['section_icon']); ?>"></i>
+        <?php echo htmlspecialchars($sec['section_label']); ?>
+    </button>
+    <?php endforeach; ?>
 </div>
 <!-- ===================================================================
-     TAB: SETUP
+     BUILT-IN TAB: COMMANDS (from JSON, not DB-managed)
 =================================================================== -->
-<div class="sp-tab-panel sp-doc-content" data-panel="setup">
-    <h1>First Time Setup</h1>
+<div class="sp-tab-panel sp-doc-content" data-panel="commands">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Command Reference</h1>
+            <p style="margin:0;color:var(--text-secondary);">All commands use the <code>!</code> prefix. Some require moderator or broadcaster permissions.</p>
+        </div>
+        <?php if ($staff): ?>
+        <span class="sp-admin-note"><i class="fa-solid fa-circle-info"></i> Commands are sourced from the bot JSON — not DB-managed.</span>
+        <?php endif; ?>
+    </div>
+
+    <?php if (!empty($commands)): ?>
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead><tr><th>Command</th><th>Description</th></tr></thead>
+            <tbody>
+                <?php foreach ($commands as $name => $info): ?>
+                <tr>
+                    <td><code>!<?php echo htmlspecialchars($name); ?></code></td>
+                    <td><?php echo htmlspecialchars($info['description']); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php else: ?>
+    <div class="sp-alert sp-alert-warning">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>Command list unavailable — the commands JSON could not be loaded.</span>
+    </div>
+    <?php endif; ?>
+    <div class="sp-alert sp-alert-info sp-mt-2">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>Type <code>!commands</code> in your Twitch chat to see all active commands, including custom ones.</span>
+    </div>
+</div>
+
+<!-- ===================================================================
+     DYNAMIC SECTION TABS (DB-managed)
+=================================================================== -->
+<?php foreach ($sections as $sec):
+    $secKey  = $sec['section_key'];
+    $secDocs = $docsBySection[$secKey] ?? [];
+?>
+<div class="sp-tab-panel sp-doc-content" data-panel="<?php echo htmlspecialchars($secKey); ?>">
+
+    <?php if ($staff): ?>
+    <div class="sp-admin-bar">
+        <span class="sp-admin-bar-label"><i class="fa-solid fa-shield-halved"></i> Admin</span>
+        <div class="sp-admin-bar-actions">
+            <a href="/docs.php?action=new&amp;section=<?php echo urlencode($secKey); ?>" class="sp-btn sp-btn-secondary sp-btn-sm">
+                <i class="fa-solid fa-plus"></i> Add Doc Block
+            </a>
+            <a href="/docs.php?action=edit_section&amp;key=<?php echo urlencode($secKey); ?>" class="sp-btn sp-btn-ghost sp-btn-sm">
+                <i class="fa-solid fa-pen"></i> Edit Section
+            </a>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (empty($secDocs)): ?>
+    <div class="sp-empty-state" style="padding:3rem 1rem;">
+        <div class="sp-empty-icon"><i class="fa-solid fa-file-circle-plus"></i></div>
+        <h3>No documentation yet</h3>
+        <p>This section is empty.</p>
+        <?php if ($staff): ?>
+        <a href="/docs.php?action=new&amp;section=<?php echo urlencode($secKey); ?>" class="sp-btn sp-btn-primary sp-mt-2">
+            <i class="fa-solid fa-plus"></i> Add the first doc block
+        </a>
+        <?php endif; ?>
+    </div>
+    <?php else: ?>
+        <h1><?php echo htmlspecialchars($sec['section_label']); ?></h1>
+        <?php foreach ($secDocs as $doc): ?>
+        <div class="sp-doc-block<?php echo (!$doc['is_visible'] ? ' sp-doc-block-hidden' : ''); ?>"
+             id="doc-<?php echo (int)$doc['id']; ?>">
+            <?php if ($staff): ?>
+            <div class="sp-doc-block-header">
+                <div>
+                    <?php if (!$doc['is_visible']): ?>
+                    <span class="sp-badge sp-badge-muted"><i class="fa-solid fa-eye-slash"></i> Hidden</span>
+                    <?php endif; ?>
+                </div>
+                <div class="sp-doc-block-actions">
+                    <a href="/docs.php?action=edit&amp;id=<?php echo (int)$doc['id']; ?>"
+                       class="sp-btn sp-btn-ghost sp-btn-sm" title="Edit">
+                        <i class="fa-solid fa-pen"></i>
+                    </a>
+                    <form method="POST" action="/docs.php" style="display:inline;">
+                        <input type="hidden" name="_action"    value="toggle_vis">
+                        <input type="hidden" name="id"         value="<?php echo (int)$doc['id']; ?>">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                        <input type="hidden" name="back"       value="index">
+                        <input type="hidden" name="section"    value="<?php echo htmlspecialchars($secKey); ?>">
+                        <button type="submit" class="sp-btn sp-btn-ghost sp-btn-sm"
+                                title="<?php echo $doc['is_visible'] ? 'Hide' : 'Show'; ?>">
+                            <i class="fa-solid <?php echo $doc['is_visible'] ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
+                        </button>
+                    </form>
+                    <form method="POST" action="/docs.php" style="display:inline;"
+                          onsubmit="return confirm('Delete this doc block?');">
+                        <input type="hidden" name="_action"    value="delete_doc">
+                        <input type="hidden" name="id"         value="<?php echo (int)$doc['id']; ?>">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                        <input type="hidden" name="back"       value="index">
+                        <input type="hidden" name="section"    value="<?php echo htmlspecialchars($secKey); ?>">
+                        <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="Delete">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <?php endif; ?>
+            <?php echo $doc['content']; ?>
+        </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+
+</div>
+<?php endforeach; ?>
+
+<?php if (empty($sections)): ?>
+<div class="sp-empty-state" style="padding:4rem 1rem;">
+    <div class="sp-empty-icon"><i class="fa-solid fa-book-open"></i></div>
+    <h3>Documentation is being built</h3>
+    <p>No documentation sections exist yet.</p>
+    <?php if ($staff): ?>
+    <a href="/docs.php?action=new_section" class="sp-btn sp-btn-primary sp-mt-2">
+        <i class="fa-solid fa-plus"></i> Create First Section
+    </a>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if (false): /* LEGACY TAB CONTENT — this has been migrated to the support_docs DB table via docs.php */ ?>
     <p>Follow these steps to get BotOfTheSpecter up and running on your Twitch channel.</p>
     <div class="sp-step">
         <div class="sp-step-num">1</div>
@@ -615,37 +766,25 @@ ob_start();
             <tr><td>Hype Train</td><td><code>(level)</code></td><td>Hype Train level reached</td></tr>
         </tbody>
     </table>
-</div>
+<?php endif; /* end legacy skip */ ?>
 <?php
 $content = ob_get_clean();
 
-// Inline JS to wire quick-link cards to their tabs, and expose search in topbar
+// Wire quick-link cards and inline data-goto links to tabs
 $extraScripts = <<<'JS'
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Quick-link cards → activate corresponding tab
+    function gotoTab(id) {
+        var btn = document.querySelector('.sp-tab[data-tab="' + id + '"]');
+        if (btn) btn.click();
+        var tabs = document.getElementById('sp-doc-tabs');
+        if (tabs) tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     document.querySelectorAll('.sp-doc-card[data-goto]').forEach(function (card) {
-        card.addEventListener('click', function (e) {
-            e.preventDefault();
-            var id = card.dataset.goto;
-            // Trigger the matching tab button
-            var btn = document.querySelector('.sp-tab[data-tab="' + id + '"]');
-            if (btn) btn.click();
-            // Scroll to tabs
-            var tabs = document.getElementById('sp-doc-tabs');
-            if (tabs) tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+        card.addEventListener('click', function (e) { e.preventDefault(); gotoTab(card.dataset.goto); });
     });
-    // Inline data-goto links inside doc content
     document.querySelectorAll('a[data-goto]').forEach(function (a) {
-        a.addEventListener('click', function (e) {
-            e.preventDefault();
-            var id = a.dataset.goto;
-            var btn = document.querySelector('.sp-tab[data-tab="' + id + '"]');
-            if (btn) btn.click();
-            var tabs = document.getElementById('sp-doc-tabs');
-            if (tabs) tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
+        a.addEventListener('click', function (e) { e.preventDefault(); gotoTab(a.dataset.goto); });
     });
 });
 </script>

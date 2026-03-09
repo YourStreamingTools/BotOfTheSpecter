@@ -75,17 +75,32 @@ $v = uuidv4();
         </div>
         <!-- Nav -->
         <nav class="sp-nav">
-            <!-- Documentation section -->
+            <!-- Documentation section (dynamic from DB) -->
+            <?php
+            $_navSections = [];
+            if (function_exists('support_db')) {
+                try {
+                    $_navDb  = support_db();
+                    $_navRes = $_navDb->query('SELECT section_key, section_label, section_icon FROM support_doc_sections ORDER BY section_order ASC, section_label ASC');
+                    if ($_navRes) $_navSections = $_navRes->fetch_all(MYSQLI_ASSOC);
+                } catch (Exception $e) { /* ignore — DB may not exist yet */ }
+            }
+            ?>
             <div class="sp-nav-section">
                 <div class="sp-nav-label">Documentation</div>
-                <a href="/index.php#home"               class="sp-nav-link"><i class="fa-solid fa-house"></i> Home</a>
-                <a href="/index.php#setup"              class="sp-nav-link"><i class="fa-solid fa-rocket"></i> First Time Setup</a>
-                <a href="/index.php#commands"           class="sp-nav-link"><i class="fa-solid fa-terminal"></i> Command Reference</a>
-                <a href="/index.php#variables"          class="sp-nav-link"><i class="fa-solid fa-code"></i> Custom Variables</a>
-                <a href="/index.php#faq"                class="sp-nav-link"><i class="fa-solid fa-circle-question"></i> FAQ</a>
-                <a href="/index.php#troubleshooting"    class="sp-nav-link"><i class="fa-solid fa-wrench"></i> Troubleshooting</a>
-                <a href="/index.php#integrations"       class="sp-nav-link"><i class="fa-solid fa-plug"></i> Integrations</a>
-                <a href="/index.php#advanced"           class="sp-nav-link"><i class="fa-solid fa-flask"></i> Advanced</a>
+                <a href="/index.php" class="sp-nav-link"><i class="fa-solid fa-house"></i> Home</a>
+                <?php foreach ($_navSections as $_ns): ?>
+                <a href="/index.php#<?php echo urlencode($_ns['section_key']); ?>" class="sp-nav-link">
+                    <i class="<?php echo htmlspecialchars($_ns['section_icon']); ?>"></i>
+                    <?php echo htmlspecialchars($_ns['section_label']); ?>
+                </a>
+                <?php endforeach; ?>
+                <?php if ($userIsStaff): ?>
+                <a href="/docs.php" class="sp-nav-link sp-nav-link-staff">
+                    <i class="fa-solid fa-pen-to-square"></i> Manage Docs
+                    <span class="sp-badge sp-badge-accent" style="margin-left:auto;font-size:0.65rem;">Staff</span>
+                </a>
+                <?php endif; ?>
             </div>
             <!-- External links -->
             <div class="sp-nav-section">
