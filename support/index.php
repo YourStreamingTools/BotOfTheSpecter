@@ -106,20 +106,7 @@ ob_start();
     </a>
     <?php endif; ?>
 </div>
-<hr class="sp-divider">
 
-<!-- ===== TABS BAR ===== -->
-<div class="sp-tabs" id="sp-doc-tabs">
-    <button class="sp-tab" data-tab="commands">
-        <i class="fa-solid fa-terminal"></i> Commands
-    </button>
-    <?php foreach ($sections as $sec): ?>
-    <button class="sp-tab" data-tab="<?php echo htmlspecialchars($sec['section_key']); ?>">
-        <i class="<?php echo htmlspecialchars($sec['section_icon']); ?>"></i>
-        <?php echo htmlspecialchars($sec['section_label']); ?>
-    </button>
-    <?php endforeach; ?>
-</div>
 <!-- ===================================================================
      BUILT-IN TAB: COMMANDS (from JSON, not DB-managed)
 =================================================================== -->
@@ -771,18 +758,44 @@ $content = ob_get_clean();
 $extraScripts = <<<'JS'
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    function gotoTab(id) {
-        var btn = document.querySelector('.sp-tab[data-tab="' + id + '"]');
-        if (btn) btn.click();
-        var tabs = document.getElementById('sp-doc-tabs');
-        if (tabs) tabs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var panels = document.querySelectorAll('.sp-tab-panel[data-panel]');
+    var cards  = document.querySelectorAll('.sp-doc-card[data-goto]');
+
+    function activateTab(id) {
+        // Panels
+        panels.forEach(function (p) {
+            p.classList.toggle('active', p.dataset.panel === id);
+        });
+        // Cards
+        cards.forEach(function (c) {
+            c.classList.toggle('active', c.dataset.goto === id);
+        });
+        try { sessionStorage.setItem('sp_active_tab', id); } catch (e) {}
     }
-    document.querySelectorAll('.sp-doc-card[data-goto]').forEach(function (card) {
-        card.addEventListener('click', function (e) { e.preventDefault(); gotoTab(card.dataset.goto); });
+
+    cards.forEach(function (card) {
+        card.addEventListener('click', function (e) {
+            e.preventDefault();
+            activateTab(card.dataset.goto);
+            // Scroll to first panel
+            var first = document.querySelector('.sp-tab-panel.active');
+            if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     });
+
     document.querySelectorAll('a[data-goto]').forEach(function (a) {
-        a.addEventListener('click', function (e) { e.preventDefault(); gotoTab(a.dataset.goto); });
+        a.addEventListener('click', function (e) {
+            e.preventDefault();
+            activateTab(a.dataset.goto);
+        });
     });
+
+    // Restore from session / hash
+    var hash   = window.location.hash.replace('#', '');
+    var stored = '';
+    try { stored = sessionStorage.getItem('sp_active_tab') || ''; } catch (e) {}
+    var initial = hash || stored || 'commands';
+    activateTab(initial);
 });
 </script>
 JS;
