@@ -15,13 +15,9 @@ if (isset($_SERVER['HTTP_HOST']) && strtolower($_SERVER['HTTP_HOST']) !== 'mybot
 // Simple helper to render escaped output
 function e($s) { return htmlspecialchars($s ?? '', ENT_QUOTES); }
 
-// Verify a bot account in both custom_bots and custom_module_bots tables.
-// Updates is_verified, access_token, refresh_token, and token_expires for any row
-// matching bot_channel_id. Sets $message on success, $error if no rows matched.
 function verifyBot($conn, $twitchUserId, $twitchLogin, $access_token, $refresh_token, $validateData, $tokenData, $client_id, $client_secret, &$message, &$error) {
     $expiresIn    = $validateData['expires_in'] ?? $tokenData['expires_in'] ?? null;
     $tokenExpires = $expiresIn !== null ? date('Y-m-d H:i:s', time() + intval($expiresIn)) : null;
-    // --- custom_bots (one row per channel; refresh_token column may not exist on older installs) ---
     $customBotsUpdated = false;
     $hasRefreshColumn  = false;
     try {
@@ -303,7 +299,10 @@ if (isset($_GET['code'])) {
 }
 
 // If no code param and user clicked sign-in, redirect to StreamersConnect
-if (isset($_GET['action']) && $_GET['action'] === 'login') {
+// Guard: do not redirect if we're already handling a callback (auth_data, code, server_token)
+if (isset($_GET['action']) && $_GET['action'] === 'login'
+    && !isset($_GET['auth_data']) && !isset($_GET['auth_data_sig'])
+    && !isset($_GET['server_token']) && !isset($_GET['code'])) {
     $state = bin2hex(random_bytes(8));
     // Keep a lightweight marker in session (optional) to indicate SC flow
     $_SESSION['sc_twitch_state'] = $state;
@@ -312,7 +311,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'login') {
     // Build StreamersConnect URL
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
     $originDomain = $_SERVER['HTTP_HOST'];
-    $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    // Use only the script path — no query string — so the return URL is clean
+    $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['PHP_SELF'];
     $streamersconnectBase = 'https://streamersconnect.com/';
     $authUrl = $streamersconnectBase . '?' . http_build_query([
         'service' => 'twitch',
