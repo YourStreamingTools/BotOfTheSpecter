@@ -219,6 +219,15 @@ if ($countsResult) {
     }
 }
 
+// Max doc_order per section (used to auto-fill the order field on new doc forms)
+$maxOrdersResult = $db->query('SELECT section_key, COALESCE(MAX(doc_order), -1) AS max_order FROM support_docs GROUP BY section_key');
+$maxOrdersBySec = [];
+if ($maxOrdersResult) {
+    while ($r = $maxOrdersResult->fetch_assoc()) {
+        $maxOrdersBySec[$r['section_key']] = (int)$r['max_order'];
+    }
+}
+
 // ----------------------------------------------------------------
 // Page setup
 // ----------------------------------------------------------------
@@ -248,12 +257,16 @@ foreach ($flash as $f): ?>
 // ================================================================
 if ($action === 'edit' || $action === 'new'):
     $isNew = ($action === 'new');
+    $defaultOrder = 0;
+    if ($isNew && $newInSection !== '' && isset($maxOrdersBySec[$newInSection])) {
+        $defaultOrder = $maxOrdersBySec[$newInSection] + 1;
+    }
     $d = $editDoc ?? [
         'id'          => 0,
         'section_key' => $newInSection,
         'title'       => '',
         'content'     => '',
-        'doc_order'   => 0,
+        'doc_order'   => $defaultOrder,
         'is_visible'  => 1,
     ];
     $heading = $isNew ? 'New Doc Block' : 'Edit Doc Block';
@@ -321,9 +334,30 @@ if ($action === 'edit' || $action === 'new'):
         <div class="sp-form-group" style="margin-bottom:0;">
             <label class="sp-label" for="doc_order">Display Order</label>
             <input type="number" id="doc_order" name="doc_order" class="sp-input"
-                   min="0" max="9999" value="<?php echo (int)$d['doc_order']; ?>">
+                   min="0" max="9999" value="<?php echo (int)$d['doc_order']; ?>"
+                   <?php if ($isNew): ?>data-auto="1"<?php endif; ?>>
             <span class="sp-field-hint">Lower numbers appear first within the section.</span>
         </div>
+        <?php if ($isNew): ?>
+        <script>
+        (function () {
+            var maxOrders = <?php echo json_encode($maxOrdersBySec); ?>;
+            var secSelect  = document.getElementById('section_key');
+            var orderInput = document.getElementById('doc_order');
+            if (!secSelect || !orderInput) return;
+            orderInput.addEventListener('input', function () {
+                // User manually edited — stop auto-filling
+                delete orderInput.dataset.auto;
+            });
+            secSelect.addEventListener('change', function () {
+                if (!('auto' in orderInput.dataset)) return;
+                var sec  = secSelect.value;
+                var next = (maxOrders[sec] !== undefined) ? (maxOrders[sec] + 1) : 0;
+                orderInput.value = next;
+            });
+        }());
+        </script>
+        <?php endif; ?>
         <div class="sp-form-group" style="margin-bottom:0;">
             <label class="sp-label">Visibility</label>
             <label class="sp-toggle-label">
