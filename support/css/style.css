@@ -422,6 +422,23 @@ hr {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(124, 92, 191, 0.2);
 }
+.sp-doc-card.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(124, 92, 191, 0.35);
+}
+.sp-doc-card.active .sp-doc-card-title {
+    color: #fff;
+}
+.sp-doc-card.active .sp-doc-card-desc {
+    color: rgba(255,255,255,0.75);
+}
+.sp-doc-card.active .sp-doc-card-icon {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+}
 
 .sp-doc-card-icon {
     width: 40px;
