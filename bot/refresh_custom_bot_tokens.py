@@ -81,6 +81,38 @@ async def get_custom_bots_needing_refresh():
     finally:
         connection.close()
 
+async def get_module_bots_needing_refresh():
+    connection = await get_database_connection()
+    if not connection:
+        return []
+    try:
+        async with connection.cursor() as cursor:
+            query = """
+                SELECT 
+                    mb.id,
+                    mb.bot_channel_id,
+                    mb.bot_username,
+                    mb.access_token,
+                    mb.refresh_token,
+                    mb.token_expires,
+                    mb.channel_id,
+                    u.username
+                FROM custom_module_bots mb
+                JOIN users u ON mb.channel_id = u.id
+                WHERE mb.refresh_token IS NOT NULL
+                AND mb.refresh_token != ''
+                AND (mb.token_expires IS NULL OR mb.token_expires <= DATE_ADD(NOW(), INTERVAL 1 HOUR))
+                AND mb.is_verified = 1
+            """
+            await cursor.execute(query)
+            bots = await cursor.fetchall()
+            return bots
+    except Exception as e:
+        logger.error(f"Error fetching custom module bots: {e}")
+        return []
+    finally:
+        connection.close()
+
 async def refresh_bot_token(bot_channel_id, refresh_token, bot_username, channel_username):
     url = 'https://id.twitch.tv/oauth2/token'
     data = {
@@ -147,42 +179,94 @@ async def update_bot_token(token_data):
     finally:
         connection.close()
 
+async def update_module_bot_token(token_data):
+    connection = await get_database_connection()
+    if not connection:
+        return False
+    try:
+        async with connection.cursor() as cursor:
+            query = """
+                UPDATE custom_module_bots
+                SET access_token = %s,
+                    refresh_token = %s,
+                    token_expires = %s
+                WHERE id = %s
+                LIMIT 1
+            """
+            await cursor.execute(query, (
+                token_data['access_token'],
+                token_data['refresh_token'],
+                token_data['expires_at'],
+                token_data['record_id']
+            ))
+            await connection.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error updating module bot token in database: {e}")
+        await connection.rollback()
+        return False
+    finally:
+        connection.close()
+
 async def refresh_all_custom_bot_tokens():
     logger.info("Starting custom bot token refresh cycle...")
     # Validate environment variables
     if not all([SQL_HOST, SQL_USER, SQL_PASSWORD, CLIENT_ID, CLIENT_SECRET]):
         logger.error("Missing required environment variables. Please check .env file.")
         return
-    # Get bots that need refresh
+    # --- custom_bots table ---
     bots = await get_custom_bots_needing_refresh()
     if not bots:
         logger.info("No custom bots need token refresh at this time.")
-        return
-    logger.info(f"Found {len(bots)} custom bot(s) needing token refresh")
-    # Refresh each bot's token
-    success_count = 0
-    fail_count = 0
-    for bot in bots:
-        bot_channel_id = bot['bot_channel_id']
-        refresh_token = bot['refresh_token']
-        bot_username = bot['bot_username']
-        channel_username = bot['username']
-        # Refresh the token
-        token_data = await refresh_bot_token(bot_channel_id, refresh_token, bot_username, channel_username)
-        if token_data:
-            # Update database
-            if await update_bot_token(token_data):
-                success_count += 1
-                logger.info(f"✓ Successfully refreshed and saved token for {bot_username} (channel: {channel_username})")
+    else:
+        logger.info(f"Found {len(bots)} custom bot(s) needing token refresh")
+        success_count = 0
+        fail_count = 0
+        for bot in bots:
+            bot_channel_id = bot['bot_channel_id']
+            refresh_token = bot['refresh_token']
+            bot_username = bot['bot_username']
+            channel_username = bot['username']
+            token_data = await refresh_bot_token(bot_channel_id, refresh_token, bot_username, channel_username)
+            if token_data:
+                if await update_bot_token(token_data):
+                    success_count += 1
+                    logger.info(f"✓ Successfully refreshed and saved token for {bot_username} (channel: {channel_username})")
+                else:
+                    fail_count += 1
+                    logger.error(f"✗ Token refresh succeeded but database save failed for {bot_username} (channel: {channel_username})")
             else:
                 fail_count += 1
-                logger.error(f"✗ Token refresh succeeded but database save failed for {bot_username} (channel: {channel_username})")
-        else:
-            fail_count += 1
-            logger.error(f"✗ Failed to refresh token from Twitch for {bot_username} (channel: {channel_username})")
-        # Small delay between requests to avoid rate limiting
-        await asyncio.sleep(1)
-    logger.info(f"Token refresh cycle complete. Success: {success_count}, Failed: {fail_count}")
+                logger.error(f"✗ Failed to refresh token from Twitch for {bot_username} (channel: {channel_username})")
+            await asyncio.sleep(1)
+        logger.info(f"custom_bots refresh complete. Success: {success_count}, Failed: {fail_count}")
+    # --- custom_module_bots table ---
+    module_bots = await get_module_bots_needing_refresh()
+    if not module_bots:
+        logger.info("No custom module bots need token refresh at this time.")
+    else:
+        logger.info(f"Found {len(module_bots)} custom module bot(s) needing token refresh")
+        success_count = 0
+        fail_count = 0
+        for bot in module_bots:
+            bot_channel_id = bot['bot_channel_id']
+            refresh_token = bot['refresh_token']
+            bot_username = bot['bot_username']
+            channel_username = bot['username']
+            token_data = await refresh_bot_token(bot_channel_id, refresh_token, bot_username, channel_username)
+            if token_data:
+                token_data['record_id'] = bot['id']
+                if await update_module_bot_token(token_data):
+                    success_count += 1
+                    logger.info(f"✓ Successfully refreshed and saved module bot token for {bot_username} (channel: {channel_username})")
+                else:
+                    fail_count += 1
+                    logger.error(f"✗ Module bot token refresh succeeded but database save failed for {bot_username} (channel: {channel_username})")
+            else:
+                fail_count += 1
+                logger.error(f"✗ Failed to refresh module bot token from Twitch for {bot_username} (channel: {channel_username})")
+            await asyncio.sleep(1)
+        logger.info(f"custom_module_bots refresh complete. Success: {success_count}, Failed: {fail_count}")
 
 async def main():
     logger.info("🚀 Starting Custom Bot Token Refresh process...")

@@ -41,6 +41,121 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
+// Helper: resolve a Twitch username to its user ID via Helix API (for custom module bot)
+function resolveModuleBotTwitchUserId($username) {
+    global $clientID, $authToken;
+    $username = trim($username);
+    if ($username === '') return [false, 'Bot username cannot be empty.'];
+    $url = 'https://api.twitch.tv/helix/users?login=' . urlencode($username);
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Client-ID: ' . $clientID,
+        'Authorization: Bearer ' . $authToken,
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false || $code !== 200) {
+        return [false, 'Twitch API error: ' . ($err ?: "HTTP {$code}")];
+    }
+    $data = json_decode($resp, true);
+    if (!isset($data['data'][0]['id'])) {
+        return [false, 'Twitch user not found.'];
+    }
+    return [$data['data'][0]['id'], null];
+}
+
+// AJAX: resolve module bot Twitch username to ID
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'resolve_module_bot_id') {
+    header('Content-Type: application/json');
+    $botName = trim($_POST['bot_username'] ?? '');
+    if ($botName === '') {
+        echo json_encode(['success' => false, 'error' => 'Bot username cannot be empty.']);
+        exit();
+    }
+    [$resolvedId, $resolveErr] = resolveModuleBotTwitchUserId($botName);
+    if ($resolvedId === false) {
+        echo json_encode(['success' => false, 'error' => $resolveErr]);
+        exit();
+    }
+    echo json_encode(['success' => true, 'bot_id' => $resolvedId]);
+    exit();
+}
+
+// Handle add a new module bot
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_module_bot') {
+    $botName = trim($_POST['bot_username'] ?? '');
+    $botId   = trim($_POST['bot_channel_id'] ?? '');
+    if ($botName === '') {
+        $_SESSION['update_message'] = 'Please provide a bot username.';
+        header("Location: ?tab=custom-module-bot");
+        exit();
+    }
+    // Auto-resolve ID if not provided
+    if ($botId === '') {
+        [$resolvedId, $resolveErr] = resolveModuleBotTwitchUserId($botName);
+        if ($resolvedId === false) {
+            $_SESSION['update_message'] = $resolveErr;
+            header("Location: ?tab=custom-module-bot");
+            exit();
+        }
+        $botId = $resolvedId;
+    }
+    // Prevent duplicate bot username for this channel
+    $dupStmt = $conn->prepare("SELECT id FROM custom_module_bots WHERE channel_id = ? AND bot_username = ? LIMIT 1");
+    $isDupe = false;
+    if ($dupStmt) {
+        $dupStmt->bind_param('is', $user_id, $botName);
+        $dupStmt->execute();
+        $dupStmt->store_result();
+        $isDupe = $dupStmt->num_rows > 0;
+        $dupStmt->close();
+    }
+    if ($isDupe) {
+        $_SESSION['update_message'] = 'That bot is already linked to your channel.';
+        header("Location: ?tab=custom-module-bot");
+        exit();
+    }
+    $stmt = $conn->prepare("INSERT INTO custom_module_bots (channel_id, bot_username, bot_channel_id, is_verified, access_token, token_expires, refresh_token) VALUES (?, ?, ?, 0, '', NULL, NULL)");
+    if ($stmt) {
+        $stmt->bind_param('iss', $user_id, $botName, $botId);
+        $stmt->execute();
+    }
+    $_SESSION['update_message'] = 'Module bot added. Please verify it using the link below.';
+    header("Location: ?tab=custom-module-bot");
+    exit();
+}
+
+// Handle remove a module bot
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remove_module_bot') {
+    $recordId = intval($_POST['record_id'] ?? 0);
+    if ($recordId > 0) {
+        $stmt = $conn->prepare("DELETE FROM custom_module_bots WHERE id = ? AND channel_id = ?");
+        if ($stmt) {
+            $stmt->bind_param('ii', $recordId, $user_id);
+            $stmt->execute();
+        }
+        $_SESSION['update_message'] = 'Module bot removed.';
+    }
+    header("Location: ?tab=custom-module-bot");
+    exit();
+}
+
+// Load all module bots for this channel
+$moduleBots = [];
+$mbStmt = $conn->prepare("SELECT id, bot_username, bot_channel_id, is_verified FROM custom_module_bots WHERE channel_id = ? ORDER BY bot_username ASC");
+if ($mbStmt) {
+    $mbStmt->bind_param('i', $user_id);
+    $mbStmt->execute();
+    $mbRes = $mbStmt->get_result();
+    while ($row = $mbRes->fetch_assoc()) {
+        $moduleBots[] = $row;
+    }
+    $mbStmt->close();
+}
+
 // Always load the current blacklist from the database before rendering the form
 if (!isset($current_blacklist) || !is_array($current_blacklist) || empty($current_blacklist)) {
     $stmt = $db->prepare("SELECT blacklist FROM joke_settings");
@@ -368,6 +483,10 @@ ob_start();
                 <i class="fas fa-microphone"></i>
                 <span>TTS Settings</span>
             </div>
+            <div class="tab-item" onclick="loadTab('custom-module-bot')">
+                <i class="fas fa-robot"></i>
+                <span>Custom Module Bots</span>
+            </div>
         </div>
     </div>
 </div>
@@ -382,7 +501,7 @@ ob_start();
                 </span>
             </header>
             <div class="card-content">
-                <?php if (isset($_SESSION['update_message'])): ?>
+                <?php if (!empty($_SESSION['update_message'])): ?>
                     <div class="notification is-success">
                         <?php echo $_SESSION['update_message'];
                         unset($_SESSION['update_message']); ?>
@@ -2046,6 +2165,133 @@ ob_start();
                         </form>
                     </div>
                 </div>
+                <!-- Custom Module Bots -->
+                <div class="tab-content" id="custom-module-bot">
+                    <div class="module-container p-4">
+                        <div class="columns is-vcentered mb-4">
+                            <div class="column">
+                                <h2 class="title is-4 has-text-white mb-2">
+                                    <span class="icon has-text-warning"><i class="fas fa-robot"></i></span>
+                                    Custom Module Bots <span class="tag is-warning ml-2">Experimental</span>
+                                </h2>
+                                <p class="subtitle is-6 has-text-grey-light">Link one or more custom bot accounts to your channel. Each bot can be used to send messages for different custom modules.</p>
+                            </div>
+                        </div>
+                        <!-- Add new bot form -->
+                        <div class="box has-background-grey-dark has-text-white mb-5">
+                            <h3 class="title is-5 has-text-white mb-4">
+                                <span class="icon has-text-success"><i class="fas fa-plus-circle"></i></span>
+                                Add a Custom Module Bot
+                            </h3>
+                            <form method="post" id="custom-module-bot-form">
+                                <input type="hidden" name="action" value="add_module_bot">
+                                <div class="columns">
+                                    <div class="column is-5">
+                                        <div class="field">
+                                            <label class="label has-text-white">Bot Username</label>
+                                            <div class="control has-icons-left has-icons-right">
+                                                <input class="input" type="text" name="bot_username" id="module-bot-username" placeholder="Enter bot Twitch username (without @)" autocomplete="off">
+                                                <span class="icon is-small is-left"><i class="fas fa-robot"></i></span>
+                                                <span class="icon is-small is-right" id="module-bot-lookup-status" style="display:none;"></span>
+                                            </div>
+                                            <p class="help has-text-grey-light">The Twitch username of the bot account (without @).</p>
+                                        </div>
+                                    </div>
+                                    <div class="column is-7">
+                                        <div class="field">
+                                            <label class="label has-text-white">Bot ID <span class="has-text-grey-light" style="font-weight:normal;">(auto-resolved)</span></label>
+                                            <div class="field has-addons mb-0">
+                                                <div class="control is-expanded">
+                                                    <input class="input" type="text" name="bot_channel_id" id="module-bot-id" readonly placeholder="Click &quot;Resolve ID&quot; to look up">
+                                                </div>
+                                                <div class="control">
+                                                    <button type="button" class="button is-info" id="resolve-module-bot-btn">
+                                                        <span class="icon"><i class="fas fa-search"></i></span>
+                                                        <span>Resolve ID</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <p class="help has-text-grey-light">Resolved automatically from the username above.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <div class="control">
+                                        <button type="submit" class="button is-success">
+                                            <span class="icon"><i class="fas fa-plus"></i></span>
+                                            <span>Add Bot</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <!-- Verification instructions -->
+                        <div class="notification is-warning is-light mb-5">
+                            <p class="has-text-dark">
+                                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                                <strong>Verification required:</strong> After adding a bot, it must be verified before it can send messages.
+                                Open <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener" class="has-text-link"><strong>mybot.specterbot.systems/custombot.php</strong></a>
+                                in an <strong>incognito/private window</strong> and sign in with the bot account to complete verification.
+                            </p>
+                        </div>
+                        <!-- Linked bots list -->
+                        <div class="box has-background-grey-dark has-text-white">
+                            <h3 class="title is-5 has-text-white mb-4">
+                                <span class="icon has-text-info"><i class="fas fa-list"></i></span>
+                                Linked Bots
+                            </h3>
+                            <?php if (empty($moduleBots)): ?>
+                                <div class="notification is-info">
+                                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                                    No custom module bots linked yet. Use the form above to add one.
+                                </div>
+                            <?php else: ?>
+                                <div class="table-container">
+                                    <table class="table is-fullwidth is-hoverable is-striped has-background-grey-dark has-text-white">
+                                        <thead>
+                                            <tr>
+                                                <th class="has-text-white">Bot Username</th>
+                                                <th class="has-text-white">Bot ID</th>
+                                                <th class="has-text-white">Status</th>
+                                                <th class="has-text-white has-text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($moduleBots as $mb): ?>
+                                            <tr>
+                                                <td>
+                                                    <span class="icon-text">
+                                                        <span class="icon has-text-grey-light"><i class="fas fa-robot"></i></span>
+                                                        <span><?php echo htmlspecialchars($mb['bot_username']); ?></span>
+                                                    </span>
+                                                </td>
+                                                <td><code><?php echo htmlspecialchars($mb['bot_channel_id']); ?></code></td>
+                                                <td>
+                                                    <?php if (intval($mb['is_verified']) === 1): ?>
+                                                        <span class="tag is-success is-medium"><span class="icon is-small"><i class="fas fa-check-circle"></i></span>&nbsp;Verified</span>
+                                                    <?php else: ?>
+                                                        <span class="tag is-warning is-medium"><span class="icon is-small"><i class="fas fa-clock"></i></span>&nbsp;Pending Verification</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="has-text-right">
+                                                    <form method="post" style="display:inline;" onsubmit="return confirm('Remove <?php echo htmlspecialchars(addslashes($mb['bot_username'])); ?>?');">
+                                                        <input type="hidden" name="action" value="remove_module_bot">
+                                                        <input type="hidden" name="record_id" value="<?php echo intval($mb['id']); ?>">
+                                                        <button type="submit" class="button is-danger is-small">
+                                                            <span class="icon"><i class="fas fa-trash-alt"></i></span>
+                                                            <span>Remove</span>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -2890,6 +3136,60 @@ ob_start();
             }
         });
     }
+
+    // Custom Module Bots: resolve Twitch username to ID
+    (function() {
+        const resolveBtn   = document.getElementById('resolve-module-bot-btn');
+        const usernameInput = document.getElementById('module-bot-username');
+        const idField      = document.getElementById('module-bot-id');
+        const statusIcon   = document.getElementById('module-bot-lookup-status');
+        const addBtn       = document.querySelector('#custom-module-bot-form button[type="submit"]');
+        function setStatus(html, isOk) {
+            if (!statusIcon) return;
+            statusIcon.style.display = html ? '' : 'none';
+            statusIcon.innerHTML = html || '';
+            if (addBtn) addBtn.disabled = !isOk;
+        }
+        // Disable Add button until ID is resolved
+        if (addBtn) addBtn.disabled = true;
+        // Re-disable when username changes
+        if (usernameInput) {
+            usernameInput.addEventListener('input', function() {
+                if (idField) idField.value = '';
+                setStatus('', false);
+            });
+        }
+        if (resolveBtn) {
+            resolveBtn.addEventListener('click', function() {
+                const name = usernameInput ? usernameInput.value.trim() : '';
+                if (!name) {
+                    setStatus('<i class="fas fa-exclamation-triangle has-text-danger"></i>', false);
+                    return;
+                }
+                setStatus('<i class="fas fa-spinner fa-spin"></i>', false);
+                fetch(window.location.pathname, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({action: 'resolve_module_bot_id', bot_username: name})
+                })
+                .then(r => r.json())
+                .then(j => {
+                    if (j && j.success) {
+                        if (idField) idField.value = j.bot_id || '';
+                        setStatus('<i class="fas fa-check has-text-success"></i>', true);
+                    } else {
+                        setStatus('<i class="fas fa-times has-text-danger"></i>', false);
+                        alert(j.error || 'Unable to resolve bot ID');
+                    }
+                })
+                .catch(function(err) {
+                    setStatus('<i class="fas fa-times has-text-danger"></i>', false);
+                    console.error(err);
+                    alert('Error resolving bot ID');
+                });
+            });
+        }
+    })();
 </script>
 <?php
 $scripts = ob_get_clean();
