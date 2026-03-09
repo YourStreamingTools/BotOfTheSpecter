@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $db->prepare(
                         'UPDATE support_docs SET section_key=?, title=?, content=?, doc_order=?, is_visible=?, updated_by=? WHERE id=?'
                     );
-                    $stmt->bind_param('sssiiis', $secKey, $title, $content, $order, $visible, $author, $editDocId);
+                    $stmt->bind_param('sssiisi', $secKey, $title, $content, $order, $visible, $author, $editDocId);
                     $stmt->execute();
                     $stmt->close();
                     $flash[] = ['type'=>'success','msg'=>'Doc block updated.'];
@@ -316,7 +316,6 @@ if ($action === 'edit' || $action === 'new'):
     <input type="hidden" name="_action"    value="save_doc">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
     <input type="hidden" name="edit_id"    value="<?php echo (int)$d['id']; ?>">
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
         <div class="sp-form-group" style="margin-bottom:0;">
             <label class="sp-label" for="section_key">Section <span class="sp-req">*</span></label>
@@ -337,12 +336,11 @@ if ($action === 'edit' || $action === 'new'):
                    value="<?php echo htmlspecialchars($d['title'] ?? ''); ?>">
         </div>
     </div>
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
         <div class="sp-form-group" style="margin-bottom:0;">
             <label class="sp-label" for="doc_order">Display Order</label>
             <input type="number" id="doc_order" name="doc_order" class="sp-input"
-                   min="0" max="9999" value="<?php echo (int)$d['doc_order']; ?>"
+                   min="1" max="9999" value="<?php echo (int)$d['doc_order']; ?>"
                    <?php if ($isNew): ?>data-auto="1"<?php endif; ?>>
             <span class="sp-field-hint">Lower numbers appear first within the section.</span>
         </div>
@@ -360,7 +358,7 @@ if ($action === 'edit' || $action === 'new'):
             secSelect.addEventListener('change', function () {
                 if (!('auto' in orderInput.dataset)) return;
                 var sec  = secSelect.value;
-                var next = (maxOrders[sec] !== undefined) ? (maxOrders[sec] + 1) : 0;
+                var next = (maxOrders[sec] !== undefined) ? (maxOrders[sec] + 1) : 1;
                 orderInput.value = next;
             });
         }());
@@ -411,22 +409,21 @@ if ($action === 'edit' || $action === 'new'):
             <i class="fa-solid fa-floppy-disk"></i> <?php echo $isNew ? 'Create Doc Block' : 'Save Changes'; ?>
         </button>
         <a href="/docs.php" class="sp-btn sp-btn-ghost">Cancel</a>
-        <?php if (!$isNew && $editDoc): ?>
-        <label class="sp-toggle-label" style="margin-left:auto;">
-            <form method="POST" action="/docs.php" style="display:inline;">
-                <input type="hidden" name="_action"    value="toggle_vis">
-                <input type="hidden" name="id"         value="<?php echo (int)$editDoc['id']; ?>">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
-                <input type="hidden" name="back"       value="docs">
-                <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">
-                    <i class="fa-solid <?php echo $editDoc['is_visible'] ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
-                    <?php echo $editDoc['is_visible'] ? 'Hide from public' : 'Make visible'; ?>
-                </button>
-            </form>
-        </label>
-        <?php endif; ?>
     </div>
 </form>
+
+<?php if (!$isNew && $editDoc): ?>
+<form method="POST" action="/docs.php" style="margin-top:0.75rem;">
+    <input type="hidden" name="_action"    value="toggle_vis">
+    <input type="hidden" name="id"         value="<?php echo (int)$editDoc['id']; ?>">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+    <input type="hidden" name="back"       value="docs">
+    <button type="submit" class="sp-btn sp-btn-secondary sp-btn-sm">
+        <i class="fa-solid <?php echo $editDoc['is_visible'] ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
+        <?php echo $editDoc['is_visible'] ? 'Hide from public' : 'Make visible'; ?>
+    </button>
+</form>
+<?php endif; ?>
 
 <?php
 
@@ -503,7 +500,7 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
             <div class="sp-form-group">
                 <label class="sp-label" for="section_order">Sort Order</label>
                 <input type="number" id="section_order" name="section_order" class="sp-input"
-                       min="0" max="9999" style="max-width:140px;"
+                       min="1" max="9999" style="max-width:140px;"
                        value="<?php echo (int)$s['section_order']; ?>"
                        <?php if ($isNewSec): ?>data-auto="1"<?php endif; ?>>
                 <span class="sp-field-hint">Lower numbers appear first. Sections with the same order are sorted alphabetically.</span>
