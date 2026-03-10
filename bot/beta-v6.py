@@ -1,13 +1,13 @@
 # Standard library imports
 import os, re, sys, ast, signal, argparse, traceback, math, ssl
 import json, time, random, base64, operator, threading
-from asyncio import Queue, subprocess, Lock
+from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, timezone, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 from logging import getLogger
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
@@ -22,7 +22,7 @@ from aiohttp import ClientSession as httpClientSession
 from aiohttp import ClientError as aiohttpClientError
 from aiohttp import ClientTimeout
 from socketio import AsyncClient
-from aiomysql import connect as sql_connect, create_pool
+from aiomysql import connect as sql_connect
 from aiomysql import IntegrityError as MySQLIntegrityError
 from socketio.exceptions import ConnectionError as ConnectionExecptionError
 from aiomysql import DictCursor, MySQLError
@@ -45,6 +45,10 @@ from openai import AsyncOpenAI
 # Load environment variables from .env file
 from dotenv import load_dotenv
 load_dotenv()
+
+# Custom channel modules
+from custom_channel_modules import botofthespecter as botofthespecter_module
+from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -250,8 +254,6 @@ last_ad_message_ts = 0.0                                # Timestamp of last ad m
 stream_session_started_at = 0.0                         # UTC timestamp when the current stream session started
 pending_outgoing_raid = None                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                               # asyncio.Task that waits for stream end to persist outgoing raid
-MYSQL_POOL_ACQUIRE_TIMEOUT = float(os.getenv('MYSQL_POOL_ACQUIRE_TIMEOUT', '10'))
-MYSQL_POOL_PING_TIMEOUT = float(os.getenv('MYSQL_POOL_PING_TIMEOUT', '3'))
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))
 
 SPOTIFY_ERROR_MESSAGES = {
@@ -316,7 +318,6 @@ def signal_handler(sig, frame):
 async def async_signal_cleanup():
     await specterSocket.disconnect()     # Disconnect the SocketClient
     ssh_manager.close_all_connections()  # Close all SSH connections
-    await mysql_handler.close_all()      # Close all MySQL connections
     for task in scheduled_tasks:
         task.cancel()
     for task in looped_tasks:
@@ -329,207 +330,72 @@ async def async_signal_cleanup():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C as well
 
-# MySQL Connection Wrapper Class - Must be defined BEFORE MySQLHandler
-class PoolConnectionWrapper:
-    def __init__(self, connection, pool=None):
+# Direct MySQL connection wrapper (one connection per call, no pooling)
+class DirectConnection:
+    def __init__(self, connection):
         self._connection = connection
-        self._pool = pool
-        self._released = False
+        self._closed = False
 
     def cursor(self, *args, **kwargs):
-        if self._released:
-            raise RuntimeError("Cannot use cursor on released connection")
         return self._connection.cursor(*args, **kwargs)
 
     async def commit(self):
-        if self._connection and not self._released:
+        if self._connection and not self._closed:
             await self._connection.commit()
 
     async def rollback(self):
-        if self._connection and not self._released:
+        if self._connection and not self._closed:
             await self._connection.rollback()
 
-    async def release(self):
-        if self._connection and not self._released:
+    async def close(self):
+        if self._connection and not self._closed:
+            self._closed = True
             try:
-                if self._pool is not None:
-                    try:
-                        await self._pool.release(self._connection)
-                    except Exception:
-                        try:
-                            self._pool.release(self._connection)
-                        except Exception:
-                            pass
-                else:
-                    try:
-                        self._connection.close()
-                    except Exception:
-                        pass
-                self._released = True
+                self._connection.close()
             except Exception as e:
-                bot_logger.error(f"Error releasing/closing connection: {e}")
+                bot_logger.error(f"Error closing MySQL connection: {e}")
+
+    async def release(self):
+        await self.close()
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.release()
+        await self.close()
         return False
 
-    def __del__(self):
-        if self._connection and not self._released:
-            try:
-                loop = get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.release())
-            except Exception:
-                pass
-
-# Improved MySQL handler with connection pooling, health checks and cleanup
-class MySQLHandler:
-    def __init__(self):
-        self.pools = {}
-        self.pool_meta = {}
-        self.lock = Lock()
-
-    async def _create_pool(self, db_name):
-        global SQL_HOST, SQL_USER, SQL_PASSWORD
-        pool = await create_pool(
-            host=SQL_HOST,
-            user=SQL_USER,
-            password=SQL_PASSWORD,
-            db=db_name,
-            minsize=1,
-            maxsize=8,
-            autocommit=True,
-            connect_timeout=5
-        )
-        self.pools[db_name] = pool
-        self.pool_meta[db_name] = {'last_used': time.time()}
-        return pool
-
-    async def _close_pool(self, db_name):
-        pool = self.pools.pop(db_name, None)
-        self.pool_meta.pop(db_name, None)
-        if pool:
-            try:
-                pool.close()
-                await pool.wait_closed()
-            except Exception as e:
-                bot_logger.error(f"Error closing pool {db_name}: {e}")
-
+# Lightweight MySQL compat shim (replaces MySQLHandler pool management)
+class _MySQLCompat:
     async def get_connection(self, db_name=None):
-        if db_name is None:
-            db_name = CHANNEL_NAME
-        for attempt in range(3):
-            try:
-                async with self.lock:
-                    pool = self.pools.get(db_name)
-                    if pool is None:
-                        pool = await self._create_pool(db_name)
-                acquire_started = time.time()
-                try:
-                    conn = await asyncio_wait_for(pool.acquire(), timeout=MYSQL_POOL_ACQUIRE_TIMEOUT)
-                except asyncioTimeoutError:
-                    pool_stats = self.get_pool_stats().get(db_name, {})
-                    bot_logger.error(
-                        f"MySQL pool acquire timed out for '{db_name}' after {MYSQL_POOL_ACQUIRE_TIMEOUT:.1f}s. "
-                        f"Pool stats: {pool_stats}"
-                    )
-                    raise MySQLError(
-                        f"Timeout acquiring MySQL connection for {db_name} after {MYSQL_POOL_ACQUIRE_TIMEOUT:.1f}s"
-                    )
-                acquire_elapsed = time.time() - acquire_started
-                if acquire_elapsed >= 1.0:
-                    bot_logger.warning(
-                        f"Slow MySQL pool acquire for '{db_name}': {acquire_elapsed:.2f}s"
-                    )
-                try:
-                    try:
-                        await asyncio_wait_for(conn.ping(), timeout=MYSQL_POOL_PING_TIMEOUT)
-                    except Exception:
-                        try:
-                            pool.release(conn)
-                        except Exception:
-                            pass
-                        async with self.lock:
-                            await self._close_pool(db_name)
-                            pool = await self._create_pool(db_name)
-                        try:
-                            conn = await asyncio_wait_for(pool.acquire(), timeout=MYSQL_POOL_ACQUIRE_TIMEOUT)
-                        except asyncioTimeoutError:
-                            pool_stats = self.get_pool_stats().get(db_name, {})
-                            bot_logger.error(
-                                f"MySQL pool re-acquire timed out for '{db_name}' after reconnect. "
-                                f"Pool stats: {pool_stats}"
-                            )
-                            raise MySQLError(
-                                f"Timeout re-acquiring MySQL connection for {db_name} after reconnect"
-                            )
-                    self.pool_meta.setdefault(db_name, {})['last_used'] = time.time()
-                    return PoolConnectionWrapper(conn, pool=pool)
-                except Exception:
-                    try:
-                        pool.release(conn)
-                    except Exception:
-                        pass
-                    raise
-            except Exception as e:
-                bot_logger.warning(f"MySQL get_connection attempt {attempt+1} failed for {db_name}: {e}")
-                await sleep(1 + attempt)
-        raise MySQLError(f"Unable to get MySQL connection for {db_name} after retries")
+        return await mysql_connection(db_name)
 
     async def close_all(self):
-        async with self.lock:
-            for db_name in list(self.pools.keys()):
-                await self._close_pool(db_name)
+        pass
 
-    async def cleanup_idle_pools(self, max_idle_time=1800):
-        now = time.time()
-        to_close = []
-        for db_name, meta in list(self.pool_meta.items()):
-            if now - meta.get('last_used', 0) > max_idle_time:
-                to_close.append(db_name)
-        for db_name in to_close:
-            bot_logger.info(f"Closing idle DB pool: {db_name}")
-            await self._close_pool(db_name)
-
-    def get_pool_stats(self):
-        stats = {}
-        for db_name, pool in self.pools.items():
-            try:
-                maxsize = getattr(pool, 'maxsize', None)
-                free_size = getattr(pool, 'free_size', None)
-                size = getattr(pool, 'size', None)
-                used_size = (size - free_size) if (isinstance(size, int) and isinstance(free_size, int)) else None
-                stats[db_name] = {
-                    'minsize': getattr(pool, 'minsize', None),
-                    'maxsize': maxsize,
-                    'size': size,
-                    'free_size': free_size,
-                    'used_size': used_size,
-                    'saturated': bool(maxsize is not None and free_size == 0 and size == maxsize)
-                }
-            except Exception:
-                stats[db_name] = {'info': 'unavailable'}
-        return stats
-
-    def get_pool_status(self, db_name=None):
-        if db_name is None:
-            return {'pools': list(self.pools.keys()), 'total': len(self.pools)}
-        return {'connected': db_name in self.pools}
-
-    def get_connection_status(self, db_name=None):
-        return self.get_pool_status(db_name)
+    def get_connection_status(self):
+        return {
+            'connected': True,
+            'db_name': CHANNEL_NAME,
+            'connection_time': bot_started.timestamp() if hasattr(bot_started, 'timestamp') else time.time(),
+        }
 
 # Initialize global MySQL handler
-mysql_handler = MySQLHandler()
+mysql_handler = _MySQLCompat()
 
 # Function to handle MySQL connections
 async def mysql_connection(db_name=None):
     if db_name is None:
         db_name = CHANNEL_NAME
-    return await mysql_handler.get_connection(db_name=db_name)
+    conn = await sql_connect(
+        host=SQL_HOST,
+        user=SQL_USER,
+        password=SQL_PASSWORD,
+        db=db_name,
+        autocommit=True,
+        connect_timeout=5
+    )
+    return DirectConnection(conn)
 
 def _first_present_key(row: dict, candidates):
     for candidate in candidates:
@@ -1368,6 +1234,33 @@ async def process_twitch_eventsub_message(message):
                             is_upgrade=True  # Skip sending duplicate subscription alert
                         ))
                         event_logger.info(f"Prime paid upgrade: {event_data['chatter_user_name']} upgraded from Prime Gaming to paid {tier_name} subscription")
+                    elif notice_type == "raid":
+                        event_logger.info("Ignoring chat notification raid notice; using channel.raid EventSub event as source of truth.")
+                    elif notice_type == "unraid":
+                        # If broadcaster canceled outgoing raid
+                        chatter_user_id = event_data.get("chatter_user_id")
+                        if chatter_user_id == CHANNEL_ID:
+                            pending_outgoing_raid = None
+                            if outgoing_raid_task and not outgoing_raid_task.done():
+                                try:
+                                    outgoing_raid_task.cancel()
+                                except Exception:
+                                    pass
+                                outgoing_raid_task = None
+                            event_logger.info("Outgoing raid canceled (unraid)")
+                    elif notice_type == "viewer_milestone":
+                        milestone_data = event_data.get("viewer_milestone", {})
+                        category = milestone_data.get("category", "")
+                        if category == "watch-streak":
+                            milestone_value = milestone_data.get("value", 0)
+                            chatter_name = event_data.get("chatter_user_name", "")
+                            await cursor.execute(
+                                "INSERT INTO analytic_stream_watch_streak (user_name, streak_value) VALUES (%s, %s) "
+                                "ON DUPLICATE KEY UPDATE streak_value = %s, updated_at = NOW()",
+                                (chatter_name, milestone_value, milestone_value)
+                            )
+                            await cursor.commit()
+                            event_logger.info(f"Viewer milestone (watch-streak): {chatter_name} has watched {milestone_value} consecutive streams")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
@@ -2719,20 +2612,11 @@ class SSHConnectionManager:
                 self._cleanup_connection(server_name)
             self.logger.info("All SSH connections closed")
 
-# Database connection pool cleanup routine
+# Kept for compatibility - per-function connections have no pools to clean up
 async def cleanup_idle_db_pools():
     while True:
         try:
             await sleep(1800)
-            stats = mysql_handler.get_pool_stats()
-            if stats:
-                bot_logger.info(f"DB Pool Stats before cleanup: {stats}")
-            await mysql_handler.cleanup_idle_pools(max_idle_time=1800)
-            stats_after = mysql_handler.get_pool_stats()
-            if stats_after:
-                bot_logger.info(f"DB Pool Stats after cleanup: {stats_after}")
-            else:
-                bot_logger.info("All idle database pools have been cleaned up")
         except Exception as e:
             bot_logger.error(f"Error in cleanup_idle_db_pools: {e}")
             await sleep(300)
@@ -2805,6 +2689,18 @@ class TwitchBot(commands.AutoBot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
+        if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
+            try:
+                await hedgehogobrien_module.ensure_tables(mysql_handler)
+                bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
+                create_task(hedgehogobrien_module.handle_ready(
+                    broadcaster_id=CHANNEL_ID,
+                    mysql_handler=mysql_handler,
+                    http_session=_shared_http_session,
+                    chat_logger=chat_logger,
+                ))
+            except Exception as _hh_err:
+                bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     # Errors
@@ -3087,8 +2983,41 @@ class TwitchBot(commands.AutoBot):
                                     add_usage(command, 'global', 'default')
                         else:
                             chat_logger.info(f"Custom command '{command}' not found.")
+                # Handle hedgehogobrien module commands
+                if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME) and hedgehogobrien_module.is_bureau_command(messageContent):
+                    async def _hh_send(msg):
+                        await hedgehogobrien_module.send_module_message(
+                            message=msg,
+                            broadcaster_id=CHANNEL_ID,
+                            mysql_handler=mysql_handler,
+                            http_session=_shared_http_session,
+                            chat_logger=chat_logger,
+                        )
+                    await hedgehogobrien_module.handle_bureau_command(
+                        command=AuthorMessage,
+                        username=messageAuthor,
+                        mysql_handler=mysql_handler,
+                        send_message=_hh_send,
+                        chat_logger=chat_logger,
+                    )
                 # Handle AI responses
-                if f'@{BOT_USERNAME.lower()}' in str(message.text).lower():
+                if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
+                    ai_text = await botofthespecter_module.handle_bot_home_channel_ai(
+                        bot_nick=BOT_USERNAME,
+                        original_message=AuthorMessage,
+                        normalized_message=messageContent,
+                        user_id=messageAuthorID,
+                        author_name=messageAuthor,
+                        bot_home_channel_name=BOT_HOME_CHANNEL_NAME,
+                        openai_client=openai_client,
+                        get_remote_instruction_messages=get_remote_instruction_messages,
+                        api_logger=api_logger,
+                        bot_home_ai_history_dir=BOT_HOME_AI_HISTORY_DIR,
+                        max_chat_message_length=MAX_CHAT_MESSAGE_LENGTH,
+                    )
+                    if ai_text:
+                        await self.send_ai_response(ai_text, messageAuthor)
+                elif f'@{BOT_USERNAME.lower()}' in str(message.text).lower():
                     # Ignore messages from the bot itself to prevent self-responses
                     if message.chatter.name.lower() == BOT_USERNAME.lower():
                         chat_logger.info(f"Ignoring AI mention from bot itself")
@@ -3224,6 +3153,19 @@ class TwitchBot(commands.AutoBot):
                     )
                     await connection.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today.")
+                    # Forward to custom module if applicable - module handles message and returns True
+                    if hedgehogobrien_module is not None:
+                        _hh_handled = await hedgehogobrien_module.handle_first_chat(
+                            channel_name=CHANNEL_NAME,
+                            username=messageAuthor,
+                            broadcaster_id=CHANNEL_ID,
+                            mysql_handler=mysql_handler,
+                            http_session=_shared_http_session,
+                            chat_logger=chat_logger,
+                        )
+                        if _hh_handled:
+                            create_task(self.safe_walkon(messageAuthor))
+                            return
                     # Only send welcome message if enabled
                     if user_status_enabled and send_welcome_messages:
                         if not user_data:
@@ -3368,6 +3310,9 @@ class TwitchBot(commands.AutoBot):
         ai_response = await self.get_ai_response(user_message, user_id, message_author_name)
         if not ai_response:
             return
+        await self.send_ai_response(ai_response, message_author_name)
+
+    async def send_ai_response(self, ai_response, message_author_name):
         # Normalize duplicate mentions that may be produced by the AI itself
         try:
             name = message_author_name or ''
