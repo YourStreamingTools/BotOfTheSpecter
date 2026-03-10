@@ -254,7 +254,6 @@ if ($username && !$notFound && $isDeceased) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -293,7 +292,6 @@ if ($username && !$notFound && $isDeceased) {
         const quotesData = <?php echo json_encode($quotesData); ?>;
     </script>
 </head>
-
 <body>
     <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
         <div class="navbar-brand">
@@ -351,7 +349,6 @@ if ($username && !$notFound && $isDeceased) {
                             </div>
                         </form>
                     </div>
-
                     <!-- Quick links / custom pages for users who haven't selected a channel -->
                     <div class="box">
                         <h3 class="subtitle">Member Information</h3>
@@ -388,7 +385,6 @@ if ($username && !$notFound && $isDeceased) {
                 <?php elseif ($isDeceased): ?>
                     <div class="memorial-page">
                         <div class="memorial-stars-bg" aria-hidden="true"></div>
-
                         <!-- Candlelight -->
                         <div class="memorial-candles" aria-hidden="true">
                             <div class="candle">
@@ -410,15 +406,12 @@ if ($username && !$notFound && $isDeceased) {
                                 <div class="candle-base"></div>
                             </div>
                         </div>
-
                         <!-- Dove -->
                         <div class="memorial-dove-icon">
                             <i class="fas fa-dove fa-3x"></i>
                         </div>
-
                         <!-- Title -->
                         <h1 class="memorial-title">In Memoriam</h1>
-
                         <!-- Profile image -->
                         <?php if ($memberProfileImage): ?>
                         <div class="memorial-profile-wrap">
@@ -428,28 +421,22 @@ if ($username && !$notFound && $isDeceased) {
                                  onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
                         </div>
                         <?php endif; ?>
-
                         <!-- Name -->
                         <p class="memorial-name"><?php echo htmlspecialchars($memberDisplayName ?: $username, ENT_QUOTES, 'UTF-8'); ?></p>
                         <p class="memorial-username">@<?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></p>
-
                         <!-- Decorative divider -->
                         <div class="memorial-divider" aria-hidden="true"><span>✦</span></div>
-
                         <!-- Memorial message -->
                         <div class="memorial-message">
                             <p class="preserved-note">This channel has been preserved as a permanent memorial.</p>
                             <p>The account holder has passed away. Their channel, community, and memories remain here as a tribute to the person they were and the community they built.</p>
                         </div>
-
                         <!-- Community highlights divider -->
                         <div class="memorial-divider" aria-hidden="true"><span>&#10022;</span></div>
-
                         <!-- Community highlights -->
                         <div class="memorial-stats">
                             <p class="memorial-stats-heading">Community Highlights</p>
                             <div class="memorial-stats-grid">
-
                                 <!-- Top Lurkers -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
@@ -462,13 +449,14 @@ if ($username && !$notFound && $isDeceased) {
                                         <?php foreach ($memorialData['lurkers'] as $i => $row): ?>
                                         <div class="memorial-stat-row">
                                             <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
-                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['display_name'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['display_name'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                            <span class="memorial-stat-value">since <?php echo date('M Y', strtotime($row['start_time'])); ?></span>
+                                            <div class="memorial-stat-name-wrap">
+                                                <span class="memorial-stat-name"><?php echo htmlspecialchars($row['display_name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <span class="memorial-stat-value">since <?php echo date('M Y', strtotime($row['start_time'])); ?></span>
+                                            </div>
                                         </div>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-
                                 <!-- Top Typos -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
@@ -481,13 +469,14 @@ if ($username && !$notFound && $isDeceased) {
                                         <?php foreach ($memorialData['typos'] as $i => $row): ?>
                                         <div class="memorial-stat-row">
                                             <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
-                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                            <span class="memorial-stat-value"><?php echo (int)$row['typo_count']; ?></span>
+                                            <div class="memorial-stat-name-wrap">
+                                                <span class="memorial-stat-name"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <span class="memorial-stat-value"><?php echo (int)$row['typo_count']; ?> typos</span>
+                                            </div>
                                         </div>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-
                                 <!-- Top Game Deaths -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
@@ -500,13 +489,14 @@ if ($username && !$notFound && $isDeceased) {
                                         <?php foreach ($memorialData['deaths'] as $i => $row): ?>
                                         <div class="memorial-stat-row">
                                             <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
-                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['game_name'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['game_name'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                            <span class="memorial-stat-value"><?php echo (int)$row['death_count']; ?></span>
+                                            <div class="memorial-stat-name-wrap">
+                                                <span class="memorial-stat-name"><?php echo htmlspecialchars($row['game_name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <span class="memorial-stat-value"><?php echo (int)$row['death_count']; ?> deaths</span>
+                                            </div>
                                         </div>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-
                                 <!-- Top Hugs -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
@@ -519,13 +509,14 @@ if ($username && !$notFound && $isDeceased) {
                                         <?php foreach ($memorialData['hugs'] as $i => $row): ?>
                                         <div class="memorial-stat-row">
                                             <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
-                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                            <span class="memorial-stat-value"><?php echo (int)$row['hug_count']; ?></span>
+                                            <div class="memorial-stat-name-wrap">
+                                                <span class="memorial-stat-name"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <span class="memorial-stat-value"><?php echo (int)$row['hug_count']; ?> hugs</span>
+                                            </div>
                                         </div>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-
                                 <!-- Top Watch Time -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
@@ -538,19 +529,18 @@ if ($username && !$notFound && $isDeceased) {
                                         <?php foreach ($memorialData['watchtime'] as $i => $row): ?>
                                         <div class="memorial-stat-row">
                                             <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
-                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                            <span class="memorial-stat-value"><?php echo htmlspecialchars(formatWatchTimePHP((int)$row['total_watch_time_live']), ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <div class="memorial-stat-name-wrap">
+                                                <span class="memorial-stat-name"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <span class="memorial-stat-value"><?php echo htmlspecialchars(formatWatchTimePHP((int)$row['total_watch_time_live']), ENT_QUOTES, 'UTF-8'); ?></span>
+                                            </div>
                                         </div>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
-
                             </div>
                         </div>
-
                         <!-- Footer accent -->
                         <div class="memorial-footer-stars" aria-hidden="true">✦ &nbsp; ✦ &nbsp; ✦</div>
-
                         <!-- Back button -->
                         <div class="memorial-actions">
                             <a href="/" class="button is-light">
