@@ -131,8 +131,9 @@ hr {
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
     height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
@@ -315,6 +316,7 @@ hr {
 .sp-main {
     flex: 1;
     min-width: 0;
+    margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
 }
@@ -1502,6 +1504,8 @@ hr {
         transition: left var(--transition);
         z-index: 200;
     }
+
+    .sp-main { margin-left: 0; }
 
     .sp-sidebar.open {
         left: 0;
