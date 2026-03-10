@@ -260,7 +260,7 @@ a:hover {
     border: 1px solid var(--border-color);
     transition: all var(--transition-normal);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .box::before {
