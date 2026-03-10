@@ -541,6 +541,61 @@ if ($username && !$notFound && $isDeceased) {
                         </div>
                         <!-- Footer accent -->
                         <div class="memorial-footer-stars" aria-hidden="true">✦ &nbsp; ✦ &nbsp; ✦</div>
+                        <!-- Help & Crisis Resources -->
+                        <div class="memorial-helplines">
+                            <button class="memorial-helplines-toggle" onclick="toggleHelplines(this)" aria-expanded="false">
+                                <span class="icon is-small"><i class="fas fa-hands-holding-heart"></i></span>
+                                <span>Help is always available &mdash; view crisis helplines</span>
+                                <span class="toggle-arrow"><i class="fas fa-chevron-down"></i></span>
+                            </button>
+                            <p class="memorial-helplines-sub">If you find yourself needing to reach out to someone, please contact your local helpline.</p>
+                            <div class="memorial-helplines-grid" id="helplines-grid">
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Australia</span><span class="memorial-helpline-name">Lifeline</span><span class="memorial-helpline-number">13 11 14</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">United States</span><span class="memorial-helpline-name">988 Suicide &amp; Crisis Lifeline</span><span class="memorial-helpline-number">988</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Canada</span><span class="memorial-helpline-name">Suicide Crisis Helpline</span><span class="memorial-helpline-number">988</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">United Kingdom</span><span class="memorial-helpline-name">Samaritans</span><span class="memorial-helpline-number">116 123</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Ireland</span><span class="memorial-helpline-name">Samaritans</span><span class="memorial-helpline-number">116 123</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">France</span><span class="memorial-helpline-name">National Suicide Prevention Hotline</span><span class="memorial-helpline-number">3114</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Germany</span><span class="memorial-helpline-name">TelefonSeelsorge</span><span class="memorial-helpline-number">0800 111 0111</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Spain</span><span class="memorial-helpline-name">Tel&eacute;fono de la Esperanza</span><span class="memorial-helpline-number">717 003 717</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Italy</span><span class="memorial-helpline-name">Telefono Amico</span><span class="memorial-helpline-number">199 284 284</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Netherlands</span><span class="memorial-helpline-name">113 Suicide Prevention</span><span class="memorial-helpline-number">0900 0113</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Belgium</span><span class="memorial-helpline-name">Zelfmoordlijn</span><span class="memorial-helpline-number">1813</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Sweden</span><span class="memorial-helpline-name">Mind Suicide Line</span><span class="memorial-helpline-number">90101</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Denmark</span><span class="memorial-helpline-name">Livslinien</span><span class="memorial-helpline-number">70 201 201</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Norway</span><span class="memorial-helpline-name">Mental Helse</span><span class="memorial-helpline-number">116 123</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Finland</span><span class="memorial-helpline-name">MIELI Crisis Helpline</span><span class="memorial-helpline-number">09 2525 0111</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Switzerland</span><span class="memorial-helpline-name">La Main Tendue</span><span class="memorial-helpline-number">143</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Poland</span><span class="memorial-helpline-name">Befrienders</span><span class="memorial-helpline-number">22 484 88 01</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Austria</span><span class="memorial-helpline-name">TelefonSeelsorge</span><span class="memorial-helpline-number">142</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Brazil</span><span class="memorial-helpline-name">Centro de Valoriza&ccedil;&atilde;o da Vida</span><span class="memorial-helpline-number">188</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Mexico</span><span class="memorial-helpline-name">SAPTEL</span><span class="memorial-helpline-number">800 472 7835</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Argentina</span><span class="memorial-helpline-name">Centro de Asistencia al Suicida</span><span class="memorial-helpline-number">135</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">New Zealand</span><span class="memorial-helpline-name">Lifeline Aotearoa</span><span class="memorial-helpline-number">0800 543 354</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">India</span><span class="memorial-helpline-name">AASRA</span><span class="memorial-helpline-number">+91 22 2754 6669</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">China</span><span class="memorial-helpline-name">Beijing Suicide Research Center</span><span class="memorial-helpline-number">800 810 1117</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Japan</span><span class="memorial-helpline-name">TELL Lifeline</span><span class="memorial-helpline-number">03 5774 0992</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">South Korea</span><span class="memorial-helpline-name">Suicide Prevention Hotline</span><span class="memorial-helpline-number">1393</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Singapore</span><span class="memorial-helpline-name">Samaritans of Singapore</span><span class="memorial-helpline-number">1800 221 4444</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Malaysia</span><span class="memorial-helpline-name">Befrienders KL</span><span class="memorial-helpline-number">03 7956 8145</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Philippines</span><span class="memorial-helpline-name">NCMH Crisis Hotline</span><span class="memorial-helpline-number">1553</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Israel</span><span class="memorial-helpline-name">ERAN Emotional First Aid</span><span class="memorial-helpline-number">1201</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">United Arab Emirates</span><span class="memorial-helpline-name">Al Amal Mental Health</span><span class="memorial-helpline-number">800 4673</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Saudi Arabia</span><span class="memorial-helpline-name">National Center for Mental Health</span><span class="memorial-helpline-number">920033360</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Iran</span><span class="memorial-helpline-name">National Counseling Helpline</span><span class="memorial-helpline-number">1480</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Lebanon</span><span class="memorial-helpline-name">Embrace Lifeline</span><span class="memorial-helpline-number">1564</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Egypt</span><span class="memorial-helpline-name">Befrienders Cairo</span><span class="memorial-helpline-number">762 1602</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">South Africa</span><span class="memorial-helpline-name">Suicide Crisis Line</span><span class="memorial-helpline-number">0800 567 567</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Kenya</span><span class="memorial-helpline-name">Befrienders Nairobi</span><span class="memorial-helpline-number">+254 722 178 177</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Nepal</span><span class="memorial-helpline-name">National Mental Health Helpline</span><span class="memorial-helpline-number">1166</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Thailand</span><span class="memorial-helpline-name">Samaritans Thailand</span><span class="memorial-helpline-number">02 713 6793</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Taiwan</span><span class="memorial-helpline-name">Suicide Prevention Hotline</span><span class="memorial-helpline-number">1925</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Hong Kong</span><span class="memorial-helpline-name">Samaritan Befrienders Hong Kong</span><span class="memorial-helpline-number">2382 0000</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Indonesia</span><span class="memorial-helpline-name">Ministry of Health Hotline</span><span class="memorial-helpline-number">1500 567</span></div>
+                                <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Bangladesh</span><span class="memorial-helpline-name">Kaan Pete Roi</span><span class="memorial-helpline-number">+88 09639 678 999</span></div>
+                            </div>
+                        </div>
+
                         <!-- Back button -->
                         <div class="memorial-actions">
                             <a href="/" class="button is-light">
@@ -675,6 +730,14 @@ if ($username && !$notFound && $isDeceased) {
             if (username) {
                 window.location.href = '/' + encodeURIComponent(username) + '/';
             }
+        }
+
+        function toggleHelplines(btn) {
+            const isOpen = btn.classList.toggle('is-open');
+            btn.setAttribute('aria-expanded', isOpen);
+            const container = btn.closest('.memorial-helplines');
+            container.querySelector('.memorial-helplines-sub').classList.toggle('is-visible', isOpen);
+            container.querySelector('.memorial-helplines-grid').classList.toggle('is-open', isOpen);
         }
 
         // Autocomplete
