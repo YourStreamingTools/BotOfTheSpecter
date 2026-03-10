@@ -230,8 +230,13 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
 <body>
     <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
         <div class="navbar-brand">
-            <img src="https://cdn.botofthespecter.com/logo.png" height="175px" alt="BotOfTheSpecter Logo Image">
+            <img src="https://cdn.botofthespecter.com/logo.png" height="55px" alt="BotOfTheSpecter Logo Image">
             <p class="navbar-item" style="font-size: 24px;">BotOfTheSpecter</p>
+            <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+            </a>
         </div>
         <div id="navbarMenu" class="navbar-menu">
             <div class="navbar-end">
