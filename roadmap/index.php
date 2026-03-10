@@ -157,9 +157,14 @@ ob_start();
 
 <?php else: ?>
 <!-- Kanban Board -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:0.75rem;">
+    <button id="toggleRejectedBtn" class="sp-btn sp-btn-ghost sp-btn-sm" onclick="toggleRejected()">
+        <i class="fa-solid fa-eye"></i> Show Rejected
+    </button>
+</div>
 <div class="rm-board">
     <?php foreach ($categories as $category): ?>
-        <div class="rm-column">
+        <div class="rm-column" data-category="<?php echo htmlspecialchars($category); ?>"<?php echo $category==='REJECTED'?' style="display:none;"':''; ?>>
             <div class="rm-column-head">
                 <span><i class="fa-solid fa-<?php echo getCategoryIcon($category); ?>" style="margin-right:0.4rem;"></i><?php echo htmlspecialchars($category); ?></span>
                 <span class="sp-badge"><?php echo count($itemsByCategory[$category]); ?></span>
@@ -206,6 +211,18 @@ ob_start();
     <?php endforeach; ?>
 </div>
 <?php endif; ?>
+<script>
+function toggleRejected() {
+    var col = document.querySelector('.rm-column[data-category="REJECTED"]');
+    var btn = document.getElementById('toggleRejectedBtn');
+    if (!col) return;
+    var visible = col.style.display !== 'none';
+    col.style.display = visible ? 'none' : '';
+    btn.innerHTML = visible
+        ? '<i class="fa-solid fa-eye"></i> Show Rejected'
+        : '<i class="fa-solid fa-eye-slash"></i> Hide Rejected';
+}
+</script>
 
 <?php
 function getCategoryIcon($category) {
