@@ -705,6 +705,116 @@ h6.title {
     padding: 0.75rem 0;
     font-style: italic;
 }
+
+/* Helplines section */
+.memorial-helplines {
+    width: 100%;
+    max-width: 950px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 1.5rem;
+    text-align: center;
+}
+
+.memorial-helplines-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(155, 89, 182, 0.12);
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 8px;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #c39bd3;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+    margin-bottom: 0.4rem;
+}
+
+.memorial-helplines-toggle:hover {
+    background: rgba(155, 89, 182, 0.22);
+    border-color: rgba(155, 89, 182, 0.55);
+}
+
+.memorial-helplines-toggle .toggle-arrow {
+    transition: transform var(--transition-fast);
+    font-size: 0.65rem;
+}
+
+.memorial-helplines-toggle.is-open .toggle-arrow {
+    transform: rotate(180deg);
+}
+
+.memorial-helplines-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    display: none;
+}
+
+.memorial-helplines-sub.is-visible {
+    display: block;
+}
+
+.memorial-helplines-grid {
+    display: none;
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+    text-align: left;
+    margin-top: 0.75rem;
+}
+
+.memorial-helplines-grid.is-open {
+    display: grid;
+}
+
+@media (min-width: 600px) {
+    .memorial-helplines-grid.is-open { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 900px) {
+    .memorial-helplines-grid.is-open { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.memorial-helpline-entry {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.memorial-helpline-country {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    min-width: 90px;
+    flex-shrink: 0;
+}
+
+.memorial-helpline-name {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    flex: 1;
+    padding: 0 0.4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.memorial-helpline-number {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #c39bd3;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
 .memorial-page {
     min-height: 72vh;
     display: flex;
