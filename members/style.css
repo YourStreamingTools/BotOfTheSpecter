@@ -113,8 +113,9 @@ hr {
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
     height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
@@ -280,6 +281,7 @@ hr {
     min-width: 0;
     display: flex;
     flex-direction: column;
+    margin-left: var(--sidebar-width);
 }
 
 .sp-topbar {
@@ -1073,6 +1075,7 @@ body.sp-hero-page .sp-hero {
     margin-bottom: 1rem;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -1161,6 +1164,7 @@ body.sp-hero-page .sp-hero {
     line-height: 1.55;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
