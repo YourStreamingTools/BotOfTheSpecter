@@ -1,1345 +1,753 @@
-<?php
+﻿<?php
+// roadmap/layout.php
 date_default_timezone_set('Australia/Sydney');
 
-function uuidv4()
-{
-    return bin2hex(random_bytes(2));
+if (!function_exists('uuidv4')) {
+    function uuidv4(): string {
+        return bin2hex(random_bytes(4));
+    }
 }
-// Ensure a per-session CSRF token exists for admin actions
+
 if (session_status() === PHP_SESSION_ACTIVE) {
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 }
+
+if (!isset($pageTitle))   $pageTitle   = 'Roadmap';
+if (!isset($topbarTitle)) $topbarTitle = $pageTitle;
+
+$isLoggedIn  = !empty($_SESSION['username']);
+$isAdmin     = !empty($_SESSION['admin']);
+$displayName = htmlspecialchars($_SESSION['display_name'] ?? $_SESSION['username'] ?? '', ENT_QUOTES);
+$v = uuidv4();
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" class="theme-dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
-    <title>
-        <?php echo isset($pageTitle) ? htmlspecialchars($pageTitle) . ' - BotOfTheSpecter Roadmap' : 'BotOfTheSpecter Roadmap'; ?>
-    </title>
+    <title><?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Roadmap</title>
+    <meta name="description" content="BotOfTheSpecter development roadmap.">
+    <meta property="og:title" content="<?php echo htmlspecialchars($pageTitle); ?> — BotOfTheSpecter Roadmap">
+    <meta property="og:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-    <link rel="stylesheet" href="../css/custom.css?v=<?php echo uuidv4(); ?>">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="/css/style.css?v=<?php echo $v; ?>">
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar is-dark is-fixed-top">
-        <div class="navbar-brand">
-            <div class="navbar-item">
-                <figure class="image is-32x32" style="margin-right: 1rem;">
-                    <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo"
-                        style="border-radius: 50%;">
-                </figure>
-                <span class="title is-5">BotOfTheSpecter Roadmap</span>
+<div id="sp-sidebar-overlay" class="sp-sidebar-overlay"></div>
+<div class="sp-layout">
+    <aside id="sp-sidebar" class="sp-sidebar">
+        <div class="sp-brand">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter">
+            <div class="sp-brand-text">
+                <span class="sp-brand-title">BotOfTheSpecter</span>
+                <span class="sp-brand-sub">Roadmap</span>
             </div>
         </div>
-        <div class="navbar-menu">
-            <div class="navbar-start">
-                <a class="navbar-item" href="../index.php">
-                    <span class="icon-text">
-                        <span class="icon"><i class="fas fa-th"></i></span>
-                        <span>Roadmap</span>
-                    </span>
+        <nav class="sp-nav">
+            <div class="sp-nav-section">
+                <div class="sp-nav-label">Navigation</div>
+                <a href="/index.php" class="sp-nav-link"><i class="fa-solid fa-map"></i> Roadmap</a>
+                <a href="/timeline.php" class="sp-nav-link"><i class="fa-solid fa-timeline"></i> Timeline</a>
+                <?php if ($isAdmin): ?>
+                <a href="/admin/" class="sp-nav-link">
+                    <i class="fa-solid fa-screwdriver-wrench"></i> Admin Panel
+                    <span class="sp-badge sp-badge-accent" style="margin-left:auto;font-size:0.6rem;">Admin</span>
                 </a>
-                <a class="navbar-item" href="../timeline.php">
-                    <span class="icon-text">
-                        <span class="icon"><i class="fas fa-timeline"></i></span>
-                        <span>Timeline</span>
-                    </span>
+                <?php endif; ?>
+            </div>
+            <div class="sp-nav-section">
+                <div class="sp-nav-label">Resources</div>
+                <a href="https://dashboard.botofthespecter.com/dashboard.php" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-solid fa-gauge"></i> Dashboard <i class="fa-solid fa-arrow-up-right-from-square sp-link-ext"></i>
                 </a>
-                <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-                    <a class="navbar-item" href="../admin/">
-                        <span class="icon-text">
-                            <span class="icon"><i class="fas fa-cog"></i></span>
-                            <span>Admin</span>
-                        </span>
+                <a href="https://support.botofthespecter.com/" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-solid fa-circle-question"></i> Support <i class="fa-solid fa-arrow-up-right-from-square sp-link-ext"></i>
+                </a>
+                <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-brands fa-github"></i> GitHub <i class="fa-solid fa-arrow-up-right-from-square sp-link-ext"></i>
+                </a>
+            </div>
+        </nav>
+        <div class="sp-sidebar-footer">
+            <?php if ($isLoggedIn): ?>
+                <div class="sp-user-block">
+                    <div class="sp-user-avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                    <div style="min-width:0;">
+                        <div class="sp-user-name"><?php echo $displayName; ?></div>
+                        <div class="sp-user-role"><?php echo $isAdmin ? 'Admin' : 'Viewer'; ?></div>
+                    </div>
+                </div>
+                <a href="/logout.php" class="sp-nav-link sp-text-small"><i class="fa-solid fa-right-from-bracket"></i> Log Out</a>
+            <?php else: ?>
+                <a href="/login.php" class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;">
+                    <i class="fa-brands fa-twitch"></i> Log In
+                </a>
+            <?php endif; ?>
+        </div>
+    </aside>
+    <div class="sp-main">
+        <header class="sp-topbar">
+            <button id="sp-hamburger" class="sp-hamburger" aria-label="Open menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <span class="sp-topbar-title"><?php echo htmlspecialchars($topbarTitle); ?></span>
+            <div class="sp-topbar-actions">
+                <?php if (!$isLoggedIn): ?>
+                    <a href="/login.php" class="sp-btn sp-btn-secondary sp-btn-sm">
+                        <i class="fa-brands fa-twitch"></i> Log In
                     </a>
                 <?php endif; ?>
             </div>
-            <div class="navbar-end">
-                <?php if (isset($_SESSION['username'])): ?>
-                    <div class="navbar-item has-dropdown is-hoverable">
-                        <a class="navbar-link">
-                            <span class="icon-text">
-                                <span class="icon"><i class="fas fa-user-circle"></i></span>
-                                <span><?php echo htmlspecialchars($_SESSION['display_name'] ?? $_SESSION['username']); ?></span>
-                            </span>
-                        </a>
-                        <div class="navbar-dropdown is-right">
-                            <a class="navbar-item" href="../logout.php">
-                                <span class="icon-text">
-                                    <span class="icon"><i class="fas fa-sign-out-alt"></i></span>
-                                    <span>Logout</span>
-                                </span>
-                            </a>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="navbar-item">
-                        <div class="buttons">
-                            <a class="button is-primary" href="login.php">
-                                <span class="icon-text">
-                                    <span class="icon"><i class="fas fa-sign-in-alt"></i></span>
-                                    <span>Login</span>
-                                </span>
-                            </a>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </nav>
-    <!-- Main Content -->
-    <main>
-        <section class="section" style="margin-top: 3.25rem;">
-            <div class="container">
-                <?php if (isset($pageContent)): ?>
-                    <?php echo $pageContent; ?>
-                <?php endif; ?>
-            </div>
-        </section>
-    </main>
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="content has-text-centered">
-            <span class="has-text-weight-bold">BotOfTheSpecter Roadmap</span> - A comprehensive Twitch bot platform for
-            streamers.
-            <p style="margin-top: 1rem; font-size: 0.875rem;">
-                &copy; <?php echo date("Y"); ?> BotOfTheSpecter. All rights reserved.
-            </p>
-        </div>
-    </footer>
-    <!-- Details Modal (Public) -->
-    <div class="modal" id="detailsModal">
-        <div class="modal-background"></div>
-        <div class="modal-card"
-            style="width: 85vw; height: 88vh; max-width: 1400px; display: flex; flex-direction: column;">
-            <header class="modal-card-head">
-                <p class="modal-card-title" id="detailsTitle">Item Details</p>
-                <button class="delete"></button>
-            </header>
-            <section class="modal-card-body" style="flex: 1; overflow: hidden; padding: 1.25rem; display: flex; flex-direction: column;">
-                <div class="tabs is-toggle is-small" id="detailsTabs" style="margin-bottom: 0.75rem; flex-shrink: 0;">
-                    <ul>
-                        <li class="is-active" data-details-tab="description"><a>Description</a></li>
-                        <li data-details-tab="attachments"><a>Attachments</a></li>
-                        <li data-details-tab="activity"><a>Activity</a></li>
-                    </ul>
-                </div>
+        </header>
+        <main class="sp-content sp-content-wide">
+            <?php echo $pageContent; ?>
+        </main>
+        <footer class="sp-footer">
+            &copy; 2023&ndash;<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+            BotOfTheSpecter is operated under the business name &quot;YourStreamingTools&quot;, registered in Australia (ABN&nbsp;20&nbsp;447&nbsp;022&nbsp;747).<br>
+            Not affiliated with Twitch Interactive, Inc., Discord Inc., or any other platform.
+        </footer>
+    </div>
+</div>
 
-                <div id="detailsPanelDescription" class="details-tab-panel" style="flex: 1; overflow-y: auto;">
-                    <h4 class="title is-6">Description</h4>
-                    <div id="detailsTags" style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.6rem;"></div>
-                    <p id="detailsMeta" class="is-size-7 has-text-grey" style="margin-bottom:0.5rem;"></p>
-                    <button type="button" class="button is-small is-link is-light" id="copyShareLinkBtn" style="margin-bottom:0.75rem;">
-                        <span class="icon is-small"><i class="fas fa-link"></i></span>
-                        <span>Copy Share Link</span>
-                    </button>
-                    <div id="detailsContent" style="color: #b0b0b0; line-height: 1.6;"></div>
+<!-- Details Modal -->
+<div class="rm-modal" id="detailsModal">
+    <div class="rm-modal-backdrop"></div>
+    <div class="rm-modal-card rm-modal-card-xlg" style="height:88vh;">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title" id="detailsTitle">Item Details</span>
+            <button class="rm-modal-close" id="closeDetailsBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-tabs">
+            <button class="rm-modal-tab active" data-details-tab="description"><i class="fa-solid fa-align-left"></i> Description</button>
+            <button class="rm-modal-tab" data-details-tab="attachments"><i class="fa-solid fa-paperclip"></i> Attachments</button>
+            <button class="rm-modal-tab" data-details-tab="activity"><i class="fa-solid fa-comments"></i> Activity</button>
+        </div>
+        <div class="rm-modal-body" style="padding-top:0;">
+            <div id="detailsPanelDescription" class="rm-modal-panel active" style="padding-top:1rem;">
+                <div id="detailsTags" style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.6rem;"></div>
+                <p id="detailsMeta" style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.6rem;"></p>
+                <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="copyShareLinkBtn" style="margin-bottom:0.75rem;">
+                    <i class="fa-solid fa-link"></i> Copy Share Link
+                </button>
+                <div id="detailsContent" class="rm-doc-content" style="line-height:1.7;"></div>
+            </div>
+            <div id="detailsPanelAttachments" class="rm-modal-panel" style="padding-top:1rem;display:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                    <h4 style="font-size:0.9rem;font-weight:600;">Attachments</h4>
+                    <?php if ($isAdmin): ?>
+                        <button class="sp-btn sp-btn-success sp-btn-sm" id="addAttachmentTrigger"><i class="fa-solid fa-plus"></i> Add</button>
+                    <?php endif; ?>
                 </div>
+                <div id="attachmentsSection"></div>
+            </div>
+            <div id="detailsPanelActivity" class="rm-modal-panel" style="padding-top:1rem;display:none;flex-direction:column;height:100%;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                    <h4 style="font-size:0.9rem;font-weight:600;">Activity</h4>
+                    <?php if ($isAdmin): ?>
+                        <button class="sp-btn sp-btn-primary sp-btn-sm" id="addCommentTrigger"><i class="fa-solid fa-comment"></i> Comment</button>
+                    <?php endif; ?>
+                </div>
+                <div id="commentsSection" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:0.5rem;"></div>
+            </div>
+        </div>
+        <div class="rm-modal-foot">
+            <button class="sp-btn sp-btn-secondary" id="closeDetailsFootBtn">Close</button>
+        </div>
+    </div>
+</div>
 
-                <div id="detailsPanelAttachments" class="details-tab-panel" style="display: none; flex: 1; overflow-y: auto;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h4 class="title is-6" style="margin: 0;">Attachments</h4>
-                        <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-                            <button class="button is-small is-success" id="addAttachmentTrigger" style="flex-shrink: 0;">
-                                <span class="icon is-small"><i class="fas fa-plus"></i></span>
-                                <span>Add</span>
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                    <div id="attachmentsSection" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                        <!-- Attachments will load here -->
-                    </div>
-                </div>
+<!-- Image Zoom Modal -->
+<div class="rm-modal" id="imageZoomModal">
+    <div class="rm-modal-backdrop" id="imageZoomBackdrop"></div>
+    <div class="rm-modal-card rm-modal-card-xlg" style="max-height:95vh;background:var(--bg-base);">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title" id="zoomImageName">Image</span>
+            <button class="rm-modal-close" id="closeImageZoomBtn" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-body" style="display:flex;align-items:center;justify-content:center;background:var(--bg-base);padding:2rem;">
+            <img id="zoomImageContent" src="" alt="" style="max-width:100%;max-height:80vh;object-fit:contain;">
+        </div>
+    </div>
+</div>
 
-                <div id="detailsPanelActivity" class="details-tab-panel" style="display: none; flex: 1; overflow: hidden;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h4 class="title is-6" style="margin: 0;">Activity</h4>
-                        <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-                            <button class="button is-small is-primary" id="addCommentTrigger" style="flex-shrink: 0;">
-                                <span class="icon is-small"><i class="fas fa-comment"></i></span>
-                                <span>Comment</span>
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                    <div id="commentsSection" style="height: calc(100% - 3rem); overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
-                        <!-- Comments will load here -->
+<!-- Version Modal -->
+<div class="rm-modal" id="versionModal">
+    <div class="rm-modal-backdrop" onclick="closeVersionModal()"></div>
+    <div class="rm-modal-card rm-modal-card-lg" style="max-height:88vh;">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title">Version <span id="modalVersionNumber"></span> — Changelog</span>
+            <button class="rm-modal-close" onclick="closeVersionModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-body rm-doc-content" id="modalContent"></div>
+        <div class="rm-modal-foot">
+            <button class="sp-btn sp-btn-secondary" onclick="closeVersionModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Legend Modal -->
+<div class="rm-modal" id="legendModal">
+    <div class="rm-modal-backdrop" id="legendModalBackdrop"></div>
+    <div class="rm-modal-card rm-modal-card-sm">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title"><i class="fa-solid fa-circle-info" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Legend</span>
+            <button class="rm-modal-close" id="closeLegendModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-body">
+            <div class="rm-legend-grid">
+                <div class="rm-legend-group">
+                    <h4>Priority Levels</h4>
+                    <div class="rm-legend-items">
+                        <span class="rm-tag rm-tag-success">Low</span>
+                        <span class="rm-tag rm-tag-info">Medium</span>
+                        <span class="rm-tag rm-tag-warning">High</span>
+                        <span class="rm-tag rm-tag-danger">Critical</span>
                     </div>
                 </div>
-            </section>
-            <footer class="modal-card-foot">
-                <button class="button is-primary">Close</button>
-            </footer>
-        </div>
-    </div>
-    <!-- Image Zoom Modal -->
-    <div class="modal" id="imageZoomModal">
-        <div class="modal-background"></div>
-        <div class="modal-card"
-            style="width: 90%; max-width: 1200px; max-height: 90vh; display: flex; flex-direction: column; background-color: #0a0a0a;">
-            <header class="modal-card-head" style="background-color: #1a1a2e;">
-                <p class="modal-card-title" id="zoomImageName">Image</p>
-                <button class="delete"></button>
-            </header>
-            <section class="modal-card-body"
-                style="flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; background-color: #0a0a0a; padding: 2rem;">
-                <img id="zoomImageContent" src="" alt=""
-                    style="max-width: 100%; max-height: 100%; object-fit: contain;">
-            </section>
-        </div>
-    </div>
-    <!-- Version Notes Modal -->
-    <div id="versionModal" class="modal">
-        <div class="modal-background" onclick="closeVersionModal()"></div>
-        <div class="modal-card"
-            style="width: 90%; max-width: 1000px; max-height: 85vh; display: flex; flex-direction: column;">
-            <header class="modal-card-head">
-                <p class="modal-card-title">Version <span id="modalVersionNumber"></span> - Complete Changelog</p>
-                <button class="delete" onclick="closeVersionModal()"></button>
-            </header>
-            <section class="modal-card-body" style="flex: 1; overflow-y: auto; padding: 1.5rem;">
-                <div id="modalContent" class="content"></div>
-            </section>
-            <footer class="modal-card-foot">
-                <button class="button" onclick="closeVersionModal()">Close</button>
-            </footer>
-        </div>
-    </div>
-    <!-- Add Comment Modal (Admin Only) -->
-    <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-        <div class="modal" id="addCommentModal">
-            <div class="modal-background"></div>
-            <div class="modal-card">
-                <header class="modal-card-head">
-                    <p class="modal-card-title">Add Comment</p>
-                    <button class="delete"></button>
-                </header>
-                <section class="modal-card-body">
-                    <form id="addCommentForm" method="POST">
-                        <input type="hidden" name="action" value="add_comment">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <input type="hidden" name="item_id" id="commentItemId" value="">
-                        <div class="field">
-                            <label class="label">Comment</label>
-                            <div class="control">
-                                <textarea class="textarea" name="comment_text" id="commentTextarea"
-                                    placeholder="Enter your comment..." required></textarea>
-                            </div>
-                        </div>
-                        <div class="field is-grouped">
-                            <div class="control">
-                                <button type="submit" class="button is-primary">Submit</button>
-                            </div>
-                            <div class="control">
-                                <button type="button" class="button is-light" id="cancelCommentBtn">Cancel</button>
-                            </div>
-                        </div>
-                    </form>
-                </section>
+                <div class="rm-legend-group">
+                    <h4>Subcategories</h4>
+                    <div class="rm-legend-items">
+                        <span class="rm-tag rm-tag-primary">Twitch Bot</span>
+                        <span class="rm-tag rm-tag-info">Discord Bot</span>
+                        <span class="rm-tag rm-tag-success">WebSocket Server</span>
+                        <span class="rm-tag rm-tag-warning">API Server</span>
+                        <span class="rm-tag rm-tag-danger">Website</span>
+                        <span class="rm-tag rm-tag-light">Other</span>
+                    </div>
+                </div>
             </div>
         </div>
-        <!-- Edit Item Modal (Admin Only) -->
-        <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-            <div class="modal" id="editItemModal">
-                <div class="modal-background"></div>
-                <div class="modal-card edit-item-modal-card">
-                    <header class="modal-card-head">
-                        <p class="modal-card-title">
-                            <span class="icon-text">
-                                <span class="icon"><i class="fas fa-pen"></i></span>
-                                <span>Edit Roadmap Item</span>
-                            </span>
-                        </p>
-                        <button class="delete"></button>
-                    </header>
-                    <section class="modal-card-body">
-                        <form id="editItemForm" method="POST">
-                            <input type="hidden" name="action" value="edit_item">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                            <input type="hidden" name="id" id="editItemId" value="">
-                            <div class="field">
-                                <label class="label">Title</label>
-                                <div class="control">
-                                    <input class="input" type="text" name="title" id="editItemTitle" placeholder="Item title" required>
-                                </div>
-                            </div>
-                            <div class="field">
-                                <label class="label">Description</label>
-                                <div class="control">
-                                    <textarea class="textarea" name="description" id="editItemDescription" placeholder="Item description (supports markdown)..."></textarea>
-                                </div>
-                            </div>
-                            <div class="columns is-mobile is-variable is-2 mb-1">
-                                <div class="column">
-                                    <div class="field">
-                                        <label class="label">Category</label>
-                                        <div class="control">
-                                            <div class="select is-fullwidth">
-                                                <select name="category" id="editItemCategory">
-                                                    <option value="REQUESTS">REQUESTS</option>
-                                                    <option value="IN PROGRESS">IN PROGRESS</option>
-                                                    <option value="BETA TESTING">BETA TESTING</option>
-                                                    <option value="COMPLETED">COMPLETED</option>
-                                                    <option value="REJECTED">REJECTED</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="column">
-                                    <div class="field">
-                                        <label class="label">Priority</label>
-                                        <div class="control">
-                                            <div class="select is-fullwidth">
-                                                <select name="priority" id="editItemPriority">
-                                                    <option value="LOW">Low</option>
-                                                    <option value="MEDIUM">Medium</option>
-                                                    <option value="HIGH">High</option>
-                                                    <option value="CRITICAL">Critical</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="columns is-mobile is-variable is-2 mb-0">
-                                <div class="column">
-                                    <div class="field">
-                                        <label class="label">Subcategory</label>
-                                    <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"></div>
-                                    <p class="help" style="font-size:0.7rem;">Click a tag to add — custom tags are not allowed.</p>
-                                </div>
-                                </div>
-                                <div class="column" id="edit-website-type-field">
-                                    <div class="field">
-                                        <label class="label">Website Type</label>
-                                        <div class="tag-multiselect" id="editItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                    </section>
-                    <footer class="modal-card-foot is-justify-content-flex-end">
-                        <button type="button" class="button is-light" id="cancelEditBtn">Cancel</button>
-                        <button type="submit" form="editItemForm" class="button is-warning">
-                            <span class="icon"><i class="fas fa-save"></i></span>
-                            <span>Save Changes</span>
-                        </button>
-                    </footer>
-                </div>
-            </div>
-        <?php endif; ?>
-        <!-- Upload Attachment Modal (Admin Only) -->
-        <?php if (isset($_SESSION['admin']) && $_SESSION['admin']): ?>
-            <div class="modal" id="uploadAttachmentModal">
-                <div class="modal-background"></div>
-                <div class="modal-card">
-                    <header class="modal-card-head">
-                        <p class="modal-card-title">Upload Attachment</p>
-                        <button class="delete"></button>
-                    </header>
-                    <section class="modal-card-body">
-                        <form id="uploadAttachmentForm" enctype="multipart/form-data">
-                            <input type="hidden" name="item_id" id="uploadItemId" value="">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                            <div class="field">
-                                <label class="label">Select File</label>
-                                <div class="file is-boxed is-centered">
-                                    <label class="file-label">
-                                        <input class="file-input" type="file" name="file" id="attachmentFileInput" required
-                                            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx">
-                                        <span class="file-cta">
-                                            <span class="file-icon">
-                                                <i class="fas fa-cloud-upload-alt"></i>
-                                            </span>
-                                            <span class="file-label">
-                                                Choose a file...
-                                            </span>
-                                        </span>
-                                        <span class="file-name" id="attachmentFileName">
-                                            No file selected
-                                        </span>
-                                    </label>
-                                </div>
-                                <p class="help">Allowed: Images (JPG, PNG, GIF, WebP, SVG — SVGs are sanitized), PDF, Word, Excel, TXT. Max 10MB</p>
-                            </div>
-                            <div id="uploadProgress" style="display: none;">
-                                <progress class="progress is-primary" value="0" max="100" id="uploadProgressBar"></progress>
-                                <p class="help has-text-centered" id="uploadStatusText">Uploading...</p>
-                            </div>
-                            <div id="uploadError" style="display: none;">
-                                <div class="notification is-danger" style="margin-bottom: 1rem;">
-                                    <button class="delete"></button>
-                                    <span id="uploadErrorMessage"></span>
-                                </div>
-                            </div>
-                        </form>
-                    </section>
-                    <footer class="modal-card-foot">
-                        <button type="submit" form="uploadAttachmentForm" class="button is-success" id="uploadAttachmentBtn">
-                            <span class="icon is-small"><i class="fas fa-upload"></i></span>
-                            <span>Upload</span>
-                        </button>
-                        <button type="button" class="button is-light" id="cancelUploadBtn">Cancel</button>
-                    </footer>
-                </div>
-            </div>
-        <?php endif; ?>
-    <?php endif; ?>
-    <!-- Legend Modal -->
-    <div class="modal" id="legendModal">
-        <div class="modal-background"></div>
-        <div class="modal-card" style="width: 90%; max-width: 500px;">
-            <header class="modal-card-head">
-                <p class="modal-card-title">Legend</p>
-                <button class="delete" id="closeLegendModal"></button>
-            </header>
-            <section class="modal-card-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-                    <div>
-                        <strong style="font-size: 0.875rem; display: block; margin-bottom: 0.75rem;">Priority
-                            Levels:</strong>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <span class="tag is-small is-success">Low</span>
-                            <span class="tag is-small is-info">Medium</span>
-                            <span class="tag is-small is-warning">High</span>
-                            <span class="tag is-small is-danger">Critical</span>
-                        </div>
-                    </div>
-                    <div>
-                        <strong
-                            style="font-size: 0.875rem; display: block; margin-bottom: 0.75rem;">Subcategories:</strong>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <span class="tag is-small is-primary">Twitch Bot</span>
-                            <span class="tag is-small is-info">Discord Bot</span>
-                            <span class="tag is-small is-success">WebSocket Server</span>
-                            <span class="tag is-small is-warning">API Server</span>
-                            <span class="tag is-small is-danger">Website</span>
-                            <span class="tag is-small is-light">Other</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            <footer class="modal-card-foot" style="justify-content: flex-end;">
-                <button type="button" class="button is-light" id="closeLegendBtn">Close</button>
-            </footer>
+        <div class="rm-modal-foot">
+            <button class="sp-btn sp-btn-secondary" id="closeLegendBtn">Close</button>
         </div>
     </div>
-    <?php if (isset($extraJS)): ?>
-        <?php foreach ($extraJS as $js): ?>
-            <script src="<?php echo htmlspecialchars($js); ?>"></script>
-        <?php endforeach; ?>
-    <?php endif; ?>
-    <script>
-        // Helper function to convert URLs in text to clickable links
-        function linkifyText(text) {
-            // Regular expression to match URLs
-            const urlRegex = /(https?:\/\/[^\s]+)/g;
-            return text.replace(urlRegex, function (url) {
-                return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; cursor: pointer;">' + url + '</a>';
-            });
-        }
-        // Format date in Australia/Sydney timezone
-        function formatDateSydney(dateString) {
-            const date = new Date(dateString);
-            const options = {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                timeZone: 'Australia/Sydney'
-            };
-            return date.toLocaleDateString('en-AU', options);
-        }
-        function escapeHtml(value) {
-            return String(value || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-        function parseTagList(rawValue) {
-            if (!rawValue) return [];
-            if (Array.isArray(rawValue)) return rawValue.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
-            const text = String(rawValue).trim();
-            if (!text) return [];
-            try {
-                const parsed = JSON.parse(text);
-                if (Array.isArray(parsed)) {
-                    return parsed.filter(Boolean).map(v => String(v).trim()).filter(Boolean);
-                }
-                if (typeof parsed === 'string') {
-                    return parsed.trim() ? [parsed.trim()] : [];
-                }
-            } catch (err) {
-                return text ? [text] : [];
-            }
-            return [];
-        }
-        function getCategoryTagClass(category) {
-            const map = {
-                'REQUESTS': 'is-info',
-                'IN PROGRESS': 'is-warning',
-                'BETA TESTING': 'is-primary',
-                'COMPLETED': 'is-success',
-                'REJECTED': 'is-danger'
-            };
-            return map[category] || 'is-light';
-        }
-        function getPriorityTagClass(priority) {
-            const map = {
-                'LOW': 'is-success',
-                'MEDIUM': 'is-info',
-                'HIGH': 'is-warning',
-                'CRITICAL': 'is-danger'
-            };
-            return map[priority] || 'is-light';
-        }
-        function getSubcategoryTagClass(subcategory) {
-            const map = {
-                'TWITCH BOT': 'is-primary',
-                'DISCORD BOT': 'is-info',
-                'WEBSOCKET SERVER': 'is-success',
-                'API SERVER': 'is-warning',
-                'WEBSITE': 'is-danger',
-                'OTHER': 'is-light'
-            };
-            return map[subcategory] || 'is-light';
-        }
-        function renderDetailsTags(button) {
-            const tagsEl = document.getElementById('detailsTags');
-            if (!tagsEl) return;
-            const category = (button.dataset.category || '').trim();
-            const priority = (button.dataset.priority || '').trim();
-            const subcategories = parseTagList(button.dataset.subcategories || button.dataset.subcategory || '');
-            const websiteTypes = parseTagList(button.dataset.websiteTypes || button.dataset.websiteType || '');
-            const html = [];
-            if (category) {
-                html.push('<span class="tag is-small ' + getCategoryTagClass(category) + '">' + escapeHtml(category) + '</span>');
-            }
-            if (priority) {
-                html.push('<span class="tag is-small ' + getPriorityTagClass(priority) + '">' + escapeHtml(priority) + '</span>');
-            }
-            subcategories.forEach(sub => {
-                html.push('<span class="tag is-small ' + getSubcategoryTagClass(sub) + '">' + escapeHtml(sub) + '</span>');
-            });
-            websiteTypes.forEach(type => {
-                html.push('<span class="tag is-small is-info">' + escapeHtml(type) + '</span>');
-            });
-            tagsEl.innerHTML = html.join('');
-            tagsEl.style.display = html.length ? 'flex' : 'none';
-        }
-        // Helper function to get file icon based on type
-        function getFileIcon(mimeType) {
-            if (mimeType.startsWith('image/')) return 'fa-image';
-            if (mimeType === 'application/pdf') return 'fa-file-pdf';
-            if (mimeType.includes('word') || mimeType.includes('document')) return 'fa-file-word';
-            if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'fa-file-excel';
-            if (mimeType === 'text/plain') return 'fa-file-alt';
-            return 'fa-file';
-        }
-        function isImage(mimeType) {
-            return mimeType.startsWith('image/');
-        }
-        // Load attachments for an item
-        function loadAttachments(itemId) {
-            const attachmentsSection = document.getElementById('attachmentsSection');
-            if (!attachmentsSection) return;
-            fetch('../admin/get-attachments.php?item_id=' + encodeURIComponent(itemId))
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.attachments.length > 0) {
-                        let html = '';
-                        data.attachments.forEach(att => {
-                            const fileIcon = getFileIcon(att.file_type);
-                            const isImageFile = isImage(att.file_type);
-                            if (isImageFile) {
-                                // Display image inline
-                                html += `
-                                <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-                                        <div style="flex: 1; min-width: 0;">
-                                            <small style="color: #888; display: block; margin-bottom: 0.5rem;">
-                                                ${att.file_name} • ${att.file_size_formatted} • ${att.uploaded_by} • ${formatDateSydney(att.created_at)}
-                                            </small>
-                                            <div style="text-align: center; cursor: pointer;">
-                                                <img src="${att.file_path}" alt="${att.file_name}" style="max-width: 100%; max-height: 400px; border-radius: 4px; transition: opacity 0.2s; opacity: 1;" class="zoom-image" data-filename="${att.file_name}">
-                                            </div>
-                                        </div>
-        `;
-                                if (att.can_delete) {
-                                    html += `
-                                        <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0; align-self: flex-start;">
-                                            <span class="icon is-small"><i class="fas fa-trash" style="color: white;"></i></span>
-                                        </button>
-                `;
-                                }
-                                html += `
-                                    </div>
-                                </div>
-                            `;
-                            } else {
-                                // Display document with download link
-                                html += `
-                                <div class="box p-3" style="background-color: rgba(100, 126, 234, 0.1); border-left: 3px solid #667eea; margin-bottom: 0.5rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-                                        <div style="flex: 1; min-width: 0;">
-                                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                                                <i class="fas ${fileIcon}" style="color: #667eea;"></i>
-                                                <a href="${att.file_path}" download style="color: #667eea; text-decoration: underline; word-break: break-word;">
-                                                    ${att.file_name}
-                                                </a>
-                                            </div>
-                                            <small style="color: #888;">
-                                                ${att.file_size_formatted} • ${att.uploaded_by} • ${formatDateSydney(att.created_at)}
-                                            </small>
-                                        </div>
-        `;
-                                if (att.can_delete) {
-                                    html += `
-                                        <button class="button is-small is-danger is-light delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" style="flex-shrink: 0;">
-                                            <span class="icon is-small"><i class="fas fa-trash" style="color: white;"></i></span>
-                                        </button>
-                `;
-                                }
-                                html += `
-                                    </div>
-                                </div>
-                            `;
-                            }
-                        });
-                        attachmentsSection.innerHTML = html;
-                        // Add delete event listeners
-                        document.querySelectorAll('.delete-attachment-btn').forEach(btn => {
-                            btn.addEventListener('click', function () {
-                                if (confirm('Delete this attachment?')) {
-                                    const attachmentId = this.getAttribute('data-attachment-id');
-                                    const itemId = this.getAttribute('data-item-id');
-                                    const formData = new FormData();
-                                    formData.append('attachment_id', attachmentId);
-                                    const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).getAttribute ? (document.querySelector('meta[name="csrf-token"]').getAttribute('content') || '') : '';
-                                    formData.append('csrf_token', csrfToken);
-                                    fetch('../admin/delete-attachment.php', {
-                                        method: 'POST',
-                                        body: formData
-                                    })
-                                        .then(response => response.json())
-                                        .then(data => {
-                                            if (data.success) {
-                                                loadAttachments(itemId);
-                                            } else {
-                                                alert('Error deleting attachment: ' + data.message);
-                                            }
-                                        })
-                                        .catch(error => {
-                                            console.error('Error:', error);
-                                            alert('Error deleting attachment');
-                                        });
-                                }
-                            });
-                        });
-                        // Add zoom image event listeners
-                        const imageZoomModal = document.getElementById('imageZoomModal');
-                        const zoomImageContent = document.getElementById('zoomImageContent');
-                        const zoomImageName = document.getElementById('zoomImageName');
-                        document.querySelectorAll('.zoom-image').forEach(img => {
-                            img.addEventListener('click', function () {
-                                zoomImageContent.src = this.src;
-                                zoomImageName.textContent = this.getAttribute('data-filename');
-                                if (imageZoomModal) {
-                                    imageZoomModal.classList.add('is-active');
-                                }
-                            });
-                        });
+</div>
+
+<?php if ($isAdmin): ?>
+<!-- Add Comment Modal -->
+<div class="rm-modal" id="addCommentModal">
+    <div class="rm-modal-backdrop" id="commentModalBackdrop"></div>
+    <div class="rm-modal-card rm-modal-card-sm">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title"><i class="fa-solid fa-comment" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Add Comment</span>
+            <button class="rm-modal-close" id="cancelCommentClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-body">
+            <form id="addCommentForm" method="POST">
+                <input type="hidden" name="action" value="add_comment">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+                <input type="hidden" name="item_id" id="commentItemId" value="">
+                <div class="sp-form-group">
+                    <label class="sp-label">Comment</label>
+                    <textarea class="sp-textarea" name="comment_text" id="commentTextarea" placeholder="Enter your comment..." required rows="5"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="rm-modal-foot">
+            <button type="button" class="sp-btn sp-btn-ghost" id="cancelCommentBtn">Cancel</button>
+            <button type="submit" form="addCommentForm" class="sp-btn sp-btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Item Modal -->
+<div class="rm-modal" id="editItemModal">
+    <div class="rm-modal-backdrop" id="editModalBackdrop"></div>
+    <div class="rm-modal-card rm-modal-card-lg">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title"><i class="fa-solid fa-pen" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Edit Roadmap Item</span>
+            <button class="rm-modal-close" id="cancelEditClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-body">
+            <form id="editItemForm" method="POST">
+                <input type="hidden" name="action" value="edit_item">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+                <input type="hidden" name="id" id="editItemId" value="">
+                <div class="sp-form-group">
+                    <label class="sp-label">Title</label>
+                    <input class="sp-input" type="text" name="title" id="editItemTitle" required>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Description</label>
+                    <textarea class="sp-textarea sp-textarea-mono" name="description" id="editItemDescription" placeholder="Supports markdown..." rows="6"></textarea>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="sp-form-group">
+                        <label class="sp-label">Category</label>
+                        <select class="sp-select" name="category" id="editItemCategory">
+                            <option value="REQUESTS">REQUESTS</option>
+                            <option value="IN PROGRESS">IN PROGRESS</option>
+                            <option value="BETA TESTING">BETA TESTING</option>
+                            <option value="COMPLETED">COMPLETED</option>
+                            <option value="REJECTED">REJECTED</option>
+                        </select>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Priority</label>
+                        <select class="sp-select" name="priority" id="editItemPriority">
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="CRITICAL">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="sp-form-group">
+                        <label class="sp-label">Subcategory</label>
+                        <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"></div>
+                        <div class="sp-field-hint">Only predefined tags allowed.</div>
+                    </div>
+                    <div class="sp-form-group" id="edit-website-type-field" style="display:none;">
+                        <label class="sp-label">Website Type</label>
+                        <div class="tag-multiselect" id="editItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="rm-modal-foot">
+            <button type="button" class="sp-btn sp-btn-ghost" id="cancelEditBtn">Cancel</button>
+            <button type="submit" form="editItemForm" class="sp-btn sp-btn-warning"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Attachment Modal -->
+<div class="rm-modal" id="uploadAttachmentModal">
+    <div class="rm-modal-backdrop" id="uploadModalBackdrop"></div>
+    <div class="rm-modal-card rm-modal-card-sm">
+        <div class="rm-modal-head">
+            <span class="rm-modal-title"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Upload Attachment</span>
+            <button class="rm-modal-close" id="cancelUploadClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rm-modal-body">
+            <form id="uploadAttachmentForm" enctype="multipart/form-data">
+                <input type="hidden" name="item_id" id="uploadItemId" value="">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+                <div class="sp-form-group">
+                    <label class="sp-label">Select File</label>
+                    <label class="rm-upload-zone" id="uploadDropZone">
+                        <input type="file" name="file" id="attachmentFileInput" required
+                            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
+                            style="position:absolute;opacity:0;width:0;height:0;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span class="rm-upload-label">Click to choose or drag &amp; drop</span>
+                        <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT — max 10MB</span>
+                        <span class="rm-upload-filename" id="attachmentFileName"></span>
+                    </label>
+                </div>
+                <div id="uploadProgress" style="display:none;" class="rm-progress-wrap">
+                    <div class="rm-progress"><div class="rm-progress-bar" id="uploadProgressBar"></div></div>
+                    <div class="rm-progress-text" id="uploadStatusText">Uploading…</div>
+                </div>
+                <div id="uploadError" style="display:none;">
+                    <div class="sp-alert sp-alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> <span id="uploadErrorMessage"></span></div>
+                </div>
+            </form>
+        </div>
+        <div class="rm-modal-foot">
+            <button type="button" class="sp-btn sp-btn-ghost" id="cancelUploadBtn">Cancel</button>
+            <button type="submit" form="uploadAttachmentForm" class="sp-btn sp-btn-success" id="uploadAttachmentBtn"><i class="fa-solid fa-upload"></i> Upload</button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
+<script src="/js/app.js?v=<?php echo $v; ?>" defer></script>
+<script>
+// ---- Utilities ----
+function linkifyText(text) {
+    return text.replace(/(https?:\/\/[^\s]+)/g, function(url) {
+        return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-hover);text-decoration:underline;">' + url + '</a>';
+    });
+}
+function formatDateSydney(dateString) {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('en-AU', { year:'numeric', month:'short', day:'numeric', timeZone:'Australia/Sydney' });
+}
+function escapeHtml(value) {
+    return String(value||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function parseTagList(rawValue) {
+    if (!rawValue) return [];
+    if (Array.isArray(rawValue)) return rawValue.filter(Boolean).map(v=>String(v).trim()).filter(Boolean);
+    const text = String(rawValue).trim();
+    if (!text) return [];
+    try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean).map(v=>String(v).trim()).filter(Boolean);
+        if (typeof parsed==='string') return parsed.trim()?[parsed.trim()]:[];
+    } catch(err) { return text?[text]:[]; }
+    return [];
+}
+function getCategoryTagClass(category) {
+    const map = {'REQUESTS':'rm-tag-info','IN PROGRESS':'rm-tag-warning','BETA TESTING':'rm-tag-primary','COMPLETED':'rm-tag-success','REJECTED':'rm-tag-danger'};
+    return map[category]||'rm-tag-light';
+}
+function getPriorityTagClass(priority) {
+    const map = {'LOW':'rm-tag-success','MEDIUM':'rm-tag-info','HIGH':'rm-tag-warning','CRITICAL':'rm-tag-danger'};
+    return map[priority]||'rm-tag-light';
+}
+function getSubcategoryTagClass(subcategory) {
+    const map = {'TWITCH BOT':'rm-tag-primary','DISCORD BOT':'rm-tag-info','WEBSOCKET SERVER':'rm-tag-success','API SERVER':'rm-tag-warning','WEBSITE':'rm-tag-danger','OTHER':'rm-tag-light'};
+    return map[subcategory]||'rm-tag-light';
+}
+function getFileIcon(mimeType) {
+    if (mimeType.startsWith('image/')) return 'fa-image';
+    if (mimeType==='application/pdf') return 'fa-file-pdf';
+    if (mimeType.includes('word')||mimeType.includes('document')) return 'fa-file-word';
+    if (mimeType.includes('sheet')||mimeType.includes('excel')) return 'fa-file-excel';
+    if (mimeType==='text/plain') return 'fa-file-lines';
+    return 'fa-file';
+}
+function isImage(mimeType) { return mimeType.startsWith('image/'); }
+function renderDetailsTags(button) {
+    const tagsEl = document.getElementById('detailsTags');
+    if (!tagsEl) return;
+    const category   = (button.dataset.category||'').trim();
+    const priority   = (button.dataset.priority||'').trim();
+    const subcats    = parseTagList(button.dataset.subcategories||button.dataset.subcategory||'');
+    const websiteTypes = parseTagList(button.dataset.websiteTypes||button.dataset.websiteType||'');
+    const html = [];
+    if (category) html.push('<span class="rm-tag '+getCategoryTagClass(category)+'">'+escapeHtml(category)+'</span>');
+    if (priority) html.push('<span class="rm-tag '+getPriorityTagClass(priority)+'">'+escapeHtml(priority)+'</span>');
+    subcats.forEach(sub=>html.push('<span class="rm-tag '+getSubcategoryTagClass(sub)+'">'+escapeHtml(sub)+'</span>'));
+    websiteTypes.forEach(wt=>html.push('<span class="rm-tag rm-tag-info">'+escapeHtml(wt)+'</span>'));
+    tagsEl.innerHTML = html.join('');
+    tagsEl.style.display = html.length?'flex':'none';
+}
+function loadAttachments(itemId) {
+    const sec = document.getElementById('attachmentsSection');
+    if (!sec) return;
+    fetch('../admin/get-attachments.php?item_id='+encodeURIComponent(itemId))
+        .then(r=>r.json()).then(data=>{
+            if (data.success && data.attachments.length>0) {
+                let html='';
+                data.attachments.forEach(att=>{
+                    const fileIcon=getFileIcon(att.file_type), isImg=isImage(att.file_type);
+                    const delBtn = att.can_delete
+                        ? `<button class="sp-btn sp-btn-danger sp-btn-xs sp-btn-icon delete-attachment-btn" data-attachment-id="${att.id}" data-item-id="${itemId}" title="Delete"><i class="fa-solid fa-trash-can"></i></button>`
+                        : '';
+                    if (isImg) {
+                        html+=`<div class="rm-attachment"><div class="rm-attachment-body"><div class="rm-attachment-meta">${escapeHtml(att.file_name)} &middot; ${escapeHtml(att.file_size_formatted)} &middot; ${escapeHtml(att.uploaded_by)} &middot; ${formatDateSydney(att.created_at)}</div><img src="${att.file_path}" alt="${escapeHtml(att.file_name)}" class="rm-attachment-img zoom-image" data-filename="${escapeHtml(att.file_name)}"></div>${delBtn}</div>`;
                     } else {
-                        attachmentsSection.innerHTML = '<p class="has-text-grey-light"><em>No attachments</em></p>';
+                        html+=`<div class="rm-attachment"><div class="rm-attachment-body"><div class="rm-attachment-meta">${escapeHtml(att.file_size_formatted)} &middot; ${escapeHtml(att.uploaded_by)} &middot; ${formatDateSydney(att.created_at)}</div><a href="${att.file_path}" download class="rm-attachment-name"><i class="fa-solid ${fileIcon}"></i> ${escapeHtml(att.file_name)}</a></div>${delBtn}</div>`;
                     }
-                })
-                .catch(error => {
-                    console.error('Error loading attachments:', error);
-                    attachmentsSection.innerHTML = '<p class="has-text-danger">Error loading attachments</p>';
                 });
+                sec.innerHTML=html;
+                sec.querySelectorAll('.delete-attachment-btn').forEach(btn=>{
+                    btn.addEventListener('click',function(){
+                        if(!confirm('Delete this attachment?')) return;
+                        const fd=new FormData();
+                        fd.append('attachment_id',this.dataset.attachmentId);
+                        const csrfEl=document.querySelector('meta[name="csrf-token"]');
+                        fd.append('csrf_token',csrfEl?csrfEl.getAttribute('content'):'');
+                        fetch('../admin/delete-attachment.php',{method:'POST',body:fd})
+                            .then(r=>r.json()).then(d=>{ if(d.success) loadAttachments(itemId); else alert('Error: '+d.message); })
+                            .catch(()=>alert('Network error'));
+                    });
+                });
+                const zoomModal=document.getElementById('imageZoomModal'),zoomImg=document.getElementById('zoomImageContent'),zoomName=document.getElementById('zoomImageName');
+                sec.querySelectorAll('.zoom-image').forEach(img=>{
+                    img.addEventListener('click',function(){
+                        zoomImg.src=this.src; zoomName.textContent=this.dataset.filename||'';
+                        if(zoomModal) zoomModal.classList.add('open');
+                    });
+                });
+            } else { sec.innerHTML='<p style="color:var(--text-muted);font-size:0.875rem;font-style:italic;">No attachments</p>'; }
+        }).catch(()=>{ sec.innerHTML='<p style="color:var(--red);font-size:0.875rem;">Error loading attachments</p>'; });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // CSRF injection
+    try {
+        const csrfEl=document.querySelector('meta[name="csrf-token"]');
+        const csrfVal=csrfEl?csrfEl.getAttribute('content'):'';
+        if (csrfVal) {
+            document.querySelectorAll('form[method="POST"]').forEach(f=>{
+                if (!f.querySelector('input[name="csrf_token"]')) {
+                    const inp=document.createElement('input');inp.type='hidden';inp.name='csrf_token';inp.value=csrfVal;f.prepend(inp);
+                }
+            });
         }
-        document.addEventListener('DOMContentLoaded', function () {
-            // Inject CSRF token into all POST forms (ensures server-side CSRF check has the token)
-            try {
-                const csrfMetaEl = document.querySelector('meta[name="csrf-token"]');
-                const csrfVal = csrfMetaEl ? csrfMetaEl.getAttribute('content') : '';
-                if (csrfVal) {
-                    document.querySelectorAll('form[method="POST"]').forEach(f => {
-                        if (!f.querySelector('input[name="csrf_token"]')) {
-                            const inp = document.createElement('input');
-                            inp.type = 'hidden';
-                            inp.name = 'csrf_token';
-                            inp.value = csrfVal;
-                            f.prepend(inp);
-                        }
-                    });
-                }
-            } catch (e) {
-                console.warn('CSRF injection error', e);
-            }
-            /* --- Lightweight tag-style multi-select (typeahead + chips) --- */
-            const TMS_ALLOWED = ['TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER'];
-            function createTagMultiSelect(container) {
-                if (!container) return null;
-                // allow per-container allowed-list via data-allowed (JSON array or comma-separated string)
-                let allowedList = TMS_ALLOWED;
-                if (container.dataset.allowed) {
-                    try {
-                        const parsed = JSON.parse(container.dataset.allowed);
-                        if (Array.isArray(parsed)) allowedList = parsed.map(x => String(x).trim());
-                    } catch (e) {
-                        // fallback to comma-separated
-                        allowedList = String(container.dataset.allowed).split(',').map(s => s.trim()).filter(Boolean);
-                    }
-                }
-                const name = container.dataset.name || 'subcategory[]';
-                // elements
-                container.classList.add('tms-container');
-                const chipsEl = document.createElement('div'); chipsEl.className = 'tms-chips';
-                const inputEl = document.createElement('input'); inputEl.type = 'text'; inputEl.className = 'tms-input'; inputEl.placeholder = 'Select subcategory...'; inputEl.autocomplete = 'off';
-                const suggEl = document.createElement('div'); suggEl.className = 'tms-suggestions'; suggEl.style.display = 'none';
-                const hiddenWrap = document.createElement('div'); hiddenWrap.className = 'tms-hidden-wrap'; hiddenWrap.style.display = 'none';
-                container.appendChild(chipsEl); container.appendChild(inputEl); container.appendChild(suggEl); container.appendChild(hiddenWrap);
-                let selected = [];
-                function render() {
-                    chipsEl.innerHTML = '';
-                    hiddenWrap.innerHTML = '';
-                    selected.forEach(val => {
-                        const tag = document.createElement('span'); tag.className = 'tag is-light'; tag.style.display = 'inline-flex'; tag.style.alignItems = 'center'; tag.textContent = val;
-                        const del = document.createElement('button'); del.type = 'button'; del.className = 'delete is-small'; del.style.marginLeft = '0.5rem';
-                        del.addEventListener('click', () => remove(val));
-                        tag.appendChild(del);
-                        chipsEl.appendChild(tag);
-                        const hid = document.createElement('input'); hid.type = 'hidden'; hid.name = name; hid.value = val; hiddenWrap.appendChild(hid);
-                    });
-                }
-                function dispatchChange() {
-                    const ev = new CustomEvent('tms:change', { detail: { values: selected.slice() } });
-                    container.dispatchEvent(ev);
-                }
-                function add(val) {
-                    if (!val) return;
-                    val = val.toString().trim();
-                    if (!allowedList.includes(val)) return; // only allow predefined tags for this component
-                    if (selected.includes(val)) return;
-                    selected.push(val);
-                    render();
-                    dispatchChange();
-                }
-                function remove(val) {
-                    selected = selected.filter(x => x !== val);
-                    render();
-                    dispatchChange();
-                }
-                function setValues(arr) {
-                    selected = [];
-                    (arr || []).forEach(v => {
-                        const s = String(v).trim();
-                        if (allowedList.includes(s) && !selected.includes(s)) selected.push(s);
-                    });
-                    render();
-                    dispatchChange();
-                }
-                function getValues() { return selected.slice(); }
-                function showSuggestions(q) {
-                    const ql = (q || '').toLowerCase();
-                    const list = allowedList.filter(x => !selected.includes(x) && x.toLowerCase().includes(ql));
-                    suggEl.innerHTML = '';
-                    if (!list.length) { suggEl.style.display = 'none'; return; }
-                    list.slice(0, 12).forEach(x => {
-                        const it = document.createElement('div'); it.className = 'tms-suggestion'; it.textContent = x;
-                        it.addEventListener('click', () => { add(x); inputEl.value = ''; hideSuggestions(); });
-                        suggEl.appendChild(it);
-                    });
-                    suggEl.style.display = 'block';
-                }
-                function hideSuggestions() { suggEl.style.display = 'none'; }
-                inputEl.addEventListener('input', (e) => { showSuggestions(e.target.value); });
-                inputEl.addEventListener('focus', () => { showSuggestions(inputEl.value); });
-                inputEl.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const q = inputEl.value.trim().toUpperCase();
-                        const match = TMS_ALLOWED.find(x => x.toUpperCase() === q);
-                        if (match) {
-                            add(match);
-                        } else {
-                            // do not allow freeform entries — show full list to choose from
-                            inputEl.value = '';
-                            showSuggestions('');
-                        }
-                        hideSuggestions();
-                        return;
-                    }
-                    if (e.key === 'Backspace' && inputEl.value === '') {
-                        if (selected.length) { remove(selected[selected.length - 1]); }
-                        return;
-                    }
-                });
-                document.addEventListener('click', (ev) => { if (!container.contains(ev.target)) hideSuggestions(); });
-                // show suggestions initially so admin sees the list (no typing required)
-                showSuggestions('');
-                // initialize from data-initial if provided
-                if (container.dataset.initial) {
-                    try { const arr = JSON.parse(container.dataset.initial); setValues(Array.isArray(arr) ? arr : [arr]); } catch (err) { setValues([container.dataset.initial]); }
-                }
-                // expose simple API on the DOM element
-                container._tms = { setValues, getValues, add, remove };
-                return container._tms;
-            }
-            // initialize all tag-multiselects on the page
-            document.querySelectorAll('.tag-multiselect').forEach(el => createTagMultiSelect(el));
-            // wire website-type display for edit modal tag-select
-            const editTagEl = document.getElementById('editItemSubcategory');
-            const editWebsiteWrapper = document.getElementById('edit-website-type-field');
-            if (editTagEl && editWebsiteWrapper) {
-                editTagEl.addEventListener('tms:change', (e) => {
-                    editWebsiteWrapper.style.display = (e.detail.values || []).includes('WEBSITE') ? '' : 'none';
-                });
-            }
-            const detailsBtns = document.querySelectorAll('.details-btn');
-            const detailsModal = document.getElementById('detailsModal');
-            const detailsTabButtons = document.querySelectorAll('[data-details-tab]');
-            const detailsTabPanels = {
-                description: document.getElementById('detailsPanelDescription'),
-                attachments: document.getElementById('detailsPanelAttachments'),
-                activity: document.getElementById('detailsPanelActivity')
-            };
-            const addCommentModal = document.getElementById('addCommentModal');
-            const cancelCommentBtn = document.getElementById('cancelCommentBtn');
-            const addCommentForm = document.getElementById('addCommentForm');
-            const uploadAttachmentModal = document.getElementById('uploadAttachmentModal');
-            const uploadAttachmentForm = document.getElementById('uploadAttachmentForm');
-            const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
-            const cancelUploadBtn = document.getElementById('cancelUploadBtn');
-            const addAttachmentTrigger = document.getElementById('addAttachmentTrigger');
-            const attachmentFileInput = document.getElementById('attachmentFileInput');
-            const attachmentFileName = document.getElementById('attachmentFileName');
-            const legendBtn = document.getElementById('legendBtn');
-            const legendModal = document.getElementById('legendModal');
-            const closeLegendModal = document.getElementById('closeLegendModal');
-            const closeLegendBtn = document.getElementById('closeLegendBtn');
-            const copyShareLinkBtn = document.getElementById('copyShareLinkBtn');
-            let currentItemId = null;
-            function clearItemParamFromUrl() {
-                const stateUrl = new URL(window.location.href);
-                if (!stateUrl.searchParams.has('item')) return;
-                stateUrl.searchParams.delete('item');
-                window.history.replaceState({}, '', stateUrl.toString());
-            }
-            function closeDetailsModal() {
-                if (detailsModal) {
-                    detailsModal.classList.remove('is-active');
-                }
-                currentItemId = null;
-                clearItemParamFromUrl();
-            }
-            function setDetailsTab(activeTab) {
-                detailsTabButtons.forEach(tab => {
-                    tab.classList.toggle('is-active', tab.getAttribute('data-details-tab') === activeTab);
-                });
-                Object.entries(detailsTabPanels).forEach(([name, panel]) => {
-                    if (!panel) return;
-                    panel.style.display = (name === activeTab) ? '' : 'none';
-                });
-            }
-            detailsTabButtons.forEach(tab => {
-                tab.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const targetTab = this.getAttribute('data-details-tab');
-                    if (!targetTab) return;
-                    setDetailsTab(targetTab);
-                });
+    } catch(e) {}
+
+    // Tag multiselect (TMS)
+    const TMS_ALLOWED=['TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER'];
+    function createTagMultiSelect(container) {
+        if (!container) return null;
+        let allowedList=TMS_ALLOWED;
+        if (container.dataset.allowed) {
+            try { const p=JSON.parse(container.dataset.allowed); if(Array.isArray(p)) allowedList=p.map(x=>String(x).trim()); }
+            catch(e) { allowedList=String(container.dataset.allowed).split(',').map(s=>s.trim()).filter(Boolean); }
+        }
+        const name=container.dataset.name||'subcategory[]';
+        container.classList.add('tms-container');
+        const chipsEl=document.createElement('div'); chipsEl.className='tms-chips';
+        const inputEl=document.createElement('input'); inputEl.type='text'; inputEl.className='tms-input'; inputEl.placeholder='Select\u2026'; inputEl.autocomplete='off';
+        const suggEl=document.createElement('div'); suggEl.className='tms-suggestions'; suggEl.style.display='none';
+        const hidWrap=document.createElement('div'); hidWrap.style.display='none';
+        container.append(chipsEl,inputEl,suggEl,hidWrap);
+        let selected=[];
+        function render() {
+            chipsEl.innerHTML=''; hidWrap.innerHTML='';
+            selected.forEach(val=>{
+                const chip=document.createElement('span'); chip.className='tag'; chip.textContent=val;
+                const del=document.createElement('button'); del.type='button'; del.className='delete is-small'; del.style.marginLeft='0.4rem';
+                del.addEventListener('click',()=>remove(val)); chip.appendChild(del); chipsEl.appendChild(chip);
+                const hid=document.createElement('input'); hid.type='hidden'; hid.name=name; hid.value=val; hidWrap.appendChild(hid);
             });
-            function buildItemShareUrl(itemId) {
-                const shareUrl = new URL(window.location.href);
-                shareUrl.searchParams.delete('search');
-                shareUrl.searchParams.delete('category');
-                shareUrl.searchParams.set('item', String(itemId));
-                return shareUrl.toString();
-            }
-            function setShareButtonCopiedState() {
-                if (!copyShareLinkBtn) return;
-                const label = copyShareLinkBtn.querySelector('span:last-child');
-                if (!label) return;
-                const originalText = label.textContent;
-                label.textContent = 'Copied!';
-                window.setTimeout(() => {
-                    label.textContent = originalText;
-                }, 1400);
-            }
-            async function copyTextToClipboard(text) {
-                if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(text);
-                    return;
-                }
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';
-                textArea.style.top = '-1000px';
-                textArea.style.left = '-1000px';
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-            }
-            // File input change handler
-            if (attachmentFileInput) {
-                attachmentFileInput.addEventListener('change', function () {
-                    if (attachmentFileName) {
-                        attachmentFileName.textContent = this.files.length > 0 ? this.files[0].name : 'No file selected';
-                    }
-                });
-            }
-            // Add attachment trigger button (for admins)
-            if (addAttachmentTrigger) {
-                addAttachmentTrigger.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    document.getElementById('uploadItemId').value = currentItemId;
-                    if (uploadAttachmentForm) {
-                        uploadAttachmentForm.reset();
-                        if (attachmentFileName) attachmentFileName.textContent = 'No file selected';
-                        const uploadError = document.getElementById('uploadError');
-                        if (uploadError) uploadError.style.display = 'none';
-                    }
-                    if (uploadAttachmentModal) {
-                        uploadAttachmentModal.classList.add('is-active');
-                    }
-                });
-            }
-            // Upload attachment form submission
-            if (uploadAttachmentForm) {
-                uploadAttachmentForm.addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    const fileInput = document.getElementById('attachmentFileInput');
-                    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                        const uploadError = document.getElementById('uploadError');
-                        if (uploadError) {
-                            uploadError.style.display = 'block';
-                            const uploadErrorMessage = document.getElementById('uploadErrorMessage');
-                            if (uploadErrorMessage) uploadErrorMessage.textContent = 'Please select a file';
-                        }
-                        return;
-                    }
-                    const itemIdInput = document.getElementById('uploadItemId');
-                    if (!itemIdInput || !itemIdInput.value) {
-                        const uploadError = document.getElementById('uploadError');
-                        if (uploadError) {
-                            uploadError.style.display = 'block';
-                            const uploadErrorMessage = document.getElementById('uploadErrorMessage');
-                            if (uploadErrorMessage) uploadErrorMessage.textContent = 'No item selected';
-                        }
-                        return;
-                    }
-                    const formData = new FormData(uploadAttachmentForm);
-                    const uploadProgress = document.getElementById('uploadProgress');
-                    const uploadProgressBar = document.getElementById('uploadProgressBar');
-                    const uploadStatusText = document.getElementById('uploadStatusText');
-                    const uploadError = document.getElementById('uploadError');
-                    const uploadErrorMessage = document.getElementById('uploadErrorMessage');
-                    const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
-                    if (uploadProgress) uploadProgress.style.display = 'block';
-                    if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = true;
-                    const xhr = new XMLHttpRequest();
-                    xhr.upload.addEventListener('progress', function (e) {
-                        if (e.lengthComputable) {
-                            const percentComplete = (e.loaded / e.total) * 100;
-                            if (uploadProgressBar) uploadProgressBar.value = percentComplete;
-                            if (uploadStatusText) uploadStatusText.textContent = 'Uploading: ' + Math.round(percentComplete) + '%';
-                        }
-                    });
-                    xhr.addEventListener('load', function () {
-                        if (uploadProgress) uploadProgress.style.display = 'none';
-                        if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            if (xhr.status === 200 && response.success) {
-                                // Close modal
-                                if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
-                                if (uploadError) uploadError.style.display = 'none';
-                                // Reload attachments
-                                loadAttachments(currentItemId);
-                                // Reset form
-                                uploadAttachmentForm.reset();
-                                if (attachmentFileName) attachmentFileName.textContent = 'No file selected';
-                            } else {
-                                if (uploadError) uploadError.style.display = 'block';
-                                if (uploadErrorMessage) uploadErrorMessage.textContent = response.message || 'Upload failed';
-                            }
-                        } catch (e) {
-                            if (uploadError) uploadError.style.display = 'block';
-                            if (uploadErrorMessage) uploadErrorMessage.textContent = 'Error uploading file: ' + e.message;
-                        }
-                    });
-                    xhr.addEventListener('error', function () {
-                        if (uploadProgress) uploadProgress.style.display = 'none';
-                        if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
-                        if (uploadError) uploadError.style.display = 'block';
-                        if (uploadErrorMessage) uploadErrorMessage.textContent = 'Network error: ' + xhr.statusText;
-                    });
-                    xhr.addEventListener('abort', function () {
-                        if (uploadProgress) uploadProgress.style.display = 'none';
-                        if (uploadAttachmentBtn) uploadAttachmentBtn.disabled = false;
-                    });
-                    xhr.open('POST', '../admin/upload-attachment.php', true);
-                    xhr.send(formData);
-                });
-            }
-            // Cancel upload button
-            if (cancelUploadBtn) {
-                cancelUploadBtn.addEventListener('click', function () {
-                    if (uploadAttachmentModal) uploadAttachmentModal.classList.remove('is-active');
-                });
-            }
-            // Legend button handler
-            if (legendBtn) {
-                legendBtn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    if (legendModal) {
-                        legendModal.classList.add('is-active');
-                    }
-                });
-            }
-            // Close legend modal handlers
-            if (closeLegendModal) {
-                closeLegendModal.addEventListener('click', function () {
-                    if (legendModal) {
-                        legendModal.classList.remove('is-active');
-                    }
-                });
-            }
-            if (closeLegendBtn) {
-                closeLegendBtn.addEventListener('click', function () {
-                    if (legendModal) {
-                        legendModal.classList.remove('is-active');
-                    }
-                });
-            }
-            // Details button handler
-            detailsBtns.forEach(btn => {
-                btn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const title = this.dataset.title;
-                    const encoded = this.dataset.description || '';
-                    const description = encoded ? atob(encoded) : '';
-                    const createdAt = this.dataset.createdAt || '';
-                    const updatedAt = this.dataset.updatedAt || '';
-                    currentItemId = this.getAttribute('data-item-id');
-                    setDetailsTab('description');
-                    renderDetailsTags(this);
-                    if (currentItemId) {
-                        const stateUrl = new URL(window.location.href);
-                        stateUrl.searchParams.delete('search');
-                        stateUrl.searchParams.delete('category');
-                        stateUrl.searchParams.set('item', String(currentItemId));
-                        window.history.replaceState({}, '', stateUrl.toString());
-                    }
-                    document.getElementById('detailsTitle').textContent = title;
-                    // Parse markdown and sanitize the description
-                    const dirtyHtml = marked.parse(description || '');
-                    const cleanHtml = (window.DOMPurify) ? DOMPurify.sanitize(dirtyHtml) : dirtyHtml;
-                    const detailsContent = document.getElementById('detailsContent');
-                    detailsContent.innerHTML = cleanHtml;
-                    // Show created/updated metadata
-                    const detailsMeta = document.getElementById('detailsMeta');
-                    if (detailsMeta) {
-                        let metaText = '';
-                        if (createdAt) metaText = 'Created ' + formatDateSydney(createdAt);
-                        if (updatedAt && updatedAt !== createdAt) metaText += ' • Updated ' + formatDateSydney(updatedAt);
-                        detailsMeta.textContent = metaText;
-                    }
-                    // Highlight code blocks
-                    detailsContent.querySelectorAll('pre code').forEach(block => {
-                        hljs.highlightElement(block);
-                    });
-                    // Load attachments
-                    loadAttachments(currentItemId);
-                    // Load activity via AJAX
-                    fetch('../get-activity.php?item_id=' + encodeURIComponent(currentItemId))
-                        .then(response => response.text())
-                        .then(html => {
-                            const commentsSection = document.getElementById('commentsSection');
-                            commentsSection.innerHTML = html;
-                        })
-                        .catch(error => {
-                            console.error('Error loading comments:', error);
-                            document.getElementById('commentsSection').innerHTML = '<p class="has-text-danger">Error loading comments</p>';
-                        });
-                    detailsModal.classList.add('is-active');
-                });
-            });
-            if (copyShareLinkBtn) {
-                copyShareLinkBtn.addEventListener('click', async function (e) {
-                    e.preventDefault();
-                    if (!currentItemId) return;
-                    const shareUrl = buildItemShareUrl(currentItemId);
-                    try {
-                        await copyTextToClipboard(shareUrl);
-                        setShareButtonCopiedState();
-                    } catch (error) {
-                        console.error('Error copying share link:', error);
-                        window.prompt('Copy this share link:', shareUrl);
-                    }
-                });
-            }
-            const deepLinkItemRaw = new URLSearchParams(window.location.search).get('item');
-            if (deepLinkItemRaw) {
-                const deepLinkItemId = parseInt(deepLinkItemRaw, 10);
-                if (!Number.isNaN(deepLinkItemId)) {
-                    const deepLinkBtn = Array.from(detailsBtns).find(btn => btn.getAttribute('data-item-id') === String(deepLinkItemId));
-                    if (deepLinkBtn) {
-                        deepLinkBtn.click();
-                    }
-                }
-            }
-            // Add comment trigger button (for admins)
-            const addCommentTrigger = document.getElementById('addCommentTrigger');
-            if (addCommentTrigger) {
-                addCommentTrigger.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    document.getElementById('commentItemId').value = currentItemId;
-                    addCommentModal.classList.add('is-active');
-                });
-            }
-            // Add comment form submission
-            if (addCommentForm) {
-                addCommentForm.addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    // Submit the form
-                    fetch(window.location.href, {
-                        method: 'POST',
-                        body: new FormData(addCommentForm)
-                    })
-                        .then(() => {
-                            // Close comment modal
-                            if (addCommentModal) {
-                                addCommentModal.classList.remove('is-active');
-                            }
-                            // Clear form
-                            addCommentForm.reset();
-                            // Reload activity in details modal
-                            fetch('../get-activity.php?item_id=' + encodeURIComponent(currentItemId))
-                                .then(response => response.text())
-                                .then(html => {
-                                    const commentsSection = document.getElementById('commentsSection');
-                                    commentsSection.innerHTML = html;
-                                });
-                        })
-                        .catch(error => {
-                            console.error('Error submitting comment:', error);
-                            alert('Error adding comment. Please try again.');
-                        });
-                });
-            }
-            // Close comment modal cancel button
-            if (cancelCommentBtn) {
-                cancelCommentBtn.addEventListener('click', function () {
-                    if (addCommentModal) {
-                        addCommentModal.classList.remove('is-active');
-                    }
-                });
-            }
-            // Edit item button handler
-            const editItemBtns = document.querySelectorAll('.edit-item-btn');
-            const editItemModal = document.getElementById('editItemModal');
-            const editItemForm = document.getElementById('editItemForm');
-            const cancelEditBtn = document.getElementById('cancelEditBtn');
-            editItemBtns.forEach(btn => {
-                btn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    document.getElementById('editItemId').value = this.getAttribute('data-item-id');
-                    document.getElementById('editItemTitle').value = this.getAttribute('data-title');
-                    const encodedDesc = this.getAttribute('data-description') || '';
-                    document.getElementById('editItemDescription').value = encodedDesc ? atob(encodedDesc) : ''; 
-                    document.getElementById('editItemCategory').value = this.getAttribute('data-category');
-                    const subData = this.getAttribute('data-subcategory');
-                    const editTagEl = document.getElementById('editItemSubcategory');
-                    if (editTagEl && editTagEl._tms) {
-                        try {
-                            const arr = subData ? JSON.parse(subData) : [];
-                            editTagEl._tms.setValues(Array.isArray(arr) ? arr : [arr]);
-                        } catch (err) {
-                            editTagEl._tms.setValues(subData ? [subData] : []);
-                        }
-                    }
-                    // show website-type field in modal when WEBSITE is among selected subcategories
-                    const editWebsiteWrapper = document.getElementById('edit-website-type-field');
-                    if (editWebsiteWrapper) {
-                        const anyWebsite = (editTagEl && editTagEl._tms) ? editTagEl._tms.getValues().includes('WEBSITE') : false;
-                        editWebsiteWrapper.style.display = anyWebsite ? '' : 'none';
-                    }
-                    document.getElementById('editItemPriority').value = this.getAttribute('data-priority');
-                    // populate website-type tag-multiselect (accept JSON array or fallback to reading DOM tags)
-                    const webData = this.getAttribute('data-website-type');
-                    const editWebEl = document.getElementById('editItemWebsiteType');
-                    let webValues = [];
-                    if (webData) {
-                        try {
-                            const arr = JSON.parse(webData);
-                            webValues = Array.isArray(arr) ? arr : [arr];
-                        } catch (err) {
-                            if (webData.length) webValues = [webData];
-                        }
-                    }
-                    // fallback: read existing website-type tags from the card DOM
-                    if ((!webValues || webValues.length === 0) && this.closest) {
-                        const card = this.closest('.roadmap-card');
-                        if (card) {
-                            webValues = Array.from(card.querySelectorAll('.website-type-tag')).map(el => el.textContent.trim()).filter(Boolean);
-                        }
-                    }
-                    if (editWebEl && editWebEl._tms) {
-                        editWebEl._tms.setValues(webValues);
-                    } else {
-                        // legacy fallback for plain input
-                        document.getElementById('editItemWebsiteType').value = webValues.join(',');
-                    }
-                    if (editItemModal) {
-                        editItemModal.classList.add('is-active');
-                        // focus the tag input so the suggestions list is visible immediately
-                        try {
-                            const editInput = editTagEl ? editTagEl.querySelector('.tms-input') : null;
-                            if (editInput) setTimeout(() => editInput.focus(), 50);
-                        } catch (e) { /* ignore */ }
-                    }
-                });
-            });
-            if (editItemForm) {
-                editItemForm.addEventListener('submit', function (e) {
-                    const editTagEl = document.getElementById('editItemSubcategory');
-                    const values = (editTagEl && editTagEl._tms) ? editTagEl._tms.getValues() : Array.from(document.querySelectorAll('#editItemModal input[name="subcategory[]"]')).map(i => i.value);
-                    if (!values || values.length === 0) {
-                        alert('Please select at least one Subcategory');
-                        e.preventDefault();
-                        return;
-                    }
-                    e.preventDefault();
-                    this.submit();
-                });
-            }
-            if (cancelEditBtn) {
-                cancelEditBtn.addEventListener('click', function () {
-                    if (editItemModal) {
-                        editItemModal.classList.remove('is-active');
-                    }
-                });
-            }
-            // Close modal handlers for both modals
-            const deleteButtons = document.querySelectorAll('.modal .delete');
-            deleteButtons.forEach(btn => {
-                btn.addEventListener('click', function () {
-                    const modal = this.closest('.modal');
-                    if (modal) {
-                        if (modal.id === 'detailsModal') {
-                            closeDetailsModal();
-                        } else {
-                            modal.classList.remove('is-active');
-                        }
-                    }
-                });
-            });
-            const closeButtons = document.querySelectorAll('.modal-card-foot .button');
-            closeButtons.forEach(btn => {
-                btn.addEventListener('click', function () {
-                    const modal = this.closest('.modal');
-                    if (modal) {
-                        if (modal.id === 'detailsModal') {
-                            closeDetailsModal();
-                        } else {
-                            modal.classList.remove('is-active');
-                        }
-                    }
-                });
-            });
-            // Close modal on background click
-            const modalBackgrounds = document.querySelectorAll('.modal-background');
-            modalBackgrounds.forEach(bg => {
-                bg.addEventListener('click', function () {
-                    const modal = this.closest('.modal');
-                    if (modal) {
-                        if (modal.id === 'detailsModal') {
-                            closeDetailsModal();
-                        } else {
-                            modal.classList.remove('is-active');
-                        }
-                    }
-                });
-            });
+        }
+        function dispatchChange() { container.dispatchEvent(new CustomEvent('tms:change',{detail:{values:selected.slice()}})); }
+        function add(val) { val=String(val).trim(); if(!allowedList.includes(val)||selected.includes(val)) return; selected.push(val); render(); dispatchChange(); }
+        function remove(val) { selected=selected.filter(x=>x!==val); render(); dispatchChange(); }
+        function setValues(arr) { selected=[]; (arr||[]).forEach(v=>{const s=String(v).trim(); if(allowedList.includes(s)&&!selected.includes(s)) selected.push(s);}); render(); dispatchChange(); }
+        function getValues() { return selected.slice(); }
+        function showSuggestions(q) {
+            const ql=(q||'').toLowerCase();
+            const list=allowedList.filter(x=>!selected.includes(x)&&x.toLowerCase().includes(ql));
+            suggEl.innerHTML='';
+            if (!list.length) { suggEl.style.display='none'; return; }
+            list.slice(0,12).forEach(x=>{ const it=document.createElement('div'); it.className='tms-suggestion'; it.textContent=x; it.addEventListener('click',()=>{add(x);inputEl.value='';hideSuggestions();}); suggEl.appendChild(it); });
+            suggEl.style.display='block';
+        }
+        function hideSuggestions() { suggEl.style.display='none'; }
+        inputEl.addEventListener('input',e=>showSuggestions(e.target.value));
+        inputEl.addEventListener('focus',()=>showSuggestions(inputEl.value));
+        inputEl.addEventListener('keydown',e=>{
+            if (e.key==='Enter') { e.preventDefault(); const m=allowedList.find(x=>x.toUpperCase()===inputEl.value.trim().toUpperCase()); if(m) add(m); inputEl.value=''; hideSuggestions(); return; }
+            if (e.key==='Backspace'&&inputEl.value==='') { if(selected.length) remove(selected[selected.length-1]); }
         });
-        // Version Modal Functions
-        function decodeBase64Utf8(value) {
-            if (!value) return '';
-            try {
-                return decodeURIComponent(Array.prototype.map.call(atob(value), function (ch) {
-                    return '%' + ('00' + ch.charCodeAt(0).toString(16)).slice(-2);
-                }).join(''));
-            } catch (error) {
-                console.error('Error decoding base64 payload:', error);
-                return '';
-            }
+        document.addEventListener('click',ev=>{ if(!container.contains(ev.target)) hideSuggestions(); });
+        showSuggestions('');
+        if (container.dataset.initial) {
+            try { const arr=JSON.parse(container.dataset.initial); setValues(Array.isArray(arr)?arr:[arr]); } catch(err) { setValues([container.dataset.initial]); }
         }
-        function openVersionModalFromButton(button) {
-            const version = (button && button.dataset && button.dataset.version) ? button.dataset.version : '';
-            const markdownB64 = (button && button.dataset && button.dataset.markdownB64) ? button.dataset.markdownB64 : '';
-            const markdownText = decodeBase64Utf8(markdownB64);
-            openVersionModal(version, markdownText);
-        }
-        function openVersionModal(version, markdownText) {
-            document.getElementById('modalVersionNumber').textContent = version;
-            if (markdownText && markdownText.trim() !== '' && typeof marked !== 'undefined' && typeof marked.parse === 'function') {
-                const parsedHtml = marked.parse(markdownText);
-                const safeHtml = (window.DOMPurify) ? DOMPurify.sanitize(parsedHtml) : parsedHtml;
-                document.getElementById('modalContent').innerHTML = safeHtml;
-                document.getElementById('versionModal').classList.add('is-active');
-                return;
-            }
-            const changelogUrl = 'https://changelog.botofthespecter.com/' + version + '.md';
-            fetch(changelogUrl)
-                .then(response => response.text())
-                .then(markdown => {
-                    if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
-                        const parsedHtml = marked.parse(markdown);
-                        const safeHtml = (window.DOMPurify) ? DOMPurify.sanitize(parsedHtml) : parsedHtml;
-                        document.getElementById('modalContent').innerHTML = safeHtml;
-                    } else {
-                        const escaped = markdown
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;');
-                        document.getElementById('modalContent').innerHTML = '<pre style="white-space: pre-wrap; color: #b0b0b0;">' + escaped + '</pre>';
-                    }
-                    document.getElementById('versionModal').classList.add('is-active');
-                })
-                .catch(error => {
-                    console.error('Error loading changelog:', error);
-                    document.getElementById('modalContent').innerHTML = '<p style="color: #f14668;">Error loading changelog file</p>';
-                    document.getElementById('versionModal').classList.add('is-active');
-                });
-        }
-        function closeVersionModal() {
-            document.getElementById('versionModal').classList.remove('is-active');
-        }
-        // Close modal with Escape key
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                closeVersionModal();
-            }
+        container._tms={setValues,getValues,add,remove};
+        return container._tms;
+    }
+    document.querySelectorAll('.tag-multiselect').forEach(el=>createTagMultiSelect(el));
+
+    const editTagEl=document.getElementById('editItemSubcategory');
+    const editWebWrapper=document.getElementById('edit-website-type-field');
+    if (editTagEl&&editWebWrapper) {
+        editTagEl.addEventListener('tms:change',e=>{ editWebWrapper.style.display=(e.detail.values||[]).includes('WEBSITE')?'':'none'; });
+    }
+
+    // Modal helpers
+    function openModal(el) { if(el) el.classList.add('open'); }
+    function closeModal(el) { if(el) el.classList.remove('open'); }
+
+    // Details modal
+    const detailsModal=document.getElementById('detailsModal');
+    const detailsBtns=document.querySelectorAll('.details-btn');
+    const detailsTabBtns=document.querySelectorAll('[data-details-tab]');
+    const panels={description:document.getElementById('detailsPanelDescription'),attachments:document.getElementById('detailsPanelAttachments'),activity:document.getElementById('detailsPanelActivity')};
+    let currentItemId=null;
+    function clearItemParam(){ const u=new URL(window.location.href); if(!u.searchParams.has('item')) return; u.searchParams.delete('item'); window.history.replaceState({},'',u.toString()); }
+    function closeDetailsModal(){ closeModal(detailsModal); currentItemId=null; clearItemParam(); }
+    function setDetailsTab(name) {
+        detailsTabBtns.forEach(t=>t.classList.toggle('active',t.dataset.detailsTab===name));
+        Object.entries(panels).forEach(([k,p])=>{ if(!p) return; p.classList.toggle('active',k===name); p.style.display=(k===name)?'':'none'; });
+    }
+    detailsTabBtns.forEach(tab=>tab.addEventListener('click',e=>{ e.preventDefault(); setDetailsTab(tab.dataset.detailsTab); }));
+    document.getElementById('closeDetailsBtn')&&document.getElementById('closeDetailsBtn').addEventListener('click',closeDetailsModal);
+    document.getElementById('closeDetailsFootBtn')&&document.getElementById('closeDetailsFootBtn').addEventListener('click',closeDetailsModal);
+    detailsModal&&detailsModal.querySelector('.rm-modal-backdrop')&&detailsModal.querySelector('.rm-modal-backdrop').addEventListener('click',closeDetailsModal);
+
+    // Copy share link
+    const copyShareLinkBtn=document.getElementById('copyShareLinkBtn');
+    if (copyShareLinkBtn) {
+        copyShareLinkBtn.addEventListener('click',async e=>{
+            e.preventDefault(); if(!currentItemId) return;
+            const u=new URL(window.location.href); u.searchParams.delete('search'); u.searchParams.delete('category'); u.searchParams.set('item',String(currentItemId));
+            const url=u.toString();
+            try { if(navigator.clipboard&&window.isSecureContext) await navigator.clipboard.writeText(url); else { const t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t); }
+                const lbl=copyShareLinkBtn; const orig=lbl.textContent; lbl.textContent='Copied!'; setTimeout(()=>lbl.textContent=orig,1400);
+            } catch(err) { window.prompt('Copy share link:',url); }
         });
-    </script>
+    }
+
+    detailsBtns.forEach(btn=>{
+        btn.addEventListener('click',function(e){
+            e.preventDefault();
+            currentItemId=this.dataset.itemId;
+            const title=this.dataset.title||'';
+            const encoded=this.dataset.description||'';
+            const description=encoded?atob(encoded):'';
+            const createdAt=this.dataset.createdAt||'', updatedAt=this.dataset.updatedAt||'';
+            setDetailsTab('description');
+            renderDetailsTags(this);
+            if (currentItemId) { const u=new URL(window.location.href); u.searchParams.set('item',String(currentItemId)); window.history.replaceState({},'',u.toString()); }
+            document.getElementById('detailsTitle').textContent=title;
+            const dirtyHtml=typeof marked!=='undefined'?marked.parse(description||''):(description||'');
+            const cleanHtml=window.DOMPurify?DOMPurify.sanitize(dirtyHtml):dirtyHtml;
+            const content=document.getElementById('detailsContent'); content.innerHTML=cleanHtml;
+            const meta=document.getElementById('detailsMeta');
+            if(meta){ let t=createdAt?'Created '+formatDateSydney(createdAt):''; if(updatedAt&&updatedAt!==createdAt) t+=' \u2022 Updated '+formatDateSydney(updatedAt); meta.textContent=t; }
+            if(typeof hljs!=='undefined') content.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
+            loadAttachments(currentItemId);
+            fetch('../get-activity.php?item_id='+encodeURIComponent(currentItemId))
+                .then(r=>r.text()).then(html=>{ const cs=document.getElementById('commentsSection'); if(cs) cs.innerHTML=html; })
+                .catch(()=>{ const cs=document.getElementById('commentsSection'); if(cs) cs.innerHTML='<p style="color:var(--red);font-size:0.875rem;">Error loading activity</p>'; });
+            openModal(detailsModal);
+        });
+    });
+    const deepItem=parseInt((new URLSearchParams(window.location.search)).get('item'),10);
+    if (!isNaN(deepItem)) { const tb=Array.from(detailsBtns).find(b=>b.dataset.itemId===String(deepItem)); if(tb) tb.click(); }
+
+    // Image zoom modal
+    const imageZoomModal=document.getElementById('imageZoomModal');
+    document.getElementById('closeImageZoomBtn')&&document.getElementById('closeImageZoomBtn').addEventListener('click',()=>closeModal(imageZoomModal));
+    document.getElementById('imageZoomBackdrop')&&document.getElementById('imageZoomBackdrop').addEventListener('click',()=>closeModal(imageZoomModal));
+
+    // Legend modal
+    const legendModal=document.getElementById('legendModal');
+    const legendBtn=document.getElementById('legendBtn');
+    if(legendBtn) legendBtn.addEventListener('click',e=>{ e.preventDefault(); openModal(legendModal); });
+    document.getElementById('closeLegendModal')&&document.getElementById('closeLegendModal').addEventListener('click',()=>closeModal(legendModal));
+    document.getElementById('closeLegendBtn')&&document.getElementById('closeLegendBtn').addEventListener('click',()=>closeModal(legendModal));
+    document.getElementById('legendModalBackdrop')&&document.getElementById('legendModalBackdrop').addEventListener('click',()=>closeModal(legendModal));
+
+    // Comment modal
+    const addCommentModal=document.getElementById('addCommentModal');
+    const addCommentTrigger=document.getElementById('addCommentTrigger');
+    const cancelCommentBtn=document.getElementById('cancelCommentBtn');
+    const addCommentForm=document.getElementById('addCommentForm');
+    if(addCommentTrigger) addCommentTrigger.addEventListener('click',e=>{ e.preventDefault(); const idEl=document.getElementById('commentItemId'); if(idEl) idEl.value=currentItemId; openModal(addCommentModal); });
+    if(cancelCommentBtn) cancelCommentBtn.addEventListener('click',()=>closeModal(addCommentModal));
+    document.getElementById('cancelCommentClose')&&document.getElementById('cancelCommentClose').addEventListener('click',()=>closeModal(addCommentModal));
+    document.getElementById('commentModalBackdrop')&&document.getElementById('commentModalBackdrop').addEventListener('click',()=>closeModal(addCommentModal));
+    if(addCommentForm) {
+        addCommentForm.addEventListener('submit',function(e){
+            e.preventDefault();
+            fetch(window.location.href,{method:'POST',body:new FormData(addCommentForm)})
+                .then(()=>{ closeModal(addCommentModal); addCommentForm.reset(); fetch('../get-activity.php?item_id='+encodeURIComponent(currentItemId)).then(r=>r.text()).then(html=>{ const cs=document.getElementById('commentsSection'); if(cs) cs.innerHTML=html; }); })
+                .catch(()=>alert('Error adding comment.'));
+        });
+    }
+
+    // Edit item modal
+    const editItemModal=document.getElementById('editItemModal');
+    const cancelEditBtn=document.getElementById('cancelEditBtn');
+    document.querySelectorAll('.edit-item-btn').forEach(btn=>{
+        btn.addEventListener('click',function(e){
+            e.preventDefault();
+            document.getElementById('editItemId').value=this.dataset.itemId;
+            document.getElementById('editItemTitle').value=this.dataset.title;
+            const encoded=this.dataset.description||'';
+            document.getElementById('editItemDescription').value=encoded?atob(encoded):'';
+            document.getElementById('editItemCategory').value=this.dataset.category;
+            document.getElementById('editItemPriority').value=this.dataset.priority;
+            const tagEl=document.getElementById('editItemSubcategory');
+            if(tagEl&&tagEl._tms){ try{const arr=JSON.parse(this.dataset.subcategory||'[]'); tagEl._tms.setValues(Array.isArray(arr)?arr:[arr]);}catch(err){tagEl._tms.setValues(this.dataset.subcategory?[this.dataset.subcategory]:[]);} }
+            const webWrapper=document.getElementById('edit-website-type-field');
+            if(webWrapper){ const hasWeb=tagEl&&tagEl._tms&&tagEl._tms.getValues().includes('WEBSITE'); webWrapper.style.display=hasWeb?'':'none'; }
+            const webEl=document.getElementById('editItemWebsiteType');
+            const webData=this.dataset.websiteType||''; let webValues=[];
+            try{ const a=JSON.parse(webData); webValues=Array.isArray(a)?a:[a]; }catch(e){ if(webData) webValues=[webData]; }
+            if(webEl&&webEl._tms) webEl._tms.setValues(webValues);
+            openModal(editItemModal);
+        });
+    });
+    if(cancelEditBtn) cancelEditBtn.addEventListener('click',()=>closeModal(editItemModal));
+    document.getElementById('cancelEditClose')&&document.getElementById('cancelEditClose').addEventListener('click',()=>closeModal(editItemModal));
+    document.getElementById('editModalBackdrop')&&document.getElementById('editModalBackdrop').addEventListener('click',()=>closeModal(editItemModal));
+    if(document.getElementById('editItemForm')) {
+        document.getElementById('editItemForm').addEventListener('submit',function(e){
+            const tagEl=document.getElementById('editItemSubcategory');
+            const vals=(tagEl&&tagEl._tms)?tagEl._tms.getValues():[];
+            if(!vals.length){ alert('Please select at least one Subcategory'); e.preventDefault(); return; }
+            e.preventDefault(); this.submit();
+        });
+    }
+
+    // Upload attachment modal
+    const uploadModal=document.getElementById('uploadAttachmentModal');
+    const uploadForm=document.getElementById('uploadAttachmentForm');
+    const uploadBtn=document.getElementById('uploadAttachmentBtn');
+    const cancelUploadBtn=document.getElementById('cancelUploadBtn');
+    const addAttachTrigger=document.getElementById('addAttachmentTrigger');
+    const fileInput=document.getElementById('attachmentFileInput');
+    const fileNameEl=document.getElementById('attachmentFileName');
+    if(addAttachTrigger) addAttachTrigger.addEventListener('click',e=>{ e.preventDefault(); const idEl=document.getElementById('uploadItemId'); if(idEl) idEl.value=currentItemId; if(uploadForm){uploadForm.reset(); if(fileNameEl) fileNameEl.textContent='';} const errEl=document.getElementById('uploadError'); if(errEl) errEl.style.display='none'; openModal(uploadModal); });
+    if(fileInput) fileInput.addEventListener('change',function(){ if(fileNameEl) fileNameEl.textContent=this.files.length?this.files[0].name:''; });
+    if(cancelUploadBtn) cancelUploadBtn.addEventListener('click',()=>closeModal(uploadModal));
+    document.getElementById('cancelUploadClose')&&document.getElementById('cancelUploadClose').addEventListener('click',()=>closeModal(uploadModal));
+    document.getElementById('uploadModalBackdrop')&&document.getElementById('uploadModalBackdrop').addEventListener('click',()=>closeModal(uploadModal));
+    if(uploadForm) {
+        uploadForm.addEventListener('submit',function(e){
+            e.preventDefault();
+            const fi=document.getElementById('attachmentFileInput'), uidEl=document.getElementById('uploadItemId');
+            const errEl=document.getElementById('uploadError'), errMsg=document.getElementById('uploadErrorMessage');
+            function showErr(msg){ if(errEl) errEl.style.display='block'; if(errMsg) errMsg.textContent=msg; }
+            if(!fi||!fi.files||!fi.files.length){ showErr('Please select a file'); return; }
+            if(!uidEl||!uidEl.value){ showErr('No item selected'); return; }
+            const fd=new FormData(uploadForm);
+            const progWrap=document.getElementById('uploadProgress'), progBar=document.getElementById('uploadProgressBar'), progText=document.getElementById('uploadStatusText');
+            if(progWrap) progWrap.style.display='block';
+            if(uploadBtn) uploadBtn.disabled=true;
+            if(errEl) errEl.style.display='none';
+            const xhr=new XMLHttpRequest();
+            xhr.upload.addEventListener('progress',e=>{ if(e.lengthComputable&&progBar){ const pct=Math.round((e.loaded/e.total)*100); progBar.style.width=pct+'%'; if(progText) progText.textContent='Uploading: '+pct+'%'; } });
+            xhr.addEventListener('load',function(){ if(progWrap) progWrap.style.display='none'; if(uploadBtn) uploadBtn.disabled=false; try{ const res=JSON.parse(xhr.responseText); if(xhr.status===200&&res.success){ closeModal(uploadModal); loadAttachments(currentItemId); uploadForm.reset(); if(fileNameEl) fileNameEl.textContent=''; } else { showErr(res.message||'Upload failed'); } }catch(err){ showErr('Server error'); } });
+            xhr.addEventListener('error',function(){ if(progWrap) progWrap.style.display='none'; if(uploadBtn) uploadBtn.disabled=false; showErr('Network error'); });
+            xhr.open('POST','../admin/upload-attachment.php',true);
+            xhr.send(fd);
+        });
+    }
+
+    // Escape key
+    document.addEventListener('keydown',function(e){
+        if(e.key==='Escape'){
+            closeVersionModal();
+            if(detailsModal&&detailsModal.classList.contains('open')) closeDetailsModal();
+            if(imageZoomModal) closeModal(imageZoomModal);
+            if(legendModal) closeModal(legendModal);
+            if(addCommentModal) closeModal(addCommentModal);
+            if(editItemModal) closeModal(editItemModal);
+            if(uploadModal) closeModal(uploadModal);
+        }
+    });
+}); // end DOMContentLoaded
+
+// Version modal (global scope for timeline buttons)
+function decodeBase64Utf8(value) {
+    if (!value) return '';
+    try { return decodeURIComponent(Array.prototype.map.call(atob(value),function(ch){ return '%'+('00'+ch.charCodeAt(0).toString(16)).slice(-2); }).join('')); }
+    catch(e) { return ''; }
+}
+function openVersionModalFromButton(button) {
+    const version=(button&&button.dataset&&button.dataset.version)?button.dataset.version:'';
+    const markdownB64=(button&&button.dataset&&button.dataset.markdownB64)?button.dataset.markdownB64:'';
+    openVersionModal(version,decodeBase64Utf8(markdownB64));
+}
+function openVersionModal(version,markdownText) {
+    const modal=document.getElementById('versionModal');
+    const numEl=document.getElementById('modalVersionNumber');
+    const content=document.getElementById('modalContent');
+    if(numEl) numEl.textContent=version;
+    const render=(md)=>{
+        if(md&&md.trim()&&typeof marked!=='undefined'){ const html=marked.parse(md); content.innerHTML=window.DOMPurify?DOMPurify.sanitize(html):html; }
+        else { content.innerHTML='<p style="color:var(--text-muted);">No changelog available.</p>'; }
+        if(modal) modal.classList.add('open');
+    };
+    if(markdownText&&markdownText.trim()){ render(markdownText); return; }
+    fetch('https://changelog.botofthespecter.com/'+version+'.md').then(r=>r.text()).then(render).catch(()=>render(''));
+}
+function closeVersionModal() {
+    const modal=document.getElementById('versionModal');
+    if(modal) modal.classList.remove('open');
+}
+</script>
 </body>
 </html>

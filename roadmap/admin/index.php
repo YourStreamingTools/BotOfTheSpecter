@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 date_default_timezone_set('Australia/Sydney');
 
@@ -432,396 +432,193 @@ foreach ($allItems as $item) {
 // Build page content
 ob_start();
 ?>
-<div class="mb-6">
-    <h1 class="title">Roadmap Administration</h1>
-    <p class="subtitle">Manage roadmap items and track development progress</p>
+<!-- Page header -->
+<div class="sp-page-header">
+    <div>
+        <h1 class="sp-page-title">Roadmap Administration</h1>
+        <p class="sp-page-subtitle">Manage roadmap items and track development progress</p>
+    </div>
+    <a href="../index.php" class="sp-btn sp-btn-secondary sp-btn-sm"><i class="fa-solid fa-arrow-left"></i> View Roadmap</a>
 </div>
 <?php if ($message): ?>
-    <div class="notification is-<?php echo htmlspecialchars($message_type); ?>">
-        <button class="delete"></button>
+    <div class="sp-alert sp-alert-<?php echo htmlspecialchars($message_type); ?>" style="margin-bottom:1rem;">
+        <i class="fa-solid fa-<?php echo $message_type==='success'?'circle-check':($message_type==='danger'?'triangle-exclamation':'circle-info'); ?>"></i>
         <strong><?php echo ucfirst($message_type); ?>:</strong> <?php echo htmlspecialchars($message); ?>
     </div>
 <?php endif; ?>
-<!-- Search and Filter Section -->
-<div class="box mb-6">
-    <h2 class="title is-5 mb-4">
-        <span class="icon-text">
-            <span class="icon"><i class="fas fa-search"></i></span>
-            <span>Search & Filter</span>
-        </span>
-    </h2>
+<!-- Search / Filter -->
+<div class="sp-card" style="margin-bottom:1.5rem;">
     <form method="GET" action="">
-        <div class="columns">
-            <div class="column is-two-thirds">
-                <div class="field has-addons">
-                    <div class="control is-expanded">
-                        <input class="input" type="text" name="search" placeholder="Search roadmap items by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
-                    </div>
-                    <div class="control">
-                        <button type="submit" class="button is-info">
-                            <span class="icon"><i class="fas fa-search"></i></span>
-                            <span>Search</span>
-                        </button>
-                    </div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:2;min-width:200px;">
+                <label class="sp-label">Search</label>
+                <div style="display:flex;">
+                    <input class="sp-input" style="border-radius:var(--radius) 0 0 var(--radius);" type="text" name="search" placeholder="Search roadmap items..." value="<?php echo htmlspecialchars($searchQuery); ?>">
+                    <button type="submit" class="sp-btn sp-btn-info" style="border-radius:0 var(--radius) var(--radius) 0;white-space:nowrap;"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
                 </div>
             </div>
-            <div class="column is-one-third">
-                <div class="field">
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="category" onchange="this.form.submit()">
-                                <option value="">All Categories</option>
-                                <?php foreach ($categories as $cat): ?>
-                                    <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory === $cat ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($cat); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php if (!empty($searchQuery) || !empty($selectedCategory)): ?>
-            <div class="field">
-                <a href="index.php" class="button is-light is-small">
-                    <span class="icon"><i class="fas fa-times"></i></span>
-                    <span>Clear Filters</span>
-                </a>
-            </div>
-        <?php endif; ?>
-    </form>
-</div>
-<!-- Add New Item Form -->
-<div class="box mb-6">
-    <h2 class="title is-4 mb-5">
-        <span class="icon-text">
-            <span class="icon"><i class="fas fa-plus"></i></span>
-            <span>Add New Roadmap Item</span>
-        </span>
-    </h2>
-    <form method="POST" action="" id="addItemForm" enctype="multipart/form-data">
-        <input type="hidden" name="action" value="add">
-        <div class="columns">
-            <div class="column is-two-thirds">
-                <div class="field">
-                    <label class="label">Title</label>
-                    <div class="control">
-                        <input class="input" type="text" name="title" placeholder="Item title" required>
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="label">Description</label>
-                    <div class="control">
-                        <textarea class="textarea" name="description" placeholder="Item description (optional, supports markdown)" rows="8" style="font-family: 'Courier New', monospace; font-size: 0.9rem;"></textarea>
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="label">Attachments (Optional)</label>
-                    <div class="file is-boxed" style="padding: 0.75rem; border: 2px dashed rgba(102, 126, 234, 0.3); text-align: center;" id="dragDropZone">
-                        <label class="file-label">
-                            <input class="file-input" type="file" name="initial_attachments[]" id="initialAttachments" multiple accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx">
-                            <span class="file-cta" style="flex-direction: column; gap: 0.25rem; padding: 0; justify-content: center; align-items: center;">
-                                <span class="file-icon" style="font-size: 1.25rem;">
-                                    <i class="fas fa-cloud-upload-alt"></i>
-                                </span>
-                                <span class="file-label" style="font-size: 0.8rem;">
-                                    Choose files or drag here
-                                </span>
-                            </span>
-                            <span class="file-name" id="initialAttachmentFileName" style="font-size: 0.75rem; margin-top: 0.25rem; display: block;">
-                                No files selected
-                            </span>
-                        </label>
-                    </div>
-                    <p class="help" style="font-size: 0.7rem; margin-top: 0.25rem;">Images, PDF, Word, Excel, TXT (max 10MB each)</p>
-                </div>
-            </div>
-            <div class="column is-one-third">
-                <div class="field">
-                    <label class="label">Category</label>
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="category" id="category-select" required>
-                                <option value="REQUESTS">Requests</option>
-                                <option value="IN PROGRESS">In Progress</option>
-                                <option value="BETA TESTING">Beta Testing</option>
-                                <option value="COMPLETED">Completed</option>
-                                <option value="REJECTED">Rejected</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="label">Subcategory</label>
-                    <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-initial='["TWITCH BOT"]'></div>
-                    <p class="help" style="font-size:0.7rem;">Click a tag to add — custom tags are not allowed.</p>
-                </div>
-                <div class="field" id="website-type-field" style="display: none;">
-                    <label class="label">Website Type</label>
-                    <div class="control">
-                        <div class="tag-multiselect" id="addItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="label">Priority</label>
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="priority" id="priority-select">
-                                <option value="LOW">Low</option>
-                                <option value="MEDIUM" selected>Medium</option>
-                                <option value="HIGH">High</option>
-                                <option value="CRITICAL">Critical</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="is-flex is-justify-content-flex-end mt-3">
-            <button type="submit" class="button is-primary">
-                <span class="icon-text">
-                    <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>ADD ITEM</span>
-                </span>
-            </button>
-        </div>
-    </form>
-</div>
-<?php if (!empty($searchQuery) || !empty($selectedCategory)): ?>
-    <!-- Filtered Results -->
-    <div class="mb-6">
-        <div class="box">
-            <h2 class="title is-5 mb-4">
-                <span class="icon-text">
-                    <span class="icon"><i class="fas fa-filter"></i></span>
-                    <span>
-                        Search Results 
-                        <?php if (!empty($searchQuery)): ?>
-                            for "<?php echo htmlspecialchars($searchQuery); ?>"
-                        <?php endif; ?>
-                        <?php if (!empty($selectedCategory)): ?>
-                            in <?php echo htmlspecialchars($selectedCategory); ?>
-                        <?php endif; ?>
-                    </span>
-                </span>
-            </h2>
-            <div class="mb-3">
-                <strong><?php echo count($allItems); ?></strong> result<?php echo count($allItems) !== 1 ? 's' : ''; ?> found
-            </div>
-            <?php if (empty($allItems)): ?>
-                <div class="notification is-warning">
-                    <p>No roadmap items found matching your search criteria.</p>
-                </div>
-            <?php else: ?>
-                <div class="columns is-multiline">
-                    <?php foreach ($allItems as $item): ?>
-                        <div class="column is-one-third">
-                            <div class="roadmap-card is-<?php echo strtolower($item['priority']); ?>">
-                                <div class="roadmap-card-title">
-                                    <?php echo htmlspecialchars($item['title']); ?>
-                                </div>
-                                <div class="mb-2">
-                                    <?php if (!empty($item['subcategories']) && is_array($item['subcategories'])): ?>
-                                        <?php foreach ($item['subcategories'] as $sub): ?>
-                                            <span class="tag is-small is-<?php echo getSubcategoryColor($sub); ?>">
-                                                <?php echo htmlspecialchars($sub); ?>
-                                            </span>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
-                                            <?php echo htmlspecialchars($item['subcategory']); ?>
-                                        </span>
-                                    <?php endif; ?>
-                                    <?php if (!empty($item['website_types']) && is_array($item['website_types'])): ?>
-                                        <?php foreach ($item['website_types'] as $wt): ?>
-                                            <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($wt); ?></span>
-                                        <?php endforeach; ?>
-                                    <?php elseif (!empty($item['website_type'])): ?>
-                                        <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($item['website_type']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="mb-3">
-                                    <span class="tag is-small is-<?php echo getCategoryColor($item['category']); ?>">
-                                        <?php echo htmlspecialchars($item['category']); ?>
-                                    </span>
-                                    <span class="tag is-small is-<?php echo getPriorityColor($item['priority']); ?>">
-                                        <?php echo htmlspecialchars($item['priority']); ?>
-                                    </span>
-                                </div>
-                                <div class="mb-3">
-                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-created-at="<?php echo htmlspecialchars($item['created_at'] ?? ''); ?>" data-updated-at="<?php echo htmlspecialchars($item['updated_at'] ?? ''); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-subcategories="<?php echo htmlspecialchars(json_encode((!empty($item['subcategories']) && is_array($item['subcategories'])) ? $item['subcategories'] : (!empty($item['subcategory']) ? [$item['subcategory']] : [])), ENT_QUOTES, 'UTF-8'); ?>" data-website-types="<?php echo htmlspecialchars(json_encode((!empty($item['website_types']) && is_array($item['website_types'])) ? $item['website_types'] : (!empty($item['website_type']) ? [$item['website_type']] : [])), ENT_QUOTES, 'UTF-8'); ?>">
-                                        <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
-                                        <span>Details</span>
-                                    </button>
-                                </div>
-                                <div class="mb-3">
-                                    <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
-                                        <span class="icon is-small"><i class="fas fa-comment"></i></span>
-                                        <span>Add Comment</span>
-                                    </button>
-                                </div>
-                                <div class="mb-3">
-                                        <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars(json_encode($item['subcategories']), ENT_QUOTES, 'UTF-8'); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
-                                        <span class="icon is-small"><i class="fas fa-edit"></i></span>
-                                        <span>Edit</span>
-                                    </button>
-                                </div>
-                                <div class="buttons are-small" style="display: flex; gap: 0.25rem; flex-wrap: nowrap;">
-                                    <?php if (($item['category'] ?? '') === 'REQUESTS'): ?>
-                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                            <input type="hidden" name="category" value="IN PROGRESS">
-                                            <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
-                                                <span class="icon is-small"><i class="fas fa-play"></i></span>
-                                            </button>
-                                        </form>
-                                    <?php elseif (($item['category'] ?? '') === 'IN PROGRESS'): ?>
-                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                            <input type="hidden" name="category" value="BETA TESTING">
-                                            <button type="submit" class="button is-primary is-small" style="flex: 1;" title="Move to Beta Testing">
-                                                <span class="icon is-small"><i class="fas fa-flask"></i></span>
-                                            </button>
-                                        </form>
-                                    <?php elseif (($item['category'] ?? '') === 'BETA TESTING'): ?>
-                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                            <input type="hidden" name="status" value="completed">
-                                            <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
-                                                <span class="icon is-small"><i class="fas fa-check"></i></span>
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
-                                    <form method="POST" action="" style="display: flex; flex: 0 0 auto;">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <button type="submit" class="button is-danger is-small" onclick="return confirm('Are you sure?')" title="Delete">
-                                            <span class="icon is-small"><i class="fas fa-trash"></i></span>
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
+            <div style="flex:1;min-width:160px;">
+                <label class="sp-label">Category</label>
+                <select class="sp-select" name="category" onchange="this.form.submit()">
+                    <option value="">All Categories</option>
+                    <?php foreach ($categories as $cat): ?>
+                        <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory===$cat?'selected':''; ?>><?php echo htmlspecialchars($cat); ?></option>
                     <?php endforeach; ?>
-                </div>
+                </select>
+            </div>
+            <?php if (!empty($searchQuery)||!empty($selectedCategory)): ?>
+                <div><a href="index.php" class="sp-btn sp-btn-ghost sp-btn-sm" style="margin-top:1.5rem;"><i class="fa-solid fa-xmark"></i> Clear</a></div>
             <?php endif; ?>
         </div>
+    </form>
+</div>
+<!-- Add New Item -->
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;"><i class="fa-solid fa-plus" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Add New Roadmap Item</h2>
+    <form method="POST" action="" id="addItemForm" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="add">
+        <div class="rm-form-cols">
+            <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                <div class="sp-form-group">
+                    <label class="sp-label">Title</label>
+                    <input class="sp-input" type="text" name="title" placeholder="Item title" required>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Description</label>
+                    <textarea class="sp-textarea sp-textarea-mono" name="description" placeholder="Item description (optional, supports markdown)" rows="7"></textarea>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Attachments (Optional)</label>
+                    <label class="rm-upload-zone" id="dragDropZone">
+                        <input type="file" name="initial_attachments[]" id="initialAttachments" multiple
+                            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx"
+                            style="position:absolute;opacity:0;width:0;height:0;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span class="rm-upload-label">Click to choose or drag &amp; drop</span>
+                        <span class="rm-upload-hint">Images, PDF, Word, Excel, TXT &mdash; max 10MB each</span>
+                        <span class="rm-upload-filename" id="initialAttachmentFileName"></span>
+                    </label>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                <div class="sp-form-group">
+                    <label class="sp-label">Category</label>
+                    <select class="sp-select" name="category" id="category-select" required>
+                        <option value="REQUESTS">Requests</option>
+                        <option value="IN PROGRESS">In Progress</option>
+                        <option value="BETA TESTING">Beta Testing</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="REJECTED">Rejected</option>
+                    </select>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Subcategory</label>
+                    <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-initial='["TWITCH BOT"]'></div>
+                    <div class="sp-field-hint">Only predefined tags allowed.</div>
+                </div>
+                <div class="sp-form-group" id="website-type-field" style="display:none;">
+                    <label class="sp-label">Website Type</label>
+                    <div class="tag-multiselect" id="addItemWebsiteType" data-name="website_type[]" data-allowed='["DASHBOARD","OVERLAYS"]'></div>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Priority</label>
+                    <select class="sp-select" name="priority" id="priority-select">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM" selected>Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                    </select>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:auto;">
+                    <button type="submit" class="sp-btn sp-btn-primary"><i class="fa-solid fa-floppy-disk"></i> ADD ITEM</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+<?php
+function renderAdminCard($item): string {
+    $pri    = strtolower($item['priority']);
+    $b64    = htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8');
+    $subArr = (!empty($item['subcategories'])&&is_array($item['subcategories']))?$item['subcategories']:(!empty($item['subcategory'])?[$item['subcategory']]:[]);
+    $webArr = (!empty($item['website_types'])&&is_array($item['website_types']))?$item['website_types']:(!empty($item['website_type'])?[$item['website_type']]:[]);
+    $subJson = htmlspecialchars(json_encode($subArr), ENT_QUOTES, 'UTF-8');
+    $webJson = htmlspecialchars(json_encode($webArr), ENT_QUOTES, 'UTF-8');
+    $dtc = new DateTime($item['created_at']??'now');
+    $out = '<div class="rm-card rm-card-'.$pri.'">';
+    $out .= '<div class="rm-card-title">'.htmlspecialchars($item['title']).'</div>';
+    $out .= '<div class="rm-card-meta">'.htmlspecialchars($dtc->format('M j, Y')).'</div>';
+    $out .= '<div class="rm-card-tags">';
+    foreach ($subArr as $sub) $out .= '<span class="rm-tag rm-tag-'.getSubcategoryColor($sub).'">'.htmlspecialchars($sub).'</span>';
+    foreach ($webArr as $wt) $out .= '<span class="rm-tag rm-tag-info website-type-tag">'.htmlspecialchars($wt).'</span>';
+    $out .= '<span class="rm-tag rm-tag-'.getCategoryColor($item['category']).'">'.htmlspecialchars($item['category']).'</span>';
+    $out .= '<span class="rm-tag rm-tag-'.getPriorityColor($item['priority']).'">'.htmlspecialchars($item['priority']).'</span>';
+    $out .= '</div>';
+    $out .= '<button class="sp-btn sp-btn-secondary sp-btn-sm sp-btn-full details-btn" style="margin-bottom:0.4rem;"'
+        .' data-item-id="'.$item['id'].'" data-description="'.$b64.'"'
+        .' data-title="'.htmlspecialchars($item['title']).'"'
+        .' data-created-at="'.htmlspecialchars($item['created_at']??'').'"'
+        .' data-updated-at="'.htmlspecialchars($item['updated_at']??'').'"'
+        .' data-category="'.htmlspecialchars($item['category']).'"'
+        .' data-priority="'.htmlspecialchars($item['priority']).'"'
+        .' data-subcategories="'.$subJson.'" data-website-types="'.$webJson.'">'
+        .'<i class="fa-solid fa-circle-info"></i> Details</button>';
+    $out .= '<button type="button" class="sp-btn sp-btn-warning sp-btn-sm sp-btn-full edit-item-btn" style="margin-bottom:0.4rem;"'
+        .' data-item-id="'.$item['id'].'" data-title="'.htmlspecialchars($item['title']).'"'
+        .' data-description="'.$b64.'" data-category="'.htmlspecialchars($item['category']).'"'
+        .' data-subcategory="'.$subJson.'" data-priority="'.htmlspecialchars($item['priority']).'"'
+        .' data-website-type="'.htmlspecialchars($item['website_type']??'').'">'
+        .'<i class="fa-solid fa-pen"></i> Edit</button>';
+    $cat = $item['category']??'';
+    $out .= '<div style="display:flex;gap:0.3rem;margin-top:0.2rem;">';
+    if ($cat==='REQUESTS')
+        $out .= '<form method="POST" style="flex:1;"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$item['id'].'"><input type="hidden" name="category" value="IN PROGRESS"><button type="submit" class="sp-btn sp-btn-info sp-btn-sm sp-btn-icon sp-btn-full" title="Move to In Progress"><i class="fa-solid fa-play"></i></button></form>';
+    elseif ($cat==='IN PROGRESS')
+        $out .= '<form method="POST" style="flex:1;"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$item['id'].'"><input type="hidden" name="category" value="BETA TESTING"><button type="submit" class="sp-btn sp-btn-primary sp-btn-sm sp-btn-icon sp-btn-full" title="Move to Beta Testing"><i class="fa-solid fa-flask"></i></button></form>';
+    elseif ($cat==='BETA TESTING')
+        $out .= '<form method="POST" style="flex:1;"><input type="hidden" name="action" value="update"><input type="hidden" name="id" value="'.$item['id'].'"><input type="hidden" name="status" value="completed"><button type="submit" class="sp-btn sp-btn-success sp-btn-sm sp-btn-icon sp-btn-full" title="Mark Completed"><i class="fa-solid fa-check"></i></button></form>';
+    $out .= '<form method="POST"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'.$item['id'].'"><button type="submit" class="sp-btn sp-btn-danger sp-btn-sm sp-btn-icon" onclick="return confirm(\'Are you sure?\')" title="Delete"><i class="fa-solid fa-trash-can"></i></button></form>';
+    $out .= '</div></div>';
+    return $out;
+}
+if (!empty($searchQuery) || !empty($selectedCategory)): ?>
+<!-- Filtered Results -->
+<div class="sp-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h2 style="font-size:1rem;font-weight:600;">
+            <i class="fa-solid fa-filter" style="color:var(--accent-hover);margin-right:0.4rem;"></i>
+            Search Results
+            <?php if (!empty($searchQuery)): ?>for &ldquo;<?php echo htmlspecialchars($searchQuery); ?>&rdquo;<?php endif; ?>
+            <?php if (!empty($selectedCategory)): ?>in <?php echo htmlspecialchars($selectedCategory); ?><?php endif; ?>
+        </h2>
+        <span style="font-size:0.875rem;color:var(--text-muted);">
+            <strong style="color:var(--text-primary);"><?php echo count($allItems); ?></strong>
+            result<?php echo count($allItems)!==1?'s':''; ?> found
+        </span>
     </div>
+    <?php if (empty($allItems)): ?>
+        <div class="sp-alert sp-alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> No roadmap items found matching your search criteria.</div>
+    <?php else: ?>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.75rem;">
+            <?php foreach ($allItems as $item): echo renderAdminCard($item); endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
 <?php else: ?>
-<!-- Category Columns (Default View) -->
-<div class="columns is-multiline">
+<!-- Kanban Board -->
+<div class="rm-board">
     <?php foreach ($categories as $category): ?>
-        <div class="column is-one-fifth">
-            <div class="box roadmap-column">
-                <h2 class="title is-5 mb-4">
-                    <span class="icon-text">
-                        <span class="icon"><i class="fas fa-<?php echo getCategoryIcon($category); ?>"></i></span>
-                        <span><?php echo htmlspecialchars($category); ?></span>
-                    </span>
-                </h2>
-                <div class="mb-2 roadmap-item-count">
-                    <strong><?php echo count($itemsByCategory[$category]); ?></strong> item<?php echo count($itemsByCategory[$category]) !== 1 ? 's' : ''; ?>
-                </div>
-                <hr class="my-3">
-                <div class="roadmap-column-content">
-                    <?php if (empty($itemsByCategory[$category])): ?>
-                        <div class="notification is-dark" style="margin: 0;">
-                            <small>No items in this category</small>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($itemsByCategory[$category] as $item): ?>
-                            <div class="roadmap-card is-<?php echo strtolower($item['priority']); ?>">
-                                <div class="roadmap-card-title">
-                                    <?php echo htmlspecialchars($item['title']); ?>
-                                </div>
-                                <div class="mb-2">
-                                    <?php if (!empty($item['subcategories']) && is_array($item['subcategories'])): ?>
-                                        <?php foreach ($item['subcategories'] as $sub): ?>
-                                            <span class="tag is-small is-<?php echo getSubcategoryColor($sub); ?>">
-                                                <?php echo htmlspecialchars($sub); ?>
-                                            </span>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <span class="tag is-small is-<?php echo getSubcategoryColor($item['subcategory']); ?>">
-                                            <?php echo htmlspecialchars($item['subcategory']); ?>
-                                        </span>
-                                    <?php endif; ?>
-                                    <?php if (!empty($item['website_types']) && is_array($item['website_types'])): ?>
-                                        <?php foreach ($item['website_types'] as $wt): ?>
-                                            <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($wt); ?></span>
-                                        <?php endforeach; ?>
-                                    <?php elseif (!empty($item['website_type'])): ?>
-                                        <span class="tag is-small is-info website-type-tag"><?php echo htmlspecialchars($item['website_type']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="roadmap-card-tags mb-3">
-                                    <span class="tag is-small is-<?php echo getPriorityColor($item['priority']); ?>">
-                                        <?php echo htmlspecialchars($item['priority']); ?>
-                                    </span>
-                                </div>
-                                <div class="mb-3">
-                                    <button class="button is-small is-light is-fullwidth details-btn" data-item-id="<?php echo $item['id']; ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-created-at="<?php echo htmlspecialchars($item['created_at'] ?? ''); ?>" data-updated-at="<?php echo htmlspecialchars($item['updated_at'] ?? ''); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-subcategories="<?php echo htmlspecialchars(json_encode((!empty($item['subcategories']) && is_array($item['subcategories'])) ? $item['subcategories'] : (!empty($item['subcategory']) ? [$item['subcategory']] : [])), ENT_QUOTES, 'UTF-8'); ?>" data-website-types="<?php echo htmlspecialchars(json_encode((!empty($item['website_types']) && is_array($item['website_types'])) ? $item['website_types'] : (!empty($item['website_type']) ? [$item['website_type']] : [])), ENT_QUOTES, 'UTF-8'); ?>">
-                                        <span class="icon is-small"><i class="fas fa-info-circle"></i></span>
-                                        <span>Details</span>
-                                    </button>
-                                </div>
-                                <div class="mb-3">
-                                    <button type="button" class="button is-small is-primary is-fullwidth add-comment-btn" data-item-id="<?php echo $item['id']; ?>">
-                                        <span class="icon is-small"><i class="fas fa-comment"></i></span>
-                                        <span>Add Comment</span>
-                                    </button>
-                                </div>
-                                <div class="mb-3">
-                                    <button type="button" class="button is-small is-warning is-fullwidth edit-item-btn" data-item-id="<?php echo $item['id']; ?>" data-title="<?php echo htmlspecialchars($item['title']); ?>" data-description="<?php echo htmlspecialchars(base64_encode($item['description']), ENT_QUOTES, 'UTF-8'); ?>" data-category="<?php echo htmlspecialchars($item['category']); ?>" data-subcategory="<?php echo htmlspecialchars(json_encode($item['subcategories']), ENT_QUOTES, 'UTF-8'); ?>" data-priority="<?php echo htmlspecialchars($item['priority']); ?>" data-website-type="<?php echo htmlspecialchars($item['website_type'] ?? ''); ?>">
-                                        <span class="icon is-small"><i class="fas fa-edit"></i></span>
-                                        <span>Edit</span>
-                                    </button>
-                                </div>
-                                <div class="buttons are-small" style="display: flex; gap: 0.25rem; flex-wrap: nowrap;">
-                                    <?php if (($item['category'] ?? '') === 'REQUESTS'): ?>
-                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                            <input type="hidden" name="category" value="IN PROGRESS">
-                                            <button type="submit" class="button is-info is-small" style="flex: 1;" title="Move to In Progress">
-                                                <span class="icon is-small"><i class="fas fa-play"></i></span>
-                                            </button>
-                                        </form>
-                                    <?php elseif (($item['category'] ?? '') === 'IN PROGRESS'): ?>
-                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                            <input type="hidden" name="category" value="BETA TESTING">
-                                            <button type="submit" class="button is-primary is-small" style="flex: 1;" title="Move to Beta Testing">
-                                                <span class="icon is-small"><i class="fas fa-flask"></i></span>
-                                            </button>
-                                        </form>
-                                    <?php elseif (($item['category'] ?? '') === 'BETA TESTING'): ?>
-                                        <form method="POST" action="" style="display: flex; flex: 1; min-width: 0;">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                            <input type="hidden" name="status" value="completed">
-                                            <button type="submit" class="button is-success is-small" style="flex: 1;" title="Mark as Completed">
-                                                <span class="icon is-small"><i class="fas fa-check"></i></span>
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
-                                    <form method="POST" action="" style="display: flex; flex: 0 0 auto;">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="id" value="<?php echo $item['id']; ?>">
-                                        <button type="submit" class="button is-danger is-small" onclick="return confirm('Are you sure?')" title="Delete">
-                                            <span class="icon is-small"><i class="fas fa-trash"></i></span>
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
+        <div class="rm-column">
+            <div class="rm-column-head">
+                <span><i class="fa-solid fa-<?php echo getCategoryIcon($category); ?>" style="margin-right:0.4rem;"></i><?php echo htmlspecialchars($category); ?></span>
+                <span class="sp-badge"><?php echo count($itemsByCategory[$category]); ?></span>
+            </div>
+            <div class="rm-column-body">
+                <?php if (empty($itemsByCategory[$category])): ?>
+                    <div class="rm-empty-state">No items</div>
+                <?php else: ?>
+                    <?php foreach ($itemsByCategory[$category] as $item): echo renderAdminCard($item); endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
     <?php endforeach; ?>
@@ -833,8 +630,8 @@ function getCategoryIcon($category) {
         'REQUESTS' => 'lightbulb',
         'IN PROGRESS' => 'spinner',
         'BETA TESTING' => 'flask',
-        'COMPLETED' => 'check-circle',
-        'REJECTED' => 'times-circle'
+        'COMPLETED' => 'circle-check',
+        'REJECTED' => 'circle-xmark'
     ];
     return $icons[$category] ?? 'folder';
 }
@@ -877,102 +674,59 @@ require_once '../layout.php';
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const categorySelect = document.getElementById('category-select');
-    const prioritySelect = document.getElementById('priority-select');
-    const addTagEl = document.getElementById('addItemSubcategory');
-    const websiteTypeField = document.getElementById('website-type-field');
-    const initialAttachments = document.getElementById('initialAttachments');
+    const categorySelect         = document.getElementById('category-select');
+    const prioritySelect         = document.getElementById('priority-select');
+    const addTagEl               = document.getElementById('addItemSubcategory');
+    const websiteTypeField       = document.getElementById('website-type-field');
+    const initialAttachments     = document.getElementById('initialAttachments');
     const initialAttachmentFileName = document.getElementById('initialAttachmentFileName');
-    const dragDropZone = document.getElementById('dragDropZone');
-    // Handle drag and drop
+    const dragDropZone           = document.getElementById('dragDropZone');
+
     if (dragDropZone && initialAttachments) {
         dragDropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragDropZone.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
-            dragDropZone.style.borderColor = '#667eea';
-            dragDropZone.style.borderWidth = '2px';
+            e.preventDefault(); e.stopPropagation();
+            dragDropZone.style.borderColor = 'var(--accent)';
+            dragDropZone.style.backgroundColor = 'rgba(99,102,241,0.08)';
         });
         dragDropZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
+            dragDropZone.style.borderColor = '';
             dragDropZone.style.backgroundColor = '';
-            dragDropZone.style.borderColor = 'rgba(102, 126, 234, 0.3)';
-            dragDropZone.style.borderWidth = '2px';
         });
         dragDropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
+            dragDropZone.style.borderColor = '';
             dragDropZone.style.backgroundColor = '';
-            dragDropZone.style.borderColor = 'rgba(102, 126, 234, 0.3)';
-            
-            const files = e.dataTransfer.files;
-            initialAttachments.files = files;
-            
-            // Trigger change event
-            const event = new Event('change', { bubbles: true });
-            initialAttachments.dispatchEvent(event);
+            initialAttachments.files = e.dataTransfer.files;
+            initialAttachments.dispatchEvent(new Event('change', {bubbles:true}));
         });
     }
-    // Handle initial attachments file input
     if (initialAttachments) {
         initialAttachments.addEventListener('change', function() {
-            if (this.files.length > 0) {
-                initialAttachmentFileName.textContent = `${this.files.length} file(s) selected`;
-            } else {
-                initialAttachmentFileName.textContent = 'No files selected';
-            }
+            if (initialAttachmentFileName)
+                initialAttachmentFileName.textContent = this.files.length > 0 ? this.files.length + ' file(s) selected' : '';
         });
     }
-
-    // Validate Add form has at least one subcategory selected
     const addItemForm = document.getElementById('addItemForm');
     if (addItemForm) {
         addItemForm.addEventListener('submit', function(e) {
             const count = document.querySelectorAll('#addItemForm input[name="subcategory[]"]').length;
-            if (count === 0) {
-                alert('Please select at least one Subcategory');
-                e.preventDefault();
-                return;
-            }
+            if (count === 0) { alert('Please select at least one Subcategory'); e.preventDefault(); }
         });
     }
     if (categorySelect && prioritySelect) {
         categorySelect.addEventListener('change', function() {
-            if (this.value === 'REQUESTS') {
-                prioritySelect.value = 'LOW';
-            }
+            if (this.value === 'REQUESTS') prioritySelect.value = 'LOW';
         });
     }
     if (addTagEl && websiteTypeField) {
         function toggleWebsiteTypeAdd() {
-            const values = (addTagEl._tms ? addTagEl._tms.getValues() : Array.from(document.querySelectorAll('#addItemForm input[name="subcategory[]"]')).map(i => i.value));
-            websiteTypeField.style.display = values.includes('WEBSITE') ? 'block' : 'none';
+            const values = addTagEl._tms ? addTagEl._tms.getValues()
+                : Array.from(document.querySelectorAll('#addItemForm input[name="subcategory[]"]')).map(i=>i.value);
+            websiteTypeField.style.display = values.includes('WEBSITE') ? '' : 'none';
         }
         addTagEl.addEventListener('tms:change', toggleWebsiteTypeAdd);
-        // initial run (component may have prefilled values)
         setTimeout(toggleWebsiteTypeAdd, 0);
     }
-    // Close notification when delete button is clicked
-    (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
-        const $notification = $delete.parentNode;
-        $delete.addEventListener('click', () => {
-            $notification.parentNode.removeChild($notification);
-        });
-    });
-    // Add Comment button handler
-    document.querySelectorAll('.add-comment-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const itemId = this.getAttribute('data-item-id');
-            const addCommentModal = document.getElementById('addCommentModal');
-            const commentItemId = document.getElementById('commentItemId');
-            const commentTextarea = document.getElementById('commentTextarea');
-            if (addCommentModal && commentItemId) {
-                commentItemId.value = itemId;
-                commentTextarea.value = '';
-                addCommentModal.classList.add('is-active');
-            }
-        });
-    });
 });
 </script>
