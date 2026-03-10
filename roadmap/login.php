@@ -93,63 +93,37 @@ if (isset($_GET['code'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - BotOfTheSpecter Roadmap</title>
+    <title>Login — BotOfTheSpecter Roadmap</title>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/custom.css">
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="login-page">
-    <div class="container" style="max-width: 500px;">
-        <div class="login-container p-6">
+<body>
+    <div class="rm-login-wrap">
+        <div class="rm-login-card">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter" class="rm-login-logo">
+            <h1 class="rm-login-title">BotOfTheSpecter Roadmap</h1>
+            <p class="rm-login-sub">Sign in with your Twitch account</p>
+
             <?php if (isset($_SESSION['login_error'])): ?>
-                <div class="notification is-danger">
-                    <button class="delete"></button>
-                    <h4 class="title is-5">Login Error</h4>
-                    <p><?php echo htmlspecialchars($_SESSION['login_error']); ?></p>
-                    <div class="mt-5">
-                        <a href="index.php" class="button is-info">Back to Roadmap</a>
-                    </div>
+                <div class="sp-alert sp-alert-danger" style="width:100%;margin-bottom:1rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span><?php echo htmlspecialchars($_SESSION['login_error']); unset($_SESSION['login_error']); ?></span>
                 </div>
+                <a href="index.php" class="sp-btn sp-btn-secondary" style="width:100%;justify-content:center;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Roadmap
+                </a>
             <?php else: ?>
-                <div class="has-text-centered mb-6">
-                    <figure class="image is-96 is-inline-block mb-4">
-                        <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" style="border-radius: 50%; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);">
-                    </figure>
+                <div class="sp-alert sp-alert-info" style="width:100%;margin-bottom:1.5rem;">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Redirecting to Twitch for authentication&hellip;
                 </div>
-                <h2 class="title is-3 has-text-centered">BotOfTheSpecter Roadmap</h2>
-                <p class="subtitle is-6 has-text-centered mb-6">Sign in with your Twitch account</p>
-                <div class="box has-background-info-light mb-5">
-                    <p class="icon-text">
-                        <span class="icon">
-                            <i class="fas fa-info-circle"></i>
-                        </span>
-                        <span>Redirecting to Twitch for authentication...</span>
-                    </p>
-                </div>
-                <div class="has-text-centered">
-                    <p class="mb-3">If you are not redirected automatically,</p>
-                    <a href="https://id.twitch.tv/oauth2/authorize?client_id=<?php echo htmlspecialchars($clientID); ?>&redirect_uri=<?php echo urlencode($redirectURI); ?>&response_type=code&scope=openid%20user:read:email" class="button is-primary is-large is-fullwidth">
-                        <span class="icon">
-                            <i class="fab fa-twitch"></i>
-                        </span>
-                        <span>Login with Twitch</span>
-                    </a>
-                </div>
+                <a href="https://id.twitch.tv/oauth2/authorize?client_id=<?php echo htmlspecialchars($clientID); ?>&redirect_uri=<?php echo urlencode($redirectURI); ?>&response_type=code&scope=openid%20user:read:email"
+                    class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;font-size:1rem;padding:0.75rem 1.5rem;">
+                    <i class="fa-brands fa-twitch"></i> Login with Twitch
+                </a>
             <?php endif; ?>
         </div>
     </div>
-    <script>
-        // Close notification when delete button is clicked
-        document.addEventListener('DOMContentLoaded', () => {
-            (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
-                const $notification = $delete.parentNode;
-                $delete.addEventListener('click', () => {
-                    $notification.parentNode.removeChild($notification);
-                });
-            });
-        });
-    </script>
 </body>
 </html>

@@ -149,65 +149,46 @@ $pageContent = '';
 
 ob_start();
 ?>
-<div class="content">
-    <div style="margin-bottom: 2rem;">
-        <h1 class="title">Development Timeline</h1>
-        <p class="subtitle">Track the evolution of BotOfTheSpecter through version releases</p>
+<!-- Page header -->
+<div class="sp-page-header">
+    <div>
+        <h1 class="sp-page-title">Development Timeline</h1>
+        <p class="sp-page-subtitle">Track the evolution of BotOfTheSpecter through version releases</p>
     </div>
-    <!-- Timeline with alternating left/right items -->
-    <div class="timeline-container">
-        <div class="timeline-center-line"></div>
-        <?php 
-        foreach ($groupedVersions as $yearMonth => $monthData): 
-        ?>
-            <div class="timeline-section">
-                <h2 class="title is-4 timeline-month-header">
-                    <?php echo htmlspecialchars($monthData['month']); ?>
-                </h2>
-                <!-- Timeline items -->
-                <?php 
-                foreach ($monthData['versions'] as $idx => $version): 
-                    $isLeft = $idx % 2 === 0;
-                    $alignment = $isLeft ? 'left' : 'right';
-                ?>
-                    <div class="timeline-item timeline-item-<?php echo $alignment; ?>">
-                        <div class="timeline-card">
-                            <!-- Timeline indicator -->
-                            <div class="timeline-indicator">
-                                <div class="timeline-dot"></div>
-                            </div>
-                            <div class="timeline-content">
-                                    <small class="timeline-date">
-                                        <?php echo htmlspecialchars($version['date']); ?>
-                                    </small>
-                                    <h3 class="title is-5 timeline-title">
-                                        Version <?php echo htmlspecialchars($version['version']); ?>
-                                    </h3>
-                                    <?php if (!empty($version['summary'])): ?>
-                                        <p class="timeline-event-description" style="margin-bottom: 1rem; font-size: 0.9rem;">
-                                            <?php echo htmlspecialchars(substr($version['summary'], 0, 150)); ?>
-                                        </p>
-                                    <?php endif; ?>
-                                    <button class="button is-small is-info is-light"
-                                        data-version="<?php echo htmlspecialchars((string) $version['version'], ENT_QUOTES, 'UTF-8'); ?>"
-                                        data-markdown-b64="<?php echo htmlspecialchars(base64_encode((string) ($version['markdown'] ?? '')), ENT_QUOTES, 'UTF-8'); ?>"
-                                        onclick="openVersionModalFromButton(this)"
-                                        style="margin-top: 1rem;">
-                                        <span class="icon is-small"><i class="fas fa-file-alt"></i></span>
-                                        <span>View Notes</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-            </div>
-        <?php endforeach; ?>
-        <?php if (empty($groupedVersions)): ?>
-            <div class="timeline-no-events">
-                <p class="has-text-grey-light"><i class="fas fa-calendar-times timeline-no-events-icon"></i>No version releases found</p>
-            </div>
-        <?php endif; ?>
-    </div>
+</div>
+
+<!-- Timeline -->
+<div class="rm-timeline">
+    <div class="rm-timeline-line"></div>
+    <?php foreach ($groupedVersions as $yearMonth => $monthData): ?>
+        <div class="rm-timeline-section">
+            <h2 class="rm-timeline-month"><?php echo htmlspecialchars($monthData['month']); ?></h2>
+            <?php foreach ($monthData['versions'] as $idx => $version):
+                $side = ($idx % 2 === 0) ? 'left' : 'right'; ?>
+                <div class="rm-timeline-item rm-tl-<?php echo $side; ?>">
+                    <div class="rm-timeline-dot"></div>
+                    <div class="rm-timeline-card">
+                        <small class="rm-timeline-date"><?php echo htmlspecialchars($version['date']); ?></small>
+                        <h3 class="rm-timeline-title">Version <?php echo htmlspecialchars($version['version']); ?></h3>
+                        <?php if (!empty($version['summary'])): ?>
+                            <p class="rm-timeline-desc"><?php echo htmlspecialchars(substr($version['summary'], 0, 150)); ?></p>
+                        <?php endif; ?>
+                        <button class="sp-btn sp-btn-info sp-btn-sm"
+                            data-version="<?php echo htmlspecialchars((string)$version['version'],ENT_QUOTES,'UTF-8'); ?>"
+                            data-markdown-b64="<?php echo htmlspecialchars(base64_encode((string)($version['markdown']??'')),ENT_QUOTES,'UTF-8'); ?>"
+                            onclick="openVersionModalFromButton(this)">
+                            <i class="fa-solid fa-file-lines"></i> View Notes
+                        </button>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endforeach; ?>
+    <?php if (empty($groupedVersions)): ?>
+        <div class="rm-timeline-empty">
+            <i class="fa-solid fa-calendar-xmark"></i> No version releases found
+        </div>
+    <?php endif; ?>
 </div>
 <?php
 $pageContent = ob_get_clean();
