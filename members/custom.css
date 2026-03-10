@@ -585,6 +585,120 @@ h6.title {
 /* ========================================
    MEMORIAL / IN MEMORIAM PAGE
    ======================================== */
+
+/* Stats grid */
+.memorial-stats {
+    width: 100%;
+    max-width: 950px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+.memorial-stats-heading {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(195, 155, 211, 0.6);
+    margin-bottom: 1rem;
+}
+
+.memorial-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+@media (min-width: 600px) {
+    .memorial-stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (min-width: 1024px) {
+    .memorial-stats-grid { grid-template-columns: repeat(5, 1fr); }
+}
+
+.memorial-stat-card {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(155, 89, 182, 0.18);
+    border-radius: 12px;
+    padding: 1rem 0.9rem;
+    text-align: left;
+}
+
+.memorial-stat-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid rgba(155, 89, 182, 0.18);
+    color: #c39bd3;
+}
+
+.memorial-stat-card-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #c39bd3;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.memorial-stat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.memorial-stat-row:last-child {
+    border-bottom: none;
+}
+
+.memorial-stat-rank {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(155, 89, 182, 0.2);
+    color: #c39bd3;
+    font-size: 0.6rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.memorial-stat-rank.rank-1 { background: rgba(255, 215, 0, 0.15); color: #ffd700; }
+.memorial-stat-rank.rank-2 { background: rgba(192, 192, 192, 0.15); color: #c0c0c0; }
+.memorial-stat-rank.rank-3 { background: rgba(205, 127, 50, 0.15); color: #cd7f32; }
+
+.memorial-stat-name {
+    flex: 1;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.memorial-stat-value {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.memorial-stat-empty {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0.75rem 0;
+    font-style: italic;
+}
 .memorial-page {
     min-height: 72vh;
     display: flex;

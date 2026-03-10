@@ -87,11 +87,45 @@ function sanitize_custom_vars($response)
     return $response;
 }
 
+// Format seconds into a human-readable watch time string (top 2 units)
+function formatWatchTimePHP($seconds) {
+    $seconds = (int)$seconds;
+    if ($seconds <= 0) return 'Not recorded';
+    $units = ['year' => 31536000, 'month' => 2592000, 'day' => 86400, 'hour' => 3600, 'minute' => 60];
+    $parts = [];
+    foreach ($units as $name => $div) {
+        $q = (int)($seconds / $div);
+        if ($q > 0) {
+            $parts[] = $q . ' ' . $name . ($q !== 1 ? 's' : '');
+            $seconds -= $q * $div;
+        }
+    }
+    return implode(', ', array_slice($parts, 0, 2)) ?: 'Less than a minute';
+}
+
+// Resolve Twitch user IDs to display names via the Helix API
+function resolveTwitchUsernames($userIds, $accessToken, $clientId) {
+    if (empty($userIds)) return [];
+    $url = 'https://api.twitch.tv/helix/users?' . implode('&', array_map(fn($id) => 'id=' . rawurlencode($id), $userIds));
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Client-ID: ' . $clientId, 'Authorization: Bearer ' . $accessToken]);
+    $res = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($res, true);
+    $map = [];
+    if (isset($data['data'])) {
+        foreach ($data['data'] as $u) { $map[$u['id']] = $u['display_name']; }
+    }
+    return $map;
+}
+
 // PAGE TITLE
 $title = "Members"; 
 
 // Database credentials
 include '/var/www/config/database.php';
+require_once '/var/www/config/twitch.php';
 
 $path = trim($_SERVER['REQUEST_URI'], '/');
 $path = parse_url($path, PHP_URL_PATH);
@@ -183,6 +217,39 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
     include "user_db.php";
     // Sanitize custom command responses
     $commands = array_map('sanitize_custom_vars', $commands);
+}
+
+// Fetch top-5 community data for memorial pages
+$memorialData = ['lurkers' => [], 'typos' => [], 'deaths' => [], 'hugs' => [], 'watchtime' => []];
+if ($username && !$notFound && $isDeceased) {
+    try {
+        $memDb = new mysqli($db_servername, $db_username, $db_password, $username);
+        if (!$memDb->connect_error) {
+            // Top 5 lurkers — oldest start_time = longest lurking
+            $r = $memDb->query("SELECT user_id, start_time FROM lurk_times ORDER BY start_time ASC LIMIT 5");
+            if ($r) {
+                $lurkerRows = $r->fetch_all(MYSQLI_ASSOC);
+                if (!empty($lurkerRows)) {
+                    $userIds = array_column($lurkerRows, 'user_id');
+                    $usernameMap = resolveTwitchUsernames($userIds, sanitize_input($_SESSION['access_token']), $clientID);
+                    foreach ($lurkerRows as &$row) {
+                        $row['display_name'] = $usernameMap[$row['user_id']] ?? '#' . $row['user_id'];
+                    }
+                    unset($row);
+                }
+                $memorialData['lurkers'] = $lurkerRows;
+            }
+            $r = $memDb->query("SELECT username, typo_count FROM user_typos ORDER BY typo_count DESC LIMIT 5");
+            if ($r) $memorialData['typos'] = $r->fetch_all(MYSQLI_ASSOC);
+            $r = $memDb->query("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC LIMIT 5");
+            if ($r) $memorialData['deaths'] = $r->fetch_all(MYSQLI_ASSOC);
+            $r = $memDb->query("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC LIMIT 5");
+            if ($r) $memorialData['hugs'] = $r->fetch_all(MYSQLI_ASSOC);
+            $r = $memDb->query("SELECT username, total_watch_time_live FROM watch_time ORDER BY total_watch_time_live DESC LIMIT 5");
+            if ($r) $memorialData['watchtime'] = $r->fetch_all(MYSQLI_ASSOC);
+            $memDb->close();
+        }
+    } catch (Exception $e) { /* Silently fail — memorial banner still shows */ }
 }
 ?>
 <!DOCTYPE html>
@@ -373,6 +440,112 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
                         <div class="memorial-message">
                             <p class="preserved-note">This channel has been preserved as a permanent memorial.</p>
                             <p>The account holder has passed away. Their channel, community, and memories remain here as a tribute to the person they were and the community they built.</p>
+                        </div>
+
+                        <!-- Community highlights divider -->
+                        <div class="memorial-divider" aria-hidden="true"><span>&#10022;</span></div>
+
+                        <!-- Community highlights -->
+                        <div class="memorial-stats">
+                            <p class="memorial-stats-heading">Community Highlights</p>
+                            <div class="memorial-stats-grid">
+
+                                <!-- Top Lurkers -->
+                                <div class="memorial-stat-card">
+                                    <div class="memorial-stat-card-header">
+                                        <span class="icon is-small"><i class="fas fa-eye-slash"></i></span>
+                                        <span class="memorial-stat-card-title">Top Lurkers</span>
+                                    </div>
+                                    <?php if (empty($memorialData['lurkers'])): ?>
+                                        <p class="memorial-stat-empty">No data recorded</p>
+                                    <?php else: ?>
+                                        <?php foreach ($memorialData['lurkers'] as $i => $row): ?>
+                                        <div class="memorial-stat-row">
+                                            <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
+                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['display_name'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['display_name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="memorial-stat-value">since <?php echo date('M Y', strtotime($row['start_time'])); ?></span>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Top Typos -->
+                                <div class="memorial-stat-card">
+                                    <div class="memorial-stat-card-header">
+                                        <span class="icon is-small"><i class="fas fa-keyboard"></i></span>
+                                        <span class="memorial-stat-card-title">Top Typos</span>
+                                    </div>
+                                    <?php if (empty($memorialData['typos'])): ?>
+                                        <p class="memorial-stat-empty">No data recorded</p>
+                                    <?php else: ?>
+                                        <?php foreach ($memorialData['typos'] as $i => $row): ?>
+                                        <div class="memorial-stat-row">
+                                            <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
+                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="memorial-stat-value"><?php echo (int)$row['typo_count']; ?></span>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Top Game Deaths -->
+                                <div class="memorial-stat-card">
+                                    <div class="memorial-stat-card-header">
+                                        <span class="icon is-small"><i class="fas fa-skull"></i></span>
+                                        <span class="memorial-stat-card-title">Top Deaths</span>
+                                    </div>
+                                    <?php if (empty($memorialData['deaths'])): ?>
+                                        <p class="memorial-stat-empty">No data recorded</p>
+                                    <?php else: ?>
+                                        <?php foreach ($memorialData['deaths'] as $i => $row): ?>
+                                        <div class="memorial-stat-row">
+                                            <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
+                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['game_name'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['game_name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="memorial-stat-value"><?php echo (int)$row['death_count']; ?></span>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Top Hugs -->
+                                <div class="memorial-stat-card">
+                                    <div class="memorial-stat-card-header">
+                                        <span class="icon is-small"><i class="fas fa-heart"></i></span>
+                                        <span class="memorial-stat-card-title">Top Hugs</span>
+                                    </div>
+                                    <?php if (empty($memorialData['hugs'])): ?>
+                                        <p class="memorial-stat-empty">No data recorded</p>
+                                    <?php else: ?>
+                                        <?php foreach ($memorialData['hugs'] as $i => $row): ?>
+                                        <div class="memorial-stat-row">
+                                            <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
+                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="memorial-stat-value"><?php echo (int)$row['hug_count']; ?></span>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Top Watch Time -->
+                                <div class="memorial-stat-card">
+                                    <div class="memorial-stat-card-header">
+                                        <span class="icon is-small"><i class="fas fa-clock"></i></span>
+                                        <span class="memorial-stat-card-title">Top Watchers</span>
+                                    </div>
+                                    <?php if (empty($memorialData['watchtime'])): ?>
+                                        <p class="memorial-stat-empty">No data recorded</p>
+                                    <?php else: ?>
+                                        <?php foreach ($memorialData['watchtime'] as $i => $row): ?>
+                                        <div class="memorial-stat-row">
+                                            <span class="memorial-stat-rank<?php echo $i < 3 ? ' rank-' . ($i + 1) : ''; ?>"><?php echo $i + 1; ?></span>
+                                            <span class="memorial-stat-name" title="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="memorial-stat-value"><?php echo htmlspecialchars(formatWatchTimePHP((int)$row['total_watch_time_live']), ENT_QUOTES, 'UTF-8'); ?></span>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+
+                            </div>
                         </div>
 
                         <!-- Footer accent -->
