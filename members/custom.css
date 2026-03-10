@@ -581,6 +581,271 @@ h6.title {
 .freegames .card .card-footer { background: rgba(255,255,255,0.01); border-top: 1px solid rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: space-between; }
 .freegames .media-left .image img { width: 96px; height: 96px; object-fit: cover; object-position: center center; border-radius: 50%; border: 2px solid rgba(255,255,255,0.04); }
 .freegames .latest-banner { background: rgba(255,255,255,0.02); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.5); padding: 1rem; display: flex; align-items: center; gap: 1rem; }
+
+/* ========================================
+   MEMORIAL / IN MEMORIAM PAGE
+   ======================================== */
+.memorial-page {
+    min-height: 72vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem 3rem;
+    border-radius: 16px;
+    border: 1px solid rgba(155, 89, 182, 0.25);
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 0%, rgba(44, 12, 74, 0.5) 0%, var(--bg-secondary) 65%);
+    box-shadow: var(--shadow-lg);
+}
+
+.memorial-page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 110%, rgba(155, 89, 182, 0.07) 0%, transparent 65%);
+    pointer-events: none;
+}
+
+/* Twinkling stars background */
+.memorial-stars-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    animation: memorial-twinkle 7s ease-in-out infinite;
+}
+
+.memorial-stars-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(1px 1px at 18% 12%, rgba(195, 155, 211, 0.55) 0%, transparent 100%),
+        radial-gradient(1px 1px at 82% 9%,  rgba(195, 155, 211, 0.45) 0%, transparent 100%),
+        radial-gradient(1px 1px at 55% 22%, rgba(255, 255, 255, 0.30) 0%, transparent 100%),
+        radial-gradient(1px 1px at 33% 6%,  rgba(255, 255, 255, 0.30) 0%, transparent 100%),
+        radial-gradient(1px 1px at 92% 28%, rgba(255, 255, 255, 0.20) 0%, transparent 100%),
+        radial-gradient(1px 1px at 7%  38%, rgba(195, 155, 211, 0.25) 0%, transparent 100%),
+        radial-gradient(1px 1px at 68% 4%,  rgba(255, 255, 255, 0.35) 0%, transparent 100%),
+        radial-gradient(1px 1px at 45% 16%, rgba(195, 155, 211, 0.30) 0%, transparent 100%),
+        radial-gradient(1px 1px at 75% 18%, rgba(255, 255, 255, 0.20) 0%, transparent 100%);
+}
+
+@keyframes memorial-twinkle {
+    0%, 100% { opacity: 0.5; }
+    50%       { opacity: 1; }
+}
+
+/* Candles */
+.memorial-candles {
+    display: flex;
+    justify-content: center;
+    gap: 2.5rem;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.candle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.candle-flame {
+    width: 12px;
+    height: 22px;
+    background: radial-gradient(ellipse at 50% 88%, #ffe87a 0%, #ffb300 45%, rgba(255, 80, 0, 0.15) 100%);
+    border-radius: 50% 50% 30% 30% / 60% 60% 40% 40%;
+    box-shadow: 0 0 8px #ffb300, 0 0 20px rgba(255, 154, 0, 0.45);
+    transform-origin: bottom center;
+}
+
+.memorial-candles .candle:nth-child(1) .candle-flame { animation: candle-flicker 2.4s ease-in-out infinite 0.0s; }
+.memorial-candles .candle:nth-child(2) .candle-flame { animation: candle-flicker 2.1s ease-in-out infinite 0.7s; }
+.memorial-candles .candle:nth-child(3) .candle-flame { animation: candle-flicker 2.8s ease-in-out infinite 1.2s; }
+
+@keyframes candle-flicker {
+    0%,  100% { transform: scaleX(1.00) scaleY(1.00) rotate(-1.0deg); opacity: 1.00; }
+    20%        { transform: scaleX(1.08) scaleY(0.94) rotate( 1.5deg); opacity: 0.96; }
+    40%        { transform: scaleX(0.92) scaleY(1.07) rotate(-2.0deg); opacity: 1.00; }
+    65%        { transform: scaleX(1.05) scaleY(0.97) rotate( 1.0deg); opacity: 0.98; }
+    80%        { transform: scaleX(0.96) scaleY(1.03) rotate(-1.5deg); opacity: 1.00; }
+}
+
+.candle-wick {
+    width: 2px;
+    height: 7px;
+    background: linear-gradient(180deg, #999 0%, #555 100%);
+}
+
+.candle-body {
+    width: 12px;
+    height: 50px;
+    background: linear-gradient(90deg, #f0eacc 0%, #d6cda4 40%, #eae2c2 70%, #c8bc98 100%);
+    border-radius: 2px 2px 3px 3px;
+    position: relative;
+}
+
+.candle-body::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 5px;
+    width: 3px;
+    height: calc(100% - 10px);
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.candle-base {
+    width: 18px;
+    height: 5px;
+    background: linear-gradient(90deg, #a89870 0%, #c8bc98 50%, #a89870 100%);
+    border-radius: 3px;
+}
+
+/* Dove icon */
+.memorial-dove-icon {
+    color: #d7b8e8;
+    margin-bottom: 0.65rem;
+    position: relative;
+    z-index: 1;
+    animation: memorial-float 6s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(195, 155, 211, 0.5));
+}
+
+@keyframes memorial-float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-8px); }
+}
+
+/* Title */
+.memorial-title {
+    font-size: 2.4rem;
+    font-weight: 300;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #d7b8e8;
+    margin: 0.2rem 0 0.4rem;
+    text-shadow: 0 0 40px rgba(195, 155, 211, 0.45);
+    position: relative;
+    z-index: 1;
+}
+
+/* Profile image */
+.memorial-profile-wrap {
+    margin: 1.25rem 0;
+    position: relative;
+    z-index: 1;
+}
+
+.memorial-profile-img {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    border: 3px solid rgba(195, 155, 211, 0.65);
+    display: block;
+    animation: memorial-glow 4s ease-in-out infinite;
+}
+
+@keyframes memorial-glow {
+    0%, 100% { box-shadow: 0 0 18px rgba(155, 89, 182, 0.45), 0 0 40px rgba(155, 89, 182, 0.15); }
+    50%       { box-shadow: 0 0 32px rgba(155, 89, 182, 0.75), 0 0 65px rgba(155, 89, 182, 0.30); }
+}
+
+/* Name */
+.memorial-name {
+    font-size: 1.65rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0 0 0.25rem;
+    letter-spacing: 0.02em;
+    position: relative;
+    z-index: 1;
+}
+
+.memorial-username {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+}
+
+/* Decorative divider */
+.memorial-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 280px;
+    max-width: 90%;
+    margin: 1.85rem auto;
+    position: relative;
+    z-index: 1;
+}
+
+.memorial-divider::before,
+.memorial-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(195, 155, 211, 0.45);
+}
+
+.memorial-divider span {
+    font-size: 0.7rem;
+    color: rgba(195, 155, 211, 0.75);
+    line-height: 1;
+    user-select: none;
+}
+
+/* Message text */
+.memorial-message {
+    max-width: 560px;
+    margin: 0 auto;
+    line-height: 1.9;
+    position: relative;
+    z-index: 1;
+}
+
+.memorial-message .preserved-note {
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+
+.memorial-message p {
+    color: var(--text-secondary);
+    font-size: 0.975rem;
+}
+
+/* Footer stars */
+.memorial-footer-stars {
+    font-size: 0.7rem;
+    letter-spacing: 0.55rem;
+    color: rgba(195, 155, 211, 0.4);
+    margin-top: 2rem;
+    user-select: none;
+    position: relative;
+    z-index: 1;
+}
+
+/* Actions */
+.memorial-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+    position: relative;
+    z-index: 1;
+}
 .freegames .latest-banner .media-content { padding-left: 0; }
 .freegames .game-description {
     display: -webkit-box;

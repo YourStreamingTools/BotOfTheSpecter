@@ -319,25 +319,67 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
                         </a>
                     </div>
                 <?php elseif ($isDeceased): ?>
-                    <div class="box" style="padding: 3rem 2rem; border: 1px solid rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.06);">
-                        <div class="has-text-centered mb-5">
-                            <?php if ($memberProfileImage): ?>
-                                <figure class="image is-96x96 is-inline-block mb-4">
-                                    <img class="is-rounded" src="<?php echo htmlspecialchars($memberProfileImage, ENT_QUOTES, 'UTF-8'); ?>" alt="Profile" style="border: 3px solid rgba(155,89,182,0.6);" onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
-                                </figure>
-                                <br>
-                            <?php endif; ?>
-                            <span class="icon is-large" style="color: #9b59b6; display:inline-block; margin-bottom: 0.5rem;">
-                                <i class="fas fa-dove fa-3x"></i>
-                            </span>
-                            <h2 class="title is-3 mt-3" style="color: #c39bd3;">In Memoriam</h2>
-                            <h3 class="subtitle is-5" style="color: var(--text-secondary);"><?php echo htmlspecialchars($memberDisplayName ?: $username, ENT_QUOTES, 'UTF-8'); ?></h3>
+                    <div class="memorial-page">
+                        <div class="memorial-stars-bg" aria-hidden="true"></div>
+
+                        <!-- Candlelight -->
+                        <div class="memorial-candles" aria-hidden="true">
+                            <div class="candle">
+                                <div class="candle-flame"></div>
+                                <div class="candle-wick"></div>
+                                <div class="candle-body"></div>
+                                <div class="candle-base"></div>
+                            </div>
+                            <div class="candle">
+                                <div class="candle-flame"></div>
+                                <div class="candle-wick"></div>
+                                <div class="candle-body"></div>
+                                <div class="candle-base"></div>
+                            </div>
+                            <div class="candle">
+                                <div class="candle-flame"></div>
+                                <div class="candle-wick"></div>
+                                <div class="candle-body"></div>
+                                <div class="candle-base"></div>
+                            </div>
                         </div>
-                        <div class="content has-text-centered" style="max-width: 560px; margin: 0 auto;">
-                            <p style="color: var(--text-primary); font-size: 1.05rem;">This channel has been preserved as a permanent memorial.</p>
-                            <p style="color: var(--text-secondary);">The account holder has passed away. Their channel, community, and memories remain here as a tribute to the person they were and the community they built.</p>
+
+                        <!-- Dove -->
+                        <div class="memorial-dove-icon">
+                            <i class="fas fa-dove fa-3x"></i>
                         </div>
-                        <div class="has-text-centered mt-5">
+
+                        <!-- Title -->
+                        <h1 class="memorial-title">In Memoriam</h1>
+
+                        <!-- Profile image -->
+                        <?php if ($memberProfileImage): ?>
+                        <div class="memorial-profile-wrap">
+                            <img class="memorial-profile-img"
+                                 src="<?php echo htmlspecialchars($memberProfileImage, ENT_QUOTES, 'UTF-8'); ?>"
+                                 alt="Profile image of <?php echo htmlspecialchars($memberDisplayName ?: $username, ENT_QUOTES, 'UTF-8'); ?>"
+                                 onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- Name -->
+                        <p class="memorial-name"><?php echo htmlspecialchars($memberDisplayName ?: $username, ENT_QUOTES, 'UTF-8'); ?></p>
+                        <p class="memorial-username">@<?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></p>
+
+                        <!-- Decorative divider -->
+                        <div class="memorial-divider" aria-hidden="true"><span>✦</span></div>
+
+                        <!-- Memorial message -->
+                        <div class="memorial-message">
+                            <p class="preserved-note">This channel has been preserved as a permanent memorial.</p>
+                            <p>The account holder has passed away. Their channel, community, and memories remain here as a tribute to the person they were and the community they built.</p>
+                        </div>
+
+                        <!-- Footer accent -->
+                        <div class="memorial-footer-stars" aria-hidden="true">✦ &nbsp; ✦ &nbsp; ✦</div>
+
+                        <!-- Back button -->
+                        <div class="memorial-actions">
                             <a href="/" class="button is-light">
                                 <span class="icon"><i class="fas fa-arrow-left"></i></span>
                                 <span>Back to Search</span>
