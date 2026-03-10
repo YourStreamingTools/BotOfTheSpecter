@@ -264,9 +264,10 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
                     <div class="box">
                         <h2 class="title">Enter the Twitch Username:</h2>
                         <form id="usernameForm" class="field is-grouped" onsubmit="redirectToUser(event)">
-                            <div class="control is-expanded">
+                            <div class="control is-expanded ac-wrapper">
                                 <input type="text" id="user_search" name="user" class="input" placeholder="Enter username"
-                                    required>
+                                    autocomplete="off" required>
+                                <div id="ac-dropdown" class="ac-dropdown" style="display:none;"></div>
                             </div>
                             <div class="control">
                                 <input type="submit" value="Search" class="button is-link">
@@ -460,6 +461,100 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
                 window.location.href = '/' + encodeURIComponent(username) + '/';
             }
         }
+
+        // Autocomplete
+        (function () {
+            const input = document.getElementById('user_search');
+            const dropdown = document.getElementById('ac-dropdown');
+            if (!input || !dropdown) return;
+
+            let debounceTimer = null;
+            let activeIndex = -1;
+            let suggestions = [];
+
+            input.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                const q = input.value.trim();
+                if (q.length === 0) { closeDropdown(); return; }
+                debounceTimer = setTimeout(() => fetchSuggestions(q), 200);
+            });
+
+            input.addEventListener('keydown', function (e) {
+                const items = dropdown.querySelectorAll('.ac-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                    updateActive(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeIndex = Math.max(activeIndex - 1, -1);
+                    updateActive(items);
+                } else if (e.key === 'Enter') {
+                    if (activeIndex >= 0 && items[activeIndex]) {
+                        e.preventDefault();
+                        selectItem(suggestions[activeIndex].username);
+                    }
+                } else if (e.key === 'Escape') {
+                    closeDropdown();
+                }
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.ac-wrapper')) closeDropdown();
+            });
+
+            function fetchSuggestions(q) {
+                fetch('/autocomplete.php?q=' + encodeURIComponent(q))
+                    .then(r => r.json())
+                    .then(data => {
+                        suggestions = data;
+                        renderDropdown(data);
+                    })
+                    .catch(() => closeDropdown());
+            }
+
+            function renderDropdown(data) {
+                if (!data.length) { closeDropdown(); return; }
+                activeIndex = -1;
+                dropdown.innerHTML = '';
+                data.forEach((item, i) => {
+                    const el = document.createElement('div');
+                    el.className = 'ac-item';
+                    const avatar = item.avatar
+                        ? `<img class="ac-avatar" src="${escHtml(item.avatar)}" alt="" onerror="this.style.display='none'">`
+                        : `<span class="ac-avatar ac-avatar-placeholder"><i class="fas fa-user"></i></span>`;
+                    el.innerHTML = `${avatar}<span class="ac-name">${escHtml(item.display_name)}</span><span class="ac-username">@${escHtml(item.username)}</span>`;
+                    el.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        selectItem(item.username);
+                    });
+                    dropdown.appendChild(el);
+                });
+                dropdown.style.display = 'block';
+            }
+
+            function selectItem(username) {
+                input.value = username;
+                closeDropdown();
+                window.location.href = '/' + encodeURIComponent(username) + '/';
+            }
+
+            function updateActive(items) {
+                items.forEach((el, i) => el.classList.toggle('is-active', i === activeIndex));
+                if (activeIndex >= 0 && suggestions[activeIndex]) {
+                    input.value = suggestions[activeIndex].username;
+                }
+            }
+
+            function closeDropdown() {
+                dropdown.style.display = 'none';
+                activeIndex = -1;
+            }
+
+            function escHtml(str) {
+                return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+        })();
         // Function to load the data based on type
         async function loadData(type) {
             let data;
