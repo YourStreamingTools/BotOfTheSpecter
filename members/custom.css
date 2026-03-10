@@ -60,6 +60,25 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.navbar-brand img {
+    max-height: 55px;
+    height: auto;
+    width: auto;
+}
+
+.navbar-burger {
+    color: var(--text-primary);
+}
+
+.navbar-menu.is-active {
+    background-color: var(--bg-secondary);
+    padding-bottom: 0.5rem;
+}
+
+.navbar-menu.is-active .navbar-item {
+    color: var(--text-primary);
+}
+
 .navbar-item,
 .navbar-link {
     color: var(--text-primary);

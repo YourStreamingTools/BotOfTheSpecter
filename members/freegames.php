@@ -72,8 +72,13 @@ function format_date($datetime) {
 <body>
     <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
         <div class="navbar-brand">
-            <img src="https://cdn.botofthespecter.com/logo.png" height="175px" alt="BotOfTheSpecter Logo Image">
+            <img src="https://cdn.botofthespecter.com/logo.png" height="55px" alt="BotOfTheSpecter Logo Image">
             <p class="navbar-item" style="font-size: 24px;">BotOfTheSpecter</p>
+            <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+            </a>
         </div>
         <div id="navbarMenu" class="navbar-menu">
             <div class="navbar-end">
@@ -179,5 +184,16 @@ function format_date($datetime) {
         </div>
     </section>
     <script defer src="https://use.fontawesome.com/releases/v5.14.0/js/all.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.navbar-burger').forEach(function (burger) {
+                burger.addEventListener('click', function () {
+                    var menu = document.getElementById(burger.dataset.target);
+                    burger.classList.toggle('is-active');
+                    if (menu) menu.classList.toggle('is-active');
+                });
+            });
+        });
+    </script>
 </body>
 </html>
