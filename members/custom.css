@@ -600,4 +600,80 @@ h6.title {
     .freegames .media-left .image img { width: 96px; height: 96px; }
     .freegames .card .image { height: 160px; }
     .freegames .columns.is-multiline { gap: 1rem; }
-} 
+}
+
+/* ========================================
+   AUTOCOMPLETE DROPDOWN
+   ======================================== */
+.ac-wrapper {
+    position: relative;
+}
+
+.ac-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    z-index: 9999;
+    overflow: hidden;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.ac-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ac-item:last-child {
+    border-bottom: none;
+}
+
+.ac-item:hover,
+.ac-item.is-active {
+    background: rgba(102, 126, 234, 0.15);
+}
+
+.ac-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+}
+
+.ac-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.ac-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ac-username {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
