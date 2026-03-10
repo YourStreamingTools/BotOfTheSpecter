@@ -239,6 +239,16 @@ if ($username && !$notFound && !$isRestricted && !$isDeceased) {
             </a>
         </div>
         <div id="navbarMenu" class="navbar-menu">
+            <?php if ($username && !$notFound && !$isRestricted && !$isDeceased): ?>
+            <div class="navbar-start">
+                <div class="navbar-item">
+                    <a href="/" class="button is-light is-small" title="Back to Search">
+                        <span class="icon"><i class="fas fa-home"></i></span>
+                        <span>Search</span>
+                    </a>
+                </div>
+            </div>
+            <?php endif; ?>
             <div class="navbar-end">
                 <div class="navbar-item" style="display: flex; align-items: center; gap: 0.5rem;">
                     <img class="is-rounded" id="profile-image" src="<?php echo $_SESSION['profile_image_url']; ?>"
