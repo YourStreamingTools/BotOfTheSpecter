@@ -706,6 +706,57 @@ h6.title {
     font-style: italic;
 }
 
+/* Local helpline highlight card */
+.memorial-local-helpline {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(155, 89, 182, 0.12);
+    border: 1px solid rgba(155, 89, 182, 0.4);
+    border-radius: 12px;
+    padding: 0.85rem 1.4rem;
+    margin-bottom: 0.85rem;
+    min-width: 260px;
+    max-width: 420px;
+}
+
+.memorial-local-helpline-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(195, 155, 211, 0.7);
+}
+
+.memorial-local-helpline-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.memorial-local-country {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.memorial-local-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.memorial-local-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #c39bd3;
+    letter-spacing: 0.04em;
+}
+
 /* Helplines section */
 .memorial-helplines {
     width: 100%;

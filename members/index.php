@@ -543,9 +543,20 @@ if ($username && !$notFound && $isDeceased) {
                         <div class="memorial-footer-stars" aria-hidden="true">✦ &nbsp; ✦ &nbsp; ✦</div>
                         <!-- Help & Crisis Resources -->
                         <div class="memorial-helplines">
+                            <div class="memorial-local-helpline" id="memorial-local-helpline" style="display:none">
+                                <div class="memorial-local-helpline-label">
+                                    <span class="icon is-small"><i class="fas fa-location-dot"></i></span>
+                                    <span>Your local helpline</span>
+                                </div>
+                                <div class="memorial-local-helpline-body">
+                                    <span class="memorial-local-country" id="local-helpline-country"></span>
+                                    <span class="memorial-local-name" id="local-helpline-name"></span>
+                                    <span class="memorial-local-number" id="local-helpline-number"></span>
+                                </div>
+                            </div>
                             <button class="memorial-helplines-toggle" onclick="toggleHelplines(this)" aria-expanded="false">
                                 <span class="icon is-small"><i class="fas fa-hands-holding-heart"></i></span>
-                                <span>Help is always available &mdash; view crisis helplines</span>
+                                <span>Help is always available &mdash; view all crisis helplines</span>
                                 <span class="toggle-arrow"><i class="fas fa-chevron-down"></i></span>
                             </button>
                             <p class="memorial-helplines-sub">If you find yourself needing to reach out to someone, please contact your local helpline.</p>
@@ -595,7 +606,6 @@ if ($username && !$notFound && $isDeceased) {
                                 <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Bangladesh</span><span class="memorial-helpline-name">Kaan Pete Roi</span><span class="memorial-helpline-number">+88 09639 678 999</span></div>
                             </div>
                         </div>
-
                         <!-- Back button -->
                         <div class="memorial-actions">
                             <a href="/" class="button is-light">
@@ -731,7 +741,6 @@ if ($username && !$notFound && $isDeceased) {
                 window.location.href = '/' + encodeURIComponent(username) + '/';
             }
         }
-
         function toggleHelplines(btn) {
             const isOpen = btn.classList.toggle('is-open');
             btn.setAttribute('aria-expanded', isOpen);
@@ -739,24 +748,82 @@ if ($username && !$notFound && $isDeceased) {
             container.querySelector('.memorial-helplines-sub').classList.toggle('is-visible', isOpen);
             container.querySelector('.memorial-helplines-grid').classList.toggle('is-open', isOpen);
         }
-
+        // Detect visitor country via IP and show local helpline
+        (function () {
+            var card = document.getElementById('memorial-local-helpline');
+            if (!card) return;
+            var helplines = {
+                'AU': {country: 'Australia',           name: 'Lifeline',                            number: '13 11 14'},
+                'US': {country: 'United States',        name: '988 Suicide & Crisis Lifeline',        number: '988'},
+                'CA': {country: 'Canada',               name: 'Suicide Crisis Helpline',              number: '988'},
+                'GB': {country: 'United Kingdom',       name: 'Samaritans',                           number: '116 123'},
+                'IE': {country: 'Ireland',              name: 'Samaritans',                           number: '116 123'},
+                'FR': {country: 'France',               name: 'National Suicide Prevention Hotline',  number: '3114'},
+                'DE': {country: 'Germany',              name: 'TelefonSeelsorge',                     number: '0800 111 0111'},
+                'ES': {country: 'Spain',                name: 'Tel\u00e9fono de la Esperanza',        number: '717 003 717'},
+                'IT': {country: 'Italy',                name: 'Telefono Amico',                       number: '199 284 284'},
+                'NL': {country: 'Netherlands',          name: '113 Suicide Prevention',               number: '0900 0113'},
+                'BE': {country: 'Belgium',              name: 'Zelfmoordlijn',                        number: '1813'},
+                'SE': {country: 'Sweden',               name: 'Mind Suicide Line',                   number: '90101'},
+                'DK': {country: 'Denmark',              name: 'Livslinien',                           number: '70 201 201'},
+                'NO': {country: 'Norway',               name: 'Mental Helse',                        number: '116 123'},
+                'FI': {country: 'Finland',              name: 'MIELI Crisis Helpline',                number: '09 2525 0111'},
+                'CH': {country: 'Switzerland',          name: 'La Main Tendue',                       number: '143'},
+                'PL': {country: 'Poland',               name: 'Befrienders',                          number: '22 484 88 01'},
+                'AT': {country: 'Austria',              name: 'TelefonSeelsorge',                     number: '142'},
+                'BR': {country: 'Brazil',               name: 'Centro de Valoriza\u00e7\u00e3o da Vida', number: '188'},
+                'MX': {country: 'Mexico',               name: 'SAPTEL',                               number: '800 472 7835'},
+                'AR': {country: 'Argentina',            name: 'Centro de Asistencia al Suicida',      number: '135'},
+                'NZ': {country: 'New Zealand',          name: 'Lifeline Aotearoa',                    number: '0800 543 354'},
+                'IN': {country: 'India',                name: 'AASRA',                                number: '+91 22 2754 6669'},
+                'CN': {country: 'China',                name: 'Beijing Suicide Research Center',      number: '800 810 1117'},
+                'JP': {country: 'Japan',                name: 'TELL Lifeline',                        number: '03 5774 0992'},
+                'KR': {country: 'South Korea',          name: 'Suicide Prevention Hotline',           number: '1393'},
+                'SG': {country: 'Singapore',            name: 'Samaritans of Singapore',              number: '1800 221 4444'},
+                'MY': {country: 'Malaysia',             name: 'Befrienders KL',                       number: '03 7956 8145'},
+                'PH': {country: 'Philippines',          name: 'NCMH Crisis Hotline',                  number: '1553'},
+                'IL': {country: 'Israel',               name: 'ERAN Emotional First Aid',             number: '1201'},
+                'AE': {country: 'United Arab Emirates', name: 'Al Amal Mental Health',                number: '800 4673'},
+                'SA': {country: 'Saudi Arabia',         name: 'National Center for Mental Health',    number: '920033360'},
+                'IR': {country: 'Iran',                 name: 'National Counseling Helpline',         number: '1480'},
+                'LB': {country: 'Lebanon',              name: 'Embrace Lifeline',                     number: '1564'},
+                'EG': {country: 'Egypt',                name: 'Befrienders Cairo',                    number: '762 1602'},
+                'ZA': {country: 'South Africa',         name: 'Suicide Crisis Line',                  number: '0800 567 567'},
+                'KE': {country: 'Kenya',                name: 'Befrienders Nairobi',                  number: '+254 722 178 177'},
+                'NP': {country: 'Nepal',                name: 'National Mental Health Helpline',      number: '1166'},
+                'TH': {country: 'Thailand',             name: 'Samaritans Thailand',                  number: '02 713 6793'},
+                'TW': {country: 'Taiwan',               name: 'Suicide Prevention Hotline',           number: '1925'},
+                'HK': {country: 'Hong Kong',            name: 'Samaritan Befrienders Hong Kong',      number: '2382 0000'},
+                'ID': {country: 'Indonesia',            name: 'Ministry of Health Hotline',           number: '1500 567'},
+                'BD': {country: 'Bangladesh',           name: 'Kaan Pete Roi',                        number: '+88 09639 678 999'}
+            };
+            fetch('https://ipapi.co/json/')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var code = (data.country_code || '').trim().toUpperCase();
+                    var h = helplines[code];
+                    if (!h) return;
+                    document.getElementById('local-helpline-country').textContent = h.country;
+                    document.getElementById('local-helpline-name').textContent = h.name;
+                    document.getElementById('local-helpline-number').textContent = h.number;
+                    card.style.display = '';
+                })
+                .catch(function () { /* geolocation unavailable — card stays hidden */ });
+        })();
         // Autocomplete
         (function () {
             const input = document.getElementById('user_search');
             const dropdown = document.getElementById('ac-dropdown');
             if (!input || !dropdown) return;
-
             let debounceTimer = null;
             let activeIndex = -1;
             let suggestions = [];
-
             input.addEventListener('input', function () {
                 clearTimeout(debounceTimer);
                 const q = input.value.trim();
                 if (q.length === 0) { closeDropdown(); return; }
                 debounceTimer = setTimeout(() => fetchSuggestions(q), 200);
             });
-
             input.addEventListener('keydown', function (e) {
                 const items = dropdown.querySelectorAll('.ac-item');
                 if (e.key === 'ArrowDown') {
@@ -776,11 +843,9 @@ if ($username && !$notFound && $isDeceased) {
                     closeDropdown();
                 }
             });
-
             document.addEventListener('click', function (e) {
                 if (!e.target.closest('.ac-wrapper')) closeDropdown();
             });
-
             function fetchSuggestions(q) {
                 fetch('/autocomplete.php?q=' + encodeURIComponent(q))
                     .then(r => r.json())
@@ -790,7 +855,6 @@ if ($username && !$notFound && $isDeceased) {
                     })
                     .catch(() => closeDropdown());
             }
-
             function renderDropdown(data) {
                 if (!data.length) { closeDropdown(); return; }
                 activeIndex = -1;
@@ -810,25 +874,21 @@ if ($username && !$notFound && $isDeceased) {
                 });
                 dropdown.style.display = 'block';
             }
-
             function selectItem(username) {
                 input.value = username;
                 closeDropdown();
                 window.location.href = '/' + encodeURIComponent(username) + '/';
             }
-
             function updateActive(items) {
                 items.forEach((el, i) => el.classList.toggle('is-active', i === activeIndex));
                 if (activeIndex >= 0 && suggestions[activeIndex]) {
                     input.value = suggestions[activeIndex].username;
                 }
             }
-
             function closeDropdown() {
                 dropdown.style.display = 'none';
                 activeIndex = -1;
             }
-
             function escHtml(str) {
                 return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             }
@@ -1088,7 +1148,6 @@ if ($username && !$notFound && $isDeceased) {
             } else {
                 rewardNameHeader.style.display = 'none';
             }
-
             // Update active button state
             document.querySelectorAll('.reward-filter-btn').forEach(btn => {
                 btn.classList.remove('active');
@@ -1172,5 +1231,4 @@ if ($username && !$notFound && $isDeceased) {
         }
     </script>
 </body>
-
 </html>
