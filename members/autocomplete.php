@@ -27,15 +27,12 @@ try {
     $like = '%' . $conn->real_escape_string($q) . '%';
     $likeStart = $conn->real_escape_string($q) . '%';
     $stmt = $conn->prepare(
-        'SELECT u.username, u.twitch_display_name, u.profile_image
-         FROM users u
-         LEFT JOIN restricted_users r ON u.username = r.username
-         WHERE (u.username LIKE ? OR u.twitch_display_name LIKE ?)
-           AND u.is_deceased = 0
-           AND r.username IS NULL
+        'SELECT username, twitch_display_name, profile_image
+         FROM users
+         WHERE username LIKE ? OR twitch_display_name LIKE ?
          ORDER BY
-           CASE WHEN u.username LIKE ? THEN 0 ELSE 1 END,
-           u.username ASC
+           CASE WHEN username LIKE ? THEN 0 ELSE 1 END,
+           username ASC
          LIMIT 10'
     );
     $stmt->bind_param('sss', $like, $like, $likeStart);
