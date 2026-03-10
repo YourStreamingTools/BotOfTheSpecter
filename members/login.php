@@ -230,46 +230,34 @@ if (isset($_GET['code'])) {
 }
 ?>
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>BotOfTheSpecter - Twitch Login</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32" />
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png" />
-    <meta name="msapplication-TileImage" content="https://cdn.botofthespecter.com/logo.png" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BotOfTheSpecter &mdash; Twitch Login</title>
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="/style.css?v=<?php echo filemtime(__DIR__.'/style.css'); ?>">
+    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 </head>
-
-<body>
-    <section class="hero is-fullheight is-dark">
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <div class="box" style="max-width: 400px; margin: 0 auto;">
-                    <figure class="image is-128x128 is-inline-block">
-                        <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
-                    </figure>
-                    <h1 class="title is-4 mt-3 has-text-black has-text-weight-bold">BotOfTheSpecter</h1>
-                    <?php if (isset($_GET['logout']) && $_GET['logout'] === 'success'): ?>
-                        <div class="notification is-success is-light">
-                            <p><?php echo $info; ?></p>
-                        </div>
-                        <a href="login.php" class="button is-primary is-fullwidth mt-3">
-                            <span class="icon">
-                                <i class="fab fa-twitch"></i>
-                            </span>
-                            <span>Login with Twitch</span>
-                        </a>
-                    <?php else: ?>
-                        <p>
-                            <?php echo $info; ?>
-                        </p>
-                    <?php endif; ?>
+<body class="sp-hero-page">
+    <div class="sp-hero">
+        <div class="sp-login-card">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo" style="width:80px;height:80px;object-fit:contain;border-radius:50%;margin-bottom:1rem;">
+            <h1>BotOfTheSpecter</h1>
+            <p class="sp-login-sub">Members Portal</p>
+            <?php if (isset($_GET['logout']) && $_GET['logout'] === 'success'): ?>
+                <div class="sp-alert sp-alert-info" style="margin:1rem 0;">
+                    <?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?>
                 </div>
-            </div>
+                <a href="login.php" class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;margin-top:0.5rem;">
+                    <i class="fa-brands fa-twitch"></i> Login with Twitch
+                </a>
+            <?php else: ?>
+                <div class="sp-spinner" style="margin:1.5rem auto;"></div>
+                <p style="color:var(--text-muted);font-size:0.9rem;"><?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?></p>
+            <?php endif; ?>
         </div>
-    </section>
+    </div>
 </body>
-
 </html>
