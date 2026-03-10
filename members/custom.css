@@ -801,6 +801,13 @@ h6.title {
     transform: rotate(180deg);
 }
 
+.memorial-helplines-note {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 0.75rem;
+}
+
 .memorial-helplines-sub {
     font-size: 0.78rem;
     color: var(--text-muted);
