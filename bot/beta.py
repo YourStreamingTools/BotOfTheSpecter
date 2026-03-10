@@ -252,6 +252,11 @@ stream_session_started_at = 0.0                                                 
 pending_outgoing_raid = None                                                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
+_pronouns_list_cache = None                                                             # Cached dict of all pronoun definitions from alejo.io
+_pronouns_list_cache_time = 0                                                           # Timestamp of last pronouns list fetch
+PRONOUNS_LIST_CACHE_TTL = 86400                                                         # Refresh pronouns list once per day
+_user_pronouns_cache: dict = {}                                                         # Per-user pronoun cache: {username: (pronoun_str, fetched_at)}
+USER_PRONOUNS_CACHE_TTL = 3600                                                          # Cache individual user pronouns for 1 hour
 
 SPOTIFY_ERROR_MESSAGES = {
     400: "It looks like something went wrong with the request. Please try again.",
@@ -449,6 +454,64 @@ async def get_website_twitch_app_credentials(force_refresh=False):
         "access_token": access_token,
         "client_id": client_id,
     }
+
+# Fetch and cache the full list of pronouns from alejo.io
+async def get_pronouns_list():
+    global _pronouns_list_cache, _pronouns_list_cache_time
+    now = time.time()
+    if _pronouns_list_cache is not None and (now - _pronouns_list_cache_time) < PRONOUNS_LIST_CACHE_TTL:
+        return _pronouns_list_cache
+    try:
+        async with httpClientSession() as session:
+            async with session.get('https://api.pronouns.alejo.io/v1/pronouns', timeout=ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    _pronouns_list_cache = data
+                    _pronouns_list_cache_time = now
+                    return data
+    except Exception as e:
+        api_logger.error(f"Failed to fetch pronouns list: {e}")
+    return _pronouns_list_cache or {}
+
+# Look up a user's pronouns; returns a human-readable string like "She/Her" or None if not set
+async def get_user_pronouns(username: str):
+    global _user_pronouns_cache
+    username_lower = username.lower()
+    now = time.time()
+    cached = _user_pronouns_cache.get(username_lower)
+    if cached is not None:
+        pronoun_str, fetched_at = cached
+        if (now - fetched_at) < USER_PRONOUNS_CACHE_TTL:
+            return pronoun_str
+    try:
+        async with httpClientSession() as session:
+            async with session.get(f'https://api.pronouns.alejo.io/v1/users/{username_lower}', timeout=ClientTimeout(total=5)) as resp:
+                if resp.status == 404:
+                    # User has no pronouns set
+                    _user_pronouns_cache[username_lower] = (None, now)
+                    return None
+                if resp.status == 200:
+                    data = await resp.json()
+                    pronoun_id = data.get('pronoun_id')
+                    alt_id = data.get('alt_pronoun_id')
+                    if not pronoun_id:
+                        _user_pronouns_cache[username_lower] = (None, now)
+                        return None
+                    pronouns_list = await get_pronouns_list()
+                    entry = pronouns_list.get(pronoun_id, {})
+                    subject = entry.get('subject', pronoun_id)
+                    obj = entry.get('object', pronoun_id)
+                    if alt_id and alt_id in pronouns_list:
+                        alt_entry = pronouns_list[alt_id]
+                        alt_subject = alt_entry.get('subject', alt_id)
+                        pronoun_str = f"{subject}/{obj}/{alt_subject}"
+                    else:
+                        pronoun_str = f"{subject}/{obj}"
+                    _user_pronouns_cache[username_lower] = (pronoun_str, now)
+                    return pronoun_str
+    except Exception as e:
+        api_logger.error(f"Failed to fetch pronouns for {username}: {e}")
+    return None
 
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
