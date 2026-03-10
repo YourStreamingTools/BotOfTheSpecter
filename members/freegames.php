@@ -46,154 +46,164 @@ function format_date($datetime) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BotOfTheSpecter - <?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <title>BotOfTheSpecter &mdash; <?php echo esc($title); ?></title>
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?php echo '/custom.css?v=' . filemtime(__DIR__.'/custom.css'); ?>">
+    <link rel="stylesheet" href="<?php echo '/style.css?v=' . filemtime(__DIR__.'/style.css'); ?>">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Tools4Streaming" />
-    <meta name="twitter:title" content="BotOfTheSpecter" />
-    <meta name="twitter:description"
-        content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
-    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@Tools4Streaming">
+    <meta name="twitter:title" content="BotOfTheSpecter">
+    <meta name="twitter:description" content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience.">
+    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
 </head>
-
 <body>
-    <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
-        <div class="navbar-brand">
-            <img src="https://cdn.botofthespecter.com/logo.png" height="55px" alt="BotOfTheSpecter Logo Image">
-            <p class="navbar-item" style="font-size: 24px;">BotOfTheSpecter</p>
-            <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
-                <span aria-hidden="true"></span>
-                <span aria-hidden="true"></span>
-                <span aria-hidden="true"></span>
+<div id="sp-sidebar-overlay" class="sp-sidebar-overlay"></div>
+<div class="sp-layout">
+    <!-- SIDEBAR -->
+    <aside id="sp-sidebar" class="sp-sidebar">
+        <div class="sp-brand">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter">
+            <div class="sp-brand-text">
+                <span class="sp-brand-title">BotOfTheSpecter</span>
+                <span class="sp-brand-sub">Members Portal</span>
+            </div>
+        </div>
+        <nav class="sp-nav">
+            <div class="sp-nav-section">
+                <div class="sp-nav-label">Navigation</div>
+                <a href="/" class="sp-nav-link">
+                    <i class="fa-solid fa-magnifying-glass"></i> Search Channels
+                </a>
+                <a href="/freegames.php" class="sp-nav-link active">
+                    <i class="fa-solid fa-gamepad"></i> Free Games
+                </a>
+            </div>
+            <div class="sp-nav-section">
+                <div class="sp-nav-label">Resources</div>
+                <a href="https://dashboard.botofthespecter.com/dashboard.php" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-solid fa-gauge"></i> Dashboard <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;opacity:0.5;margin-left:auto;"></i>
+                </a>
+                <a href="https://support.botofthespecter.com" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-solid fa-circle-question"></i> Support <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;opacity:0.5;margin-left:auto;"></i>
+                </a>
+            </div>
+        </nav>
+        <div class="sp-sidebar-footer">
+            <div class="sp-user-block">
+                <?php if (!empty($_SESSION['profile_image_url'])): ?>
+                    <img src="<?php echo esc($_SESSION['profile_image_url']); ?>"
+                         alt="<?php echo esc($_SESSION['display_name'] ?? ''); ?>"
+                         class="sp-user-avatar">
+                <?php else: ?>
+                    <div class="sp-user-avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                <?php endif; ?>
+                <div style="min-width:0;">
+                    <div class="sp-user-name"><?php echo esc($_SESSION['display_name'] ?? ''); ?></div>
+                    <div class="sp-user-role">Member</div>
+                </div>
+            </div>
+            <a href="/logout.php" class="sp-nav-link sp-text-small">
+                <i class="fa-solid fa-right-from-bracket"></i> Log Out
             </a>
         </div>
-        <div id="navbarMenu" class="navbar-menu">
-            <div class="navbar-end">
-                <div class="navbar-item" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <img class="is-rounded" id="profile-image" src="<?php echo esc($_SESSION['profile_image_url'] ?? 'https://cdn.botofthespecter.com/logo.png'); ?>" alt="Profile Image">
-                    <span class="display-name"><?php echo esc($_SESSION['display_name'] ?? 'Member'); ?></span>
-                </div>
-                <div class="navbar-item">
-                    <a href="/logout.php" class="button is-danger is-outlined" title="Logout">
-                        <span class="icon"><i class="fas fa-sign-out-alt"></i></span>
-                        <span>Logout</span>
-                    </a>
+    </aside>
+    <!-- MAIN -->
+    <div class="sp-main">
+        <header class="sp-topbar">
+            <button id="sp-hamburger" class="sp-hamburger" aria-label="Open menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <span class="sp-topbar-title"><?php echo esc($title); ?></span>
+            <div class="sp-topbar-actions">
+                <a href="/" class="sp-btn sp-btn-secondary sp-btn-sm">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Search
+                </a>
+            </div>
+        </header>
+        <main class="sp-content">
+            <div class="sp-page-header">
+                <div>
+                    <h1>FreeStuff &mdash; System Announcements</h1>
+                    <p>System-wide FreeStuff announcements used by the Discord and Twitch bots.</p>
                 </div>
             </div>
-        </div>
-    </div>
-    <section class="section freegames" style="padding-top: 100px;">
-        <div class="container">
-            <nav class="breadcrumb" aria-label="breadcrumbs">
-                <ul>
-                    <li><a href="/">Home</a></li>
-                    <li><a href="/members/">Members</a></li>
-                    <li class="is-active"><a href="#" aria-current="page">Free Games</a></li>
-                </ul>
-            </nav>
-            <h1 class="title">FreeStuff — System Announcements</h1>
-            <p class="subtitle">This page shows system-wide FreeStuff announcements used by our Discord and Twitch bots. The Twitch bot posts the most recent free game in chat with a link to view more here.</p>
             <?php if ($result['error']): ?>
-                <div class="notification is-warning">
+                <div class="sp-alert sp-alert-warning">
                     <strong>Notice:</strong> <?php echo esc($result['message']); ?>
                 </div>
+            <?php elseif ($result['count'] == 0): ?>
+                <div class="sp-empty">
+                    <i class="fa-solid fa-gamepad"></i>
+                    <h3>No Games Found</h3>
+                    <p>No recent free games were found.</p>
+                </div>
             <?php else: ?>
-                <?php if ($result['count'] == 0): ?>
-                    <div class="notification is-info">No recent free games found.</div>
-                <?php else: ?>
-                    <!-- Highlight the most recent game first for easy sharing -->
-                    <?php $latest = $result['games'][0]; ?>
-                    <div class="box latest-banner">
-                        <article class="media">
-                            <?php if (!empty($latest['game_thumbnail'])): ?>
-                                <figure class="media-left">
-                                    <p class="image is-128x128">
-                                        <img src="<?php echo esc($latest['game_thumbnail']); ?>" alt="<?php echo esc($latest['game_title']); ?>">
-                                    </p>
-                                </figure>
+                <?php $latest = $result['games'][0]; ?>
+                <div class="ms-game-featured">
+                    <?php if (!empty($latest['game_thumbnail'])): ?>
+                        <img class="ms-game-featured-img" src="<?php echo esc($latest['game_thumbnail']); ?>" alt="<?php echo esc($latest['game_title']); ?>">
+                    <?php endif; ?>
+                    <div class="ms-game-featured-body">
+                        <div class="ms-game-featured-badge">Latest Free Game</div>
+                        <div class="ms-game-featured-title"><?php echo esc($latest['game_title']); ?></div>
+                        <div class="ms-game-featured-meta"><strong><?php echo esc($latest['game_org']); ?></strong> &middot; <?php echo esc($latest['game_price']); ?> &middot; Received: <?php echo esc(format_date($latest['received_at'])); ?></div>
+                        <div class="ms-game-featured-desc"><?php echo esc(mb_substr($latest['game_description'] ?? '', 0, 400)); ?></div>
+                        <div class="ms-game-featured-actions">
+                            <?php if (!empty($latest['game_url'])): ?>
+                                <a href="<?php echo esc($latest['game_url']); ?>" target="_blank" rel="noopener" class="sp-btn sp-btn-primary">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Claim / View
+                                </a>
                             <?php endif; ?>
-                            <div class="media-content">
-                                <div class="content">
-                                    <p>
-                                        <strong class="is-size-5"><?php echo esc($latest['game_title']); ?></strong>
-                                        <br>
-                                        <small><strong><?php echo esc($latest['game_org']); ?></strong> &middot; <?php echo esc($latest['game_price']); ?> &middot; Received: <?php echo esc(format_date($latest['received_at'])); ?></small>
-                                        <br>
-                                        <span><?php echo esc(mb_substr($latest['game_description'] ?? '', 0, 400)); ?></span>
-                                    </p>
-                                </div>
-                                <nav class="level is-mobile">
-                                    <div class="level-left">
-                                        <?php if (!empty($latest['game_url'])): ?>
-                                            <a href="<?php echo esc($latest['game_url']); ?>" target="_blank" class="button is-link level-item">Claim / View</a>
-                                        <?php endif; ?>
-                                        <a href="#all" class="button is-light level-item">View All Recent Games</a>
-                                    </div>
-                                </nav>
-                            </div>
-                        </article>
+                            <a href="#all-games" class="sp-btn sp-btn-secondary">View All Recent Games</a>
+                        </div>
                     </div>
-                    <div id="all" class="columns is-multiline">
-                        <?php foreach ($result['games'] as $game): ?>
-                            <div class="column is-12-mobile is-6-tablet is-4-desktop">
-                                <div class="card">
-                                    <?php if (!empty($game['game_thumbnail'])): ?>
-                                        <div class="card-image">
-                                            <figure class="image is-3by2">
-                                                <img src="<?php echo esc($game['game_thumbnail']); ?>" alt="<?php echo esc($game['game_title']); ?>">
-                                            </figure>
-                                        </div>
-                                    <?php endif; ?>
-                                    <div class="card-content">
-                                        <p class="title is-6"><?php echo esc($game['game_title']); ?></p>
-                                        <p class="subtitle is-7"><strong><?php echo esc($game['game_org']); ?></strong> &middot; <?php echo esc($game['game_price']); ?></p>
-                                        <div class="content game-description">
-                                            <?php echo esc(mb_substr($game['game_description'] ?? '', 0, 300)); ?>
-                                        </div>
-                                    </div>
-                                    <footer class="card-footer">
-                                        <?php if (!empty($game['game_url'])): ?>
-                                            <a href="<?php echo esc($game['game_url']); ?>" target="_blank" class="card-footer-item">Claim / View</a>
-                                        <?php else: ?>
-                                            <a class="card-footer-item">No Link</a>
-                                        <?php endif; ?>
-                                        <a class="card-footer-item">Received: <?php echo esc(format_date($game['received_at'])); ?></a>
-                                    </footer>
+                </div>
+                <div id="all-games" class="ms-games-grid">
+                    <?php foreach ($result['games'] as $game): ?>
+                        <div class="ms-game-card">
+                            <?php if (!empty($game['game_thumbnail'])): ?>
+                                <div class="ms-game-card-img">
+                                    <img src="<?php echo esc($game['game_thumbnail']); ?>" alt="<?php echo esc($game['game_title']); ?>">
                                 </div>
+                            <?php endif; ?>
+                            <div class="ms-game-card-body">
+                                <div class="ms-game-card-title"><?php echo esc($game['game_title']); ?></div>
+                                <div class="ms-game-card-meta"><strong><?php echo esc($game['game_org']); ?></strong> &middot; <?php echo esc($game['game_price']); ?></div>
+                                <div class="ms-game-card-desc"><?php echo esc(mb_substr($game['game_description'] ?? '', 0, 300)); ?></div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
+                            <div class="ms-game-card-footer">
+                                <?php if (!empty($game['game_url'])): ?>
+                                    <a href="<?php echo esc($game['game_url']); ?>" target="_blank" rel="noopener" class="sp-btn sp-btn-primary sp-btn-sm">Claim / View</a>
+                                <?php else: ?>
+                                    <span class="sp-badge">No Link</span>
+                                <?php endif; ?>
+                                <span class="ms-game-card-date">Received: <?php echo esc(format_date($game['received_at'])); ?></span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php endif; ?>
-            <div style="margin-top: 2rem;">
-                <a href="/members/" class="button is-light">Back to Members</a>
-            </div>
-        </div>
-    </section>
-    <script defer src="https://use.fontawesome.com/releases/v5.14.0/js/all.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('.navbar-burger').forEach(function (burger) {
-                burger.addEventListener('click', function () {
-                    var menu = document.getElementById(burger.dataset.target);
-                    burger.classList.toggle('is-active');
-                    if (menu) menu.classList.toggle('is-active');
-                });
-            });
-        });
-    </script>
+        </main>
+    </div>
+</div>
+<footer class="sp-footer">
+    &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter &mdash; All Rights Reserved.
+</footer>
+<script>
+    (function () {
+        const overlay = document.getElementById('sp-sidebar-overlay');
+        const sidebar = document.getElementById('sp-sidebar');
+        const hamburger = document.getElementById('sp-hamburger');
+        if (!hamburger) return;
+        function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('visible'); }
+        function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('visible'); }
+        hamburger.addEventListener('click', openSidebar);
+        overlay.addEventListener('click', closeSidebar);
+    })();
+</script>
 </body>
 </html>

@@ -257,131 +257,150 @@ if ($username && !$notFound && $isDeceased) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BotOfTheSpecter - <?php echo $title; ?></title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?php echo '/custom.css?v=' . filemtime(__DIR__.'/custom.css'); ?>">
+    <title>BotOfTheSpecter — <?php echo htmlspecialchars($title); ?></title>
+    <meta name="description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
+    <meta property="og:title" content="BotOfTheSpecter — <?php echo htmlspecialchars($title); ?>">
+    <meta property="og:description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
+    <meta property="og:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@Tools4Streaming">
+    <meta name="twitter:title" content="BotOfTheSpecter — <?php echo htmlspecialchars($title); ?>">
+    <meta name="twitter:description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
+    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Tools4Streaming" />
-    <meta name="twitter:title" content="BotOfTheSpecter" />
-    <meta name="twitter:description"
-        content="BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics." />
-    <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <script type="text/javascript">
-        // Pass PHP data to JavaScript
+    <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+    <link rel="stylesheet" href="<?php echo '/style.css?v=' . filemtime(__DIR__.'/style.css'); ?>">
+    <script>
         const customCommands = <?php echo json_encode(array_map('sanitize_custom_vars', $commands)); ?>;
-        const lurkers = <?php echo json_encode($lurkers); ?>;
-        const typos = <?php echo json_encode($typos); ?>;
-        const gameDeaths = <?php echo json_encode($gameDeaths); ?>;
-        const hugCounts = <?php echo json_encode($hugCounts); ?>;
-        const kissCounts = <?php echo json_encode($kissCounts); ?>;
-        const customCounts = <?php echo json_encode($customCounts); ?>;
-        const userCounts = <?php echo json_encode($userCounts); ?>;
-        const watchTimeData = <?php echo json_encode($watchTimeData); ?>;
-        const todos = <?php echo json_encode($todos); ?>;
+        const lurkers        = <?php echo json_encode($lurkers); ?>;
+        const typos          = <?php echo json_encode($typos); ?>;
+        const gameDeaths     = <?php echo json_encode($gameDeaths); ?>;
+        const hugCounts      = <?php echo json_encode($hugCounts); ?>;
+        const kissCounts     = <?php echo json_encode($kissCounts); ?>;
+        const customCounts   = <?php echo json_encode($customCounts); ?>;
+        const userCounts     = <?php echo json_encode($userCounts); ?>;
+        const watchTimeData  = <?php echo json_encode($watchTimeData); ?>;
+        const todos          = <?php echo json_encode($todos); ?>;
         const todoCategories = <?php echo json_encode($todoCategories); ?>;
         const highfiveCounts = <?php echo json_encode($highfiveCounts); ?>;
-        const rewardCounts = <?php echo json_encode($rewardCounts); ?>;
-        const quotesData = <?php echo json_encode($quotesData); ?>;
+        const rewardCounts   = <?php echo json_encode($rewardCounts); ?>;
+        const quotesData     = <?php echo json_encode($quotesData); ?>;
     </script>
 </head>
 <body>
-    <div class="navbar is-fixed-top" role="navigation" aria-label="main navigation" style="height: 75px;">
-        <div class="navbar-brand">
-            <img src="https://cdn.botofthespecter.com/logo.png" height="55px" alt="BotOfTheSpecter Logo Image">
-            <p class="navbar-item" style="font-size: 24px;">BotOfTheSpecter</p>
-            <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarMenu">
-                <span aria-hidden="true"></span>
-                <span aria-hidden="true"></span>
-                <span aria-hidden="true"></span>
+<div id="sp-sidebar-overlay" class="sp-sidebar-overlay"></div>
+<div class="sp-layout">
+    <!-- SIDEBAR -->
+    <aside id="sp-sidebar" class="sp-sidebar">
+        <div class="sp-brand">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter">
+            <div class="sp-brand-text">
+                <span class="sp-brand-title">BotOfTheSpecter</span>
+                <span class="sp-brand-sub">Members Portal</span>
+            </div>
+        </div>
+        <nav class="sp-nav">
+            <div class="sp-nav-section">
+                <div class="sp-nav-label">Navigation</div>
+                <a href="/" class="sp-nav-link<?php echo !$username ? ' active' : ''; ?>">
+                    <i class="fa-solid fa-magnifying-glass"></i> Search Channels
+                </a>
+                <a href="/freegames.php" class="sp-nav-link">
+                    <i class="fa-solid fa-gamepad"></i> Free Games
+                </a>
+            </div>
+            <div class="sp-nav-section">
+                <div class="sp-nav-label">Resources</div>
+                <a href="https://dashboard.botofthespecter.com/dashboard.php" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-solid fa-gauge"></i> Dashboard <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;opacity:0.5;margin-left:auto;"></i>
+                </a>
+                <a href="https://support.botofthespecter.com" target="_blank" rel="noopener" class="sp-nav-link">
+                    <i class="fa-solid fa-circle-question"></i> Support <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;opacity:0.5;margin-left:auto;"></i>
+                </a>
+            </div>
+        </nav>
+        <div class="sp-sidebar-footer">
+            <div class="sp-user-block">
+                <?php if (!empty($_SESSION['profile_image_url'])): ?>
+                    <img src="<?php echo htmlspecialchars($_SESSION['profile_image_url'], ENT_QUOTES); ?>"
+                         alt="<?php echo htmlspecialchars($_SESSION['display_name'] ?? '', ENT_QUOTES); ?>"
+                         class="sp-user-avatar">
+                <?php else: ?>
+                    <div class="sp-user-avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                <?php endif; ?>
+                <div style="min-width:0;">
+                    <div class="sp-user-name"><?php echo htmlspecialchars($_SESSION['display_name'] ?? ''); ?></div>
+                    <div class="sp-user-role">Member</div>
+                </div>
+            </div>
+            <a href="/logout.php" class="sp-nav-link sp-text-small">
+                <i class="fa-solid fa-right-from-bracket"></i> Log Out
             </a>
         </div>
-        <div id="navbarMenu" class="navbar-menu">
-            <?php if ($username && !$notFound && !$isRestricted && !$isDeceased): ?>
-            <div class="navbar-start">
-                <div class="navbar-item">
-                    <a href="/" class="button is-light is-small" title="Back to Search">
-                        <span class="icon"><i class="fas fa-home"></i></span>
-                        <span>Search</span>
+    </aside>
+    <!-- MAIN -->
+    <div class="sp-main">
+        <header class="sp-topbar">
+            <button id="sp-hamburger" class="sp-hamburger" aria-label="Open menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <span class="sp-topbar-title"><?php echo htmlspecialchars($title); ?></span>
+            <div class="sp-topbar-actions">
+                <?php if ($username && !$notFound && !$isRestricted && !$isDeceased): ?>
+                    <a href="/" class="sp-btn sp-btn-secondary sp-btn-sm">
+                        <i class="fa-solid fa-arrow-left"></i> Back to Search
                     </a>
-                </div>
+                <?php endif; ?>
             </div>
-            <?php endif; ?>
-            <div class="navbar-end">
-                <div class="navbar-item" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <img class="is-rounded" id="profile-image" src="<?php echo $_SESSION['profile_image_url']; ?>"
-                        alt="Profile Image"><span class="display-name"><?php echo $_SESSION['display_name']; ?></span>
-                </div>
-                <div class="navbar-item">
-                    <a href="/logout.php" class="button is-danger is-outlined" title="Logout">
-                        <span class="icon">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </span>
-                        <span>Logout</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="container mt-6">
-        <br><br>
-        <div class="columns is-centered">
-            <div class="column is-fullwidth">
+        </header>
+        <main class="sp-content">
                 <?php if (!$username): ?>
-                    <br>
-                    <div class="box">
-                        <h2 class="title">Enter the Twitch Username:</h2>
-                        <form id="usernameForm" class="field is-grouped" onsubmit="redirectToUser(event)">
-                            <div class="control is-expanded ac-wrapper">
-                                <input type="text" id="user_search" name="user" class="input" placeholder="Enter username"
-                                    autocomplete="off" required>
-                                <div id="ac-dropdown" class="ac-dropdown" style="display:none;"></div>
-                            </div>
-                            <div class="control">
-                                <input type="submit" value="Search" class="button is-link">
-                            </div>
-                        </form>
-                    </div>
-                    <!-- Quick links / custom pages for users who haven't selected a channel -->
-                    <div class="box">
-                        <h3 class="subtitle">Member Information</h3>
-                        <div class="columns is-multiline">
-                            <div class="column is-4-tablet is-3-desktop">
-                                <div class="card">
-                                    <div class="card-content">
-                                        <p class="title is-5">FreeStuff (System): Recent Free Games</p>
-                                        <p class="content">System-wide announcements of free games used by our Discord and Twitch bots. The Twitch bot displays the most recent free game in chat and links back here for details.</p>
-                                    </div>
-                                    <footer class="card-footer">
-                                        <a href="/freegames.php" class="card-footer-item">View Free Games (System)</a>
-                                    </footer>
-                                </div>
-                            </div>
-                            <!-- Add more system pages here in future -->
+                <div class="sp-page-header">
+                    <div class="sp-page-header-row">
+                        <div>
+                            <h1>Member Lookup</h1>
+                            <p>Search for a Twitch channel using BotOfTheSpecter.</p>
                         </div>
                     </div>
-                <?php elseif ($notFound): ?>
-                    <div class="box has-text-centered" style="padding: 3rem 2rem;">
-                        <span class="icon is-large mb-4" style="display:block;">
-                            <i class="fas fa-search fa-3x" style="color: var(--text-muted);"></i>
-                        </span>
-                        <h2 class="title is-4">Channel Not Found</h2>
-                        <p class="subtitle is-6" style="color: var(--text-secondary);">
-                            We couldn&rsquo;t find a channel named <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong> on BotOfTheSpecter.
-                        </p>
-                        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">The channel may not have signed up yet, or the username may be spelled incorrectly.</p>
-                        <a href="/" class="button is-link">
-                            <span class="icon"><i class="fas fa-arrow-left"></i></span>
-                            <span>Search Again</span>
-                        </a>
+                </div>
+                <div class="ms-search-card">
+                    <form id="usernameForm" onsubmit="redirectToUser(event)">
+                        <div class="ms-search-row">
+                            <div class="ac-wrapper">
+                                <input type="text" id="user_search" name="user" class="sp-input"
+                                       placeholder="Enter a Twitch username…" autocomplete="off" required>
+                                <div id="ac-dropdown" class="ac-dropdown" style="display:none;"></div>
+                            </div>
+                            <button type="submit" class="sp-btn sp-btn-primary">
+                                <i class="fa-solid fa-magnifying-glass"></i> Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="sp-card" style="margin-top:1.5rem;">
+                    <div class="sp-card-header">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <h2>Member Information</h2>
                     </div>
+                    <div class="sp-card-body">
+                        <div class="sp-doc-grid">
+                            <a href="/freegames.php" class="sp-doc-card">
+                                <div class="sp-doc-card-icon"><i class="fa-solid fa-gamepad"></i></div>
+                                <div class="sp-doc-card-title">FreeStuff (System): Recent Free Games</div>
+                                <div class="sp-doc-card-desc">System-wide announcements of free games used by our Discord and Twitch bots. The Twitch bot posts the most recent free game in chat.</div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php elseif ($notFound): ?>
+                <div class="sp-empty">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <h3>Channel Not Found</h3>
+                    <p>We couldn&rsquo;t find a channel named <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong> on BotOfTheSpecter.<br>The channel may not have signed up yet, or the username may be spelled incorrectly.</p>
+                    <a href="/" class="sp-btn sp-btn-secondary"><i class="fa-solid fa-arrow-left"></i> Search Again</a>
+                </div>
                 <?php elseif ($isDeceased): ?>
                     <div class="memorial-page">
                         <div class="memorial-stars-bg" aria-hidden="true"></div>
@@ -440,7 +459,7 @@ if ($username && !$notFound && $isDeceased) {
                                 <!-- Top Lurkers -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
-                                        <span class="icon is-small"><i class="fas fa-eye-slash"></i></span>
+                                        <i class="fas fa-eye-slash"></i>
                                         <span class="memorial-stat-card-title">Top Lurkers</span>
                                     </div>
                                     <?php if (empty($memorialData['lurkers'])): ?>
@@ -460,7 +479,7 @@ if ($username && !$notFound && $isDeceased) {
                                 <!-- Top Typos -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
-                                        <span class="icon is-small"><i class="fas fa-keyboard"></i></span>
+                                        <i class="fas fa-keyboard"></i>
                                         <span class="memorial-stat-card-title">Top Typos</span>
                                     </div>
                                     <?php if (empty($memorialData['typos'])): ?>
@@ -480,7 +499,7 @@ if ($username && !$notFound && $isDeceased) {
                                 <!-- Top Game Deaths -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
-                                        <span class="icon is-small"><i class="fas fa-skull"></i></span>
+                                        <i class="fas fa-skull"></i>
                                         <span class="memorial-stat-card-title">Top Deaths</span>
                                     </div>
                                     <?php if (empty($memorialData['deaths'])): ?>
@@ -500,7 +519,7 @@ if ($username && !$notFound && $isDeceased) {
                                 <!-- Top Hugs -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
-                                        <span class="icon is-small"><i class="fas fa-heart"></i></span>
+                                        <i class="fas fa-heart"></i>
                                         <span class="memorial-stat-card-title">Top Hugs</span>
                                     </div>
                                     <?php if (empty($memorialData['hugs'])): ?>
@@ -520,7 +539,7 @@ if ($username && !$notFound && $isDeceased) {
                                 <!-- Top Watch Time -->
                                 <div class="memorial-stat-card">
                                     <div class="memorial-stat-card-header">
-                                        <span class="icon is-small"><i class="fas fa-clock"></i></span>
+                                        <i class="fas fa-clock"></i>
                                         <span class="memorial-stat-card-title">Top Watchers</span>
                                     </div>
                                     <?php if (empty($memorialData['watchtime'])): ?>
@@ -545,7 +564,7 @@ if ($username && !$notFound && $isDeceased) {
                         <div class="memorial-helplines">
                             <div class="memorial-local-helpline" id="memorial-local-helpline" style="display:none">
                                 <div class="memorial-local-helpline-label">
-                                    <span class="icon is-small"><i class="fas fa-location-dot"></i></span>
+                                    <i class="fas fa-location-dot"></i>
                                     <span>Your local helpline</span>
                                 </div>
                                 <div class="memorial-local-helpline-body">
@@ -556,7 +575,7 @@ if ($username && !$notFound && $isDeceased) {
                             </div>
                             <p class="memorial-helplines-note">We share these resources simply because we care about you &mdash; no assumptions, no judgement.</p>
                             <button class="memorial-helplines-toggle" onclick="toggleHelplines(this)" aria-expanded="false">
-                                <span class="icon is-small"><i class="fas fa-hands-holding-heart"></i></span>
+                                <i class="fas fa-hands-holding-heart"></i>
                                 <span>Help is always available &mdash; view all crisis helplines</span>
                                 <span class="toggle-arrow"><i class="fas fa-chevron-down"></i></span>
                             </button>
@@ -607,35 +626,23 @@ if ($username && !$notFound && $isDeceased) {
                                 <div class="memorial-helpline-entry"><span class="memorial-helpline-country">Bangladesh</span><span class="memorial-helpline-name">Kaan Pete Roi</span><span class="memorial-helpline-number">+88 09639 678 999</span></div>
                             </div>
                         </div>
-                        <!-- Back button -->
                         <div class="memorial-actions">
-                            <a href="/" class="button is-light">
-                                <span class="icon"><i class="fas fa-arrow-left"></i></span>
-                                <span>Back to Search</span>
-                            </a>
+                            <a href="/" class="sp-btn sp-btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back to Search</a>
                         </div>
                     </div>
                 <?php elseif ($isRestricted): ?>
-                    <div class="box has-text-centered" style="padding: 3rem 2rem; border: 1px solid rgba(255, 193, 7, 0.3); background: rgba(255, 193, 7, 0.05);">
-                        <span class="icon is-large mb-4" style="display:block;">
-                            <i class="fas fa-user-lock fa-3x" style="color: var(--color-warning);"></i>
-                        </span>
-                        <h2 class="title is-4">Channel Restricted</h2>
-                        <p class="subtitle is-6" style="color: var(--text-secondary);">
-                            The channel <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong> is currently restricted and cannot be viewed.
-                        </p>
-                        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Access to this channel&rsquo;s page has been suspended by an administrator.</p>
-                        <a href="/" class="button is-light">
-                            <span class="icon"><i class="fas fa-arrow-left"></i></span>
-                            <span>Back to Search</span>
-                        </a>
-                    </div>
+                <div class="sp-empty">
+                    <i class="fa-solid fa-user-lock" style="color:var(--amber);"></i>
+                    <h3>Channel Restricted</h3>
+                    <p>The channel <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong> is currently restricted and cannot be viewed. Access has been suspended by an administrator.</p>
+                    <a href="/" class="sp-btn sp-btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back to Search</a>
+                </div>
                 <?php else: ?>
-                    <div class="notification is-info">
+                    <div class="sp-alert sp-alert-info">
                         <?php echo "Welcome " . $_SESSION['display_name'] . ". You're viewing information for: " . $_SESSION['username']; ?>
                     </div>
-                    <div class="tabs-container">
-                        <div class="tabs-scroll-wrapper">
+                    <div class="ms-tabs-container">
+                        <div class="ms-tabs-wrap">
                             <div class="data-tabs">
                                 <div class="tab-item active" onclick="loadData('customCommands')">
                                     <i class="fas fa-terminal"></i>
@@ -692,30 +699,26 @@ if ($username && !$notFound && $isDeceased) {
                             </div>
                         </div>
                     </div>
-                    <div class="content">
-                        <div class="box table-wrapper">
-                            <h3 id="table-title" class="title has-text-centered"></h3>
-                            <table class="table is-fullwidth has-text-centered is-vcentered">
-                                <thead>
-                                    <tr>
-                                        <th id="info-column-data" class="has-text-centered is-vcentered"></th>
-                                        <th id="data-column-info" class="has-text-centered is-vcentered"></th>
-                                        <th id="additional-column1" class="has-text-centered is-vcentered"
-                                            style="display: none;"></th>
-                                        <th id="additional-column2" class="has-text-centered is-vcentered"
-                                            style="display: none;"></th>
-                                        <th id="additional-column3" class="has-text-centered is-vcentered"
-                                            style="display: none;"></th>
-                                        <th id="additional-column4" class="has-text-centered is-vcentered"
-                                            style="display: none;"></th>
-                                        <th id="additional-column5" class="has-text-centered is-vcentered"
-                                            style="display: none;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="table-body">
-                                    <!-- Content will be dynamically injected here -->
-                                </tbody>
-                            </table>
+
+                    <div class="sp-card">
+                        <h3 id="table-title"></h3>
+                        <div class="sp-table-wrap">
+                        <table class="sp-table">
+                            <thead>
+                                <tr>
+                                    <th id="info-column-data"></th>
+                                    <th id="data-column-info"></th>
+                                    <th id="additional-column1" style="display: none;"></th>
+                                    <th id="additional-column2" style="display: none;"></th>
+                                    <th id="additional-column3" style="display: none;"></th>
+                                    <th id="additional-column4" style="display: none;"></th>
+                                    <th id="additional-column5" style="display: none;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body">
+                                <!-- Content will be dynamically injected here -->
+                            </tbody>
+                        </table>
                         </div>
                     </div>
                     <script>
@@ -725,14 +728,11 @@ if ($username && !$notFound && $isDeceased) {
                         });
                     </script>
                 <?php endif; ?>
-            </div>
-        </div>
+        </main>
     </div>
-    <br><br>
-    <footer class="footer">
-        <div class="content has-text-centered">
-            &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter - All Rights Reserved.
-        </div>
+</div>
+    <footer class="sp-footer">
+        &copy; 2023-<?php echo date("Y"); ?> BotOfTheSpecter &mdash; All Rights Reserved.
     </footer>
     <script>
         function redirectToUser(event) {
@@ -967,7 +967,7 @@ if ($username && !$notFound && $isDeceased) {
                     });
                     data.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
                     data.forEach(item => {
-                        output += `<tr><td>${item.username}</td><td><span class='has-text-success'>${item.lurkDuration}</span></td></tr>`;
+                        output += `<tr><td>${item.username}</td><td><span class='text-success'>${item.lurkDuration}</span></td></tr>`;
                     });
                     break;
                 case 'typos':
@@ -1057,31 +1057,31 @@ if ($username && !$notFound && $isDeceased) {
                     data.forEach(item => {
                         output += `<tr>`;
                         if (type === 'customCommands') {
-                            const commandClass = item.status === 'Enabled' ? 'has-text-success' : 'has-text-danger';
-                            output += `<td class="has-text-centered is-vcentered">!${item.command}</td><td class="has-text-centered is-vcentered">${item.response}</td><td class="has-text-centered is-vcentered ${commandClass}">${item.status}</td><td class="has-text-centered is-vcentered">${item.cooldown}</td>`;
+                            const commandClass = item.status === 'Enabled' ? 'text-success' : 'text-danger';
+                            output += `<td>!${item.command}</td><td>${item.response}</td><td class="${commandClass}">${item.status}</td><td>${item.cooldown}</td>`;
                         } else if (type === 'typos') {
-                            output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.typo_count}</span></td>`;
+                            output += `<td>${item.username}</td><td><span class='text-success'>${item.typo_count}</span></td>`;
                         } else if (type === 'deaths') {
-                            output += `<td class="has-text-centered is-vcentered">${item.game_name}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.death_count}</span></td>`;
+                            output += `<td>${item.game_name}</td><td><span class='text-success'>${item.death_count}</span></td>`;
                         } else if (type === 'hugs') {
-                            output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.hug_count}</span></td>`;
+                            output += `<td>${item.username}</td><td><span class='text-success'>${item.hug_count}</span></td>`;
                         } else if (type === 'kisses') {
-                            output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.kiss_count}</span></td>`;
+                            output += `<td>${item.username}</td><td><span class='text-success'>${item.kiss_count}</span></td>`;
                         } else if (type === 'highfives') {
-                            output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.highfive_count}</span></td>`;
+                            output += `<td>${item.username}</td><td><span class='text-success'>${item.highfive_count}</span></td>`;
                         } else if (type === 'custom') {
-                            output += `<td class="has-text-centered is-vcentered">${item.command}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`;
+                            output += `<td>${item.command}</td><td><span class='text-success'>${item.count}</span></td>`;
                         } else if (type === 'userCounts') {
-                            output += `<td class="has-text-centered is-vcentered">${item.user}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.command}</span></td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`;
+                            output += `<td>${item.user}</td><td><span class='text-success'>${item.command}</span></td><td><span class='text-success'>${item.count}</span></td>`;
                         } else if (type === 'rewardCounts') {
-                            output += `<td class="has-text-centered is-vcentered">${item.reward_title}</td><td class="has-text-centered is-vcentered">${item.user}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.count}</span></td>`;
+                            output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='text-success'>${item.count}</span></td>`;
                         } else if (type === 'watchTime') {
-                            output += `<td class="has-text-centered is-vcentered">${item.username}</td><td class="has-text-centered is-vcentered">${formatWatchTime(item.total_watch_time_live)}</td><td class="has-text-centered is-vcentered">${formatWatchTime(item.total_watch_time_offline)}</td>`;
+                            output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
                         } else if (type === 'quotes') {
-                            output += `<td class="has-text-centered is-vcentered">${item.id}</td><td class="has-text-centered is-vcentered"><span class='has-text-success'>${item.quote}</span></td>`;
+                            output += `<td>${item.id}</td><td><span class='text-success'>${item.quote}</span></td>`;
                         } else if (type === 'todos') {
                             const categoryName = todoCategories.find(category => category.id === parseInt(item.category))?.category || item.category;
-                            output += `<td class="has-text-centered is-vcentered">${item.id}</td><td class="has-text-centered is-vcentered">${item.objective}</td><td class="has-text-centered is-vcentered">${categoryName}</td><td class="has-text-centered is-vcentered">${item.completed}</td><td class="has-text-centered is-vcentered">${formatDateTime(item.created_at)}</td><td class="has-text-centered is-vcentered">${formatDateTime(item.updated_at)}</td>`;
+                            output += `<td>${item.id}</td><td>${item.objective}</td><td>${categoryName}</td><td>${item.completed}</td><td>${formatDateTime(item.created_at)}</td><td>${formatDateTime(item.updated_at)}</td>`;
                         }
                         output += `</tr>`;
                     });
@@ -1195,7 +1195,7 @@ if ($username && !$notFound && $isDeceased) {
         // Formatting the watch time
         function formatWatchTime(seconds) {
             if (seconds === 0) {
-                return "<span class='has-text-danger'>Not Recorded</span>";
+                return "<span class='text-danger'>Not Recorded</span>";
             }
             const units = {
                 year: 31536000,
@@ -1212,7 +1212,7 @@ if ($username && !$notFound && $isDeceased) {
                     seconds -= quotient * divisor;
                 }
             }
-            return `<span class='has-text-success'>${parts.join(', ')}</span>`;
+            return `<span class='text-success'>${parts.join(', ')}</span>`;
         }
         // Function to format date and time
         function formatDateTime(dateTime) {
@@ -1220,16 +1220,17 @@ if ($username && !$notFound && $isDeceased) {
             const options = { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' };
             return date.toLocaleDateString(undefined, options);
         }
-        function setActiveButton(button, type) {
-            document.querySelectorAll('.buttons .button').forEach(btn => {
-                btn.classList.remove('is-primary');
-                btn.classList.add('is-info');
-            });
-            button.classList.remove('is-info');
-            button.classList.add('is-primary');
-            console.log(`Button clicked: ${button.textContent.trim()}`);
-            loadData(type);
-        }
+        // Sidebar hamburger
+        (function () {
+            const overlay = document.getElementById('sp-sidebar-overlay');
+            const sidebar = document.getElementById('sp-sidebar');
+            const hamburger = document.getElementById('sp-hamburger');
+            if (!hamburger) return;
+            function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('visible'); }
+            function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('visible'); }
+            hamburger.addEventListener('click', openSidebar);
+            overlay.addEventListener('click', closeSidebar);
+        })();
     </script>
 </body>
 </html>
