@@ -1,4 +1,7 @@
-<?php ob_start(); ?>
+<?php
+header('Location: https://support.botofthespecter.com/#module-variables', true, 301);
+exit;
+?>
 <nav class="breadcrumb has-text-light" aria-label="breadcrumbs" style="margin-bottom: 2rem; background-color: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
     <ul>
         <li><a href="index.php" class="has-text-light">Home</a> <span style="color: #fff;">→</span></li>

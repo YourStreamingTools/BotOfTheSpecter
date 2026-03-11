@@ -1,28 +1,6 @@
 <?php
-// Load command data from JSON file
-$jsonText = file_get_contents(__DIR__ . '/../api/builtin_commands.json');
-$cmdData = json_decode($jsonText, true)['commands'];
-// Parse command data for descriptions
-$commands = [];
-foreach ($cmdData as $cmdKey => $cmdInfo) {
-    if (is_array($cmdInfo)) {
-        $commands[$cmdKey] = [
-            'description' => $cmdInfo['description'] ?? 'No description available',
-            'usage' => $cmdInfo['usage'] ?? '!' . $cmdKey
-        ];
-    } else {
-        // Backwards compatibility for old string format
-        $commands[$cmdKey] = [
-            'description' => $cmdInfo,
-            'usage' => '!' . $cmdKey
-        ];
-    }
-}
-// Sort commands alphabetically
-ksort($commands);
-
-// Start output buffering
-ob_start();
+header('Location: https://support.botofthespecter.com/#commands', true, 301);
+exit;
 ?>
 <nav class="breadcrumb has-text-light" aria-label="breadcrumbs" style="margin-bottom: 2rem; background-color: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
     <ul>

@@ -1,8 +1,6 @@
 <?php
-$pageTitle = "Spotify Setup Guide";
-$pageDescription = "Step-by-step guide to create your own Spotify application for BotOfTheSpecter integration.";
-
-ob_start();
+header('Location: https://support.botofthespecter.com/#spotify-setup', true, 301);
+exit;
 ?>
 <div class="content">
     <h1 class="title has-text-white">Setting Up Your Own Spotify Application</h1>

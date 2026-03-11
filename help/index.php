@@ -1,5 +1,6 @@
 <?php
-ob_start();
+header('Location: https://support.botofthespecter.com/', true, 301);
+exit;
 ?>
 <section class="hero mb-5">
     <div class="hero-body" style="height: 300px;">
