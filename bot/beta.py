@@ -1873,9 +1873,22 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                 irc_token = creds['access_token']
                 irc_nick = BOT_USERNAME.lower()
             else:
-                website_creds = await get_website_twitch_app_credentials(force_refresh=force_refresh)
-                irc_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
-                irc_nick = CHANNEL_NAME.lower()
+                irc_token = None
+                try:
+                    async with await mysql_connection(db_name="website") as _irc_conn:
+                        async with _irc_conn.cursor(DictCursor) as _irc_cur:
+                            await _irc_cur.execute(
+                                "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s LIMIT 1",
+                                ("971436498",)
+                            )
+                            _irc_row = await _irc_cur.fetchone()
+                            if _irc_row:
+                                irc_token = _irc_row.get("twitch_access_token")
+                except Exception as _irc_e:
+                    system_logger.error(f"IRC Presence: Failed to fetch botofthespecter token from DB: {_irc_e}")
+                if not irc_token:
+                    irc_token = TWITCH_OAUTH_API_TOKEN
+                irc_nick = "botofthespecter"
             # Normalize token: strip a leading 'oauth:' if present (the code below prefixes 'oauth:' again)
             if irc_token and isinstance(irc_token, str) and irc_token.startswith("oauth:"):
                 irc_token = irc_token.split(":", 1)[1]
@@ -2025,14 +2038,41 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                         f"IRC Presence: Bot joined #{CHANNEL_NAME} as {role} "
                         f"(IRC rate limit: {rate_bucket})"
                     )
+                # ── USERNOTICE — subscription/raid/milestone events ───────────────
+                elif "USERNOTICE" in line and ("#" + CHANNEL_NAME) in line:
+                    un_tags = _parse_irc_tags(line)
+                    un_msg_id = un_tags.get("msg-id", "")
+                    if un_msg_id == "viewermilestone":
+                        un_category = un_tags.get("msg-param-category", "")
+                        if un_category == "watch-streak":
+                            un_value = int(un_tags.get("msg-param-value", 0) or 0)
+                            un_login = un_tags.get("login", "")
+                            un_display = un_tags.get("display-name", un_login)
+                            event_logger.info(
+                                f"IRC watch-streak: {un_display} has watched {un_value} consecutive streams"
+                            )
+                            try:
+                                async with await mysql_connection(db_name=CHANNEL_NAME) as _wsc:
+                                    async with _wsc.cursor() as _wscur:
+                                        await _wscur.execute(
+                                            "INSERT INTO analytic_stream_watch_streak (user_name, streak_value) VALUES (%s, %s) "
+                                            "ON DUPLICATE KEY UPDATE streak_value = %s, updated_at = NOW()",
+                                            (un_display, un_value, un_value)
+                                        )
+                                        await _wsc.commit()
+                            except Exception as _wse:
+                                event_logger.error(f"IRC watch-streak DB error for {un_display}: {_wse}")
+                        else:
+                            bot_logger.info(f"IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")
+                    else:
+                        bot_logger.info(f"IRC Presence USERNOTICE (msg-id={un_msg_id}): {line}")
                 # ── Expected / informational messages — silently consumed ───────────
                 # ROOMSTATE  : chat room settings on join or change
                 # USERSTATE  : bot's own state on join or after PRIVMSG
                 # GLOBALUSERSTATE : global bot state (can arrive after JOIN too)
-                # USERNOTICE : subscription/raid/milestone events
                 # CLEARCHAT  : chat cleared or user timed-out/banned
                 # CLEARMSG   : individual message deleted
-                # PRIVMSG    : incoming chat messages (handled by EventSub; ignore here)
+                # PRIVMSG    : incoming chat messages (handled by twitchio/EventSub; ignore here)
                 # PART       : user left chat room
                 # 353 / 366  : NAMES list on join and end-of-list marker
                 # CAP * ACK  : capability acknowledgement
