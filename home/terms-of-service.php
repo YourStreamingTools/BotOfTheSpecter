@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 ob_start();
 ?>
 <script type="application/ld+json">{"@context": "https://schema.org","@type": "WebPage","name": "BotOfTheSpecter - Terms of Service","description": "Terms of Service for BotOfTheSpecter, outlining user obligations, payment terms, privacy, and more.","url": "https://botofthespecter.com/terms-of-service.php"}</script>
@@ -9,9 +9,9 @@ $pageTitle = "BotOfTheSpecter - Terms of Service";
 $pageDescription = "BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics.";
 $effectiveDate = 'February 9, 2026';
 ?>
-<main class="box is-fullwidth content" role="main" aria-labelledby="tos-heading">
-    <h1 id="tos-heading" class="title">Terms of Service</h1>
-    <p class="subtitle">Effective date: <?php echo $effectiveDate; ?>.</p>
+<div class="hs-prose" role="main" aria-labelledby="tos-heading">
+    <h1 id="tos-heading">Terms of Service</h1>
+    <p class="hs-prose-subtitle">Effective date: <?php echo $effectiveDate; ?>.</p>
     <br />
     <section id="acceptance">
         <h2>1. Acceptance of Terms</h2>
@@ -28,18 +28,18 @@ $effectiveDate = 'February 9, 2026';
     <br />
     <section id="user-obligations">
         <h2>3. User obligations</h2>
-    <h3 class="subpoint">3.1 Accurate information</h3>
+    <h3>3.1 Accurate information</h3>
         <p>You agree to provide accurate, current, and complete information during any registration or purchase process on the Site.</p>
         <p>While we use <strong>Twitch</strong> as the login feature for our system ("Sign in with Twitch"), you remain responsible for ensuring that information associated with your account is accurate and kept up to date. This includes keeping your Twitch account information current, as we may rely on Twitch-linked details to provide services, communicate with you, and deliver account-related notices.</p>
         <p>If your Twitch-linked details change, you may need to log out and log back in to ensure our system picks up the updated information.</p>
         <p>You are responsible for keeping your account information up to date and for any activity that occurs through your account access.</p>
-    <h3 class="subpoint">3.2 Compliance with laws</h3>
+    <h3>3.2 Compliance with laws</h3>
         <p>You agree to comply with all applicable laws and regulations regarding your use of the Site and Services, including data protection legislation such as the GDPR where applicable.</p>
         <p>You must also ensure that your use of our Services complies with the policies and rules of any third-party platforms you connect to or use in connection with our Services (for example, Twitch), including their community guidelines, terms, and API/platform rules.</p>
         <p><strong>Privacy and data protection:</strong> Our data handling practices are described in our <a href="privacy-policy.php">Privacy Policy</a>. If you use the Site and Services, you agree to use them in a way that is consistent with applicable privacy and data protection laws (including, where applicable, lawful use of personal data and respecting the rights of others).</p>
-        <p><strong>Twitch policies:</strong> Because we use <strong>Twitch</strong> as the login provider and our Services interact with the Twitch ecosystem, your use of Twitch is governed by Twitch’s policies, including their <a href="https://legal.twitch.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://legal.twitch.com/legal/terms-of-service/" target="_blank" rel="noopener">Terms of Service</a>.</p>
-        <p><strong>Payments and billing policies:</strong> Where payments are processed through third parties (including <strong>Stripe</strong> for services we bill directly), you agree to comply with those providers’ terms and policies. Stripe’s legal terms and policies are available at <a href="https://stripe.com/au/legal" target="_blank" rel="noopener">https://stripe.com/au/legal</a>.</p>
-    <h3 class="subpoint">3.3 Prohibited conduct</h3>
+        <p><strong>Twitch policies:</strong> Because we use <strong>Twitch</strong> as the login provider and our Services interact with the Twitch ecosystem, your use of Twitch is governed by Twitchâ€™s policies, including their <a href="https://legal.twitch.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://legal.twitch.com/legal/terms-of-service/" target="_blank" rel="noopener">Terms of Service</a>.</p>
+        <p><strong>Payments and billing policies:</strong> Where payments are processed through third parties (including <strong>Stripe</strong> for services we bill directly), you agree to comply with those providersâ€™ terms and policies. Stripeâ€™s legal terms and policies are available at <a href="https://stripe.com/au/legal" target="_blank" rel="noopener">https://stripe.com/au/legal</a>.</p>
+    <h3>3.3 Prohibited conduct</h3>
         <p>You agree not to use the Site or Services in any way that is unlawful, harmful, abusive, or interferes with the operation or security of our systems or third parties.</p>
         <p>This includes (but is not limited to) agreeing not to:</p>
         <ul>
@@ -57,15 +57,15 @@ $effectiveDate = 'February 9, 2026';
         <h2>4. Payment terms</h2>
         <p><strong>Fees:</strong> You agree to pay all fees and charges associated with purchases as specified on the Site (including any applicable taxes, where required). We use third-party payment processors and/or platform billing; you agree to their terms. Failure to pay may result in suspension or termination of Services. Refunds (if any) are subject to our refund policy available on the Site.</p>
         <p><strong>Billing and authorisation:</strong> When you submit payment details or complete a purchase, you authorise us and/or our payment processors to charge the applicable amount. You are responsible for any bank fees, currency conversion fees, or other charges imposed by your financial institution.</p>
-        <p><strong>Stripe:</strong> For services that we bill directly, we use <strong>Stripe</strong> as a third-party payment processor. Stripe’s legal terms and policies are available at <a href="https://stripe.com/au/legal" target="_blank" rel="noopener">https://stripe.com/au/legal</a>.</p>
-        <p><strong>BotOfTheSpecter Premium perks via Twitch subscriptions:</strong> For BotOfTheSpecter Premium features/perks, we use <strong>Twitch subscription services</strong>. A subscription to the bot developer <strong>Lachlan</strong> (<strong>gfaUnDead</strong>, <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">https://twitch.tv/gfaundead</a>) grants you premium perks for BotOfTheSpecter for as long as you remain subscribed to the developer’s Twitch channel.</p>
+        <p><strong>Stripe:</strong> For services that we bill directly, we use <strong>Stripe</strong> as a third-party payment processor. Stripeâ€™s legal terms and policies are available at <a href="https://stripe.com/au/legal" target="_blank" rel="noopener">https://stripe.com/au/legal</a>.</p>
+        <p><strong>BotOfTheSpecter Premium perks via Twitch subscriptions:</strong> For BotOfTheSpecter Premium features/perks, we use <strong>Twitch subscription services</strong>. A subscription to the bot developer <strong>Lachlan</strong> (<strong>gfaUnDead</strong>, <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">https://twitch.tv/gfaundead</a>) grants you premium perks for BotOfTheSpecter for as long as you remain subscribed to the developerâ€™s Twitch channel.</p>
         <p><strong>Premium eligibility and changes:</strong> Premium perks are contingent on an active subscription status as recognised by Twitch. If your subscription ends, expires, is cancelled, is refunded/charged back, or otherwise becomes inactive, premium perks may be removed. We may update the specific premium perks over time.</p>
     </section>
     <br />
     <section id="privacy">
         <h2>5. Privacy</h2>
         <p>Your privacy matters. Please review our <a href="privacy-policy.php">Privacy Policy</a> for details about data collection, use, protection, and how to export your data (including via the automated <strong>Export my Data</strong> feature). For GDPR-related requests, you can contact <a href="mailto:gdpr@yourstreamingtools.com">gdpr@yourstreamingtools.com</a>.</p>
-        <p>We use <strong>Twitch</strong> as our login provider ("Sign in with Twitch"). Your use of Twitch is governed by Twitch’s policies, including their <a href="https://legal.twitch.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://legal.twitch.com/legal/terms-of-service/" target="_blank" rel="noopener">Terms of Service</a>.</p>
+        <p>We use <strong>Twitch</strong> as our login provider ("Sign in with Twitch"). Your use of Twitch is governed by Twitchâ€™s policies, including their <a href="https://legal.twitch.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://legal.twitch.com/legal/terms-of-service/" target="_blank" rel="noopener">Terms of Service</a>.</p>
         <p>If you request a data export, the delivery method and availability window are described in our Privacy Policy.</p>
     </section>
     <br />
@@ -125,7 +125,7 @@ $effectiveDate = 'February 9, 2026';
             <li><strong>Code-related issues:</strong> <a href="mailto:code@botofthespecter.com">code@botofthespecter.com</a></li>
         </ul>
     </section>
-</main>
+</div>
 <?php
 $pageContent = ob_get_clean();
 include 'layout.php';

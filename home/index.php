@@ -1,77 +1,80 @@
 <?php
 ob_start();
 ?>
-<script type="application/ld+json">{"@context": "https://schema.org","@type": "WebPage","name": "BotOfTheSpecter","description": "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.","url": "https://botofthespecter.com/"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"BotOfTheSpecter","description":"BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.","url":"https://botofthespecter.com/"}</script>
 <?php
 $extraScripts = ob_get_clean();
 
 ob_start();
-$pageTitle = "BotOfTheSpecter";
+$pageTitle       = "BotOfTheSpecter";
 $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.";
 ?>
-<section class="has-text-centered mb-5">
-    <h1 class="title is-2" style="font-weight:900; letter-spacing:0.01em;">BotOfTheSpecter</h1>
-    <p class="subtitle is-4 tag-line">The Twitch Chat Bot built to replace them all!</p>
-</section>
-<section class="notification is-dark is-light has-text-warning is-flex is-align-items-center is-justify-content-center mb-5 info-notice-bar" style="border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); font-size:1.1rem; width:100%; margin-left:0; margin-right:0; padding: 1.25rem 2rem; border: 1.5px solid #ffd700;">
-    <span class="icon-text" style="width:100%;display:flex;align-items:center;justify-content:center;">
-        <span class="has-text-centered has-text-white">
-            <strong>BotOfTheSpecter is a Twitch bot with a powerful Discord extension.</strong><br>
-            It connects your Twitch activity, events, and community directly to your Discord server.<br>
-            <u>The Discord bot is not standalone</u>—it’s designed to work with your Twitch channel, if you only want a Discord bot, this isn’t the right tool.<br>
-            At YourStreamingTools, we're continually evolving and adding new features to deepen the connection between your Twitch and Discord communities.
-        </span>
-    </span>
-</section>
-<div class="columns is-multiline is-variable is-6">
-    <div class="column is-12">
-        <div class="columns is-variable is-4 feature-row">
-            <!-- Twitch Bot Section -->
-            <div class="column is-6">
-                <section class="box">
-                    <h2 class="title is-4">Twitch Bot Features</h2>
-                    <ul class="mb-3">
-                        <li><strong>Custom Chat Commands:</strong> Create and manage custom commands to engage with your viewers. Plus, take advantage of our extensive, feature-packed built-in command list.</li>
-                        <li><strong>Channel Point Rewards:</strong> Set up and automate responses to channel point redemptions</li>
-                        <li><strong>Real-time Analytics:</strong> Monitor your channel growth and viewer engagement</li>
-                        <li><strong>Community Management:</strong> Tools for managing subscribers, VIPs, and moderating chat</li>
-                        <li><strong>Automated Alerts:</strong> Customizable notifications for follows, subscriptions, and <span class="coming-soon" title="Coming soon!">donations</span></li>
-                        <li><strong>Stream Dashboard:</strong> All-in-one control center for your stream management</li>
-                    </ul>
-                </section>
-            </div>
-            <!-- Discord Bot Section -->
-            <div class="column is-6">
-                <section class="box">
-                    <h2 class="title is-4">Discord Bot Features</h2>
-                    <ul class="mb-3">
-                        <li>Post Twitch activity and announcements to Discord</li>
-                        <li><span class="coming-soon" title="Coming soon!">Auto-manage roles based on Twitch status</span></li>
-                        <li><span class="coming-soon" title="Coming soon!">Custom welcome messages</span></li>
-                        <li>Community tools linked to Twitch events</li>
-                        <li><span class="coming-soon" title="Coming soon!">Moderation that works with your Twitch setup</span></li>
-                        <li>Some basic Discord features work alone, but are limited</li>
-                    </ul>
-                </section>
-            </div>
-        </div>
-        <section class="box mb-5">
-            <h2 class="title is-4">Tailored for Streamers and Communities</h2>
-            <p>BotOfTheSpecter is built for streamers who want the ultimate Twitch chat and moderation experience—with seamless Discord integration. Our system is designed to unify your Twitch and Discord communities, not to run as a standalone Discord bot. If you want the best for your Twitch channel and want to connect your Discord, this is the tool for you.</p>
-        </section>
-        <section class="box mb-5">
-            <h2 class="title is-4">Simple and Effective Tools</h2>
-            <p><strong>Easy-to-use Dashboard:</strong> Access all the tools you need to manage your Twitch stream with just a few clicks, whether you're monitoring real-time engagement or configuring bot settings.</p>
-            <p><strong>Dedicated Features for Twitch:</strong> Enjoy tailored functionality for Twitch, ensuring you have the best tools to grow and manage your community effectively.</p>
-        </section>
-        <section class="box">
-            <h2 class="title is-4">Join the Community</h2>
-            <p>Join the BotOfTheSpecter community and help shape the future of Twitch chat and moderation. Our focus is on building the best Twitch bot—with Discord integration for those who want to connect both platforms. If you’re a streamer who wants to unify your Twitch and Discord communities, you’re in the right place.</p>
-            <p>Connect with other streamers and get support on our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" class="has-text-info">Public Discord Server</a>.</p>
-            <p>Want to contribute or see how it works? BotOfTheSpecter is fully open source—check out our <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" class="has-text-info">GitHub page</a>.</p>
-            <p>Happy streaming—and enjoy a truly unified chat experience!</p>
-        </section>
+<!-- Hero -->
+<section class="hs-hero">
+    <div class="hs-hero-eyebrow"><i class="fa-brands fa-twitch"></i> Twitch Bot &amp; Discord Extension</div>
+    <h1 class="hs-hero-title">BotOfTheSpecter</h1>
+    <p class="hs-hero-tagline">The Twitch Chat Bot built to replace them all!</p>
+    <div class="hs-hero-ctas">
+        <a href="https://dashboard.botofthespecter.com/dashboard.php" class="hs-btn hs-btn-primary">
+            <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
+        </a>
+        <a href="https://discord.com/invite/ANwEkpauHJ" class="hs-btn hs-btn-ghost" target="_blank" rel="noopener">
+            <i class="fa-brands fa-discord"></i> Join Discord
+        </a>
     </div>
+</section>
+
+<!-- Info notice -->
+<div class="hs-notice">
+    <strong>BotOfTheSpecter is a Twitch bot with a powerful Discord extension.</strong><br>
+    It connects your Twitch activity, events, and community directly to your Discord server.<br>
+    <u>The Discord bot is not standalone</u>&mdash;it&rsquo;s designed to work with your Twitch channel. If you only want a Discord bot, this isn&rsquo;t the right tool.<br>
+    At YourStreamingTools, we&rsquo;re continually evolving and adding new features to deepen the connection between your Twitch and Discord communities.
+</div>
+
+<!-- Feature grid -->
+<div class="hs-feature-grid">
+    <div class="hs-card">
+        <h2 class="hs-card-title"><i class="fa-brands fa-twitch"></i> Twitch Bot Features</h2>
+        <ul>
+            <li><strong>Custom Chat Commands:</strong> Create and manage custom commands to engage with your viewers. Plus, take advantage of our extensive, feature-packed built-in command list.</li>
+            <li><strong>Channel Point Rewards:</strong> Set up and automate responses to channel point redemptions.</li>
+            <li><strong>Real-time Analytics:</strong> Monitor your channel growth and viewer engagement.</li>
+            <li><strong>Community Management:</strong> Tools for managing subscribers, VIPs, and moderating chat.</li>
+            <li><strong>Automated Alerts:</strong> Customizable notifications for follows, subscriptions, and <span class="coming-soon" title="Coming soon!">donations</span>.</li>
+            <li><strong>Stream Dashboard:</strong> All-in-one control center for your stream management.</li>
+        </ul>
+    </div>
+    <div class="hs-card">
+        <h2 class="hs-card-title"><i class="fa-brands fa-discord"></i> Discord Bot Features</h2>
+        <ul>
+            <li>Post Twitch activity and announcements to Discord.</li>
+            <li><span class="coming-soon" title="Coming soon!">Auto-manage roles based on Twitch status.</span></li>
+            <li><span class="coming-soon" title="Coming soon!">Custom welcome messages.</span></li>
+            <li>Community tools linked to Twitch events.</li>
+            <li><span class="coming-soon" title="Coming soon!">Moderation that works with your Twitch setup.</span></li>
+            <li>Some basic Discord features work alone, but are limited without a linked Twitch channel.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Text sections -->
+<div class="hs-section">
+    <h2><i class="fa-solid fa-users"></i> Tailored for Streamers and Communities</h2>
+    <p>BotOfTheSpecter is built for streamers who want the ultimate Twitch chat and moderation experience&mdash;with seamless Discord integration. Our system is designed to unify your Twitch and Discord communities, not to run as a standalone Discord bot. If you want the best for your Twitch channel and want to connect your Discord, this is the tool for you.</p>
+</div>
+
+<div class="hs-section">
+    <h2><i class="fa-solid fa-bolt"></i> Simple and Effective Tools</h2>
+    <p><strong>Easy-to-use Dashboard:</strong> Access all the tools you need to manage your Twitch stream with just a few clicks, whether you&rsquo;re monitoring real-time engagement or configuring bot settings.</p>
+    <p><strong>Dedicated Features for Twitch:</strong> Enjoy tailored functionality for Twitch, ensuring you have the best tools to grow and manage your community effectively.</p>
+</div>
+
+<div class="hs-section">
+    <h2><i class="fa-solid fa-heart"></i> Join the Community</h2>
+    <p>Join the BotOfTheSpecter community and help shape the future of Twitch chat and moderation. Our focus is on building the best Twitch bot&mdash;with Discord integration for those who want to connect both platforms.</p>
+    <p>Connect with other streamers and get support on our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener"><i class="fa-brands fa-discord"></i> Public Discord Server</a>.</p>
+    <p>Want to contribute or see how it works? BotOfTheSpecter is fully open source&mdash;check out our <a href="https://github.com/YourStreamingTools/BotOfTheSpecter" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub page</a>. Happy streaming&mdash;and enjoy a truly unified chat experience!</p>
 </div>
 <?php
 $pageContent = ob_get_clean();
