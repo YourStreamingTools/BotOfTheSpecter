@@ -86,6 +86,16 @@ ob_start();
         <div class="sp-doc-card-title">Command Reference</div>
         <div class="sp-doc-card-desc">All built-in bot commands.</div>
     </a>
+    <a href="#" class="sp-doc-card" data-goto="faq">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-circle-question"></i></div>
+        <div class="sp-doc-card-title">FAQ</div>
+        <div class="sp-doc-card-desc">Frequently asked questions.</div>
+    </a>
+    <a href="#" class="sp-doc-card" data-goto="troubleshooting">
+        <div class="sp-doc-card-icon"><i class="fa-solid fa-wrench"></i></div>
+        <div class="sp-doc-card-title">Troubleshooting</div>
+        <div class="sp-doc-card-desc">Common issues and solutions.</div>
+    </a>
     <?php foreach ($sections as $sec): ?>
     <a href="#" class="sp-doc-card" data-goto="<?php echo htmlspecialchars($sec['section_key']); ?>">
         <div class="sp-doc-card-icon"><i class="<?php echo htmlspecialchars($sec['section_icon']); ?>"></i></div>
@@ -145,6 +155,103 @@ ob_start();
         <span>Type <code>!commands</code> in your Twitch chat to see all active commands, including custom ones.</span>
     </div>
 </div>
+<!-- ===================================================================
+     BUILT-IN TAB: FAQ
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="faq">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Frequently Asked Questions</h1>
+            <p style="margin:0;color:var(--text-secondary);">Common questions about BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="faq" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">What built-in commands are there for the bot?</div>
+        <div class="sp-faq-a">BotOfTheSpecter comes with many built-in commands for moderation, entertainment, and utility. See the <a href="#" data-goto="commands">Command Reference</a> tab for the full list.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I set up audio monitoring in OBS?</div>
+        <div class="sp-faq-a">Go to <strong>OBS → Settings → Audio → Monitoring Device</strong> and select your headset or speakers. Add your overlay as a Browser Source, enable <em>Control audio via OBS</em>, then set Audio Monitoring to <strong>Monitor and Output</strong> in Advanced Audio Properties.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">I'm having trouble with the bot. What should I do?</div>
+        <div class="sp-faq-a">Start with the <a href="#" data-goto="troubleshooting">Troubleshooting</a> tab which covers the most common problems. If you're still stuck, <a href="/tickets.php?action=new">submit a support ticket</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do I use custom variables in commands?</div>
+        <div class="sp-faq-a">Custom commands and timed messages support dynamic variables that are replaced at runtime. Check the documentation sections for the full variable reference.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">How do Twitch Channel Points work with the bot?</div>
+        <div class="sp-faq-a">BotOfTheSpecter integrates with Twitch Channel Points. Set up and customise channel point rewards and responses from the <strong>Channel Points</strong> section in your dashboard.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">Can I request a new built-in command?</div>
+        <div class="sp-faq-a">Yes! We're always looking for new commands to add. Let us know on our dev streams, via <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord</a>, or email <a href="mailto:questions@botofthespecter.com">questions@botofthespecter.com</a>.</div>
+    </div>
+    <div class="sp-faq-item">
+        <div class="sp-faq-q">Where can I get more help?</div>
+        <div class="sp-faq-a">Join our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord server</a>, watch the developer stream at <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">twitch.tv/gfaundead</a>, or <a href="/tickets.php?action=new">submit a support ticket</a>.</div>
+    </div>
+</div>
+
+<!-- ===================================================================
+     BUILT-IN TAB: TROUBLESHOOTING
+=================================================================== -->
+<div class="sp-tab-panel sp-doc-content" data-panel="troubleshooting">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+        <div>
+            <h1 style="margin:0 0 0.25rem;">Troubleshooting Guide</h1>
+            <p style="margin:0;color:var(--text-secondary);">Common issues and solutions for BotOfTheSpecter.</p>
+        </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="troubleshooting" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
+    </div>
+
+    <h2>Bot Not Connecting</h2>
+    <p>If your bot isn't connecting to Twitch:</p>
+    <ul>
+        <li>Try stopping and starting the bot from the dashboard under <strong>Bot Control</strong>.</li>
+    </ul>
+
+    <h2>Commands Not Working</h2>
+    <p>If commands aren't responding:</p>
+    <ul>
+        <li>Check that the command is enabled in the dashboard, or use <code>!enablecommand commandname</code> in chat.</li>
+        <li>Commands always use the <code>!</code> prefix — verify the bot has <strong>Moderator</strong> permissions in your channel.</li>
+        <li>Double-check the spelling of the command name both in chat and in the dashboard.</li>
+    </ul>
+
+    <h2>Sound Alerts / TTS / Walk-ons — Audio Issues</h2>
+    <p>All Specter audio goes through the audio overlays. Make sure you're running the correct overlay, or use the <strong>All Audio</strong> overlay:</p>
+    <p><code>https://overlay.botofthespecter.com/alert.php?code=YOUR_API_KEY</code></p>
+    <ul>
+        <li>Check audio device settings in OBS.</li>
+        <li>Ensure the OBS Browser Source volume is audible and <a href="#" data-goto="faq">audio monitoring is configured correctly</a>.</li>
+        <li>If you hear an echo, set Audio Monitoring to <strong>Monitor Only (mute output)</strong> and test again — everyone's audio setup differs.</li>
+        <li>Confirm you've entered the correct API key, found on your <strong>Specter Profile</strong> page in the dashboard.</li>
+    </ul>
+
+    <h2>Still Stuck?</h2>
+    <p>If none of the above resolves your issue, <a href="/tickets.php?action=new">submit a support ticket</a> and include:</p>
+    <ul>
+        <li>A description of what you expected to happen vs. what actually happened.</li>
+        <li>Any error messages you see (screenshots are helpful).</li>
+        <li>Your Twitch username and approximate time the issue occurred.</li>
+    </ul>
+    <div class="sp-alert sp-alert-info sp-mt-2">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>You can also check the <a href="https://github.com/YourStreamingTools/BotOfTheSpecter/issues" target="_blank" rel="noopener">GitHub Issues</a> page or join our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener">Discord server</a> for community support.</span>
+    </div>
+</div>
+
 <!-- ===================================================================
      DYNAMIC SECTION TABS (DB-managed)
 =================================================================== -->
