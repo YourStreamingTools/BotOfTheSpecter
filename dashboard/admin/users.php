@@ -453,7 +453,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                             <button class="button is-small is-light" title="View Details" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
                                 <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
-                            <button class="button is-small is-danger" title="Delete User" onclick="deleteUser(<?php echo $user['id']; ?>)">
+                            <button class="button is-small is-danger" title="Delete User" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                 <span class="icon"><i class="fas fa-trash"></i></span>
                             </button>
                             <?php if ((int) $user['is_admin']): ?>
@@ -461,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                     class="button is-small is-warning"
                                     onclick="removeAdminAccess(<?php echo (int) $user['id']; ?>)"
                                     title="Remove Admin"
-                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>
+                                    <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
                                 >
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
                                 </button>
@@ -470,29 +470,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                     class="button is-small is-link"
                                     onclick="grantAdminAccess(<?php echo (int) $user['id']; ?>)"
                                     title="Give Admin"
-                                    <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>
+                                    <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
                                 >
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
                                 </button>
                             <?php endif; ?>
                             <?php if ((int) $user['beta_access']): ?>
-                                <button class="button is-small is-warning" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="Remove Beta">
+                                <button class="button is-small is-warning" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="Remove Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-primary" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="Give Beta">
+                                <button class="button is-small is-primary" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="Give Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                 </button>
                             <?php endif; ?>
                             <?php if ($is_restricted): ?>
                                 <button class="button is-small is-warning" title="Unrestrict"
-                                    onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)">
+                                    onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                 </button>
                             <?php else: ?>
                                 <button class="button is-small is-dark" title="<?php echo $can_restrict_user ? 'Restrict' : 'Only super admins can restrict admins. Super admins cannot be restricted.'; ?>"
                                     onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)"
-                                    <?php if (!$can_restrict_user): ?>disabled<?php endif; ?>>
+                                    <?php if (!$can_restrict_user || $is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                 </button>
                             <?php endif; ?>
