@@ -252,6 +252,7 @@ stream_session_started_at = 0.0                                                 
 pending_outgoing_raid = None                                                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
+_hh_instance = None                                                                     # HedgehogOBrienModule instance, set on event_ready
 _pronouns_list_cache = None                                                             # Cached dict of all pronoun definitions from alejo.io
 _pronouns_list_cache_time = 0                                                           # Timestamp of last pronouns list fetch
 PRONOUNS_LIST_CACHE_TTL = 86400                                                         # Refresh pronouns list once per day
@@ -1531,6 +1532,8 @@ async def process_twitch_eventsub_message(message):
                         mod_info = event_data.get("mod", {})
                         user_name = mod_info.get("user_name", "Unknown User")
                         event_logger.info(f"User {user_name} added as moderator by {moderator_user_name}")
+                        if _hh_instance is not None:
+                            create_task(_hh_instance.handle_mod_granted(user_name, CHANNEL_ID))
                     elif action == "unmod":
                         unmod_info = event_data.get("unmod", {})
                         user_name = unmod_info.get("user_name", "Unknown User")
@@ -1539,6 +1542,8 @@ async def process_twitch_eventsub_message(message):
                         vip_info = event_data.get("vip", {})
                         user_name = vip_info.get("user_name", "Unknown User")
                         event_logger.info(f"User {user_name} added as VIP by {moderator_user_name}")
+                        if _hh_instance is not None:
+                            create_task(_hh_instance.handle_vip_granted(user_name, CHANNEL_ID))
                     elif action == "unvip":
                         unvip_info = event_data.get("unvip", {})
                         user_name = unvip_info.get("user_name", "Unknown User")
@@ -2956,15 +2961,16 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
         if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
+            global _hh_instance
+            _hh_instance = hedgehogobrien_module.HedgehogOBrienModule(
+                mysql_handler=mysql_handler,
+                http_session=_shared_http_session,
+                chat_logger=chat_logger,
+            )
             try:
-                await hedgehogobrien_module.ensure_tables(mysql_handler)
+                await _hh_instance.ensure_tables()
                 bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
-                create_task(hedgehogobrien_module.handle_ready(
-                    broadcaster_id=CHANNEL_ID,
-                    mysql_handler=mysql_handler,
-                    http_session=_shared_http_session,
-                    chat_logger=chat_logger,
-                ))
+                create_task(_hh_instance.handle_ready(broadcaster_id=CHANNEL_ID))
             except Exception as _hh_err:
                 bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
@@ -3161,21 +3167,16 @@ class TwitchBot(commands.Bot):
                 else:
                     chat_logger.info(f"Custom command '{command}' not found.")
             # Handle hedgehogobrien module commands
-            if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME) and hedgehogobrien_module.is_bureau_command(messageContent):
+            if _hh_instance is not None and _hh_instance.is_bureau_command(messageContent):
                 async def _hh_send(msg):
-                    await hedgehogobrien_module.send_module_message(
-                        message=msg,
-                        broadcaster_id=CHANNEL_ID,
-                        mysql_handler=mysql_handler,
-                        http_session=_shared_http_session,
-                        chat_logger=chat_logger,
-                    )
-                await hedgehogobrien_module.handle_bureau_command(
+                    await _hh_instance.send_module_message(message=msg, broadcaster_id=CHANNEL_ID)
+                await _hh_instance.handle_bureau_command(
                     command=AuthorMessage,
                     username=messageAuthor,
-                    mysql_handler=mysql_handler,
+                    broadcaster_id=CHANNEL_ID,
                     send_message=_hh_send,
-                    chat_logger=chat_logger,
+                    is_broadcaster=(messageAuthor.lower() == CHANNEL_NAME.lower()),
+                    is_mod=is_mod,
                 )
             # Handle AI responses
             if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
@@ -3387,14 +3388,11 @@ class TwitchBot(commands.Bot):
                     await connection.commit()
                     chat_logger.info(f"Marked {messageAuthor} as seen today.")
                     # Forward to custom module if applicable - module handles message and returns True
-                    if hedgehogobrien_module is not None:
-                        _hh_handled = await hedgehogobrien_module.handle_first_chat(
+                    if _hh_instance is not None:
+                        _hh_handled = await _hh_instance.handle_first_chat(
                             channel_name=CHANNEL_NAME,
                             username=messageAuthor,
                             broadcaster_id=CHANNEL_ID,
-                            mysql_handler=mysql_handler,
-                            http_session=_shared_http_session,
-                            chat_logger=chat_logger,
                         )
                         if _hh_handled:
                             create_task(self.safe_walkon(messageAuthor))
@@ -11700,6 +11698,8 @@ async def process_followers_event(user_id, user_name):
                     source="follow"
                 )
             create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
+            if _hh_instance is not None:
+                create_task(_hh_instance.handle_follow(user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"A stream marker was created: {marker_description}.")
@@ -12191,6 +12191,16 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
             create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
+            if (
+                _hh_instance is not None
+                and event_type == "channel.channel_points_custom_reward_redemption.add"
+                and reward_title == hedgehogobrien_module.BUREAU_PROMOTION_REWARD_TITLE
+            ):
+                create_task(_hh_instance.handle_rank_promotion_redemption(
+                    username=user_name,
+                    broadcaster_id=CHANNEL_ID,
+                ))
+                return
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
