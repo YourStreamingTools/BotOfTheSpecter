@@ -1,5 +1,6 @@
 <?php
-ob_start();
+header('Location: https://support.botofthespecter.com/#setup', true, 301);
+exit;
 ?>
 <nav class="breadcrumb has-text-light" aria-label="breadcrumbs" style="margin-bottom: 2rem; background-color: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
     <ul>
