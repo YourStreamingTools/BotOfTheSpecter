@@ -252,6 +252,45 @@
             .replace(/"/g, '&quot;');
     }
     /* ----------------------------------------------------------
+       Copy share link buttons (doc blocks on index.php)
+    ---------------------------------------------------------- */
+    function fallbackCopy(text, cb) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch (ex) {}
+        document.body.removeChild(ta);
+        if (cb) cb();
+    }
+    function initCopyLinks() {
+        document.querySelectorAll('.sp-copy-link[data-copy-id]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                var anchor   = btn.dataset.copyId;
+                var url      = window.location.origin + window.location.pathname + '#' + anchor;
+                var original = btn.innerHTML;
+                function onCopied() {
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                    btn.disabled = true;
+                    setTimeout(function () {
+                        btn.innerHTML = original;
+                        btn.disabled = false;
+                    }, 1500);
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(onCopied, function () {
+                        fallbackCopy(url, onCopied);
+                    });
+                } else {
+                    fallbackCopy(url, onCopied);
+                }
+            });
+        });
+    }
+    /* ----------------------------------------------------------
        Boot
     ---------------------------------------------------------- */
     document.addEventListener('DOMContentLoaded', function () {
@@ -263,5 +302,6 @@
         initForms();
         initAlerts();
         initActiveNav();
+        initCopyLinks();
     });
 }());

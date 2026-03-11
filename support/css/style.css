@@ -1517,6 +1517,23 @@ hr {
     gap: 0.3rem;
     flex-wrap: wrap;
 }
+.sp-doc-block-header-public {
+    background: transparent;
+    border-bottom: none;
+    padding: 0.25rem 0.5rem 0;
+    justify-content: flex-end;
+    min-height: 0;
+}
+.sp-doc-block-highlight {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    animation: sp-highlight-fade 2.5s forwards;
+}
+@keyframes sp-highlight-fade {
+    0%   { outline-color: var(--accent); }
+    80%  { outline-color: var(--accent); }
+    100% { outline-color: transparent; }
+}
 /* "Add doc block" dashed card in the tab panel */
 .sp-doc-card-add {
     display: flex;
