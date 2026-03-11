@@ -549,8 +549,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
     header('Content-Type: application/json');
     try {
         $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
-        if (empty($botChannelId)) {
-            echo json_encode(['success' => false, 'error' => 'Bot channel ID is required.']);
+        $botUsername = isset($_POST['bot_username']) ? trim($_POST['bot_username']) : '';
+        if (empty($botChannelId) && empty($botUsername)) {
+            echo json_encode(['success' => false, 'error' => 'Bot channel ID or bot username is required.']);
             exit;
         }
         // Validate database connection
@@ -558,13 +559,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
             echo json_encode(['success' => false, 'error' => 'Database connection failed.']);
             exit;
         }
-        // Fetch current token from database
-        $stmt = $conn->prepare("SELECT access_token, token_expires FROM custom_bots WHERE bot_channel_id = ? LIMIT 1");
+        // Fetch current token from database using channel id if available, otherwise username
+        if (!empty($botChannelId)) {
+            $stmt = $conn->prepare("SELECT access_token, token_expires FROM custom_bots WHERE bot_channel_id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('s', $botChannelId);
+            }
+        } else {
+            $stmt = $conn->prepare("SELECT access_token, token_expires FROM custom_bots WHERE bot_username = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('s', $botUsername);
+            }
+        }
         if (!$stmt) {
             echo json_encode(['success' => false, 'error' => 'Database query preparation failed.']);
             exit;
         }
-        $stmt->bind_param('s', $botChannelId);
         if (!$stmt->execute()) {
             echo json_encode(['success' => false, 'error' => 'Database query execution failed.']);
             $stmt->close();
@@ -573,6 +583,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
         $res = $stmt->get_result();
         $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
+        // If not found in custom_bots, try custom_module_bots
+        if (!$row) {
+            if (!empty($botChannelId)) {
+                $stmt2 = $conn->prepare("SELECT access_token, token_expires FROM custom_module_bots WHERE bot_channel_id = ? LIMIT 1");
+                if ($stmt2) {
+                    $stmt2->bind_param('s', $botChannelId);
+                    $stmt2->execute();
+                    $res2 = $stmt2->get_result();
+                    $row = $res2 ? $res2->fetch_assoc() : null;
+                    $stmt2->close();
+                }
+            }
+            if (!$row && !empty($botUsername)) {
+                $stmt3 = $conn->prepare("SELECT access_token, token_expires FROM custom_module_bots WHERE bot_username = ? LIMIT 1");
+                if ($stmt3) {
+                    $stmt3->bind_param('s', $botUsername);
+                    $stmt3->execute();
+                    $res3 = $stmt3->get_result();
+                    $row = $res3 ? $res3->fetch_assoc() : null;
+                    $stmt3->close();
+                }
+            }
+        }
         if (!$row) {
             echo json_encode(['success' => false, 'error' => 'Custom bot not found.']);
             exit;
@@ -612,8 +645,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
     header('Content-Type: application/json');
     try {
         $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
-        if (empty($botChannelId)) {
-            echo json_encode(['success' => false, 'error' => 'bot_channel_id is required']);
+        $botUsername = isset($_POST['bot_username']) ? trim($_POST['bot_username']) : '';
+        if (empty($botChannelId) && empty($botUsername)) {
+            echo json_encode(['success' => false, 'error' => 'bot_channel_id or bot_username is required']);
             exit;
         }
         // Load client credentials from config
@@ -628,21 +662,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
             echo json_encode(['success' => false, 'error' => 'Database connection failed']);
             exit;
         }
-        // Find the custom bot row
-        $stmt = $conn->prepare("SELECT refresh_token FROM custom_bots WHERE bot_channel_id = ? LIMIT 1");
-        if (!$stmt) {
-            echo json_encode(['success' => false, 'error' => 'DB error: ' . $conn->error]);
-            exit;
+        // Find the custom bot row (search custom_bots first, then custom_module_bots)
+        $foundIn = null;
+        $row = null;
+        if (!empty($botChannelId)) {
+            $stmt = $conn->prepare("SELECT refresh_token FROM custom_bots WHERE bot_channel_id = ? LIMIT 1");
+            if ($stmt) { $stmt->bind_param('s', $botChannelId); $stmt->execute(); $res = $stmt->get_result(); $row = $res ? $res->fetch_assoc() : null; $stmt->close(); }
+        } elseif (!empty($botUsername)) {
+            $stmt = $conn->prepare("SELECT refresh_token FROM custom_bots WHERE bot_username = ? LIMIT 1");
+            if ($stmt) { $stmt->bind_param('s', $botUsername); $stmt->execute(); $res = $stmt->get_result(); $row = $res ? $res->fetch_assoc() : null; $stmt->close(); }
         }
-        $stmt->bind_param('s', $botChannelId);
-        if (!$stmt->execute()) {
-            echo json_encode(['success' => false, 'error' => 'DB query failed: ' . $stmt->error]);
-            $stmt->close();
-            exit;
+        if ($row) {
+            $foundIn = 'custom_bots';
+        } else {
+            // try custom_module_bots
+            if (!empty($botChannelId)) {
+                $stmt2 = $conn->prepare("SELECT refresh_token FROM custom_module_bots WHERE bot_channel_id = ? LIMIT 1");
+                if ($stmt2) { $stmt2->bind_param('s', $botChannelId); $stmt2->execute(); $res2 = $stmt2->get_result(); $row = $res2 ? $res2->fetch_assoc() : null; $stmt2->close(); }
+            }
+            if (!$row && !empty($botUsername)) {
+                $stmt3 = $conn->prepare("SELECT refresh_token FROM custom_module_bots WHERE bot_username = ? LIMIT 1");
+                if ($stmt3) { $stmt3->bind_param('s', $botUsername); $stmt3->execute(); $res3 = $stmt3->get_result(); $row = $res3 ? $res3->fetch_assoc() : null; $stmt3->close(); }
+            }
+            if ($row) {
+                $foundIn = 'custom_module_bots';
+            }
         }
-        $res = $stmt->get_result();
-        $row = $res ? $res->fetch_assoc() : null;
-        $stmt->close();
         if (!$row) {
             echo json_encode(['success' => false, 'error' => 'Custom bot not found']);
             exit;
@@ -698,13 +743,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
         $newRefresh = $result['refresh_token'] ?? $refreshToken;
         $newExpiresIn = $result['expires_in'] ?? null;
         $newExpiresAt = $newExpiresIn ? date('Y-m-d H:i:s', time() + intval($newExpiresIn)) : null;
-        // Persist into custom_bots
-        $upd = $conn->prepare("UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1");
+        // Persist into the table where the row was found
+        if ($foundIn === 'custom_module_bots') {
+            // update by channel id if available, otherwise by username
+            if (!empty($botChannelId)) {
+                $upd = $conn->prepare("UPDATE custom_module_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1");
+                if ($upd) {
+                    $upd->bind_param('ssss', $newAccess, $newExpiresAt, $newRefresh, $botChannelId);
+                }
+            } else {
+                $upd = $conn->prepare("UPDATE custom_module_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_username = ? LIMIT 1");
+                if ($upd) {
+                    $upd->bind_param('ssss', $newAccess, $newExpiresAt, $newRefresh, $botUsername);
+                }
+            }
+        } else {
+            $upd = $conn->prepare("UPDATE custom_bots SET access_token = ?, token_expires = ?, refresh_token = ? WHERE bot_channel_id = ? LIMIT 1");
+            if ($upd) {
+                $upd->bind_param('ssss', $newAccess, $newExpiresAt, $newRefresh, $botChannelId);
+            }
+        }
         if (!$upd) {
             echo json_encode(['success' => false, 'error' => 'DB update failed: ' . $conn->error]);
             exit;
         }
-        $upd->bind_param('ssss', $newAccess, $newExpiresAt, $newRefresh, $botChannelId);
         if (!$upd->execute()) {
             $err = $upd->error;
             $upd->close();
@@ -930,16 +992,25 @@ ob_start();
         </thead>
         <tbody id="custom-tokens-table-body">
             <?php
+            $displayedBotIds = [];
+            $displayedBotUsernames = [];
+
+            // First, list entries from custom_bots (explicit custom bots with stored tokens)
             $sqlc = "SELECT channel_id, bot_username, bot_channel_id, access_token, token_expires FROM custom_bots";
             $resc = $conn->query($sqlc);
+            $foundAny = false;
             if ($resc && $resc->num_rows > 0) {
-                while ($crow = $resc->fetch_assoc()) {
-                    $botUsername = htmlspecialchars($crow['bot_username'] ?? '');
-                    $botChannelId = htmlspecialchars($crow['bot_channel_id'] ?? '');
+                $foundAny = true;
+                        while ($crow = $resc->fetch_assoc()) {
+                            $botUsername = htmlspecialchars($crow['bot_username'] ?? '');
+                            $botChannelId = htmlspecialchars($crow['bot_channel_id'] ?? '');
                     $accessToken = $crow['access_token'] ?? '';
                     $expiresAt = $crow['token_expires'] ?? '-';
                     $tokenId = md5(($botChannelId ?: $botUsername) . ($accessToken ?? ''));
-                    echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($botChannelId) . "'>";
+                    // Track displayed identifiers to avoid duplicates when adding module bots below
+                    if (!empty($botChannelId)) $displayedBotIds[] = $botChannelId;
+                    if (!empty($botUsername)) $displayedBotUsernames[] = strtolower($botUsername);
+                            echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($botChannelId) . "' data-bot-username='" . htmlspecialchars($botUsername) . "'>";
                     echo "<td>$botUsername</td>";
                     echo "<td>$botChannelId</td>";
                     echo "<td id='status-custom-$tokenId'>Not Validated</td>";
@@ -947,7 +1018,49 @@ ob_start();
                     echo "<td><button class='button is-small is-info' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
-            } else {
+            }
+
+            // Next, include module bots from custom_module_bots (may not have tokens yet)
+            $msql = "SELECT id, bot_username, bot_channel_id, is_verified FROM custom_module_bots ORDER BY bot_username ASC";
+            $mres = $conn->query($msql);
+            if ($mres && $mres->num_rows > 0) {
+                while ($mrow = $mres->fetch_assoc()) {
+                    $mbUsername = htmlspecialchars($mrow['bot_username'] ?? '');
+                    $mbChannelId = htmlspecialchars($mrow['bot_channel_id'] ?? '');
+                    $isVerified = intval($mrow['is_verified']) ? 'Yes' : 'No';
+                    // Skip if already displayed from custom_bots (match by channel id or username)
+                    $skip = false;
+                    if (!empty($mbChannelId) && in_array($mbChannelId, $displayedBotIds, true)) $skip = true;
+                    if (!$skip && !empty($mbUsername) && in_array(strtolower($mbUsername), $displayedBotUsernames, true)) $skip = true;
+                    if ($skip) continue;
+                    $foundAny = true;
+                    // Try to find any stored token in custom_bots for this module bot
+                    $accessToken = '';
+                    $expiresAt = '-';
+                    $checkStmt = $conn->prepare("SELECT access_token, token_expires FROM custom_bots WHERE bot_channel_id = ? OR bot_username = ? LIMIT 1");
+                    if ($checkStmt) {
+                        $checkStmt->bind_param('ss', $mbChannelId, $mbUsername);
+                        $checkStmt->execute();
+                        $cres = $checkStmt->get_result();
+                        if ($cres && $cres->num_rows > 0) {
+                            $crow = $cres->fetch_assoc();
+                            $accessToken = $crow['access_token'] ?? '';
+                            $expiresAt = $crow['token_expires'] ?? '-';
+                        }
+                        $checkStmt->close();
+                    }
+                    $tokenId = md5(($mbChannelId ?: $mbUsername) . ($accessToken ?? '') . 'module');
+                    echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($mbChannelId) . "' data-bot-username='" . htmlspecialchars($mbUsername) . "'>";
+                    echo "<td>$mbUsername <small style='color:#666'> (module)</small></td>";
+                    echo "<td>$mbChannelId</td>";
+                    echo "<td id='status-custom-$tokenId'>Not Validated" . ($isVerified ? " (<span class='has-text-success'>Verified</span>)" : "") . "</td>";
+                    echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
+                    echo "<td><button class='button is-small is-info' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$mbChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "</tr>";
+                }
+            }
+
+            if (!$foundAny) {
                 echo "<tr><td colspan='5'>No custom bots found.</td></tr>";
             }
             ?>
@@ -1377,10 +1490,13 @@ function validateToken(token, tokenId) {
             if (!fetchData.success) {
                 statusCell.textContent = 'No Token';
                 statusCell.className = 'has-text-warning';
-                expiryCell.textContent = '-';
+                expiryCell.textContent = fetchData.error ? fetchData.error : '-';
+                if (fetchData.error) {
+                    Swal.fire({ title: 'Token Fetch Failed', text: fetchData.error, icon: 'error' });
+                }
                 button.disabled = false;
                 button.classList.remove('is-loading');
-                return { success: false };
+                return Promise.reject(new Error(fetchData.error || 'No token'));
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
@@ -1392,7 +1508,7 @@ function validateToken(token, tokenId) {
         })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+    if (data.success) {
             const val = data.validation;
             const expiresIn = val.expires_in || 0;
             const now = new Date();
@@ -1421,18 +1537,22 @@ function validateToken(token, tokenId) {
             // Save to cache
             saveTokenToCache(tokenId, 'regular', expiresIn, true);
         } else {
+            const errMsg = data.error || 'Invalid token';
             statusCell.textContent = 'Invalid';
             statusCell.className = 'has-text-danger';
-            expiryCell.textContent = '-';
+            expiryCell.textContent = errMsg;
             // Save to cache
             saveTokenToCache(tokenId, 'regular', 0, false);
+            Swal.fire({ title: 'Validation Failed', text: errMsg, icon: 'error' });
         }
         return data;
     })
     .catch(error => {
+        const msg = (error && error.message) ? error.message : 'Network error';
         statusCell.textContent = 'Error';
         statusCell.className = 'has-text-danger';
-        expiryCell.textContent = '-';
+        expiryCell.textContent = msg;
+        Swal.fire({ title: 'Validation Error', text: msg, icon: 'error' });
         return { success: false };
     })
     .finally(() => {
@@ -1562,15 +1682,22 @@ function validateCustomToken(token, tokenId) {
     const fetchFormData = new FormData();
     fetchFormData.append('fetch_custom_token', '1');
     fetchFormData.append('bot_channel_id', botChannelId);
+    const botUsernameAttr = row.getAttribute('data-bot-username');
+    if (!botChannelId && botUsernameAttr) {
+        fetchFormData.set('bot_username', botUsernameAttr);
+    }
     fetch('', { method: 'POST', body: fetchFormData })
         .then(response => response.json())
         .then(fetchData => {
             if (!fetchData.success) {
                 statusCell.textContent = 'No Token';
                 statusCell.className = 'has-text-warning';
-                expiryCell.textContent = '-';
+                expiryCell.textContent = fetchData.error ? fetchData.error : '-';
+                if (fetchData.error) {
+                    Swal.fire({ title: 'Token Fetch Failed', text: fetchData.error, icon: 'error' });
+                }
                 if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
-                return;
+                return Promise.reject(new Error(fetchData.error || 'No token'));
             }
             // Now validate the freshly fetched token
             const currentToken = fetchData.access_token;
@@ -1607,17 +1734,21 @@ function validateCustomToken(token, tokenId) {
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', expiresIn, true);
             } else {
+                const errMsg = data.error || 'Invalid token';
                 statusCell.textContent = 'Invalid';
                 statusCell.className = 'has-text-danger';
-                expiryCell.textContent = '-';
+                expiryCell.textContent = errMsg;
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', 0, false);
+                Swal.fire({ title: 'Validation Failed', text: errMsg, icon: 'error' });
             }
         })
-        .catch(() => {
+        .catch((err) => {
+            const msg = (err && err.message) ? err.message : 'Network error';
             statusCell.textContent = 'Error';
             statusCell.className = 'has-text-danger';
-            expiryCell.textContent = '-';
+            expiryCell.textContent = msg;
+            Swal.fire({ title: 'Validation Error', text: msg, icon: 'error' });
         })
         .finally(() => {
             if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
@@ -1634,6 +1765,10 @@ function renewCustomToken(botChannelId, tokenId) {
     const formData = new FormData();
     formData.append('renew_custom', '1');
     formData.append('bot_channel_id', botChannelId);
+    const botUsernameAttr2 = row.getAttribute('data-bot-username');
+    if (!botChannelId && botUsernameAttr2) {
+        formData.set('bot_username', botUsernameAttr2);
+    }
     fetch('', { method: 'POST', body: formData })
         .then(response => response.json())
         .then(data => {
