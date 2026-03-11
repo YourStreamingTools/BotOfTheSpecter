@@ -5,6 +5,33 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once "/var/www/config/db_connect.php";
 
+// If an admin has started an "Act As" session, restore the original
+// admin credentials for any admin panel request so admin actions
+// always execute under the admin's identity (prevent accidental
+// acting-as during admin operations).
+if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true
+    && isset($_SESSION['admin_act_as_original']) && is_array($_SESSION['admin_act_as_original'])) {
+    $orig = $_SESSION['admin_act_as_original'];
+    if (!empty($orig['access_token'])) {
+        $_SESSION['access_token'] = $orig['access_token'];
+    }
+    if (isset($orig['user_id'])) {
+        $_SESSION['user_id'] = $orig['user_id'];
+    }
+    if (isset($orig['username'])) {
+        $_SESSION['username'] = $orig['username'];
+    }
+    if (isset($orig['is_admin'])) {
+        $_SESSION['is_admin'] = $orig['is_admin'];
+    }
+    if (isset($orig['beta_access'])) {
+        $_SESSION['beta_access'] = $orig['beta_access'];
+    }
+    if (isset($orig['api_key'])) {
+        $_SESSION['api_key'] = $orig['api_key'];
+    }
+}
+
 function admin_access_is_json_request() {
     $accept = isset($_SERVER['HTTP_ACCEPT']) ? strtolower((string) $_SERVER['HTTP_ACCEPT']) : '';
     $contentType = isset($_SERVER['CONTENT_TYPE']) ? strtolower((string) $_SERVER['CONTENT_TYPE']) : '';
