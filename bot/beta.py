@@ -9673,7 +9673,7 @@ async def get_user_count(command, user):
 # Shared dynamic variable switches used across command/timed-message processing
 DYNAMIC_MESSAGE_SWITCHES = (
     '(customapi.', '(count)', '(daysuntil.',
-    '(command.', '(user)', '(author)',
+    '(command.', '(user)', '(author)', '(pronouns)',
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.'
@@ -9792,6 +9792,14 @@ async def process_dynamic_message_variables(
                     response = response.replace('(user)', user)
                 if '(author)' in response:
                     response = response.replace('(author)', user)
+                # Handle (pronouns)
+                if '(pronouns)' in response:
+                    try:
+                        pronouns = await get_user_pronouns(user)
+                        response = response.replace('(pronouns)', pronouns if pronouns else 'they/them')
+                    except Exception as e:
+                        chat_logger.error(f"Error processing (pronouns): {e}")
+                        response = response.replace('(pronouns)', 'they/them')
                 # Handle (command.) - reference other commands
                 if '(command.' in response:
                     command_match = re.search(r'\(command\.(\w+)\)', response)
@@ -12224,7 +12232,7 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Apply all replacements in a loop until no more variables are found
                     max_iterations = 8
                     iteration = 0
-                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(message)', '(customapi.', '(json.']
+                    vars_to_replace = ['(user)', '(pronouns)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(message)', '(customapi.', '(json.']
                     while iteration < max_iterations:
                         iteration += 1
                         has_vars = any(var in custom_message for var in vars_to_replace if var not in ('(customapi.', '(json.'))
@@ -12237,6 +12245,14 @@ async def process_channel_point_rewards(event_data, event_type):
                         # Handle (user)
                         if '(user)' in custom_message:
                             replacements['(user)'] = user_name
+                        # Handle (pronouns)
+                        if '(pronouns)' in custom_message:
+                            try:
+                                pronouns = await get_user_pronouns(user_name)
+                                replacements['(pronouns)'] = pronouns if pronouns else 'they/them'
+                            except Exception as e:
+                                chat_logger.error(f"Error processing (pronouns) in channel point reward: {e}")
+                                replacements['(pronouns)'] = 'they/them'
                         # Handle (usercount)
                         if '(usercount)' in custom_message:
                             try:
