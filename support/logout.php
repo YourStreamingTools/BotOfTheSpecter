@@ -11,5 +11,5 @@ if (ini_get('session.use_cookies')) {
     );
 }
 session_destroy();
-header('Location: https://botofthespecter.com');
+header('Location: https://support.botofthespecter.com');
 exit;
