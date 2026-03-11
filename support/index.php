@@ -774,58 +774,87 @@ $content = ob_get_clean();
 // Wire quick-link cards and inline data-goto links to tabs
 $extraScripts = <<<'JS'
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    var panels = document.querySelectorAll('.sp-tab-panel[data-panel]');
-    var cards  = document.querySelectorAll('.sp-doc-card[data-goto]');
+(function () {
+    var panels, cards;
+
     function activateTab(id) {
-        // Panels
         panels.forEach(function (p) {
             p.classList.toggle('active', p.dataset.panel === id);
         });
-        // Cards
         cards.forEach(function (c) {
             c.classList.toggle('active', c.dataset.goto === id);
         });
         try { sessionStorage.setItem('sp_active_tab', id); } catch (e) {}
+        // Keep URL hash in sync so the address bar is always shareable
+        try {
+            var newHash = '#' + id;
+            if (window.location.hash !== newHash) {
+                history.replaceState(null, '', newHash);
+            }
+        } catch (e) {}
     }
-    cards.forEach(function (card) {
-        card.addEventListener('click', function (e) {
-            e.preventDefault();
-            activateTab(card.dataset.goto);
-            // Scroll to first panel
-            var first = document.querySelector('.sp-tab-panel.active');
-            if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-    });
-    document.querySelectorAll('a[data-goto]').forEach(function (a) {
-        a.addEventListener('click', function (e) {
-            e.preventDefault();
-            activateTab(a.dataset.goto);
-        });
-    });
-    // Restore from session / hash — also handles doc-block anchors (slug or legacy doc-N)
-    var hash       = window.location.hash.replace('#', '');
-    var stored     = '';
-    var scrollToEl = null;
-    try { stored = sessionStorage.getItem('sp_active_tab') || ''; } catch (e) {}
-    if (hash) {
-        var candidate = document.getElementById(hash);
-        if (candidate && candidate.classList.contains('sp-doc-block')) {
-            scrollToEl = candidate;
-            var parentPanel = scrollToEl.closest('.sp-tab-panel[data-panel]');
-            if (parentPanel) hash = parentPanel.dataset.panel;
+    // Resolves a raw hash string to { tabId, scrollEl } or null if unrecognised.
+    function resolveHash(hash) {
+        if (!hash) return null;
+        // 1. Direct panel key match
+        for (var i = 0; i < panels.length; i++) {
+            if (panels[i].dataset.panel === hash) {
+                return { tabId: hash, scrollEl: null };
+            }
         }
+        // 2. Doc-block anchor (slug or legacy doc-N)
+        var el = document.getElementById(hash);
+        if (el && el.classList.contains('sp-doc-block')) {
+            var parent = el.closest('.sp-tab-panel[data-panel]');
+            if (parent) return { tabId: parent.dataset.panel, scrollEl: el };
+        }
+        return null;
     }
-    var initial = hash || stored || 'commands';
-    activateTab(initial);
-    if (scrollToEl) {
-        setTimeout(function () {
-            scrollToEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            scrollToEl.classList.add('sp-doc-block-highlight');
-            setTimeout(function () { scrollToEl.classList.remove('sp-doc-block-highlight'); }, 2500);
-        }, 150);
+    function applyHash(hash, smooth) {
+        var resolved = resolveHash(hash);
+        if (!resolved) return false;
+        activateTab(resolved.tabId);
+        if (resolved.scrollEl) {
+            var el = resolved.scrollEl;
+            setTimeout(function () {
+                el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+                el.classList.add('sp-doc-block-highlight');
+                setTimeout(function () { el.classList.remove('sp-doc-block-highlight'); }, 2500);
+            }, 150);
+        }
+        return true;
     }
-});
+    document.addEventListener('DOMContentLoaded', function () {
+        panels = document.querySelectorAll('.sp-tab-panel[data-panel]');
+        cards  = document.querySelectorAll('.sp-doc-card[data-goto]');
+        cards.forEach(function (card) {
+            card.addEventListener('click', function (e) {
+                e.preventDefault();
+                activateTab(card.dataset.goto);
+                var first = document.querySelector('.sp-tab-panel.active');
+                if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+        document.querySelectorAll('a[data-goto]').forEach(function (a) {
+            a.addEventListener('click', function (e) {
+                e.preventDefault();
+                activateTab(a.dataset.goto);
+            });
+        });
+        // Hash from URL takes priority; fall back to sessionStorage, then default.
+        var initHash = window.location.hash.replace('#', '');
+        var stored   = '';
+        try { stored = sessionStorage.getItem('sp_active_tab') || ''; } catch (e) {}
+        if (!applyHash(initHash, false)) {
+            activateTab(stored || 'commands');
+        }
+    });
+    // Handle in-page hash changes (e.g. sidebar nav links clicked while already on index.php)
+    window.addEventListener('hashchange', function () {
+        var hash = window.location.hash.replace('#', '');
+        applyHash(hash, true);
+    });
+}());
 </script>
 JS;
 include __DIR__ . '/layout.php';
