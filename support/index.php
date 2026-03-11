@@ -115,6 +115,10 @@ ob_start();
             <h1 style="margin:0 0 0.25rem;">Command Reference</h1>
             <p style="margin:0;color:var(--text-secondary);">All commands use the <code>!</code> prefix. Some require moderator or broadcaster permissions.</p>
         </div>
+        <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                data-copy-id="commands" title="Copy link to this section">
+            <i class="fa-solid fa-link"></i> Copy link
+        </button>
     </div>
     <?php if (!empty($commands)): ?>
     <div class="sp-table-wrap">
@@ -174,7 +178,13 @@ ob_start();
         <?php endif; ?>
     </div>
     <?php else: ?>
-        <h1><?php echo htmlspecialchars($sec['section_label']); ?></h1>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:0.5rem;">
+            <h1 style="margin:0;"><?php echo htmlspecialchars($sec['section_label']); ?></h1>
+            <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                    data-copy-id="<?php echo htmlspecialchars($secKey); ?>" title="Copy link to this section">
+                <i class="fa-solid fa-link"></i> Copy link
+            </button>
+        </div>
         <?php foreach ($secDocs as $doc):
             $rawSlug   = trim(preg_replace('/[^a-z0-9]+/', '-', mb_strtolower($doc['title'] ?? '')), '-');
             $docAnchor = ($rawSlug !== '') ? ($secKey . '-' . $rawSlug) : ('doc-' . (int)$doc['id']);
