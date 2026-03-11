@@ -319,21 +319,36 @@ def signal_handler(sig, frame):
 
 # Async cleanup function
 async def async_signal_cleanup():
-    await specterSocket.disconnect()     # Disconnect the SocketClient
+    import asyncio
+    try:
+        await specterSocket.disconnect()     # Disconnect the SocketClient
+    except Exception:
+        pass
+    try:
+        await streamelements_socket.disconnect()
+    except Exception:
+        pass
     ssh_manager.close_all_connections()  # Close all SSH connections
+    # Cancel all tracked tasks
+    tasks_to_cancel = list(scheduled_tasks) + list(looped_tasks.values())
+    for task in tasks_to_cancel:
+        if not task.done():
+            task.cancel()
+    # Cancel ALL remaining pending asyncio tasks (catches fire-and-forget create_task() calls)
+    current = asyncio.current_task()
+    all_tasks = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
+    for task in all_tasks:
+        task.cancel()
+    if all_tasks:
+        await asyncio.gather(*all_tasks, return_exceptions=True)
     # Close shared HTTP session if created
     try:
         global _shared_http_session
-        if '_shared_http_session' in globals() and _shared_http_session:
+        if _shared_http_session is not None:
             await _shared_http_session.close()
+            _shared_http_session = None
     except Exception as e:
         bot_logger.error(f"Error closing shared HTTP session: {e}")
-    for task in scheduled_tasks:
-        task.cancel()
-    for task in looped_tasks:
-        task.cancel()
-    for task in shoutout_queue:
-        task.cancel()
     sys.exit(0)  # Exit the program
 
 # Register the signal handler
@@ -2960,7 +2975,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
-        if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
+        if hedgehogobrien_module is not None and hedgehogobrien_module.HedgehogOBrienModule.is_hedgehogobrien_channel(CHANNEL_NAME):
             global _hh_instance
             _hh_instance = hedgehogobrien_module.HedgehogOBrienModule(
                 mysql_handler=mysql_handler,
@@ -3173,10 +3188,7 @@ class TwitchBot(commands.Bot):
                 await _hh_instance.handle_bureau_command(
                     command=AuthorMessage,
                     username=messageAuthor,
-                    broadcaster_id=CHANNEL_ID,
                     send_message=_hh_send,
-                    is_broadcaster=(messageAuthor.lower() == CHANNEL_NAME.lower()),
-                    is_mod=is_mod,
                 )
             # Handle AI responses
             if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
