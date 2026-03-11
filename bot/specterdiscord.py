@@ -3652,9 +3652,10 @@ class BotOfTheSpecter(commands.Bot):
                             current_date = await self.format_discord_embed_timestamp(code)
                             self.logger.info(f"Timestamp retrieved: {current_date}")
                             # Create embed
+                            embed_url = f"https://twitch.tv/{account_username}" if account_username and ' ' not in account_username else None
                             embed = discord.Embed(
                                 title=f"{account_username} is now live on Twitch!",
-                                url=f"https://twitch.tv/{account_username}",
+                                url=embed_url,
                                 description=f"Stream is now online!\nStreaming: {game_name}\nStream Title: {stream_title}",
                                 color=discord.Color.from_rgb(145, 70, 255)
                             )
@@ -3889,9 +3890,10 @@ class BotOfTheSpecter(commands.Bot):
             game_name, stream_title = await self.get_stream_info(account_username)
             current_date = await self.format_discord_embed_timestamp(code)
             # Create embed
+            embed_url = f"https://twitch.tv/{account_username}" if account_username and ' ' not in account_username else None
             embed = discord.Embed(
                 title=f"{account_username} is now live on Twitch!",
-                url=f"https://twitch.tv/{account_username}",
+                url=embed_url,
                 description=f"Stream is now online! Streaming: {game_name}",
                 color=discord.Color.from_rgb(145, 70, 255)
             )
