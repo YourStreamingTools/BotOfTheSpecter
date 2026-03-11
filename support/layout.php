@@ -89,6 +89,9 @@ $v = uuidv4();
             <div class="sp-nav-section">
                 <div class="sp-nav-label">Documentation</div>
                 <a href="/index.php" class="sp-nav-link"><i class="fa-solid fa-house"></i> Home</a>
+                <a href="/index.php#commands" class="sp-nav-link"><i class="fa-solid fa-terminal"></i> Command Reference</a>
+                <a href="/index.php#faq" class="sp-nav-link"><i class="fa-solid fa-circle-question"></i> FAQ</a>
+                <a href="/index.php#troubleshooting" class="sp-nav-link"><i class="fa-solid fa-wrench"></i> Troubleshooting</a>
                 <?php foreach ($_navSections as $_ns): ?>
                 <a href="/index.php#<?php echo urlencode($_ns['section_key']); ?>" class="sp-nav-link">
                     <i class="<?php echo htmlspecialchars($_ns['section_icon']); ?>"></i>
