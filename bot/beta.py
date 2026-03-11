@@ -1875,7 +1875,10 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
             else:
                 website_creds = await get_website_twitch_app_credentials(force_refresh=force_refresh)
                 irc_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
-                irc_nick = "botofthespecter"
+                irc_nick = CHANNEL_NAME.lower()
+            # Normalize token: strip a leading 'oauth:' if present (the code below prefixes 'oauth:' again)
+            if irc_token and isinstance(irc_token, str) and irc_token.startswith("oauth:"):
+                irc_token = irc_token.split(":", 1)[1]
             if not irc_token:
                 bot_logger.error("IRC Presence: No token available, retrying in 60s")
                 await sleep(60)
