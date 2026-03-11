@@ -106,7 +106,6 @@ ob_start();
     </a>
     <?php endif; ?>
 </div>
-
 <!-- ===================================================================
      BUILT-IN TAB: COMMANDS (from JSON, not DB-managed)
 =================================================================== -->
@@ -117,7 +116,6 @@ ob_start();
             <p style="margin:0;color:var(--text-secondary);">All commands use the <code>!</code> prefix. Some require moderator or broadcaster permissions.</p>
         </div>
     </div>
-
     <?php if (!empty($commands)): ?>
     <div class="sp-table-wrap">
         <table class="sp-table">
@@ -143,7 +141,6 @@ ob_start();
         <span>Type <code>!commands</code> in your Twitch chat to see all active commands, including custom ones.</span>
     </div>
 </div>
-
 <!-- ===================================================================
      DYNAMIC SECTION TABS (DB-managed)
 =================================================================== -->
@@ -152,7 +149,6 @@ ob_start();
     $secDocs = $docsBySection[$secKey] ?? [];
 ?>
 <div class="sp-tab-panel sp-doc-content" data-panel="<?php echo htmlspecialchars($secKey); ?>">
-
     <?php if ($staff): ?>
     <div class="sp-admin-bar">
         <span class="sp-admin-bar-label"><i class="fa-solid fa-shield-halved"></i> Admin</span>
@@ -166,7 +162,6 @@ ob_start();
         </div>
     </div>
     <?php endif; ?>
-
     <?php if (empty($secDocs)): ?>
     <div class="sp-empty-state" style="padding:3rem 1rem;">
         <div class="sp-empty-icon"><i class="fa-solid fa-file-circle-plus"></i></div>
@@ -180,9 +175,12 @@ ob_start();
     </div>
     <?php else: ?>
         <h1><?php echo htmlspecialchars($sec['section_label']); ?></h1>
-        <?php foreach ($secDocs as $doc): ?>
+        <?php foreach ($secDocs as $doc):
+            $rawSlug   = trim(preg_replace('/[^a-z0-9]+/', '-', mb_strtolower($doc['title'] ?? '')), '-');
+            $docAnchor = ($rawSlug !== '') ? ($secKey . '-' . $rawSlug) : ('doc-' . (int)$doc['id']);
+        ?>
         <div class="sp-doc-block<?php echo (!$doc['is_visible'] ? ' sp-doc-block-hidden' : ''); ?>"
-             id="doc-<?php echo (int)$doc['id']; ?>">
+             id="<?php echo htmlspecialchars($docAnchor); ?>">
             <?php if ($staff): ?>
             <div class="sp-doc-block-header">
                 <div>
@@ -191,6 +189,10 @@ ob_start();
                     <?php endif; ?>
                 </div>
                 <div class="sp-doc-block-actions">
+                    <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                            data-copy-id="<?php echo htmlspecialchars($docAnchor); ?>" title="Copy share link">
+                        <i class="fa-solid fa-link"></i>
+                    </button>
                     <a href="/docs.php?action=edit&amp;id=<?php echo (int)$doc['id']; ?>"
                        class="sp-btn sp-btn-ghost sp-btn-sm" title="Edit">
                         <i class="fa-solid fa-pen"></i>
@@ -219,15 +221,22 @@ ob_start();
                     </form>
                 </div>
             </div>
+            <?php else: ?>
+            <div class="sp-doc-block-header sp-doc-block-header-public">
+                <div class="sp-doc-block-actions">
+                    <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm sp-copy-link"
+                            data-copy-id="<?php echo htmlspecialchars($docAnchor); ?>" title="Copy share link">
+                        <i class="fa-solid fa-link"></i>
+                    </button>
+                </div>
+            </div>
             <?php endif; ?>
             <div class="sp-doc-block-body"><?php echo $doc['content']; ?></div>
         </div>
         <?php endforeach; ?>
     <?php endif; ?>
-
 </div>
 <?php endforeach; ?>
-
 <?php if (empty($sections)): ?>
 <div class="sp-empty-state" style="padding:4rem 1rem;">
     <div class="sp-empty-icon"><i class="fa-solid fa-book-open"></i></div>
@@ -240,7 +249,6 @@ ob_start();
     <?php endif; ?>
 </div>
 <?php endif; ?>
-
 <?php if (false): /* LEGACY TAB CONTENT — this has been migrated to the support_docs DB table via docs.php */ ?>
     <p>Follow these steps to get BotOfTheSpecter up and running on your Twitch channel.</p>
     <div class="sp-step">
@@ -753,14 +761,12 @@ ob_start();
 <?php endif; /* end legacy skip */ ?>
 <?php
 $content = ob_get_clean();
-
 // Wire quick-link cards and inline data-goto links to tabs
 $extraScripts = <<<'JS'
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var panels = document.querySelectorAll('.sp-tab-panel[data-panel]');
     var cards  = document.querySelectorAll('.sp-doc-card[data-goto]');
-
     function activateTab(id) {
         // Panels
         panels.forEach(function (p) {
@@ -772,7 +778,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         try { sessionStorage.setItem('sp_active_tab', id); } catch (e) {}
     }
-
     cards.forEach(function (card) {
         card.addEventListener('click', function (e) {
             e.preventDefault();
@@ -782,23 +787,36 @@ document.addEventListener('DOMContentLoaded', function () {
             if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
-
     document.querySelectorAll('a[data-goto]').forEach(function (a) {
         a.addEventListener('click', function (e) {
             e.preventDefault();
             activateTab(a.dataset.goto);
         });
     });
-
-    // Restore from session / hash
-    var hash   = window.location.hash.replace('#', '');
-    var stored = '';
+    // Restore from session / hash — also handles doc-block anchors (slug or legacy doc-N)
+    var hash       = window.location.hash.replace('#', '');
+    var stored     = '';
+    var scrollToEl = null;
     try { stored = sessionStorage.getItem('sp_active_tab') || ''; } catch (e) {}
+    if (hash) {
+        var candidate = document.getElementById(hash);
+        if (candidate && candidate.classList.contains('sp-doc-block')) {
+            scrollToEl = candidate;
+            var parentPanel = scrollToEl.closest('.sp-tab-panel[data-panel]');
+            if (parentPanel) hash = parentPanel.dataset.panel;
+        }
+    }
     var initial = hash || stored || 'commands';
     activateTab(initial);
+    if (scrollToEl) {
+        setTimeout(function () {
+            scrollToEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            scrollToEl.classList.add('sp-doc-block-highlight');
+            setTimeout(function () { scrollToEl.classList.remove('sp-doc-block-highlight'); }, 2500);
+        }, 150);
+    }
 });
 </script>
 JS;
-
 include __DIR__ . '/layout.php';
 ?>
