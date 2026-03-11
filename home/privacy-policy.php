@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 ob_start();
 ?>
 <script type="application/ld+json">{"@context": "https://schema.org","@type": "WebPage","name": "BotOfTheSpecter - Privacy Policy","description": "Privacy Policy for BotOfTheSpecter, outlining data collection, usage, and user rights.","url": "https://botofthespecter.com/privacy-policy.php"}</script>
@@ -10,9 +10,9 @@ $pageTitle = "BotOfTheSpecter - Privacy Policy";
 $pageDescription = "BotOfTheSpecter is an advanced Twitch bot designed to enhance your streaming experience, offering a suite of tools for community interaction, channel management, and analytics.";
 $effectiveDate = 'February 9, 2026';
 ?>
-<main class="box is-fullwidth content" role="main" aria-labelledby="privacy-heading">
-    <h1 id="privacy-heading" class="title">Privacy Policy</h1>
-    <p class="subtitle">Effective date: <?php echo $effectiveDate; ?>.</p>
+<div class="hs-prose" role="main" aria-labelledby="privacy-heading">
+    <h1 id="privacy-heading">Privacy Policy</h1>
+    <p class="hs-prose-subtitle">Effective date: <?php echo $effectiveDate; ?>.</p>
     <br />
     <section id="introduction">
         <h2>1. Introduction</h2>
@@ -26,10 +26,10 @@ $effectiveDate = 'February 9, 2026';
     <br />
     <section id="information-we-collect">
         <h2>3. Information we collect</h2>
-    <h3 class="subpoint">3.1 Personal information</h3>
+    <h3>3.1 Personal information</h3>
         <p>We collect information you provide directly to us (for example: name, email, billing address) when you register, make purchases, subscribe to newsletters, or contact us.</p>
-        <p>We also use <strong>Twitch</strong> as our login provider ("Sign in with Twitch"). When you authenticate with Twitch, <strong>Twitch Interactive, Inc.</strong> may provide us with certain account information associated with your Twitch account (such as your Twitch user ID, username/display name, and the email address linked to your Twitch account where available/authorised). Your use of Twitch is governed by Twitch’s policies, including their <a href="https://legal.twitch.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://legal.twitch.com/legal/terms-of-service/" target="_blank" rel="noopener">Terms of Service</a>.</p>
-    <h3 class="subpoint">3.2 Usage data</h3>
+        <p>We also use <strong>Twitch</strong> as our login provider ("Sign in with Twitch"). When you authenticate with Twitch, <strong>Twitch Interactive, Inc.</strong> may provide us with certain account information associated with your Twitch account (such as your Twitch user ID, username/display name, and the email address linked to your Twitch account where available/authorised). Your use of Twitch is governed by Twitchâ€™s policies, including their <a href="https://legal.twitch.com/legal/privacy-policy/" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://legal.twitch.com/legal/terms-of-service/" target="_blank" rel="noopener">Terms of Service</a>.</p>
+    <h3>3.2 Usage data</h3>
         <p>We automatically collect information about how you interact with our Site and services (including our dashboard and related ecosystem pages). This data helps us operate the service, keep it secure, troubleshoot issues, and understand how our features are used.</p>
         <p>Usage data may include:</p>
         <ul>
@@ -37,16 +37,16 @@ $effectiveDate = 'February 9, 2026';
             <li><strong>Session and interaction data:</strong> pages viewed, buttons/links clicked, timestamps, referring/exit URLs, session identifiers, and authentication-related events (e.g., login/logout) to help prevent fraud and unauthorized access.</li>
             <li><strong>Technical and performance data:</strong> error reports, diagnostics, response times, and other performance metrics used for reliability monitoring and debugging.</li>
         </ul>
-    <h3 class="subpoint">3.3 Payment information</h3>
+    <h3>3.3 Payment information</h3>
         <p>We use third-party payment processors for transactions. We record transaction references and receipts but do not store full card details on our servers.</p>
-        <p>For services that we operate and bill directly, we use <strong>Stripe</strong> as our payment processor. Stripe’s legal terms and policies are available at <a href="https://stripe.com/au/legal" target="_blank" rel="noopener">https://stripe.com/au/legal</a>.</p>
-        <p>For <strong>BotOfTheSpecter Premium</strong> features/perks, we use <strong>Twitch subscription services</strong>. A subscription to the bot developer <strong>Lachlan</strong> (<strong>gfaUnDead</strong>, <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">https://twitch.tv/gfaundead</a>) grants you premium perks for BotOfTheSpecter for as long as you remain subscribed to the developer’s Twitch channel.</p>
-    <h3 class="subpoint">3.4 Cookies and tracking</h3>
+        <p>For services that we operate and bill directly, we use <strong>Stripe</strong> as our payment processor. Stripeâ€™s legal terms and policies are available at <a href="https://stripe.com/au/legal" target="_blank" rel="noopener">https://stripe.com/au/legal</a>.</p>
+        <p>For <strong>BotOfTheSpecter Premium</strong> features/perks, we use <strong>Twitch subscription services</strong>. A subscription to the bot developer <strong>Lachlan</strong> (<strong>gfaUnDead</strong>, <a href="https://twitch.tv/gfaundead" target="_blank" rel="noopener">https://twitch.tv/gfaundead</a>) grants you premium perks for BotOfTheSpecter for as long as you remain subscribed to the developerâ€™s Twitch channel.</p>
+    <h3>3.4 Cookies and tracking</h3>
         <p>We use cookies and similar technologies (such as local storage and session storage) to help our Site function, remember your preferences, improve performance, and understand how our services are used.</p>
         <p>Cookies and tracking technologies we use may include:</p>
         <ul>
             <li><strong>Strictly necessary cookies:</strong> required for core functionality such as session management, login/authentication, security protections, and enabling key site features.</li>
-            <li><strong>Preference cookies:</strong> used to remember settings you choose (for example, display preferences) so you don’t have to re-enter them each time.</li>
+            <li><strong>Preference cookies:</strong> used to remember settings you choose (for example, display preferences) so you donâ€™t have to re-enter them each time.</li>
             <li><strong>Analytics and measurement:</strong> used to understand traffic and feature usage so we can improve reliability and user experience. Where required by law, we will request consent before using non-essential analytics cookies.</li>
         </ul>
         <p>You can control cookies through your browser settings (including blocking or deleting cookies). Please note that disabling certain cookies may affect the availability or functionality of parts of the Site. See our cookie settings in the site footer (if available) for options to manage preferences.</p>
@@ -104,7 +104,7 @@ $effectiveDate = 'February 9, 2026';
         <ul>
             <li><strong>Right of access:</strong> request access to the personal data we hold about you.</li>
             <li><strong>Right to rectification:</strong> request that we correct inaccurate or incomplete personal data.</li>
-            <li><strong>Right to erasure (“right to be forgotten”):</strong> request deletion of your personal data in certain circumstances.</li>
+            <li><strong>Right to erasure (â€œright to be forgottenâ€):</strong> request deletion of your personal data in certain circumstances.</li>
             <li><strong>Right to restriction of processing:</strong> request that we limit how we use your personal data in certain circumstances.</li>
             <li><strong>Right to data portability:</strong> request a copy of certain personal data in a portable format.</li>
             <li><strong>Right to object:</strong> object to processing in certain circumstances (including certain processing based on legitimate interests).</li>
@@ -112,7 +112,7 @@ $effectiveDate = 'February 9, 2026';
         </ul>
         <p>To exercise these rights, contact us at <a href="mailto:gdpr@yourstreamingtools.com">gdpr@yourstreamingtools.com</a>. To protect your privacy and security, we may need to verify your identity before completing your request. We aim to respond within the timeframes required by applicable law (generally within one month, and may be extended where permitted).</p>
         <p>You may also lodge a complaint with your local data protection authority (supervisory authority) if you believe our processing of your personal data infringes applicable law.</p>
-        <h3 class="subpoint">8.1 Export my Data (automated download)</h3>
+        <h3>8.1 Export my Data (automated download)</h3>
         <p>If you would like to access or export the personal data we currently hold about your account/profile, you can use the <strong>Export my Data</strong> button available on the profile page across our ecosystem. When you click <strong>Export my Data</strong>, our system automatically collects the information currently stored about your account/profile, packages it into a ZIP file, and emails it to the email address linked to your Twitch account (this address is shown when you click the export button).</p>
         <p>If the email address shown is not correct, please either update your email address on Twitch, log out and log back into the dashboard site, and try again. Alternatively, you can email us at <a href="mailto:gdpr@yourstreamingtools.com">gdpr@yourstreamingtools.com</a> to request your export manually.</p>
     </section>
@@ -148,7 +148,7 @@ $effectiveDate = 'February 9, 2026';
             <li><strong>Code-related issues:</strong> <a href="mailto:code@botofthespecter.com">code@botofthespecter.com</a></li>
         </ul>
     </section>
-</main>
+</div>
 <?php
 $pageContent = ob_get_clean();
 include 'layout.php';

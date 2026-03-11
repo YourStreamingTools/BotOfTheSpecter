@@ -146,153 +146,116 @@ ob_start();
 ?>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"BotOfTheSpecter - Feedback","description":"Send feedback or bug reports for BotOfTheSpecter.","url":"https://botofthespecter.com/feedback.php"}</script>
 <?php
-// Page scripts moved into the body to match other pages (keeps head smaller).
+$extraScripts = ob_get_clean();
 
 $pageTitle = "BotOfTheSpecter — Feedback";
 $pageDescription = "Send feedback or bug reports for BotOfTheSpecter.";
 
 ob_start();
 ?>
-<main class="box is-fullwidth content" role="main" aria-labelledby="feedback-heading">
-	<h1 id="feedback-heading" class="title">Feedback for BotOfTheSpecter</h1>
-	<p class="subtitle">We welcome feedback and bug reports — your input helps us improve.</p>
-	<br />
-	<?php
-	// choose a Bulma notification class for message display
-	$message_class = '';
-	if ($message !== '') {
-		$message_class = (strpos($message, 'Thanks') === 0 || stripos($message, 'recorded') !== false) ? 'is-success' : 'is-danger';
-	}
-	?>
+<div class="hs-prose" role="main" aria-labelledby="feedback-heading">
+	<h1 id="feedback-heading">Feedback for BotOfTheSpecter</h1>
+	<p class="hs-prose-subtitle">We welcome feedback and bug reports — your input helps us improve.</p>
 	<?php if ($message): ?>
-		<div class="notification <?= h($message_class) ?> is-light">
-			<button class="delete"></button>
+		<?php $is_ok = strpos($message, 'Thanks') === 0 || stripos($message, 'recorded') !== false; ?>
+		<div class="hs-alert <?= $is_ok ? 'hs-alert-success' : 'hs-alert-danger' ?>">
 			<?= h($message) ?>
 		</div>
 	<?php endif; ?>
-	<div class="columns is-variable is-6">
-		<div class="column is-two-thirds">
-			<div class="card feedback-card">
-				<div class="card-content">
-					<?php if (!empty($_SESSION['twitch_user_id'])): ?>
-						<p class="mb-4">Signed in as <strong><?= h($_SESSION['twitch_display_name'] ?? $_SESSION['twitch_user_id']) ?></strong> — <a href="?logout=1" class="button is-light is-small">Sign out</a></p>
-						<form method="post" action="feedback.php" id="feedbackForm" class="feedback-form">
-							<input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
-							<input type="hidden" name="action" value="submit_feedback">
-							<input type="hidden" name="browser_info" id="browser_info" value="">
-							<div class="field">
-								<label class="checkbox">
-									<input type="checkbox" id="is_bug_report" name="is_bug_report">
-									Is this a bug report?
+	<div class="hs-feedback-layout">
+		<div class="hs-form-card">
+			<?php if (!empty($_SESSION['twitch_user_id'])): ?>
+				<p class="hs-signed-in-bar">Signed in as <strong><?= h($_SESSION['twitch_display_name'] ?? $_SESSION['twitch_user_id']) ?></strong> — <a href="?logout=1" class="hs-link-sm">Sign out</a></p>
+				<form method="post" action="feedback.php" id="feedbackForm" class="feedback-form">
+					<input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
+					<input type="hidden" name="action" value="submit_feedback">
+					<input type="hidden" name="browser_info" id="browser_info" value="">
+					<div class="hs-field">
+						<label class="hs-checkbox">
+							<input type="checkbox" id="is_bug_report" name="is_bug_report">
+							Is this a bug report?
+						</label>
+					</div>
+					<div class="hs-field" id="general_feedback_section">
+						<label class="hs-label" for="feedback_text">Do you have any feedback about "BotOfTheSpecter"?</label>
+						<textarea id="feedback_text" name="feedback_text" class="hs-textarea" rows="5" placeholder="Tell us what's working, what's not, or what you'd like to see..."></textarea>
+					</div>
+					<div id="bug_report_fields" style="display: none;">
+						<div class="hs-field">
+							<label class="hs-label" for="bug_category">Category <span class="hs-required">*</span></label>
+							<select id="bug_category" name="bug_category" class="hs-select">
+								<option value="">Select a category...</option>
+								<option value="dashboard">Dashboard/Overlays</option>
+								<option value="websocket">WebSocket</option>
+								<option value="bot">Twitch Bot</option>
+								<option value="discord">Discord Bot</option>
+								<option value="api">API</option>
+								<option value="other">Other</option>
+							</select>
+						</div>
+						<div class="hs-field">
+							<label class="hs-label" for="severity">Severity <span class="hs-required">*</span></label>
+							<select id="severity" name="severity" class="hs-select">
+								<option value="">Select severity...</option>
+								<option value="low">Low - Minor inconvenience</option>
+								<option value="medium">Medium - Feature not working as expected</option>
+								<option value="high">High - Major feature broken</option>
+								<option value="critical">Critical - System unusable</option>
+							</select>
+						</div>
+						<div class="hs-field">
+							<label class="hs-label" for="steps_to_reproduce">Steps to Reproduce <span class="hs-required">*</span></label>
+							<textarea id="steps_to_reproduce" name="steps_to_reproduce" class="hs-textarea" rows="4" placeholder="1. Go to...&#10;2. Click on...&#10;3. See error"></textarea>
+						</div>
+						<div class="hs-field">
+							<label class="hs-label" for="expected_behavior">Expected Behavior <span class="hs-required">*</span></label>
+							<textarea id="expected_behavior" name="expected_behavior" class="hs-textarea" rows="3" placeholder="What should have happened?"></textarea>
+						</div>
+						<div class="hs-field">
+							<label class="hs-label" for="actual_behavior">Actual Behavior <span class="hs-required">*</span></label>
+							<textarea id="actual_behavior" name="actual_behavior" class="hs-textarea" rows="3" placeholder="What actually happened?"></textarea>
+						</div>
+						<div class="hs-field">
+							<label class="hs-label" for="error_message">Error Message (if any)</label>
+							<textarea id="error_message" name="error_message" class="hs-textarea" rows="3" placeholder="Paste any error messages here"></textarea>
+						</div>
+						<div class="hs-field" id="browser_info_display" style="display: none;">
+							<label class="hs-label">Browser Information</label>
+							<div class="hs-field">
+								<label class="hs-checkbox">
+									<input type="checkbox" id="different_device" name="different_device">
+									I'm reporting this from a different device/browser
 								</label>
 							</div>
-							<div class="field" id="general_feedback_section">
-								<label class="label" for="feedback_text">Do you have any feedback about "BotOfTheSpecter"?</label>
-								<div class="control">
-									<textarea id="feedback_text" name="feedback_text" class="textarea" rows="5" placeholder="Tell us what's working, what's not, or what you'd like to see..."></textarea>
-								</div>
-							</div>
-							<div id="bug_report_fields" style="display: none;">
-								<!-- ...bug report fields unchanged... -->
-								<div class="field">
-									<label class="label" for="bug_category">Category <span class="has-text-danger">*</span></label>
-									<div class="control">
-										<div class="select is-fullwidth">
-											<select id="bug_category" name="bug_category">
-												<option value="">Select a category...</option>
-												<option value="dashboard">Dashboard/Overlays</option>
-												<option value="websocket">WebSocket</option>
-												<option value="bot">Twitch Bot</option>
-												<option value="discord">Discord Bot</option>
-												<option value="api">API</option>
-												<option value="other">Other</option>
-											</select>
-										</div>
-									</div>
-								</div>
-								<div class="field">
-									<label class="label" for="severity">Severity <span class="has-text-danger">*</span></label>
-									<div class="control">
-										<div class="select is-fullwidth">
-											<select id="severity" name="severity">
-												<option value="">Select severity...</option>
-												<option value="low">Low - Minor inconvenience</option>
-												<option value="medium">Medium - Feature not working as expected</option>
-												<option value="high">High - Major feature broken</option>
-												<option value="critical">Critical - System unusable</option>
-											</select>
-										</div>
-									</div>
-								</div>
-								<div class="field">
-									<label class="label" for="steps_to_reproduce">Steps to Reproduce <span class="has-text-danger">*</span></label>
-									<div class="control">
-										<textarea id="steps_to_reproduce" name="steps_to_reproduce" class="textarea" rows="4" placeholder="1. Go to...&#10;2. Click on...&#10;3. See error"></textarea>
-									</div>
-								</div>
-								<div class="field">
-									<label class="label" for="expected_behavior">Expected Behavior <span class="has-text-danger">*</span></label>
-									<div class="control">
-										<textarea id="expected_behavior" name="expected_behavior" class="textarea" rows="3" placeholder="What should have happened?"></textarea>
-									</div>
-								</div>
-								<div class="field">
-									<label class="label" for="actual_behavior">Actual Behavior <span class="has-text-danger">*</span></label>
-									<div class="control">
-										<textarea id="actual_behavior" name="actual_behavior" class="textarea" rows="3" placeholder="What actually happened?"></textarea>
-									</div>
-								</div>
-								<div class="field">
-									<label class="label" for="error_message">Error Message (if any)</label>
-									<div class="control">
-										<textarea id="error_message" name="error_message" class="textarea" rows="3" placeholder="Paste any error messages here"></textarea>
-									</div>
-								</div>
-								<div class="field" id="browser_info_display" style="display: none;">
-									<label class="label">Browser Information</label>
-									<div class="field">
-										<label class="checkbox">
-											<input type="checkbox" id="different_device" name="different_device">
-											I'm reporting this from a different device/browser
-										</label>
-									</div>
-									<div class="control">
-										<textarea id="browser_info_text" class="textarea" rows="2" readonly style="background-color: #2b2b2b; cursor: not-allowed;" placeholder="Browser info will be auto-detected..."></textarea>
-									</div>
-									<p class="help" id="browser_info_help">This information helps us diagnose browser-specific issues</p>
-								</div>
-							</div>
-							<div class="field is-grouped mt-4">
-								<div class="control">
-									<button class="button is-primary" type="submit" id="submitBtn">Send feedback</button>
-								</div>
-							</div>
-						</form>
-					<?php else: ?>
-						<p class="mb-4">Please sign in with your Twitch account to submit feedback. We only use your Twitch ID/display name to record who submitted feedback.</p>
-						<a class="button is-link" href="<?= h($authorize_url) ?>">Sign in with Twitch</a>
-					<?php endif; ?>
-				</div>
-			</div>
+							<textarea id="browser_info_text" class="hs-textarea" rows="2" readonly style="background-color: var(--bg-base); cursor: not-allowed;" placeholder="Browser info will be auto-detected..."></textarea>
+							<p class="hs-help" id="browser_info_help">This information helps us diagnose browser-specific issues</p>
+						</div>
+					</div>
+					<div class="hs-field hs-field-actions">
+						<button class="hs-btn hs-btn-primary" type="submit" id="submitBtn">Send feedback</button>
+					</div>
+				</form>
+			<?php else: ?>
+				<p class="hs-signed-in-bar">Please sign in with your Twitch account to submit feedback. We only use your Twitch ID/display name to record who submitted feedback.</p>
+				<a class="hs-btn hs-btn-primary" href="<?= h($authorize_url) ?>"><i class="fa-brands fa-twitch"></i> Sign in with Twitch</a>
+			<?php endif; ?>
 		</div>
-		<div class="column is-one-third">
-			<div class="box feedback-sidebar">
-				<h3 class="title is-5">Need help?</h3>
-				<p>Join our <a class="has-text-info" href="https://discord.com/invite/ANwEkpauHJ" target="_blank">Public Discord Server</a> for live support and discussions.</p>
-				<hr>
-				<p><strong>Privacy:</strong> Your Twitch info is used only to record feedback submitters. See our <a class="has-text-info" href="privacy-policy.php">Privacy Policy</a>.</p>
-				<p><strong>Terms:</strong> See our <a class="has-text-info" href="terms-of-service.php">Terms of Service</a>.</p>
-			</div>
-		</div>
+		<aside class="hs-card hs-feedback-sidebar">
+			<h3><i class="fa-solid fa-circle-question"></i> Need help?</h3>
+			<p>Join our <a href="https://discord.com/invite/ANwEkpauHJ" target="_blank" rel="noopener"><i class="fa-brands fa-discord"></i> Public Discord Server</a> for live support and discussions.</p>
+			<hr>
+			<p><strong>Privacy:</strong> Your Twitch info is used only to record feedback submitters. See our <a href="privacy-policy.php">Privacy Policy</a>.</p>
+			<p><strong>Terms:</strong> See our <a href="terms-of-service.php">Terms of Service</a>.</p>
+		</aside>
 	</div>
-</main>
+</div>
 <?php
 $pageContent = ob_get_clean();
 
 ob_start();
 ?>
 <script>
-/* Feedback page script — moved to body for consistency with other pages */
+/* Feedback page script */
 document.addEventListener('DOMContentLoaded', function() {
 	const bugReportCheckbox = document.getElementById('is_bug_report');
 	const bugReportFields = document.getElementById('bug_report_fields');
@@ -341,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
 			} else {
 				if (browserInfoTextArea) {
 					browserInfoTextArea.setAttribute('readonly', true);
-					browserInfoTextArea.style.backgroundColor = '#2b2b2b';
+					browserInfoTextArea.style.backgroundColor = 'var(--bg-base)';
 					browserInfoTextArea.style.cursor = 'not-allowed';
 					browserInfoTextArea.placeholder = 'Browser info will be auto-detected...';
 				}
@@ -354,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	if (bugReportCheckbox) bugReportCheckbox.addEventListener('change', function() {
 		if (this.checked) {
 			if (bugReportFields) bugReportFields.style.display = 'block';
-			if (feedbackTextLabel) feedbackTextLabel.innerHTML = 'Bug Summary <span class="has-text-danger">*</span>';
+			if (feedbackTextLabel) feedbackTextLabel.innerHTML = 'Bug Summary <span class="hs-required">*</span>';
 			if (document.getElementById('feedback_text')) document.getElementById('feedback_text').placeholder = 'Brief description of the bug...';
 			if (submitBtn) submitBtn.textContent = 'Submit Bug Report';
 			updateBrowserInfo();
@@ -385,8 +348,6 @@ document.addEventListener('DOMContentLoaded', function() {
 			}
 		}
 	});
-	const deleteButtons = document.querySelectorAll('.notification .delete');
-	deleteButtons.forEach(button => { button.addEventListener('click', function() { this.parentElement.style.display = 'none'; }); });
 });
 </script>
 
