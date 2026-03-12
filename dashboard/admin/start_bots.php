@@ -976,44 +976,43 @@ $stmt->close();
 ob_start();
 ?>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<div class="box">
-    <h1 class="title is-4"><span class="icon"><i class="fas fa-play-circle"></i></span> Start User Bots</h1>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h1 style="font-size:1.25rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-play-circle"></i></span> Start User Bots</h1>
     <p class="mb-4">Validate tokens and start stable bots for users. The system will automatically check if the token is
         valid and renew it if necessary before starting the bot.</p>
-    <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
-        <div class="buttons">
-            <button class="button is-info" onclick="refreshBotStatus()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div class="sp-btn-group">
+            <button class="sp-btn sp-btn-info" onclick="refreshBotStatus()">
                 <span class="icon"><i class="fas fa-sync-alt"></i></span>
                 <span>Refresh All</span>
             </button>
-            <button class="button is-primary" onclick="refreshRunningStatus()">
+            <button class="sp-btn sp-btn-primary" onclick="refreshRunningStatus()">
                 <span class="icon"><i class="fas fa-tasks"></i></span>
                 <span>Refresh Status</span>
             </button>
-            <button class="button is-info" onclick="refreshTokenStatus()">
+            <button class="sp-btn sp-btn-info" onclick="refreshTokenStatus()">
                 <span class="icon"><i class="fas fa-key"></i></span>
                 <span>Refresh Token Status</span>
             </button>
-            <button class="button is-light" onclick="refreshModStatus()">
+            <button class="sp-btn" onclick="refreshModStatus()">
                 <span class="icon"><i class="fas fa-user-shield"></i></span>
                 <span>Refresh Mod Status</span>
             </button>
-            <button class="button is-warning" id="restart-all-btn" onclick="restartAllBots()" disabled>
+            <button class="sp-btn sp-btn-warning" id="restart-all-btn" onclick="restartAllBots()" disabled>
                 <span class="icon"><i class="fas fa-redo-alt"></i></span>
                 <span>Restart All Bots</span>
             </button>
         </div>
-        <div class="field">
-            <p class="control has-icons-left">
-                <input class="input" type="text" id="user-search" placeholder="Search users...">
-                <span class="icon is-left">
-                    <i class="fas fa-search"></i>
-                </span>
-            </p>
+        <div class="sp-form-group" style="margin:0;">
+            <div style="position:relative;">
+                <span class="icon is-left" style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);pointer-events:none;"><i class="fas fa-search"></i></span>
+                <input class="sp-input" style="padding-left:2.25rem;" type="text" id="user-search" placeholder="Search users...">
+            </div>
         </div>
     </div>
-    <div class="table-container">
-        <table class="table is-fullwidth is-striped">
+    <div class="sp-table-wrap">
+        <table class="sp-table">
             <thead>
                 <tr>
                     <th>User</th>
@@ -1033,84 +1032,83 @@ ob_start();
                         data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>"
                         data-custom-enabled="<?php echo $customBotEnabled ? '1' : '0'; ?>">
                         <td>
-                            <div class="is-flex is-align-items-center">
-                                <figure class="image is-32x32 mr-2">
-                                    <img src="<?php echo htmlspecialchars($user['profile_image']); ?>"
-                                        alt="<?php echo htmlspecialchars($user['username']); ?>" class="is-rounded">
-                                </figure>
+                            <div style="display:flex;align-items:center;">
+                                <img src="<?php echo htmlspecialchars($user['profile_image']); ?>"
+                                    alt="<?php echo htmlspecialchars($user['username']); ?>"
+                                    class="admin-bot-avatar" style="margin-right:0.5rem;">
                                 <span><?php echo htmlspecialchars($user['twitch_display_name'] ?: $user['username']); ?></span>
                             </div>
                         </td>
                         <td><?php echo htmlspecialchars($user['twitch_user_id']); ?></td>
                         <td>
-                            <span class="tag bot-status-tag"
+                            <span class="sp-badge bot-status-tag"
                                 data-username="<?php echo htmlspecialchars($user['username']); ?>">
                                 <span class="icon"><i class="fas fa-spinner fa-pulse"></i></span>
                                 <span>Checking...</span>
                             </span>
                         </td>
                         <td>
-                            <span class="tag is-warning bot-type-tag">
+                            <span class="sp-badge sp-badge-amber bot-type-tag">
                                 <span>Unknown</span>
                             </span>
                         </td>
                         <td>
-                            <span class="tag is-dark running-time-tag">
+                            <span class="sp-badge sp-badge-grey running-time-tag">
                                 <span>-</span>
                             </span>
                         </td>
                         <td>
-                            <span class="tag token-status-tag"
+                            <span class="sp-badge token-status-tag"
                                 data-twitch-id="<?php echo htmlspecialchars($user['twitch_user_id']); ?>">
                                 <span class="icon"><i class="fas fa-question"></i></span>
                                 <span>Unknown</span>
                             </span>
                         </td>
                         <td>
-                            <span class="tag mod-status-tag">
+                            <span class="sp-badge mod-status-tag">
                                 <span class="icon"><i class="fas fa-question"></i></span>
                                 <span>Unknown</span>
                             </span>
                         </td>
                         <td>
-                            <div class="buttons are-small">
-                                <button class="button is-warning make-mod-btn"
+                            <div class="sp-btn-group">
+                                <button class="sp-btn sp-btn-warning make-mod-btn"
                                     onclick="makeBotMod('<?php echo htmlspecialchars($user['twitch_user_id']); ?>')"
                                     style="display: none;" title="Grant moderator status to BotOfTheSpecter">
                                     <span class="icon"><i class="fas fa-user-shield"></i></span>
                                     <span>Make Bot Mod</span>
                                 </button>
-                                <button class="button is-success start-stable-btn"
+                                <button class="sp-btn sp-btn-success start-stable-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'stable')"
                                     disabled>
                                     <span class="icon"><i class="fas fa-play"></i></span>
                                     <span>Start Stable</span>
                                 </button>
-                                <button class="button is-info start-beta-btn"
+                                <button class="sp-btn sp-btn-info start-beta-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'beta')"
                                     disabled>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                     <span>Start Beta</span>
                                 </button>
-                                <button class="button is-primary start-custom-btn"
+                                <button class="sp-btn sp-btn-primary start-custom-btn"
                                     onclick="startUserBot('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
                                     <?php echo $customBotEnabled ? '' : 'disabled'; ?> title="<?php echo $customBotEnabled ? 'Start verified custom bot mode' : 'Custom bot is not enabled/verified for this user'; ?>">
                                     <span class="icon"><i class="fas fa-user-astronaut"></i></span>
                                     <span>Start Custom Bot</span>
                                 </button>
-                                <button class="button is-warning restart-bot-btn"
+                                <button class="sp-btn sp-btn-warning restart-bot-btn"
                                     onclick="restartBot('<?php echo htmlspecialchars($user['username']); ?>', 'stable', 0, this)"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                                     <span>Restart Bot</span>
                                 </button>
-                                <button class="button is-info switch-bot-btn"
+                                <button class="sp-btn sp-btn-info switch-bot-btn"
                                     onclick="switchBotType('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'beta')"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-exchange-alt"></i></span>
                                     <span>Switch to Beta</span>
                                 </button>
-                                <button class="button is-primary switch-custom-btn"
+                                <button class="sp-btn sp-btn-primary switch-custom-btn"
                                     onclick="switchBotType('<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', 'custom')"
                                     style="display: none;" disabled>
                                     <span class="icon"><i class="fas fa-user-astronaut"></i></span>
@@ -1122,6 +1120,7 @@ ob_start();
                 <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
     </div>
 </div>
 <script>
@@ -1227,18 +1226,18 @@ ob_start();
                             const isBetaFamily = runningType === 'beta' || runningType === 'custom';
                             // Show running status
                             if (botTag) {
-                                botTag.className = 'tag is-success bot-status-tag';
+                                botTag.className = 'sp-badge sp-badge-green bot-status-tag';
                                 botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
                             }
                             // Update bot type tag (handle stable, beta, custom, v6)
                             if (botTypeTag) {
                                 const bt = (isRunning.bot_type || '').toLowerCase();
-                                let className = 'tag is-warning bot-type-tag';
+                                let className = 'sp-badge sp-badge-amber bot-type-tag';
                                 let label = 'Unknown';
-                                if (bt === 'beta') { className = 'tag is-info bot-type-tag'; label = 'Beta'; }
-                                else if (bt === 'stable') { className = 'tag is-success bot-type-tag'; label = 'Stable'; }
-                                else if (bt === 'custom') { className = 'tag is-primary bot-type-tag'; label = 'Custom'; }
-                                else if (bt === 'v6') { className = 'tag is-dark bot-type-tag'; label = 'v6'; }
+                                if (bt === 'beta') { className = 'sp-badge sp-badge-blue bot-type-tag'; label = 'Beta'; }
+                                else if (bt === 'stable') { className = 'sp-badge sp-badge-green bot-type-tag'; label = 'Stable'; }
+                                else if (bt === 'custom') { className = 'sp-badge sp-badge-accent bot-type-tag'; label = 'Custom'; }
+                                else if (bt === 'v6') { className = 'sp-badge sp-badge-grey bot-type-tag'; label = 'v6'; }
                                 botTypeTag.className = className;
                                 botTypeTag.innerHTML = '<span>' + label + '</span>';
                             }
@@ -1248,7 +1247,7 @@ ob_start();
                                 const uptimeLabel = hasNumericUptime
                                     ? formatUptime(Number(rawUptime))
                                     : (isRunning.uptime_human || 'Unknown');
-                                runningTimeTag.className = 'tag is-link running-time-tag';
+                                runningTimeTag.className = 'sp-badge sp-badge-blue running-time-tag';
                                 runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
                             }
                             // Hide both start buttons for running bots
@@ -1306,16 +1305,16 @@ ob_start();
                         } else {
                             // Update bot status tag for not running
                             if (botTag) {
-                                botTag.className = 'tag is-danger bot-status-tag';
+                                botTag.className = 'sp-badge sp-badge-red bot-status-tag';
                                 botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>';
                             }
                             // Set bot type tag to "Bot Not Running" when not running
                             if (botTypeTag) {
-                                botTypeTag.className = 'tag is-dark bot-type-tag';
+                                botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag';
                                 botTypeTag.innerHTML = '<span>Bot Not Running</span>';
                             }
                             if (runningTimeTag) {
-                                runningTimeTag.className = 'tag is-dark running-time-tag';
+                                runningTimeTag.className = 'sp-badge sp-badge-grey running-time-tag';
                                 runningTimeTag.innerHTML = '<span>-</span>';
                             }
                             // Show both start buttons and hide restart button for non-running bots
@@ -1369,7 +1368,7 @@ ob_start();
         });
         // Update all bot status tags to show "Checking..." while we fetch
         document.querySelectorAll('.bot-status-tag').forEach(tag => {
-            tag.className = 'tag is-info bot-status-tag';
+            tag.className = 'sp-badge sp-badge-blue bot-status-tag';
             tag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
         });
         fetch('?get_running_bots=1')
@@ -1398,17 +1397,17 @@ ob_start();
                             const runningType = (isRunning.bot_type || '').toLowerCase();
                             const isBetaFamily = runningType === 'beta' || runningType === 'custom';
                             if (botTag) {
-                                botTag.className = 'tag is-success bot-status-tag';
+                                botTag.className = 'sp-badge sp-badge-green bot-status-tag';
                                 botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running (PID: ' + isRunning.pid + ')</span>';
                             }
                             if (botTypeTag) {
                                 const bt = (isRunning.bot_type || '').toLowerCase();
-                                let className = 'tag is-warning bot-type-tag';
+                                let className = 'sp-badge sp-badge-amber bot-type-tag';
                                 let label = 'Unknown';
-                                if (bt === 'beta') { className = 'tag is-info bot-type-tag'; label = 'Beta'; }
-                                else if (bt === 'stable') { className = 'tag is-success bot-type-tag'; label = 'Stable'; }
-                                else if (bt === 'custom') { className = 'tag is-primary bot-type-tag'; label = 'Custom'; }
-                                else if (bt === 'v6') { className = 'tag is-dark bot-type-tag'; label = 'v6'; }
+                                if (bt === 'beta') { className = 'sp-badge sp-badge-blue bot-type-tag'; label = 'Beta'; }
+                                else if (bt === 'stable') { className = 'sp-badge sp-badge-green bot-type-tag'; label = 'Stable'; }
+                                else if (bt === 'custom') { className = 'sp-badge sp-badge-accent bot-type-tag'; label = 'Custom'; }
+                                else if (bt === 'v6') { className = 'sp-badge sp-badge-grey bot-type-tag'; label = 'v6'; }
                                 botTypeTag.className = className;
                                 botTypeTag.innerHTML = '<span>' + label + '</span>';
                             }
@@ -1418,7 +1417,7 @@ ob_start();
                                 const uptimeLabel = hasNumericUptime
                                     ? formatUptime(Number(rawUptime))
                                     : (isRunning.uptime_human || 'Unknown');
-                                runningTimeTag.className = 'tag is-link running-time-tag';
+                                runningTimeTag.className = 'sp-badge sp-badge-blue running-time-tag';
                                 runningTimeTag.innerHTML = '<span>' + uptimeLabel + '</span>';
                             }
                             if (startStableBtn) { startStableBtn.disabled = true; startStableBtn.style.display = 'none'; }
@@ -1428,9 +1427,9 @@ ob_start();
                             if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? 'Switch to Stable' : (isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
                             if (switchCustomBtn) { if (runningType === 'custom') { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`); switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Beta'; } else { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Custom'; } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } } }
                         } else {
-                            if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
-                            if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
-                            if (runningTimeTag) { runningTimeTag.className = 'tag is-dark running-time-tag'; runningTimeTag.innerHTML = '<span>-</span>'; }
+                            if (botTag) { botTag.className = 'sp-badge sp-badge-red bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
+                            if (botTypeTag) { botTypeTag.className = 'sp-badge sp-badge-grey bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
+                            if (runningTimeTag) { runningTimeTag.className = 'sp-badge sp-badge-grey running-time-tag'; runningTimeTag.innerHTML = '<span>-</span>'; }
                             if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
                             if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
@@ -1521,7 +1520,7 @@ ob_start();
     async function validateUserToken(twitchUserId) {
         const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
         const tokenTag = row.querySelector('.token-status-tag');
-        tokenTag.className = 'tag is-info token-status-tag';
+        tokenTag.className = 'sp-badge sp-badge-blue token-status-tag';
         tokenTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Validating...</span>';
         try {
             const formData = new FormData();
@@ -1533,7 +1532,7 @@ ob_start();
             });
             const data = await response.json();
             if (data.success && data.valid) {
-                tokenTag.className = 'tag is-success token-status-tag';
+                tokenTag.className = 'sp-badge sp-badge-green token-status-tag';
                 const hours = Math.floor(data.expires_in / 3600);
                 tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>Valid (${hours}h)</span>`;
                 // Update mod status if returned from server
@@ -1548,14 +1547,14 @@ ob_start();
                     const canStartCustom = hasCustomBotEnabled(row);
                     // Skip mod check for BotOfTheSpecter's own channel
                     if (twitchUserId === '971436498') {
-                        modTag.className = 'tag is-info mod-status-tag';
+                        modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>Skipped</span>';
                         if (makeModBtn) makeModBtn.style.display = 'none';
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
                         if (startBetaBtn && !isRunning) startBetaBtn.disabled = false;
                         if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                     } else if (data.is_mod) {
-                        modTag.className = 'tag is-success mod-status-tag';
+                        modTag.className = 'sp-badge sp-badge-green mod-status-tag';
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
                         if (makeModBtn) makeModBtn.style.display = 'none';
                         if (startStableBtn && !isRunning) startStableBtn.disabled = false;
@@ -1563,13 +1562,13 @@ ob_start();
                         if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                     } else if (data.is_banned) {
                         // Bot is BANNED
-                        modTag.className = 'tag is-danger mod-status-tag';
+                        modTag.className = 'sp-badge sp-badge-red mod-status-tag';
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>Banned</span>';
                         modTag.title = 'Reason: ' + (data.ban_reason || 'No reason provided');
                         if (makeModBtn) makeModBtn.style.display = 'none';
                     } else {
                         // Not a moderator: show a warning state but allow admins to start the bot
-                        modTag.className = 'tag is-warning mod-status-tag';
+                        modTag.className = 'sp-badge sp-badge-amber mod-status-tag';
                         modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Not a Moderator</span>';
                         if (makeModBtn) makeModBtn.style.display = 'inline-flex';
                         // Allow start button even if the bot is not a moderator (admins can start regardless)
@@ -1578,18 +1577,18 @@ ob_start();
                         if (startCustomBtn && !isRunning) startCustomBtn.disabled = !canStartCustom;
                         // If the bot is running but missing mod, indicate it visually
                         if (isRunning) {
-                            modTag.className = 'tag is-warning mod-status-tag';
+                            modTag.className = 'sp-badge sp-badge-amber mod-status-tag';
                             modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Running Without Mod!</span>';
                         }
                     }
                 }
             } else {
                 // Token invalid - attempt an automatic silent renewal
-                tokenTag.className = 'tag is-warning token-status-tag';
+                tokenTag.className = 'sp-badge sp-badge-amber token-status-tag';
                 tokenTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Invalid - attempting renew...</span>';
                 const renewed = await renewUserToken(twitchUserId, true);
                 if (renewed) {
-                    tokenTag.className = 'tag is-success token-status-tag';
+                    tokenTag.className = 'sp-badge sp-badge-green token-status-tag';
                     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Renewed</span>';
                     const startStableBtn = row.querySelector('.start-stable-btn');
                     const startBetaBtn = row.querySelector('.start-beta-btn');
@@ -1598,12 +1597,12 @@ ob_start();
                     if (startBetaBtn) startBetaBtn.disabled = false;
                     if (startCustomBtn) startCustomBtn.disabled = !hasCustomBotEnabled(row);
                 } else {
-                    tokenTag.className = 'tag is-danger token-status-tag';
+                    tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
                     tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Renewal Failed</span>';
                 }
             }
         } catch (error) {
-            tokenTag.className = 'tag is-danger token-status-tag';
+            tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
             tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
             console.error('Error validating token:', error);
         }
@@ -1616,8 +1615,8 @@ ob_start();
         const startStableBtn = row.querySelector('.start-stable-btn');
         const startBetaBtn = row.querySelector('.start-beta-btn');
         makeModBtn.disabled = true;
-        makeModBtn.classList.add('is-loading');
-        modTag.className = 'tag is-info mod-status-tag';
+        makeModBtn.classList.add('sp-btn-loading');
+        modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
         modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Adding as Mod...</span>';
         try {
             const formData = new FormData();
@@ -1629,7 +1628,7 @@ ob_start();
             });
             const data = await response.json();
             if (data.success) {
-                modTag.className = 'tag is-success mod-status-tag';
+                modTag.className = 'sp-badge sp-badge-green mod-status-tag';
                 modTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Is Moderator</span>';
                 makeModBtn.style.display = 'none';
                 if (startStableBtn) startStableBtn.disabled = false;
@@ -1642,10 +1641,10 @@ ob_start();
                     showConfirmButton: false
                 });
             } else {
-                modTag.className = 'tag is-danger mod-status-tag';
+                modTag.className = 'sp-badge sp-badge-red mod-status-tag';
                 modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-circle"></i></span><span>Failed</span>';
                 makeModBtn.disabled = false;
-                makeModBtn.classList.remove('is-loading');
+                makeModBtn.classList.remove('sp-btn-loading');
                 Swal.fire({
                     icon: 'error',
                     title: 'Failed to Add Moderator',
@@ -1654,10 +1653,10 @@ ob_start();
                 });
             }
         } catch (error) {
-            modTag.className = 'tag is-danger mod-status-tag';
+            modTag.className = 'sp-badge sp-badge-red mod-status-tag';
             modTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
             makeModBtn.disabled = false;
-            makeModBtn.classList.remove('is-loading');
+            makeModBtn.classList.remove('sp-btn-loading');
             console.error('Error making bot mod:', error);
             Swal.fire({
                 icon: 'error',
@@ -1677,7 +1676,7 @@ ob_start();
         const isRunning = runningBots.find(bot => bot.username === username);
         // Skip mod check for BotOfTheSpecter's own channel
         if (twitchUserId === '971436498') {
-            modTag.className = 'tag is-info mod-status-tag';
+            modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
             modTag.innerHTML = '<span class="icon"><i class="fas fa-info-circle"></i></span><span>Skipped</span>';
             if (makeModBtn) makeModBtn.style.display = 'none';
             if (startStableBtn && !isRunning) startStableBtn.disabled = false;
@@ -1685,7 +1684,7 @@ ob_start();
             return;
         }
         try {
-            modTag.className = 'tag is-info mod-status-tag';
+            modTag.className = 'sp-badge sp-badge-blue mod-status-tag';
             modTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Checking...</span>';
             const formData = new FormData();
             formData.append('check_bot_mod_status', '1');
@@ -1697,30 +1696,30 @@ ob_start();
             const result = await response.json();
             if (result.success) {
                 if (result.is_mod) {
-                    modTag.className = 'tag is-success mod-status-tag';
+                    modTag.className = 'sp-badge sp-badge-green mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>Moderator</span>';
                 } else if (result.is_banned) {
-                    modTag.className = 'tag is-danger mod-status-tag';
+                    modTag.className = 'sp-badge sp-badge-red mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>Banned</span>';
                     modTag.title = 'Reason: ' + (result.ban_reason || 'No reason provided');
                 } else {
-                    modTag.className = 'tag is-warning mod-status-tag';
+                    modTag.className = 'sp-badge sp-badge-amber mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>Not Mod</span>';
                 }
             } else {
-                modTag.className = 'tag is-danger mod-status-tag';
+                modTag.className = 'sp-badge sp-badge-red mod-status-tag';
                 modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Check Failed</span>';
             }
         } catch (e) {
             console.error('Error checking mod/ban status:', e);
-            modTag.className = 'tag is-danger mod-status-tag';
+            modTag.className = 'sp-badge sp-badge-red mod-status-tag';
             modTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Error</span>';
         }
     }
     async function renewUserToken(twitchUserId, silent = false) {
         const row = document.querySelector(`tr[data-twitch-id="${twitchUserId}"]`);
         const tokenTag = row.querySelector('.token-status-tag');
-        tokenTag.className = 'tag is-info token-status-tag';
+        tokenTag.className = 'sp-badge sp-badge-blue token-status-tag';
         tokenTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Renewing...</span>';
         try {
             const formData = new FormData();
@@ -1732,12 +1731,12 @@ ob_start();
             });
             const data = await response.json();
             if (data.success) {
-                tokenTag.className = 'tag is-success token-status-tag';
+                tokenTag.className = 'sp-badge sp-badge-green token-status-tag';
                 const hours = Math.floor(data.expires_in / 3600);
                 tokenTag.innerHTML = `<span class="icon"><i class="fas fa-check-circle"></i></span><span>Renewed (${hours}h)</span>`;
                 return true;
             } else {
-                tokenTag.className = 'tag is-danger token-status-tag';
+                tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
                 tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Renewal Failed</span>';
                 if (!silent) {
                     Swal.fire({
@@ -1749,7 +1748,7 @@ ob_start();
                 return false;
             }
         } catch (error) {
-            tokenTag.className = 'tag is-danger token-status-tag';
+            tokenTag.className = 'sp-badge sp-badge-red token-status-tag';
             tokenTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
             console.error('Error renewing token:', error);
             if (!silent) {
@@ -1794,14 +1793,14 @@ ob_start();
         // Start the bot immediately via AJAX without performing token/mod checks to avoid slowing bulk operations
         if (currentBtn) {
             currentBtn.disabled = true;
-            currentBtn.classList.add('is-loading');
+            currentBtn.classList.add('sp-btn-loading');
         }
         try {
             if (botType === 'custom' && !hasCustomBotEnabled(row)) {
                 Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: `Custom bot is not enabled for ${username}`, showConfirmButton: false, timer: 2500 });
                 return;
             }
-            botTag.className = 'tag is-info bot-status-tag';
+            botTag.className = 'sp-badge sp-badge-blue bot-status-tag';
             const startTypeLabel = botType === 'beta' ? 'Beta' : (botType === 'custom' ? 'Custom' : 'Stable');
             botTag.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-pulse"></i></span><span>Starting ' + startTypeLabel + '...</span>';
             const startFormData = new FormData();
@@ -1814,11 +1813,11 @@ ob_start();
             try { startData = JSON.parse(startText); } catch (e) { console.warn('Non-JSON start response, raw:', startText); }
             if (startData && startData.success) {
                 // Optimistic UI update - immediately mark bot as running
-                botTag.className = 'tag is-success bot-status-tag';
+                botTag.className = 'sp-badge sp-badge-green bot-status-tag';
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-check-circle"></i></span><span>Running</span>';
                 const botTypeTag = row.querySelector('.bot-type-tag');
                 if (botTypeTag) {
-                    const botTypeClass = botType === 'beta' ? 'tag is-info bot-type-tag' : (botType === 'custom' ? 'tag is-primary bot-type-tag' : 'tag is-success bot-type-tag');
+                    const botTypeClass = botType === 'beta' ? 'sp-badge sp-badge-blue bot-type-tag' : (botType === 'custom' ? 'sp-badge sp-badge-accent bot-type-tag' : 'sp-badge sp-badge-green bot-type-tag');
                     const botTypeLabel = botType === 'beta' ? 'Beta' : (botType === 'custom' ? 'Custom' : 'Stable');
                     botTypeTag.className = botTypeClass;
                     botTypeTag.innerHTML = '<span>' + botTypeLabel + '</span>';
@@ -1838,20 +1837,20 @@ ob_start();
                 // Schedule a debounced refresh to verify actual status (non-blocking)
                 scheduleRefresh(2000);
             } else {
-                botTag.className = 'tag is-danger bot-status-tag';
+                botTag.className = 'sp-badge sp-badge-red bot-status-tag';
                 botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Start Failed</span>';
                 const msg = (startData && startData.message) ? startData.message : 'Could not start bot';
                 Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Start failed for ${username}: ${msg}`, showConfirmButton: false, timer: 3000 });
             }
         } catch (error) {
-            botTag.className = 'tag is-danger bot-status-tag';
+            botTag.className = 'sp-badge sp-badge-red bot-status-tag';
             botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Error</span>';
             console.error('Error starting bot:', error);
             Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Error starting bot for ${username}`, showConfirmButton: false, timer: 3000 });
         } finally {
             if (currentBtn) {
                 currentBtn.disabled = false;
-                currentBtn.classList.remove('is-loading');
+                currentBtn.classList.remove('sp-btn-loading');
             }
             otherBtns.forEach(btn => {
                 if (!btn) return;
@@ -1985,7 +1984,7 @@ ob_start();
         const restartAllBtn = document.getElementById('restart-all-btn');
         if (restartAllBtn) {
             restartAllBtn.disabled = true;
-            restartAllBtn.classList.add('is-loading');
+            restartAllBtn.classList.add('sp-btn-loading');
         }
         // Store original PIDs for comparison
         const botRestartTracking = runningBots.map(bot => ({
@@ -2075,7 +2074,7 @@ ob_start();
         // Re-enable button
         if (restartAllBtn) {
             restartAllBtn.disabled = false;
-            restartAllBtn.classList.remove('is-loading');
+            restartAllBtn.classList.remove('sp-btn-loading');
         }
         // Close the progress toast before showing final results
         Swal.close();
