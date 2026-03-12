@@ -1,4 +1,6 @@
 <?php
+// Buffer all output so BOM/whitespace from includes doesn't corrupt JSON responses
+ob_start();
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -30,6 +32,7 @@ date_default_timezone_set($timezone);
 
 // Handle AJAX request to load followers
 if (isset($_GET['load']) && $_GET['load'] == 'followers') {
+  ob_clean(); // Discard any BOM/whitespace output from included files
   header('Content-Type: application/json'); // Ensure the output is JSON
   // Fetch existing followers from the database, sorted by newest to oldest
   $existingFollowers = [];

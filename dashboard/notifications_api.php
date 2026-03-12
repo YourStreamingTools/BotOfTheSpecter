@@ -1,9 +1,13 @@
 <?php
+// Buffer all output so BOM/whitespace from includes doesn't corrupt JSON
+ob_start();
+
 // Initialize the session
 session_start();
 
 // Set up error handler to catch errors and return as JSON
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    ob_clean();
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -30,6 +34,9 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+
+// Discard any BOM/whitespace output from included files
+ob_clean();
 
 // Get access token from session
 $accessToken = $_SESSION['access_token'];

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 include 'file_paths.php';
 
 // Define the user's directories
