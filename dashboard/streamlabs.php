@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 include "/var/www/config/streamlabs.php";
 include "/var/www/config/db_connect.php";
@@ -261,7 +261,7 @@ ob_start();
         <div>
             <strong>StreamLabs API Enabled</strong>
             <p style="margin: 0.35rem 0 0; font-size: 0.9rem;">
-                We have been approved and the API is unlocked — you may connect away and enjoy real-time notices about donations. If you have any issues while this is still under review and testing, please log a support ticket on our Discord server.
+                We have been approved and the API is unlocked - you may connect away and enjoy real-time notices about donations. If you have any issues while this is still under review and testing, please log a support ticket on our Discord server.
             </p>
         </div>
     </div>
