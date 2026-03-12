@@ -120,255 +120,148 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - <?php echo isset($pageTitle) ? $pageTitle : 'Dashboard'; ?></title>
-    <!-- Bulma CSS 1.0.0 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
-    <!-- Bulma Switch Extension -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma-switch@2.0.4/dist/css/bulma-switch.min.css">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="/css/bulma-responsive-tables.css">
+    <!-- Dashboard CSS -->
+    <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo uuidv4(); ?>">
     <?php if ($isAdminCssPage): ?>
-        <link rel="stylesheet" href="/css/custom.css?v=<?php echo uuidv4(); ?>">
         <link rel="stylesheet" href="/css/admin.css?v=<?php echo uuidv4(); ?>">
-    <?php else: ?>
-        <link rel="stylesheet" href="/css/custom.css?v=<?php echo uuidv4(); ?>">
     <?php endif; ?>
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 </head>
-<body class="page-wrapper<?php echo (isset($layoutMode) && $layoutMode === 'admin') ? ' admin-mode' : ''; ?>">
-    <!-- LAYOUT DEBUG: layoutMode=<?php echo htmlspecialchars($layoutMode, ENT_QUOTES); ?> request_uri=<?php echo isset($_SERVER['REQUEST_URI']) ? htmlspecialchars($_SERVER['REQUEST_URI'], ENT_QUOTES) : 'N/A'; ?> -->
-    <div id="cookieConsentBox" class="box has-background-dark has-text-white"
-        style="display:none; position:fixed; z-index:9999; right:24px; bottom:24px; max-width:360px; width:90vw; box-shadow:0 2px 16px #000a;">
+<body>
+    <!-- Cookie Consent Box -->
+    <div id="cookieConsentBox" class="db-cookie-box">
         <div class="mb-3">
             <?php echo t('cookie_consent_help'); ?>
             <br>
-            <span>
-                <a href="https://botofthespecter.com/privacy-policy.php" target="_blank"
-                    class="has-text-link has-text-weight-bold">
-                    <?php echo t('privacy_policy'); ?>
-                </a>
-            </span>
+            <a href="https://botofthespecter.com/privacy-policy.php" target="_blank">
+                <?php echo t('privacy_policy'); ?>
+            </a>
         </div>
-        <div class="buttons is-right">
-            <button id="cookieAcceptBtn"
-                class="button is-success has-text-weight-bold"><?php echo t('cookie_accept_btn'); ?></button>
-            <button id="cookieDeclineBtn"
-                class="button is-danger has-text-weight-bold"><?php echo t('cookie_decline_btn'); ?></button>
+        <div class="db-cookie-actions">
+            <button id="cookieAcceptBtn" class="sp-btn sp-btn-success"><?php echo t('cookie_accept_btn'); ?></button>
+            <button id="cookieDeclineBtn" class="sp-btn sp-btn-danger"><?php echo t('cookie_decline_btn'); ?></button>
         </div>
     </div>
-    <!-- Mobile Top Navbar: visible only on mobile devices -->
-    <nav class="top-navbar mobile-only" id="mobileTopNavbar"
-        style="position:fixed; top:0; left:0; right:0; z-index:1100; display:flex; align-items:center; padding:0.5rem 0.75rem; background:rgba(20,20,20,0.95);">
-        <div style="display:flex; align-items:center; gap:0.5rem; width:100%;">
-            <button id="mobileSidebarToggle" class="button is-dark" aria-label="Open navigation"
-                style="min-width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;">
-                <span class="icon"><i class="fas fa-bars"></i></span>
-            </button>
-            <div style="flex:1; display:flex; align-items:center; justify-content:center;">
-                <a href="<?php echo $brandHref; ?>" style="color:#fff; font-weight:700; text-decoration:none;"><?php echo $brandText; ?></a>
-            </div>
-            <div style="width:44px; height:44px;"></div>
-        </div>
-    </nav>
-    <!-- Mobile Menu (off-canvas panel) -->
-    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
-        <div class="mobile-menu-header"
-            style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem; background:#141414;">
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-                <img src="https://cdn.botofthespecter.com/logo.png" alt="logo" style="width:28px; height:28px;">
-                <span style="color:#fff; font-weight:700;"><?php echo $brandText; ?></span>
-            </div>
-            <button id="mobileMenuClose" class="button is-dark" aria-label="Close navigation">
-                <span class="icon"><i class="fas fa-times"></i></span>
-            </button>
-        </div>
-        <div class="mobile-menu-body" style="padding:0.75rem; overflow-y:auto; max-height:calc(100vh - 56px);">
-            <?php include_once __DIR__ . '/menu.php'; renderMenu('mobile', $layoutMode); ?>
-            <div style="padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.04); margin-top:0.75rem;">
-                <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
-                    <a href="../dashboard.php" class="sidebar-user-item"
-                        style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
-                        <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
-                        <span class="sidebar-user-text">User Dashboard</span>
-                    </a>
-                <?php endif; ?>
-                <a href="../mod_channels.php" class="sidebar-user-item"
-                    style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
-                    <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
-                    <span class="sidebar-user-text">Mod Channels</span>
-                </a>
-                <?php if ($showAdminPanelLink): ?>
-                    <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>"
-                        style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
-                        <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
-                        <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
-                    </a>
-                <?php endif; ?>
-                <a href="../profile.php" class="sidebar-user-item"
-                    style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
-                    <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
-                    <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
-                </a>
-                <a href="../logout.php" class="sidebar-user-item"
-                    style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; color:#fff;">
-                    <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
-                    <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
-                </a>
-            </div>
-        </div>
-    </div>
-    <!-- Sidebar Navigation (Desktop Only - Hidden on Mobile/Tablet) -->
-    <aside class="sidebar-nav desktop-only" id="sidebarNav">
-        <div class="sidebar-header">
-            <div class="sidebar-brand">
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sp-overlay" id="spOverlay"></div>
+    <!-- Layout shell -->
+    <div class="sp-layout">
+        <!-- Sidebar -->
+        <aside class="sp-sidebar" id="spSidebar">
+            <a href="<?php echo $brandHref; ?>" class="sp-brand">
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter Logo">
-                <span class="sidebar-brand-text"><?php echo $brandText; ?></span>
-            </div>
-            <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
-                <span class="icon"><i class="fas fa-bars"></i></span>
-            </button>
-        </div>
-        <div class="sidebar-content-wrapper">
-            <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop', $layoutMode); ?>
-            <div class="sidebar-user-section">
-                <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
-                    <a href="../dashboard.php" class="sidebar-user-item">
-                        <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
-                        <span class="sidebar-user-text">User Dashboard</span>
-                    </a>
-                <?php endif; ?>
-                <a href="../mod_channels.php" class="sidebar-user-item">
-                    <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
-                    <span class="sidebar-user-text">Mod Channels</span>
-                </a>
-                    <?php if ($showAdminPanelLink): ?>
-                    <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
-                        <span class="sidebar-user-icon"><i class="fas fa-shield-alt has-text-danger"></i></span>
-                        <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
-                    </a>
+                <span class="sp-brand-text">
+                    <span class="sp-brand-title"><?php echo $brandText; ?></span>
+                </span>
+            </a>
+            <nav class="sp-nav">
+                <?php include_once __DIR__ . '/menu.php'; renderMenu('desktop', $layoutMode); ?>
+            </nav>
+            <div class="sp-sidebar-footer">
+                <div class="sidebar-user-section">
+                    <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
+                        <a href="../dashboard.php" class="sidebar-user-item">
+                            <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
+                            <span class="sidebar-user-text">User Dashboard</span>
+                        </a>
                     <?php endif; ?>
-                <a href="../profile.php" class="sidebar-user-item">
-                    <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
-                    <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
-                </a>
-                <a href="../logout.php" class="sidebar-user-item">
-                    <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
-                    <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
-                </a>
-                <!-- Version Badge -->
-                <div class="sidebar-version">
-                    <span class="tag is-info is-light">v<?php echo $dashboardVersion; ?></span>
+                    <a href="../mod_channels.php" class="sidebar-user-item">
+                        <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
+                        <span class="sidebar-user-text">Mod Channels</span>
+                    </a>
+                    <?php if ($showAdminPanelLink): ?>
+                        <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
+                            <span class="sidebar-user-icon"><i class="fas fa-shield-alt"></i></span>
+                            <span class="sidebar-user-text"><?php echo t('navbar_admin_panel'); ?></span>
+                        </a>
+                    <?php endif; ?>
+                    <a href="../profile.php" class="sidebar-user-item">
+                        <span class="sidebar-user-icon"><i class="fas fa-id-card"></i></span>
+                        <span class="sidebar-user-text"><?php echo $profileNavLabel; ?></span>
+                    </a>
+                    <a href="../logout.php" class="sidebar-user-item">
+                        <span class="sidebar-user-icon"><i class="fas fa-sign-out-alt"></i></span>
+                        <span class="sidebar-user-text"><?php echo t('navbar_logout'); ?></span>
+                    </a>
+                </div>
+                <div class="sp-version-row">
+                    <span class="sp-version-badge">v<?php echo $dashboardVersion; ?></span>
                 </div>
             </div>
-        </div>
-    </aside>
-    <?php if ($layoutMode === 'admin'): ?>
-        <!-- Admin Banner -->
-        <div style="background:rgb(0, 0, 0); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px;"><span><strong>ADMIN DASHBOARD</strong> &mdash; Restricted Access</span></div>
-    <?php else: ?>
-        <?php if ($layoutMode === 'default' && $devStreamOnline): ?>
-            <!-- Dev Stream Online Banner -->
-            <div style="background:rgb(138, 43, 226); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><span><i class="fas fa-video"></i> Dev Stream Online - Watch live at <a href="https://twitch.tv/gfaundead" target="_blank" style="color: #fff; text-decoration: underline;">twitch.tv/gfaundead</a></span></div>
-        <?php endif; ?>
-    <?php endif; ?>
-    <?php if ($isActingAsUser): ?>
-        <div style="background:rgb(184, 134, 11); color: #fff; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.4px;">
-            <span>
-                <i class="fas fa-user-secret"></i>
-                ACT AS mode active &mdash; currently viewing dashboard as <strong><?php echo $actingAsLabel; ?></strong>
-                <a href="<?php echo $stopActAsHref; ?>" style="color:#fff; text-decoration:underline; margin-left:8px;"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a>
-            </span>
-        </div>
-    <?php endif; ?>
-    <?php if ($maintenanceMode):
-        $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true'; ?>
-        <!-- Maintenance Notice Banner -->
-        <div
-            style="background:rgb(255, 165, 0); color: #222; font-weight: bold; text-align: center; padding: 0.75rem 1rem; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            <span style="color:rgb(0, 0, 0);">
-                <i class="fas fa-tools"></i> Maintenance in progress - Some features may be temporarily unavailable
-            </span>
-        </div>
-            <?php if (!$modalAcknowledged): ?>
+        </aside>
+        <!-- Main -->
+        <div class="sp-main">
+            <!-- Topbar -->
+            <header class="sp-topbar">
+                <button class="sp-hamburger" id="spHamburger" aria-label="Toggle navigation">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <span class="sp-topbar-title"><?php echo $brandText; ?></span>
+                <div class="sp-topbar-center">
+                    <?php if ($layoutMode === 'admin'): ?>
+                        <span class="sp-topbar-tag sp-topbar-tag-admin"><i class="fas fa-shield-alt"></i> ADMIN DASHBOARD &mdash; Restricted Access</span>
+                    <?php elseif ($layoutMode === 'default' && $devStreamOnline): ?>
+                        <span class="sp-topbar-tag sp-topbar-tag-dev"><i class="fas fa-video"></i> Dev Stream Online &mdash; <a href="https://twitch.tv/gfaundead" target="_blank">twitch.tv/gfaundead</a></span>
+                    <?php endif; ?>
+                    <?php if ($isActingAsUser): ?>
+                        <span class="sp-topbar-tag sp-topbar-tag-act-as"><i class="fas fa-user-secret"></i> Viewing as <strong><?php echo $actingAsLabel; ?></strong> &mdash; <a href="<?php echo $stopActAsHref; ?>"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a></span>
+                    <?php endif; ?>
+                    <?php if ($maintenanceMode): ?>
+                        <span class="sp-topbar-tag sp-topbar-tag-maintenance"><i class="fas fa-tools"></i> Maintenance in progress &mdash; Some features may be temporarily unavailable</span>
+                    <?php endif; ?>
+                </div>
+                <div class="sp-topbar-actions">
+                    <?php if ($profileUsername): ?>
+                        <span style="font-size:0.82rem; color:var(--text-muted);"><?php echo $profileUsername; ?></span>
+                    <?php endif; ?>
+                </div>
+            </header>
+            <?php if ($maintenanceMode):
+                $modalAcknowledged = isset($_COOKIE['maintenance_modal_acknowledged']) && $_COOKIE['maintenance_modal_acknowledged'] === 'true';
+                if (!$modalAcknowledged): ?>
             <!-- Maintenance Modal -->
-            <div id="maintenanceModal" class="modal is-active">
-                <div class="modal-background"></div>
-                <div class="modal-card">
-                    <header class="modal-card-head has-background-warning">
-                        <p class="modal-card-title has-text-dark">
-                            <i class="fas fa-tools"></i> Maintenance Notice
-                        </p>
-                        <button class="delete" aria-label="close" onclick="closeMaintenanceModal()"></button>
-                    </header>
-                    <section class="modal-card-body">
-                        <div class="content">
-                            <p class="has-text-weight-bold">
-                                We are currently performing maintenance on BotOfTheSpecter.
-                            </p>
-                            <p>
-                                During this time, some features may be temporarily unavailable or experience reduced
-                                functionality.
-                                We apologize for any inconvenience and appreciate your patience.
-                            </p>
-                            <p>
-                                <strong>What you can expect:</strong>
-                            </p>
-                            <ul>
-                                <li>The dashboard will remain accessible</li>
-                                <li>Some features may be temporarily disabled</li>
-                                <li>Normal service will resume shortly</li>
-                            </ul>
-                            <p class="has-text-grey">
-                                Thank you for your understanding!
-                            </p>
-                        </div>
-                    </section>
-                    <footer class="modal-card-foot">
-                        <button class="button is-warning" onclick="closeMaintenanceModal()">I Understand</button>
-                        <button class="button" onclick="dontShowAgain()">Don't show again today</button>
-                    </footer>
+            <div id="maintenanceModal" class="db-modal-backdrop">
+                <div class="db-modal">
+                    <div class="db-modal-head">
+                        <div class="db-modal-title"><i class="fas fa-tools"></i> Maintenance Notice</div>
+                        <button class="db-modal-close" aria-label="close" onclick="closeMaintenanceModal()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="db-modal-body">
+                        <p><strong>We are currently performing maintenance on BotOfTheSpecter.</strong></p>
+                        <p>During this time, some features may be temporarily unavailable or experience reduced functionality. We apologize for any inconvenience and appreciate your patience.</p>
+                        <p><strong>What you can expect:</strong></p>
+                        <ul>
+                            <li>The dashboard will remain accessible</li>
+                            <li>Some features may be temporarily disabled</li>
+                            <li>Normal service will resume shortly</li>
+                        </ul>
+                        <p style="color:var(--text-muted);">Thank you for your understanding!</p>
+                    </div>
+                    <div class="db-modal-foot">
+                        <button class="sp-btn sp-btn-warning" onclick="closeMaintenanceModal()">I Understand</button>
+                        <button class="sp-btn sp-btn-secondary" onclick="dontShowAgain()">Don't show again today</button>
+                    </div>
                 </div>
             </div>
             <?php endif; endif; ?>
-    <!-- Main content wrapper -->
-    <div class="page-content">
-        <div class="columns" style="flex: 1 0 auto;">
-            <div class="column is-10 is-offset-1 main-content">
-                <section class="section">
-                    <div class="container is-fluid">
-                        <?php echo $content; ?>
-                    </div>
-                </section>
-            </div>
-        </div>
-    </div>
-    <!-- Footer -->
-    <footer class="footer is-dark has-text-white"
-        style="display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
-        <div class="is-hidden-mobile">
-            &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+            <!-- Content -->
+            <main class="sp-content">
+                <?php echo $content; ?>
+            </main>
+            <!-- Footer -->
+            <footer class="sp-footer">
+                &copy; 2023&ndash;<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
                 <?php include '/var/www/config/project-time.php'; ?>
-            BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
-            (ABN 20 447 022 747).<br>
-            This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live
-            Momentum Ltd., or StreamElements Inc.<br>
-            All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the
-            property of their respective owners and are used for identification purposes only.
-        </div>
-        <div style="max-width: 1500px;" class="is-hidden-tablet">
-            &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-            <span class="tag is-info is-light mt-2"><?php echo ($layoutMode==='admin')? 'Admin Dashboard Version: ' . $dashboardVersion : (($layoutMode==='moderator')? 'Mod Dashboard Version: ' . $dashboardVersion : ($layoutMode==='todolist' ? 'To Do List Version: ' . $dashboardVersion : 'Dashboard Version: ' . $dashboardVersion)); ?></span><br>
-            BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
-            (ABN 20 447 022 747).<br>
-            This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live
-            Momentum Ltd., or StreamElements Inc.<br>
-            All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the
-            property of their respective owners and are used for identification purposes only.
-        </div>
-    </footer>
+                BotOfTheSpecter is a project operated under the business name &ldquo;YourStreamingTools&rdquo;, registered in Australia (ABN 20 447 022 747).<br>
+                This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
+                All trademarks, logos, and brand names are the property of their respective owners and are used for identification purposes only.
+            </footer>
+        </div><!-- /.sp-main -->
+    </div><!-- /.sp-layout -->
     <!-- JavaScript dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <!-- SweetAlert2 CDN -->
@@ -378,10 +271,29 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <!-- Custom JS -->
     <script src="/js/dashboard.js?v=<?php echo uuidv4(); ?>"></script>
     <script src="/js/search.js?v=<?php echo uuidv4(); ?>"></script>
-    <script src="/js/bulmaModals.js?v=<?php echo uuidv4(); ?>"></script>
-    <script src="/js/sidebar-mobile.js?v=<?php echo uuidv4(); ?>"></script>
         <?php echo $scripts; ?>
         <?php include_once "usr_database.php"; ?>
+    <script>
+        // Sidebar toggle (mobile)
+        (function () {
+            const sidebar  = document.getElementById('spSidebar');
+            const overlay  = document.getElementById('spOverlay');
+            const hamburger = document.getElementById('spHamburger');
+            function openSidebar()  { sidebar.classList.add('open');  overlay.classList.add('active'); }
+            function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('active'); }
+            if (hamburger) hamburger.addEventListener('click', function () {
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            });
+            if (overlay) overlay.addEventListener('click', closeSidebar);
+        })();
+        // Submenu toggle
+        function toggleSubmenu(e, el) {
+            e.preventDefault();
+            var item = el.closest('.sidebar-menu-item');
+            if (!item) return;
+            item.classList.toggle('open');
+        }
+    </script>
     <script>
         function setCookie(name, value, days) {
             var d = new Date();
@@ -394,7 +306,8 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         }
         // Maintenance Modal Functions
         function closeMaintenanceModal() {
-            document.getElementById('maintenanceModal').classList.remove('is-active');
+            var modal = document.getElementById('maintenanceModal');
+            if (modal) modal.classList.add('hidden');
             // Set a cookie to expire in exactly 24 hours, only for the modal
             setCookie('maintenance_modal_acknowledged', 'true', 1);
             // Reload the page to update the server-side state
@@ -412,7 +325,8 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                 const today = new Date().toDateString();
                 // Show modal only if "don't show again" isn't set
                 if (!lastShown) {
-                    document.getElementById('maintenanceModal').classList.add('is-active');
+                    var modal = document.getElementById('maintenanceModal');
+                    if (modal) modal.classList.remove('hidden');
                 }
                     <?php else: ?>
                 // Clean up maintenance cookies when maintenance mode is disabled
