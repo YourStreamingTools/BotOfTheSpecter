@@ -66,94 +66,64 @@ $categoryFilter = isset($_GET['category']) ? $_GET['category'] : 'all';
 
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column">
-    <div class="card" style="border-radius: 18px;">
-      <header class="card-header">
-        <p class="card-header-title is-size-4">
-          <span class="icon"><i class="fas fa-check-double"></i></span>
-          <span class="ml-2">Mark Tasks as Completed</span>
-        </p>
-      </header>
-      <div class="card-content" style="padding: 2.5rem;">
-        <?php if ($num_rows < 1): ?>
-          <div class="notification is-info">
-            <div class="columns is-vcentered">
-              <div class="column is-narrow">
-                <span class="icon is-large">
-                  <i class="fas fa-tasks fa-2x"></i>
-                </span>
-              </div>
-              <div class="column">
-                <p><strong>Your to-do list is empty!</strong></p>
-                <p>Start adding tasks to get organized.</p>
-              </div>
-            </div>
-          </div>
-        <?php else: ?>
-          <div class="mb-5">
-            <div class="columns is-vcentered">
-              <div class="column is-9">
-                <label for="searchInput" class="label mb-1">Search Tasks</label>
-                <div class="control has-icons-left">
-                  <input class="input is-rounded" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
-                  <span class="icon is-left">
-                    <i class="fas fa-search"></i>
-                  </span>
-                </div>
-              </div>
-              <div class="column is-3 has-text-right">
-                <label for="categoryFilter" class="label mb-1 has-text-left" style="display:block;">Filter by Category</label>
-                <div class="control has-icons-left">
-                  <div class="select is-fullwidth is-rounded">
-                    <select id="categoryFilter" onchange="applyCategoryFilter()">
-                      <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
-                      <?php foreach ($categories as $category): ?>
-                        <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
-                          <?php echo htmlspecialchars($category['category']); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <span class="icon is-left">
-                    <i class="fas fa-filter"></i>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <h4 class="mb-4">Number of total tasks in the category: <?php echo $num_rows; ?></h4>
-          <div class="columns is-multiline" id="taskCardList">
-            <?php foreach ($incompleteTasks as $row): ?>
-              <div class="column is-6-tablet is-4-desktop">
-                <div class="box" style="border-radius: 12px;">
-                  <div class="media is-align-items-center">
-                    <div class="media-content">
-                      <p class="title is-6 mb-1 is-flex is-align-items-center"><?php echo htmlspecialchars($row['objective']); ?></p>
-                      <p class="subtitle is-7 has-text-grey is-flex is-align-items-center">
-                        <span class="icon is-align-self-center"><i class="fas fa-folder"></i></span>
-                        <span class="ml-1">
-                          <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
-                        </span>
-                      </p>
-                    </div>
-                    <div class="media-right">
-                      <form method="post" action="completed.php" style="margin-bottom:0;" class="mark-completed-form">
-                        <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
-                        <button type="button" class="button is-success is-rounded is-small mark-completed-btn">
-                          <span class="icon"><i class="fas fa-check"></i></span>
-                          <span>Mark as completed</span>
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <div class="sp-card-title"><i class="fas fa-check-double"></i> Mark Tasks as Completed</div>
+  </div>
+  <div class="sp-card-body">
+    <?php if ($num_rows < 1): ?>
+      <div class="sp-alert sp-alert-info" style="display:flex; align-items:center; gap:0.75rem;">
+        <i class="fas fa-tasks fa-2x" style="color:var(--blue); flex-shrink:0;"></i>
+        <div>
+          <strong>Your to-do list is empty!</strong>
+          <p style="margin-bottom:0;">Start adding tasks to get organized.</p>
+        </div>
       </div>
-    </div>
+    <?php else: ?>
+      <div style="display:flex; align-items:flex-end; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          <label for="searchInput" class="sp-label">Search Tasks</label>
+          <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
+        </div>
+        <div style="min-width:200px;">
+          <label for="categoryFilter" class="sp-label">Filter by Category</label>
+          <select id="categoryFilter" class="sp-select">
+            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+            <?php foreach ($categories as $category): ?>
+              <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
+                <?php echo htmlspecialchars($category['category']); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+      <p style="margin-bottom:1rem; color:var(--text-secondary);">Number of total tasks in the category: <?php echo $num_rows; ?></p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
+        <?php foreach ($incompleteTasks as $row): ?>
+          <div class="sp-card" style="margin-bottom:0;">
+            <div class="sp-card-body">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.75rem;">
+                <div style="flex:1; min-width:0;">
+                  <p style="font-weight:600; margin-bottom:0.3rem;"><?php echo htmlspecialchars($row['objective']); ?></p>
+                  <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0; display:flex; align-items:center; gap:0.3rem;">
+                    <i class="fas fa-folder"></i>
+                    <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                  </p>
+                </div>
+                <div style="flex-shrink:0;">
+                  <form method="post" action="completed.php" style="margin-bottom:0;" class="mark-completed-form">
+                    <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm mark-completed-btn">
+                      <i class="fas fa-check"></i> Mark as completed
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
   </div>
 </div>
 <?php
@@ -166,7 +136,6 @@ ob_start();
     window.location.href = "completed.php?category=" + selectedCategoryId;
   });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.querySelectorAll('.mark-completed-btn').forEach(function(btn) {
   btn.addEventListener('click', function(e) {

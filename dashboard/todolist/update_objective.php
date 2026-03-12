@@ -60,83 +60,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   exit();
 }
 ?>
-<div class="columns is-centered">
-  <div class="column">
-    <div class="card" style="border-radius: 18px;">
-      <header class="card-header">
-        <p class="card-header-title is-size-4">
-          <span class="icon"><i class="fas fa-edit"></i></span>
-          <span class="ml-2">Update Task Objective</span>
-        </p>
-      </header>
-      <div class="card-content" style="padding: 2.5rem;">
-        <?php if ($num_rows < 1): ?>
-          <div class="notification is-info">
-            <div class="columns is-vcentered">
-              <div class="column is-narrow">
-                <span class="icon is-large">
-                  <i class="fas fa-tasks fa-2x"></i>
-                </span>
-              </div>
-              <div class="column">
-                <p><strong>Your to-do list is empty!</strong></p>
-                <p>You can't update any tasks because there aren't any yet.</p>
-              </div>
-            </div>
-          </div>
-        <?php else: ?>
-          <form method="POST">
-            <h2 class="title is-4 mb-4">Edit your task objectives and categories below and click "Update All" to save changes:</h2>
-            <div class="columns is-multiline">
-              <?php foreach ($rows as $row): ?>
-                <div class="column is-6-tablet is-4-desktop">
-                  <div class="box" style="border-radius: 12px;">
-                    <div class="media is-align-items-center">
-                      <div class="media-content">
-                        <p class="mb-2 is-flex is-align-items-center">
-                          <span class="icon is-align-self-center"><i class="fas fa-tasks"></i></span>
-                          <span class="ml-1"><strong>Current:</strong> <?= htmlspecialchars($row['objective']) ?></span>
-                        </p>
-                        <div class="field mb-3">
-                          <label class="label is-small" for="objective_<?php echo $row['id']; ?>">Update Objective</label>
-                          <div class="control has-icons-left">
-                            <input type="text" name="objective[<?php echo $row['id']; ?>]" id="objective_<?php echo $row['id']; ?>" class="input is-rounded" value="<?php echo htmlspecialchars($row['objective']); ?>">
-                            <span class="icon is-left"><i class="fas fa-pen"></i></span>
-                          </div>
-                        </div>
-                        <div class="field">
-                          <label class="label is-small" for="category_<?php echo $row['id']; ?>">Update Category</label>
-                          <div class="control has-icons-left">
-                            <div class="select is-fullwidth is-rounded">
-                              <select name="category[<?php echo $row['id']; ?>]" id="category_<?php echo $row['id']; ?>">
-                                <?php foreach ($categories as $cat): ?>
-                                  <option value="<?= $cat['id'] ?>" <?php if ($cat['id'] == $row['category']) echo 'selected'; ?>>
-                                    <?= htmlspecialchars($cat['category']) ?>
-                                  </option>
-                                <?php endforeach; ?>
-                              </select>
-                            </div>
-                            <span class="icon is-left"><i class="fas fa-folder"></i></span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              <?php endforeach; ?>
-            </div>
-            <div class="field is-grouped is-grouped-right mt-5">
-              <div class="control">
-                <button type="submit" name="submit" class="button is-primary is-medium is-rounded px-5">Update All</button>
-              </div>
-              <div class="control">
-                <a href="index.php" class="button is-light is-medium is-rounded px-5">Cancel</a>
-              </div>
-            </div>
-          </form>
-        <?php endif; ?>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <div class="sp-card-title"><i class="fas fa-edit"></i> Update Task Objective</div>
+  </div>
+  <div class="sp-card-body">
+    <?php if ($num_rows < 1): ?>
+      <div class="sp-alert sp-alert-info" style="display:flex; align-items:center; gap:0.75rem;">
+        <i class="fas fa-tasks fa-2x" style="color:var(--blue); flex-shrink:0;"></i>
+        <div>
+          <strong>Your to-do list is empty!</strong>
+          <p style="margin-bottom:0;">You can't update any tasks because there aren't any yet.</p>
+        </div>
       </div>
-    </div>
+    <?php else: ?>
+      <form method="POST">
+        <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">Edit your task objectives and categories below and click "Update All" to save changes:</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;">
+          <?php foreach ($rows as $row): ?>
+            <div class="sp-card" style="margin-bottom:0;">
+              <div class="sp-card-body">
+                <p style="margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem; font-size:0.9rem;">
+                  <i class="fas fa-tasks"></i>
+                  <strong>Current:</strong> <?= htmlspecialchars($row['objective']) ?>
+                </p>
+                <div class="sp-form-group">
+                  <label class="sp-label" for="objective_<?php echo $row['id']; ?>">Update Objective</label>
+                  <input type="text" name="objective[<?php echo $row['id']; ?>]" id="objective_<?php echo $row['id']; ?>" class="sp-input" value="<?php echo htmlspecialchars($row['objective']); ?>">
+                </div>
+                <div class="sp-form-group" style="margin-bottom:0;">
+                  <label class="sp-label" for="category_<?php echo $row['id']; ?>">Update Category</label>
+                  <select name="category[<?php echo $row['id']; ?>]" id="category_<?php echo $row['id']; ?>" class="sp-select">
+                    <?php foreach ($categories as $cat): ?>
+                      <option value="<?= $cat['id'] ?>" <?php if ($cat['id'] == $row['category']) echo 'selected'; ?>>
+                        <?= htmlspecialchars($cat['category']) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+          <button type="submit" name="submit" class="sp-btn sp-btn-primary">Update All</button>
+          <a href="index.php" class="sp-btn sp-btn-secondary">Cancel</a>
+        </div>
+      </form>
+    <?php endif; ?>
   </div>
 </div>
 <?php

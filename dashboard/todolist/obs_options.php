@@ -95,177 +95,115 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column">
-        <div class="card" style="border-radius: 18px;">
-            <header class="card-header">
-                <p class="card-header-title is-size-4">
-                    <span class="icon"><i class="fas fa-cog"></i></span>
-                    <span class="ml-2">OBS Font & Color Settings</span>
-                </p>
-            </header>
-            <div class="card-content" style="padding: 2.5rem;">
-                <button type="button" class="button is-link mb-4" onclick="showOBSInfo()">
-                    <span class="icon"><i class="fas fa-info-circle"></i></span>
-                    <span>How to put on your stream</span>
-                </button>
-                <!-- OBS Info Modal -->
-                <div id="obsInfoModal" class="modal">
-                    <div class="modal-background"></div>
-                    <div class="modal-card" style="max-width: 600px;">
-                        <header class="modal-card-head">
-                            <p class="modal-card-title">
-                                <span class="icon"><i class="fas fa-info-circle"></i></span>
-                                <span>How to use the ToDo List in OBS</span>
-                            </p>
-                            <button class="delete" aria-label="close" onclick="closeOBSInfoModal()"></button>
-                        </header>
-                        <section class="modal-card-body has-text-left">
-                            <p>The ToDo List is fully compatible with any streaming software:<br>OBS, SLOBS, xSplit, Wirecast, etc.</p>
-                            <p class="mt-3">All you have to do is add the following link (with your API key from your profile page) into a browser source and it works:</p>
-                            <pre class="has-background-dark has-text-white p-2 mb-2" style="border-radius: 6px;">https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</pre>
-                            <p>If you wish to define a working category, add it like this:</p>
-                            <pre class="has-background-dark has-text-white p-2 mb-2" style="border-radius: 6px;">todolist.php?code=API_KEY_HERE&amp;category=1</pre>
-                            <p class="is-size-7 mb-0">(where ID 1 is called Default, defined on the <a href='categories.php' class="has-text-link" target="_blank">categories</a> page.)</p>
-                        </section>
-                        <footer class="modal-card-foot is-justify-content-flex-end">
-                            <button class="button is-danger" onclick="closeOBSInfoModal()">Close</button>
-                        </footer>
-                    </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title"><i class="fas fa-cog"></i> OBS Font &amp; Color Settings</div>
+    </div>
+    <div class="sp-card-body">
+        <button type="button" class="sp-btn sp-btn-primary" style="margin-bottom:1.25rem;" onclick="showOBSInfo()">
+            <i class="fas fa-info-circle"></i> How to put on your stream
+        </button>
+        <!-- OBS Info Modal -->
+        <div id="obsInfoModal" class="db-modal-backdrop hidden">
+            <div class="db-modal">
+                <div class="db-modal-head">
+                    <span class="db-modal-title"><i class="fas fa-info-circle"></i> How to use the ToDo List in OBS</span>
+                    <button class="db-modal-close" aria-label="close" onclick="closeOBSInfoModal()">&times;</button>
                 </div>
-                <!-- End OBS Info Modal -->
-                <h3 class="title is-4">Font & Color Settings:</h3>
-                <div class="mb-5">
-                    <?php if ($font !== 'Not set' || $color !== 'Not set'): ?>
-                        <div style="border-radius: 12px; padding: 1.25rem 0 1.25rem 0;">
-                            <div class="columns is-multiline is-mobile">
-                                <div class="column is-6-tablet is-4-desktop">
-                                    <strong>Font:</strong> <span><?php echo htmlspecialchars($font); ?></span>
-                                </div>
-                                <div class="column is-6-tablet is-4-desktop">
-                                    <strong>Color:</strong>
-                                    <span style="display:inline-block;width:18px;height:18px;background-color:<?php echo htmlspecialchars($color); ?>;margin-right:3px;vertical-align:middle;border-radius:3px;"></span>
-                                    <span><?php echo htmlspecialchars($color); ?></span>
-                                </div>
-                                <div class="column is-6-tablet is-4-desktop">
-                                    <strong>List Type:</strong> <span><?php echo htmlspecialchars($list); ?></span>
-                                </div>
-                                <div class="column is-6-tablet is-4-desktop">
-                                    <strong>Font Size:</strong> <span><?php echo htmlspecialchars($font_size); ?>px</span>
-                                </div>
-                                <div class="column is-6-tablet is-4-desktop">
-                                    <strong>Text Shadow:</strong> <span><?php echo $shadow ? 'Enabled' : 'Disabled'; ?></span>
-                                </div>
-                                <div class="column is-6-tablet is-4-desktop">
-                                    <strong>Text Bold:</strong> <span><?php echo $bold ? 'Enabled' : 'Disabled'; ?></span>
-                                </div>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <div class="notification is-info is-light mb-5">
-                            <div class="columns is-vcentered">
-                                <div class="column is-narrow">
-                                    <span class="icon is-large"><i class="fas fa-palette fa-2x"></i></span>
-                                </div>
-                                <div class="column">
-                                    <p><strong>Customize your lists!</strong></p>
-                                    <p>No font and color settings have been set. Use the controls below to personalize the look of your lists.</p>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endif; ?>
+                <div class="db-modal-body">
+                    <p>The ToDo List is fully compatible with any streaming software:<br>OBS, SLOBS, xSplit, Wirecast, etc.</p>
+                    <p>All you have to do is add the following link (with your API key from your profile page) into a browser source and it works:</p>
+                    <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</pre>
+                    <p>If you wish to define a working category, add it like this:</p>
+                    <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;category=1</pre>
+                    <p style="font-size:0.8rem; margin-bottom:0;">(where ID 1 is called Default, defined on the <a href='categories.php' style="color:var(--accent-hover);" target="_blank">categories</a> page.)</p>
                 </div>
-                <form method="post">
-                    <div class="columns is-multiline">
-                        <div class="column is-6">
-                            <div class="field mb-4">
-                                <label class="label" for="font">Font</label>
-                                <div class="control has-icons-left">
-                                    <div class="select is-fullwidth is-rounded">
-                                        <select name="font">
-                                            <option value="Arial"<?php if ($font === 'Arial') echo ' selected'; ?>>Arial</option>
-                                            <option value="Arial Narrow"<?php if ($font === 'Arial Narrow') echo ' selected'; ?>>Arial Narrow</option>
-                                            <option value="Verdana"<?php if ($font === 'Verdana') echo ' selected'; ?>>Verdana</option>
-                                            <option value="Times New Roman"<?php if ($font === 'Times New Roman') echo ' selected'; ?>>Times New Roman</option>
-                                        </select>
-                                    </div>
-                                    <span class="icon is-left"><i class="fas fa-font"></i></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="column is-6">
-                            <div class="field mb-4">
-                                <label class="label" for="color">Color</label>
-                                <div class="control has-icons-left">
-                                    <div class="select is-fullwidth is-rounded">
-                                        <select name="color" id="color-select">
-                                            <option value="Black"<?php if ($color === 'Black') echo ' selected'; ?>>Black</option>
-                                            <option value="White"<?php if ($color === 'White') echo ' selected'; ?>>White</option>
-                                            <option value="Red"<?php if ($color === 'Red') echo ' selected'; ?>>Red</option>
-                                            <option value="Blue"<?php if ($color === 'Blue') echo ' selected'; ?>>Blue</option>
-                                            <option value="Other"<?php if ($color === 'Other') echo ' selected'; ?>>Other</option>
-                                        </select>
-                                    </div>
-                                    <span class="icon is-left"><i class="fas fa-palette"></i></span>
-                                </div>
-                            </div>
-                            <div class="field mb-4" id="custom-color-group"<?php if ($color !== 'Other') echo ' style="display: none;"'; ?>>
-                                <label class="label" for="custom_color">Custom Color</label>
-                                <div class="control">
-                                    <input type="text" name="custom_color" id="custom-color-input" class="input is-rounded" value="<?php echo htmlspecialchars($color_raw); ?>">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="column is-6">
-                            <div class="field mb-4">
-                                <label class="label" for="list">List Type</label>
-                                <div class="control has-icons-left">
-                                    <div class="select is-fullwidth is-rounded">
-                                        <select name="list">
-                                            <option value="Bullet"<?php if ($list === 'Bullet') echo ' selected'; ?>>Bullet List</option>
-                                            <option value="Numbered"<?php if ($list === 'Numbered') echo ' selected'; ?>>Numbered List</option>
-                                        </select>
-                                    </div>
-                                    <span class="icon is-left"><i class="fas fa-list-ul"></i></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="column is-6">
-                            <div class="field mb-4">
-                                <label class="label" for="font_size">Font Size</label>
-                                <div class="control has-icons-left">
-                                    <input type="number" name="font_size" value="<?php echo htmlspecialchars($font_size); ?>" class="input is-rounded" min="8" max="72">
-                                    <span class="icon is-left"><i class="fas fa-text-height"></i></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="column is-6">
-                            <div class="field mb-4">
-                                <label class="label" for="shadow">Text Shadow</label>
-                                <div class="control">
-                                    <input type="checkbox" name="shadow" value="1" <?php if ($shadow) echo 'checked'; ?>>
-                                    <span class="ml-2">Enable shadow</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="column is-6">
-                            <div class="field mb-4">
-                                <label class="label" for="bold">Text Bold</label>
-                                <div class="control">
-                                    <input type="checkbox" name="bold" value="1" <?php if ($bold) echo 'checked'; ?>>
-                                    <span class="ml-2">Enable bold</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="field is-grouped is-grouped-right mt-5">
-                        <div class="control">
-                            <button type="submit" class="button is-primary is-medium is-rounded px-5">Save</button>
-                        </div>
-                    </div>
-                </form>
+                <div class="db-modal-foot">
+                    <button class="sp-btn sp-btn-danger" onclick="closeOBSInfoModal()">Close</button>
+                </div>
             </div>
         </div>
+        <!-- End OBS Info Modal -->
+        <h3 style="font-size:1.05rem; font-weight:700; margin-bottom:1rem;">Font &amp; Color Settings:</h3>
+        <div style="margin-bottom:1.25rem;">
+            <?php if ($font !== 'Not set' || $color !== 'Not set'): ?>
+                <div style="display:flex; flex-wrap:wrap; gap:1rem 2rem; padding:1rem 0; border-bottom:1px solid var(--border); margin-bottom:1.25rem;">
+                    <div><strong>Font:</strong> <span><?php echo htmlspecialchars($font); ?></span></div>
+                    <div>
+                        <strong>Color:</strong>
+                        <span style="display:inline-block;width:16px;height:16px;background-color:<?php echo htmlspecialchars($color); ?>;margin:0 3px;vertical-align:middle;border-radius:3px;"></span>
+                        <span><?php echo htmlspecialchars($color); ?></span>
+                    </div>
+                    <div><strong>List Type:</strong> <span><?php echo htmlspecialchars($list); ?></span></div>
+                    <div><strong>Font Size:</strong> <span><?php echo htmlspecialchars($font_size); ?>px</span></div>
+                    <div><strong>Text Shadow:</strong> <span><?php echo $shadow ? 'Enabled' : 'Disabled'; ?></span></div>
+                    <div><strong>Text Bold:</strong> <span><?php echo $bold ? 'Enabled' : 'Disabled'; ?></span></div>
+                </div>
+            <?php else: ?>
+                <div class="sp-alert sp-alert-info" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.25rem;">
+                    <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-palette"></i></span>
+                    <div>
+                        <p style="font-weight:700; margin-bottom:0.25rem;">Customize your lists!</p>
+                        <p style="margin-bottom:0;">No font and color settings have been set. Use the controls below to personalize the look of your lists.</p>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+        <form method="post">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="sp-form-group">
+                    <label class="sp-label" for="font">Font</label>
+                    <select name="font" class="sp-select">
+                        <option value="Arial"<?php if ($font === 'Arial') echo ' selected'; ?>>Arial</option>
+                        <option value="Arial Narrow"<?php if ($font === 'Arial Narrow') echo ' selected'; ?>>Arial Narrow</option>
+                        <option value="Verdana"<?php if ($font === 'Verdana') echo ' selected'; ?>>Verdana</option>
+                        <option value="Times New Roman"<?php if ($font === 'Times New Roman') echo ' selected'; ?>>Times New Roman</option>
+                    </select>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="color">Color</label>
+                    <select name="color" id="color-select" class="sp-select">
+                        <option value="Black"<?php if ($color === 'Black') echo ' selected'; ?>>Black</option>
+                        <option value="White"<?php if ($color === 'White') echo ' selected'; ?>>White</option>
+                        <option value="Red"<?php if ($color === 'Red') echo ' selected'; ?>>Red</option>
+                        <option value="Blue"<?php if ($color === 'Blue') echo ' selected'; ?>>Blue</option>
+                        <option value="Other"<?php if ($color === 'Other') echo ' selected'; ?>>Other</option>
+                    </select>
+                    <div class="sp-form-group" id="custom-color-group" style="margin-top:0.75rem;<?php if ($color !== 'Other') echo ' display:none;'; ?>">
+                        <label class="sp-label" for="custom_color">Custom Color</label>
+                        <input type="text" name="custom_color" id="custom-color-input" class="sp-input" value="<?php echo htmlspecialchars($color_raw); ?>">
+                    </div>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="list">List Type</label>
+                    <select name="list" class="sp-select">
+                        <option value="Bullet"<?php if ($list === 'Bullet') echo ' selected'; ?>>Bullet List</option>
+                        <option value="Numbered"<?php if ($list === 'Numbered') echo ' selected'; ?>>Numbered List</option>
+                    </select>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="font_size">Font Size</label>
+                    <input type="number" name="font_size" class="sp-input" value="<?php echo htmlspecialchars($font_size); ?>" min="8" max="72">
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="shadow">Text Shadow</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" name="shadow" value="1" <?php if ($shadow) echo 'checked'; ?>>
+                        <span>Enable shadow</span>
+                    </label>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="bold">Text Bold</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" name="bold" value="1" <?php if ($bold) echo 'checked'; ?>>
+                        <span>Enable bold</span>
+                    </label>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
+                <button type="submit" class="sp-btn sp-btn-primary">Save</button>
+            </div>
+        </form>
     </div>
 </div>
 <?php
@@ -275,11 +213,11 @@ ob_start();
 <script>
 function showOBSInfo() {
     var modal = document.getElementById('obsInfoModal');
-    if (modal) modal.classList.add('is-active');
+    if (modal) modal.classList.remove('hidden');
 }
 function closeOBSInfoModal() {
     var modal = document.getElementById('obsInfoModal');
-    if (modal) modal.classList.remove('is-active');
+    if (modal) modal.classList.add('hidden');
 }
 </script>
 <script>

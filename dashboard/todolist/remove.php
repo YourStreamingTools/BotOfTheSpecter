@@ -60,104 +60,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   exit();
 }
 ?>
-<div class="columns is-centered">
-  <div class="column">
-    <div class="card" style="border-radius: 18px;">
-      <header class="card-header">
-        <p class="card-header-title is-size-4">
-          <span class="icon"><i class="fas fa-trash"></i></span>
-          <span class="ml-2">Remove a Task</span>
-        </p>
-      </header>
-      <div class="card-content" style="padding: 2.5rem;">
-        <?php if ($num_rows < 1): ?>
-          <div class="notification is-info">
-            <div class="columns is-vcentered">
-              <div class="column is-narrow">
-                <span class="icon is-large">
-                  <i class="fas fa-tasks fa-2x"></i> 
-                </span>
-              </div>
-              <div class="column">
-                <p><strong>Your to-do list is empty!</strong></p>
-                <p>You can't remove any tasks because there aren't any yet.</p> 
-              </div>
-            </div>
-          </div>
-        <?php else: ?>
-          <div class="mb-5">
-            <div class="columns is-vcentered">
-              <div class="column is-9">
-                <label for="searchInput" class="label mb-1">Search Tasks</label>
-                <div class="control has-icons-left">
-                  <input type="text" name="search" id="searchInput" placeholder="Search todos" class="input is-rounded" onkeyup="searchFunction()">
-                  <span class="icon is-left">
-                    <i class="fas fa-search"></i>
-                  </span>
-                </div>
-              </div>
-              <div class="column is-3 has-text-right">
-                <label for="categoryFilter" class="label mb-1 has-text-left" style="display:block;">Filter by Category</label>
-                <div class="control has-icons-left">
-                  <div class="select is-fullwidth is-rounded">
-                    <select id="categoryFilter" onchange="applyCategoryFilter()">
-                      <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
-                      <?php
-                      $categories_sql = "SELECT * FROM categories";
-                      $categories_stmt = $db->prepare($categories_sql);
-                      $categories_stmt->execute();
-                      $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                      foreach ($categories_result as $category_row) {
-                        $categoryId = $category_row['id'];
-                        $categoryName = htmlspecialchars($category_row['category']);
-                        $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
-                        echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
-                      }
-                      ?>
-                    </select>
-                  </div>
-                  <span class="icon is-left">
-                    <i class="fas fa-filter"></i>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <h2 class="title is-4 mb-4">Please pick which task to remove from your list:</h2>
-          <div class="columns is-multiline" id="taskCardList">
-            <?php foreach ($result as $row): ?>
-              <div class="column is-6-tablet is-4-desktop">
-                <div class="box" style="border-radius: 12px;">
-                  <div class="media is-align-items-center">
-                    <div class="media-content">
-                      <p class="title is-6 mb-1 is-flex is-align-items-center"><?= htmlspecialchars($row['objective']) ?></p>
-                      <p class="subtitle is-7 has-text-grey is-flex is-align-items-center">
-                        <span class="icon is-align-self-center"><i class="fas fa-folder"></i></span>
-                        <span class="ml-1">
-                          <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
-                        </span>
-                        <span class="ml-2">
-                          <?= ($row['completed'] === 'Yes') ? '<span class="tag is-success is-light">Completed</span>' : '<span class="tag is-warning is-light">Not completed</span>' ?>
-                        </span>
-                      </p>
-                    </div>
-                    <div class="media-right">
-                      <form method="POST" style="margin-bottom:0;" class="remove-task-form">
-                        <input type="hidden" name="todo_id" value="<?= $row['id'] ?>">
-                        <button type="button" class="button is-danger is-rounded is-small remove-task-btn">
-                          <span class="icon"><i class="fas fa-trash"></i></span>
-                          <span>Remove</span>
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <div class="sp-card-title"><i class="fas fa-trash"></i> Remove a Task</div>
+  </div>
+  <div class="sp-card-body">
+    <?php if ($num_rows < 1): ?>
+      <div class="sp-alert sp-alert-info" style="display:flex; align-items:center; gap:0.75rem;">
+        <i class="fas fa-tasks fa-2x" style="color:var(--blue); flex-shrink:0;"></i>
+        <div>
+          <strong>Your to-do list is empty!</strong>
+          <p style="margin-bottom:0;">You can't remove any tasks because there aren't any yet.</p>
+        </div>
       </div>
-    </div>
+    <?php else: ?>
+      <div style="display:flex; align-items:flex-end; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          <label for="searchInput" class="sp-label">Search Tasks</label>
+          <input type="text" name="search" id="searchInput" placeholder="Search todos" class="sp-input" onkeyup="searchFunction()">
+        </div>
+        <div style="min-width:200px;">
+          <label for="categoryFilter" class="sp-label">Filter by Category</label>
+          <select id="categoryFilter" class="sp-select" onchange="applyCategoryFilter()">
+            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+            <?php
+            $categories_sql = "SELECT * FROM categories";
+            $categories_stmt = $db->prepare($categories_sql);
+            $categories_stmt->execute();
+            $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            foreach ($categories_result as $category_row) {
+              $categoryId = $category_row['id'];
+              $categoryName = htmlspecialchars($category_row['category']);
+              $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
+              echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
+            }
+            ?>
+          </select>
+        </div>
+      </div>
+      <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">Please pick which task to remove from your list:</h2>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
+        <?php foreach ($result as $row): ?>
+          <div class="sp-card" style="margin-bottom:0;">
+            <div class="sp-card-body">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.75rem;">
+                <div style="flex:1; min-width:0;">
+                  <p style="font-weight:600; margin-bottom:0.3rem;"><?= htmlspecialchars($row['objective']) ?></p>
+                  <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0; display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap;">
+                    <i class="fas fa-folder"></i>
+                    <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                    <?= ($row['completed'] === 'Yes')
+                      ? '<span class="sp-badge sp-badge-green">Completed</span>'
+                      : '<span class="sp-badge sp-badge-amber">Not completed</span>' ?>
+                  </p>
+                </div>
+                <div style="flex-shrink:0;">
+                  <form method="POST" style="margin-bottom:0;" class="remove-task-form">
+                    <input type="hidden" name="todo_id" value="<?= $row['id'] ?>">
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-task-btn">
+                      <i class="fas fa-trash"></i> Remove
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
   </div>
 </div>
 <?php
