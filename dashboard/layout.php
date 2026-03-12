@@ -127,8 +127,8 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <?php if ($isAdminCssPage): ?>
         <link rel="stylesheet" href="/css/admin.css?v=<?php echo uuidv4(); ?>">
     <?php endif; ?>
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
-    <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
+    <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 </head>
 <body>
