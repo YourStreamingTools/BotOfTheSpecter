@@ -2106,3 +2106,16 @@ input[type="checkbox"].switch:disabled + label {
 .follower-card-content strong { color: var(--text-primary); font-weight: 600; }
 .follower-box { opacity: 0; transition: opacity 0.3s ease; }
 .follower-box.visible { opacity: 1; }
+
+/* ----------------------------------------------------------
+   28. Subscribers page
+   ---------------------------------------------------------- */
+.subscribers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 1023px) { .subscribers-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 767px)  { .subscribers-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px)  { .subscribers-grid { grid-template-columns: 1fr; } }
+.subscriber-card-col { min-width: 0; }
+.sp-pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; margin-top: 1.5rem; }
+.sp-pagination-link { display: inline-flex; align-items: center; justify-content: center; min-width: 2.25rem; height: 2.25rem; padding: 0 0.6rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 0.9rem; text-decoration: none; transition: border-color var(--transition), background var(--transition); cursor: pointer; }
+.sp-pagination-link:hover { border-color: var(--accent); background: var(--accent-light); }
+.sp-pagination-link.is-current { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; cursor: default; }
