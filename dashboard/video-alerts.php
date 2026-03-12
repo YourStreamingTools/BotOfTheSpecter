@@ -254,15 +254,12 @@ ob_start();
     </header>
     <div class="sp-card-body">
         <!-- Storage Usage Info -->
-        <div class="sp-alert sp-alert-info mb-4">
+        <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                <span>
-                    <span class="icon mr-2"><i class="fas fa-database"></i></span>
-                    <strong><?php echo t('alerts_storage_usage'); ?>:</strong>
-                </span>
+                <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
                 <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
             </div>
-            <progress value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;height:0.75rem;border-radius:0.5rem;accent-color:var(--green);"></progress>
+            <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
         </div>
         <?php if (!empty($status)) : ?>
             <div class="sp-alert sp-alert-info sp-notif mb-4">
@@ -271,9 +268,12 @@ ob_start();
         <?php endif; ?>
         <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
             <div class="sp-form-group">
-                <label class="sp-label" for="filesToUpload"><?php echo t('video_alerts_choose_files'); ?></label>
-                <input class="sp-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp4">
-                <div id="file-list" style="margin-top:0.4rem;font-size:0.875rem;color:var(--text-muted);"><?php echo t('video_alerts_no_files_selected'); ?></div>
+                <label for="filesToUpload" style="display:block;border:2px dashed var(--border);border-radius:var(--radius-lg);padding:1.5rem;text-align:center;cursor:pointer;background:var(--bg-input);transition:border-color var(--transition);color:var(--text-secondary);">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:2rem;margin-bottom:0.5rem;display:block;"></i>
+                    <span id="file-list"><?php echo t('video_alerts_no_files_selected'); ?></span>
+                    <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-muted);"><?php echo t('video_alerts_choose_files'); ?></div>
+                    <input type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp4" style="display:none;">
+                </label>
             </div>
             <!-- Upload Status Container -->
             <div id="uploadStatusContainer" style="display:none;" class="mb-4">
