@@ -1,9 +1,2 @@
 php_value post_max_size 200M
 php_value upload_max_filesize 200M
-
-# Redirect auto-discovered favicon requests to CDN
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteRule ^favicon\.ico$ https://cdn.botofthespecter.com/favicon.ico [R=301,L]
-    RewriteRule ^favicon\.png$ https://cdn.botofthespecter.com/favicon.png [R=301,L]
-</IfModule>
