@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 return [
     // Profile Page
     'profile_title' => 'Paramètres du profil',
@@ -239,7 +239,7 @@ return [
     'time_minutes' => 'minute(s)',
     'time_seconds' => 'seconde(s)',
     // Manage Custom Commands Page
-    'custom_commands_skip_exclamation' => 'Ignorez le "!" – nous l\'ajouterons automatiquement.',
+    'custom_commands_skip_exclamation' => 'Ignorez le "!" - nous l\'ajouterons automatiquement.',
     'custom_commands_add_in_chat' => 'Vous pouvez également ajouter des commandes directement dans le chat avec',
     'custom_commands_example_message' => 'Ceci est ma commande personnalisée',
     'custom_commands_level_up' => 'Vous voulez améliorer vos commandes ?',
@@ -307,7 +307,7 @@ return [
     'custom_commands_error_generic' => 'Une erreur est survenue. Veuillez réessayer plus tard.',
     // Timed Message Page
     'timed_messages_title' => 'Messages programmés',
-    'timed_messages_info' => "Les messages programmés sont envoyés automatiquement par le bot selon le mode de déclenchement choisi pour chaque message.<br>Trois modes sont disponibles :<br><strong>Minuterie</strong> — le message est envoyé toutes les X minutes, indépendamment de l'activité du chat.<br><strong>Lignes de chat</strong> — le message est envoyé après C messages de chat, le gardant pertinent pour les chats actifs.<br><strong>Les deux</strong> — le message se déclenche dès que l'une des conditions est remplie : la minuterie <em>ou</em> le seuil de lignes de chat, les deux compteurs fonctionnant simultanément.<br>Choisissez le mode le mieux adapté à chaque message pour informer votre chat sans être répétitif.",
+    'timed_messages_info' => "Les messages programmés sont envoyés automatiquement par le bot selon le mode de déclenchement choisi pour chaque message.<br>Trois modes sont disponibles :<br><strong>Minuterie</strong> - le message est envoyé toutes les X minutes, indépendamment de l'activité du chat.<br><strong>Lignes de chat</strong> - le message est envoyé après C messages de chat, le gardant pertinent pour les chats actifs.<br><strong>Les deux</strong> - le message se déclenche dès que l'une des conditions est remplie : la minuterie <em>ou</em> le seuil de lignes de chat, les deux compteurs fonctionnant simultanément.<br>Choisissez le mode le mieux adapté à chaque message pour informer votre chat sans être répétitif.",
     'timed_messages_add_title' => 'Ajouter un message programmé',
     'timed_messages_edit_title' => 'Modifier un message programmé',
     'timed_messages_remove_title' => 'Supprimer un message programmé',
@@ -515,8 +515,8 @@ return [
     'channel_rewards_no_channel_points_owner' => 'Vous n\'êtes pas éligible aux points de chaîne Twitch (seuls les Affiliés et les Partenaires peuvent utiliser les points de chaîne).',
     'channel_rewards_no_channel_points_other' => ':channel n\'est pas éligible aux points de chaîne Twitch (seuls les Affiliés et les Partenaires peuvent utiliser les points de chaîne).',
     'channel_rewards_no_channel_points' => 'Les points de chaîne ne sont pas disponibles pour cette chaîne.',
-    'channel_rewards_sync_disabled' => 'Points de chaîne indisponibles — synchronisation désactivée',
-    'channel_rewards_create_disabled' => 'Points de chaîne indisponibles — création désactivée',
+    'channel_rewards_sync_disabled' => 'Points de chaîne indisponibles - synchronisation désactivée',
+    'channel_rewards_create_disabled' => 'Points de chaîne indisponibles - création désactivée',
     'channel_rewards_recent_redemptions' => 'Récompenses récentes',
     'channel_rewards_recent_redemptions_desc' => 'Une liste des utilisations récentes de points de chaîne (les 50 dernières).',
     'channel_rewards_user' => 'Utilisateur',
@@ -821,7 +821,7 @@ return [
     'overlays_works_with' => 'Specter fonctionne avec tous vos logiciels de streaming préférés : <strong class="has-text-black">OBS Studio</strong>, <strong class="has-text-black">Streamlabs OBS</strong>, <strong class="has-text-black">XSplit Broadcaster</strong>, et plus encore !',
     'overlays_add_as_browser_source' => 'Ajoutez ces liens comme sources navigateur dans votre logiciel de streaming.',
     'overlays_replace_api_key' => 'Remplacez <code>API_KEY_HERE</code> par votre clé API unique (trouvée sur votre page de profil).',
-    'overlays_keep_api_key_safe' => "Gardez votre clé API en sécurité — c'est comme un mot de passe pour vos overlays !",
+    'overlays_keep_api_key_safe' => "Gardez votre clé API en sécurité - c'est comme un mot de passe pour vos overlays !",
     'overlays_all_overlays' => 'Tous les overlays',
     'overlays_all_overlays_desc' => 'Cette URL inclut <strong>tous les overlays</strong> que nous proposons, ajoutés et mis à jour automatiquement.',
     'overlays_exceptions' => 'Exceptions (nécessitent des URLs séparées)',
@@ -1099,7 +1099,7 @@ return [
     // Integrations Page
     'integrations_page_title' => 'Intégrations de plateforme',
     'integrations_page_intro' => 'Boostez votre stream en connectant vos services préférés.',
-    'integrations_page_services' => 'Intégrez vos comptes Fourthwall, Ko‑fi et Patreon — et bien d\'autres à venir.',
+    'integrations_page_services' => 'Intégrez vos comptes Fourthwall, Ko‑fi et Patreon - et bien d\'autres à venir.',
     'integrations_page_quick_steps' => 'Suivez les étapes rapides ci-dessous pour lier vos comptes.',
     'integrations_fourthwall_title' => 'Intégration Fourthwall',
     'integrations_fourthwall_intro' => 'Suivez les étapes ci-dessous pour intégrer Specter à votre compte Fourthwall :',

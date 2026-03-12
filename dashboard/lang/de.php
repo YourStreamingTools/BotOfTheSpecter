@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 return [
     // Profile Page
     'profile_title' => 'Profileinstellungen',
@@ -239,7 +239,7 @@ return [
     'time_minutes' => 'Minute(n)',
     'time_seconds' => 'Sekunde(n)',
     // Manage Custom Commands Page
-    'custom_commands_skip_exclamation' => 'Lassen Sie das "!" weg – wir fügen es automatisch hinzu.',
+    'custom_commands_skip_exclamation' => 'Lassen Sie das "!" weg - wir fügen es automatisch hinzu.',
     'custom_commands_add_in_chat' => 'Sie können Befehle auch direkt im Chat hinzufügen mit',
     'custom_commands_example_message' => 'Dies ist mein benutzerdefinierter Befehl',
     'custom_commands_level_up' => 'Möchten Sie Ihre Befehle aufwerten?',
@@ -307,7 +307,7 @@ return [
     'custom_commands_error_generic' => 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.',
     // Timed Messages Page
     'timed_messages_title' => 'Zeitgesteuerte Nachrichten',
-    'timed_messages_info' => 'Zeitgesteuerte Nachrichten werden automatisch vom Bot basierend auf dem für jede Nachricht gewählten Auslösemodus gesendet.<br>Es stehen drei Auslösemodi zur Verfügung:<br><strong>Timer</strong> — die Nachricht wird alle X Minuten gesendet, unabhängig von der Chat-Aktivität.<br><strong>Chat-Zeilen</strong> — die Nachricht wird nach C Chat-Nachrichten gesendet, damit sie bei aktiven Chats relevant bleibt.<br><strong>Beide</strong> — die Nachricht wird ausgelöst, sobald eine der Bedingungen erfüllt ist: der Timer <em>oder</em> der Chat-Zeilen-Schwellenwert, wobei beide Zähler gleichzeitig laufen.<br>Wähle den Modus, der am besten zu jeder Nachricht passt, um deinen Chat informiert zu halten, ohne aufdringlich zu sein.',
+    'timed_messages_info' => 'Zeitgesteuerte Nachrichten werden automatisch vom Bot basierend auf dem für jede Nachricht gewählten Auslösemodus gesendet.<br>Es stehen drei Auslösemodi zur Verfügung:<br><strong>Timer</strong> - die Nachricht wird alle X Minuten gesendet, unabhängig von der Chat-Aktivität.<br><strong>Chat-Zeilen</strong> - die Nachricht wird nach C Chat-Nachrichten gesendet, damit sie bei aktiven Chats relevant bleibt.<br><strong>Beide</strong> - die Nachricht wird ausgelöst, sobald eine der Bedingungen erfüllt ist: der Timer <em>oder</em> der Chat-Zeilen-Schwellenwert, wobei beide Zähler gleichzeitig laufen.<br>Wähle den Modus, der am besten zu jeder Nachricht passt, um deinen Chat informiert zu halten, ohne aufdringlich zu sein.',
     'timed_messages_add_title' => 'Zeitgesteuerte Nachricht hinzufügen',
     'timed_messages_edit_title' => 'Zeitgesteuerte Nachricht bearbeiten',
     'timed_messages_remove_title' => 'Zeitgesteuerte Nachricht entfernen',
@@ -514,8 +514,8 @@ return [
     'channel_rewards_no_channel_points_owner' => 'Du bist nicht für Twitch Kanalpunkte berechtigt (nur Affiliates und Partner können Kanalpunkte verwenden).',
     'channel_rewards_no_channel_points_other' => ':channel ist nicht für Twitch Kanalpunkte berechtigt (nur Affiliates und Partner können Kanalpunkte verwenden).',
     'channel_rewards_no_channel_points' => 'Kanalpunkte sind für diesen Kanal nicht verfügbar.',
-    'channel_rewards_sync_disabled' => 'Kanalpunkte nicht verfügbar — Synchronisation deaktiviert',
-    'channel_rewards_create_disabled' => 'Kanalpunkte nicht verfügbar — Erstellung deaktiviert',
+    'channel_rewards_sync_disabled' => 'Kanalpunkte nicht verfügbar - Synchronisation deaktiviert',
+    'channel_rewards_create_disabled' => 'Kanalpunkte nicht verfügbar - Erstellung deaktiviert',
     'channel_rewards_recent_redemptions' => 'Kürzliche Einlösungen',
     'channel_rewards_recent_redemptions_desc' => 'Eine Liste der kürzlich eingelösten Kanalpunkte (letzte 50).',
     'channel_rewards_user' => 'Benutzer',
@@ -820,7 +820,7 @@ return [
     'overlays_works_with' => 'Specter funktioniert mit all deinen Lieblings-Streaming-Programmen: <strong class="has-text-black">OBS Studio</strong>, <strong class="has-text-black">Streamlabs OBS</strong>, <strong class="has-text-black">XSplit Broadcaster</strong> und mehr!',
     'overlays_add_as_browser_source' => 'Füge diese Links als Browserquelle in deiner Streaming-Software hinzu.',
     'overlays_replace_api_key' => 'Ersetze <code>API_KEY_HERE</code> durch deinen einzigartigen API-Key (zu finden auf deiner Profilseite).',
-    'overlays_keep_api_key_safe' => "Halte deinen API-Key sicher – er ist wie ein Passwort für deine Overlays!",
+    'overlays_keep_api_key_safe' => "Halte deinen API-Key sicher - er ist wie ein Passwort für deine Overlays!",
     'overlays_all_overlays' => 'Alle Overlays',
     'overlays_all_overlays_desc' => 'Diese URL enthält <strong>alle Overlays</strong>, die wir anbieten, automatisch hinzugefügt und aktualisiert.',
     'overlays_exceptions' => 'Ausnahmen (benötigen eigene URLs)',
@@ -1099,7 +1099,7 @@ return [
     // Integrations Page
     'integrations_page_title' => 'Plattform-Integrationen',
     'integrations_page_intro' => 'Steigere deinen Stream, indem du deine Lieblingsdienste verbindest.',
-    'integrations_page_services' => 'Integriere deine Fourthwall-, Ko‑fi- und Patreon-Konten – und viele weitere folgen bald.',
+    'integrations_page_services' => 'Integriere deine Fourthwall-, Ko‑fi- und Patreon-Konten - und viele weitere folgen bald.',
     'integrations_page_quick_steps' => 'Folge den schnellen Schritten unten, um deine Konten zu verknüpfen.',
     'integrations_fourthwall_title' => 'Fourthwall-Integration',
     'integrations_fourthwall_intro' => 'Folge den Schritten unten, um Specter mit deinem Fourthwall-Konto zu verbinden:',

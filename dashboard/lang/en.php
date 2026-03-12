@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 return [
     // Profile Page
     'profile_title' => 'Profile Settings',
@@ -364,7 +364,7 @@ return [
     'user_commands_reject_tooltip' => 'Disable this command',
     // Timed Message Page
     'timed_messages_title' => 'Timed Messages',
-    'timed_messages_info' => 'Timed messages are sent automatically by the bot based on the trigger mode you choose for each message.<br>There are three trigger modes available:<br><strong>Timer</strong> — the message is sent every X minutes, regardless of chat activity.<br><strong>Chat Lines</strong> — the message is sent after C chat messages have been posted, keeping it relevant to active chats.<br><strong>Both</strong> — the message fires on whichever condition is met first: the timer <em>or</em> the chat line threshold, running both counters simultaneously.<br>Choose the mode that best fits each message to keep your chat informed without being repetitive.',
+    'timed_messages_info' => 'Timed messages are sent automatically by the bot based on the trigger mode you choose for each message.<br>There are three trigger modes available:<br><strong>Timer</strong> - the message is sent every X minutes, regardless of chat activity.<br><strong>Chat Lines</strong> - the message is sent after C chat messages have been posted, keeping it relevant to active chats.<br><strong>Both</strong> - the message fires on whichever condition is met first: the timer <em>or</em> the chat line threshold, running both counters simultaneously.<br>Choose the mode that best fits each message to keep your chat informed without being repetitive.',
     'timed_messages_add_title' => 'Add a Timed Message',
     'timed_messages_edit_title' => 'Edit a Timed Message',
     'timed_messages_remove_title' => 'Remove a Timed Message',
@@ -572,8 +572,8 @@ return [
     'channel_rewards_no_channel_points_owner' => 'You are not eligible for Twitch Channel Points (only Affiliates and Partners can use channel points).',
     'channel_rewards_no_channel_points_other' => ':channel is not eligible for Twitch Channel Points (only Affiliates and Partners can use channel points).',
     'channel_rewards_no_channel_points' => 'Channel Points are not available for this channel.',
-    'channel_rewards_sync_disabled' => 'Channel Points unavailable — sync disabled',
-    'channel_rewards_create_disabled' => 'Channel Points unavailable — creation disabled',
+    'channel_rewards_sync_disabled' => 'Channel Points unavailable - sync disabled',
+    'channel_rewards_create_disabled' => 'Channel Points unavailable - creation disabled',
     'channel_rewards_recent_redemptions' => 'Recent Redemptions',
     'channel_rewards_recent_redemptions_desc' => 'A list of the most recent channel point redemptions (last 50).',
     'channel_rewards_user' => 'User',
@@ -878,7 +878,7 @@ return [
     'overlays_works_with' => 'Specter works with all your favorite streaming software: <strong class="has-text-black">OBS Studio</strong>, <strong class="has-text-black">Streamlabs OBS</strong>, <strong class="has-text-black">XSplit Broadcaster</strong>, and more!',
     'overlays_add_as_browser_source' => 'Add these links as browser sources in your streaming software.',
     'overlays_replace_api_key' => 'Replace <code>API_KEY_HERE</code> with your unique API key (found on your profile page).',
-    'overlays_keep_api_key_safe' => "Keep your API key safe—it's like a password for your overlays!",
+    'overlays_keep_api_key_safe' => "Keep your API key safe-it's like a password for your overlays!",
     'overlays_all_overlays' => 'All Overlays',
     'overlays_all_overlays_desc' => 'This URL includes <strong>all overlays</strong> we offer, automatically added and updated.',
     'overlays_exceptions' => 'Exceptions (require separate URLs)',
@@ -1157,7 +1157,7 @@ return [
     // Integrations Page
     'integrations_page_title' => 'Platform Integrations',
     'integrations_page_intro' => 'Boost your stream by connecting your favorite services.',
-    'integrations_page_services' => 'Integrate your Fourthwall, Ko‑fi, and Patreon accounts—plus many more on the way.',
+    'integrations_page_services' => 'Integrate your Fourthwall, Ko‑fi, and Patreon accounts-plus many more on the way.',
     'integrations_page_quick_steps' => 'Follow the quick steps below to link your accounts.',
     'integrations_fourthwall_title' => 'Fourthwall Integration',
     'integrations_fourthwall_intro' => 'Follow the steps below to integrate Specter with your Fourthwall account:',
