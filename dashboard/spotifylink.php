@@ -209,172 +209,169 @@ $maxAccounts = 25;
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-            <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                    <span class="icon mr-2"><i class="fab fa-spotify"></i></span>
-                    <?php echo t('spotify_link_page_title'); ?>
-                </span>
-                <?php if ($connectionStatus === 'connected'): ?>
-                    <div class="card-header-icon">
-                        <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
-                            <span class="icon mr-1"><i class="fas fa-check-circle"></i></span>
-                            <?php echo t('spotify_connected_title'); ?>
-                        </span>
-                    </div>
-                <?php elseif ($connectionStatus === 'pending'): ?>
-                    <div class="card-header-icon">
-                        <span class="tag is-warning is-medium" style="border-radius: 6px; font-weight: 600;">
-                            <span class="icon mr-1"><i class="fas fa-clock"></i></span>
-                            Pending Link
-                        </span>
-                    </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title">
+            <i class="fab fa-spotify"></i>
+            <?php echo t('spotify_link_page_title'); ?>
+        </div>
+        <?php if ($connectionStatus === 'connected'): ?>
+            <span class="sp-badge sp-badge-green">
+                <i class="fas fa-check-circle"></i>
+                <?php echo t('spotify_connected_title'); ?>
+            </span>
+        <?php elseif ($connectionStatus === 'pending'): ?>
+            <span class="sp-badge sp-badge-amber">
+                <i class="fas fa-clock"></i>
+                Pending Link
+            </span>
+        <?php else: ?>
+            <span class="sp-badge sp-badge-red">
+                <i class="fas fa-times-circle"></i>
+                Not Connected
+            </span>
+        <?php endif; ?>
+    </div>
+    <div class="sp-card-body">
+        <?php if ($message): ?>
+            <?php
+                if ($messageType === 'is-success') $alertClass = 'sp-alert-success';
+                elseif ($messageType === 'is-danger') $alertClass = 'sp-alert-danger';
+                elseif ($messageType === 'is-warning') $alertClass = 'sp-alert-warning';
+                else $alertClass = 'sp-alert-info';
+            ?>
+            <div class="sp-alert <?php echo $alertClass; ?>" style="margin-bottom: 1.5rem;">
+                <?php if ($messageType === 'is-danger'): ?>
+                    <i class="fas fa-exclamation-triangle"></i>
+                <?php elseif ($messageType === 'is-success'): ?>
+                    <i class="fas fa-check"></i>
+                <?php elseif ($messageType === 'is-warning'): ?>
+                    <i class="fas fa-exclamation-circle"></i>
                 <?php else: ?>
-                    <div class="card-header-icon">
-                        <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
-                            <span class="icon mr-1"><i class="fas fa-times-circle"></i></span>
-                            Not Connected
-                        </span>
-                    </div>
+                    <i class="fas fa-info-circle"></i>
                 <?php endif; ?>
-            </header>
-            <div class="card-content">
-                <?php if ($message): ?>
-                    <div class="notification <?php echo $messageType === 'is-success' ? 'is-success' : ($messageType === 'is-danger' ? 'is-danger' : 'is-info'); ?> is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
-                        <span class="icon">
-                            <?php if ($messageType === 'is-danger'): ?>
-                                <i class="fas fa-exclamation-triangle"></i>
-                            <?php elseif ($messageType === 'is-success'): ?>
-                                <i class="fas fa-check"></i>
-                            <?php else: ?>
-                                <i class="fas fa-info-circle"></i>
-                            <?php endif; ?>
-                        </span>
-                        <?php echo $message; ?>
-                    </div>
-                <?php endif; ?>
-                <div class="box has-background-grey-darker" style="border-radius: 8px; border: 1px solid #363636; margin-bottom: 1.5rem;">
-                    <h4 class="title is-6 has-text-white mb-3">
-                        <span class="icon mr-2 has-text-info"><i class="fas fa-cogs"></i></span>
-                        Use Your Own Spotify Client
-                    </h4>
-                    <p class="has-text-grey-light mb-3">If you prefer to use your own Spotify application instead of waiting for authorization, enable this option. You'll need to create your own Spotify app and enter the credentials below.</p>
-                    <a href="https://help.botofthespecter.com/spotify_setup.php" target="_blank" class="button is-info is-small" style="margin-bottom: 1rem;">
-                        <span class="icon"><i class="fas fa-external-link-alt"></i></span>
-                        <span>Get Setup Instructions</span>
-                    </a>
-                    <form method="post">
-                        <div class="field">
-                            <div class="control">
-                                <label class="checkbox has-text-white">
-                                    <input type="checkbox" name="use_own_client" <?php echo $own_client == 1 ? 'checked' : ''; ?> onchange="this.form.submit()">
-                                    Enable Own Client
-                                </label>
-                            </div>
-                        </div>
-                        <?php if ($own_client == 1): ?>
-                            <div class="field">
-                                <label class="label has-text-white">Client ID</label>
-                                <div class="control">
-                                    <input class="input" type="text" name="client_id" value="<?php echo htmlspecialchars($user_client_id); ?>" placeholder="Your Spotify Client ID">
-                                </div>
-                            </div>
-                            <div class="field">
-                                <label class="label has-text-white">Client Secret</label>
-                                <div class="control">
-                                    <input class="input" type="password" name="client_secret" value="<?php echo htmlspecialchars($user_client_secret); ?>" placeholder="Your Spotify Client Secret">
-                                </div>
-                            </div>
-                            <div class="field">
-                                <div class="control">
-                                    <button class="button is-success" type="submit" name="save_credentials">Save Credentials</button>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    </form>
+                <?php echo $message; ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="sp-card" style="margin-bottom: 1.5rem;">
+            <div class="sp-card-header">
+                <div class="sp-card-title">
+                    <i class="fas fa-cogs" style="color: var(--blue);"></i>
+                    Use Your Own Spotify Client
                 </div>
-                <?php if ($connectionStatus === 'connected'): ?>
-                    <div class="columns is-multiline is-variable is-6">
-                        <div class="column is-12">
-                            <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636;">
-                                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                                    <p class="card-header-title has-text-white" style="font-weight: 600;">
-                                        <span class="icon mr-2 has-text-success"><i class="fab fa-spotify"></i></span>
-                                        Connected Account Information
-                                    </p>
-                                </header>
-                                <div class="card-content">
-                                    <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
-                                        <span class="icon"><i class="fas fa-info-circle"></i></span>
-                                        <strong><?php echo t('spotify_connected_restart_bot'); ?></strong>
-                                    </div>
-                                    <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1.5rem;">
-                                        <span class="icon"><i class="fas fa-link"></i></span>
-                                        <strong><?php echo t('spotify_connected_check_link'); ?></strong>
-                                    </div>
-                                    <div class="box has-background-grey-darker" style="border-radius: 8px; border: 1px solid #363636;">
-                                        <h4 class="title is-6 has-text-white mb-3">
-                                            <span class="icon mr-2 has-text-success"><i class="fas fa-music"></i></span>
-                                            Available Features:
-                                        </h4>
-                                        <ul class="has-text-grey-light has-text-white">
-                                            <li class="mb-2"><?php echo t('spotify_feature_current_song'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!song</code></li>
-                                            <li class="mb-2"><?php echo t('spotify_feature_song_request'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest [song title] [artist]</code> (or <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!sr</code>)</li>
-                                            <li><?php echo t('spotify_feature_example'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest Stick Season Noah Kahan</code></li>
-                                        </ul>
-                                    </div>
-                                    <div class="mt-4">
-                                        <p class="has-text-grey-light">
-                                            <strong><?php
-                                                $accountsLinkedText = t('spotify_accounts_linked');
-                                                $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
-                                                echo $accountsLinkedText;
-                                            ?></strong>
-                                        </p>
-                                    </div>
-                                </div>
+            </div>
+            <div class="sp-card-body">
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">If you prefer to use your own Spotify application instead of waiting for authorization, enable this option. You'll need to create your own Spotify app and enter the credentials below.</p>
+                <a href="https://help.botofthespecter.com/spotify_setup.php" target="_blank" class="sp-btn sp-btn-info sp-btn-sm" style="margin-bottom: 1rem;">
+                    <i class="fas fa-external-link-alt"></i>
+                    Get Setup Instructions
+                </a>
+                <form method="post">
+                    <div class="sp-form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
+                            <input type="checkbox" name="use_own_client" <?php echo $own_client == 1 ? 'checked' : ''; ?> onchange="this.form.submit()">
+                            Enable Own Client
+                        </label>
+                    </div>
+                    <?php if ($own_client == 1): ?>
+                        <div class="sp-form-group">
+                            <label class="sp-label">Client ID</label>
+                            <input class="sp-input" type="text" name="client_id" value="<?php echo htmlspecialchars($user_client_id); ?>" placeholder="Your Spotify Client ID">
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label">Client Secret</label>
+                            <input class="sp-input" type="password" name="client_secret" value="<?php echo htmlspecialchars($user_client_secret); ?>" placeholder="Your Spotify Client Secret">
+                        </div>
+                        <div class="sp-form-group">
+                            <button class="sp-btn sp-btn-success" type="submit" name="save_credentials">Save Credentials</button>
+                        </div>
+                    <?php endif; ?>
+                </form>
+            </div>
+        </div>
+
+        <?php if ($connectionStatus === 'connected'): ?>
+            <div class="sp-card">
+                <div class="sp-card-header">
+                    <div class="sp-card-title">
+                        <i class="fab fa-spotify" style="color: var(--green);"></i>
+                        Connected Account Information
+                    </div>
+                </div>
+                <div class="sp-card-body">
+                    <div class="sp-alert sp-alert-warning" style="margin-bottom: 1rem;">
+                        <i class="fas fa-info-circle"></i>
+                        <strong><?php echo t('spotify_connected_restart_bot'); ?></strong>
+                    </div>
+                    <div class="sp-alert sp-alert-info" style="margin-bottom: 1.5rem;">
+                        <i class="fas fa-link"></i>
+                        <strong><?php echo t('spotify_connected_check_link'); ?></strong>
+                    </div>
+                    <div class="sp-card" style="margin-bottom: 1rem;">
+                        <div class="sp-card-header">
+                            <div class="sp-card-title">
+                                <i class="fas fa-music" style="color: var(--green);"></i>
+                                Available Features
                             </div>
+                        </div>
+                        <div class="sp-card-body">
+                            <ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                                <li><?php echo t('spotify_feature_current_song'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!song</code></li>
+                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (or <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
+                                <li><?php echo t('spotify_feature_example'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest Stick Season Noah Kahan</code></li>
+                            </ul>
                         </div>
                     </div>
-                <?php else: ?>
-                    <div class="has-text-centered">
-                        <div class="content has-text-white mb-5" style="margin: 0 auto;">
-                            <p><?php echo t('spotify_connect_instructions'); ?><br><?php echo t('spotify_connect_after_request'); ?></p>
-                            <div class="box has-background-grey-darker has-text-centered" style="max-width: 600px; margin: 0 auto; border-radius: 8px; border: 1px solid #363636;">
-                                <h4 class="title is-6 has-text-white mb-3">
-                                    <span class="icon mr-2 has-text-success"><i class="fas fa-music"></i></span>
-                                    Available Features:
-                                </h4>
-                                <ul class="has-text-left has-text-white">
-                                    <li class="mb-2"><?php echo t('spotify_feature_current_song'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!song</code></li>
-                                    <li class="mb-2"><?php echo t('spotify_feature_song_request'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest [song title] [artist]</code> (or <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!sr</code>)</li>
-                                    <li><?php echo t('spotify_feature_example'); ?> <code class="has-background-grey-dark has-text-white" style="padding: 2px 6px; border-radius: 4px;">!songrequest Stick Season Noah Kahan</code></li>
-                                </ul>
+                    <p style="color: var(--text-secondary);">
+                        <strong><?php
+                            $accountsLinkedText = t('spotify_accounts_linked');
+                            $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
+                            echo $accountsLinkedText;
+                        ?></strong>
+                    </p>
+                </div>
+            </div>
+        <?php else: ?>
+            <div style="text-align: center;">
+                <div style="max-width: 700px; margin: 0 auto 1.5rem;">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;"><?php echo t('spotify_connect_instructions'); ?><br><?php echo t('spotify_connect_after_request'); ?></p>
+                    <div class="sp-card" style="max-width: 600px; margin: 0 auto 1rem;">
+                        <div class="sp-card-header">
+                            <div class="sp-card-title">
+                                <i class="fas fa-music" style="color: var(--green);"></i>
+                                Available Features
                             </div>
-                            <p class="mt-4">
-                                <strong><?php
-                                    $accountsLinkedText = t('spotify_accounts_linked');
-                                    $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
-                                    echo $accountsLinkedText;
-                                ?></strong>
-                            </p>
                         </div>
-                        <?php if ($authURL && $connectionStatus !== 'pending'): ?>
-                            <a href="<?php echo $authURL; ?>" class="button is-success is-large" style="border-radius: 8px; font-weight: 600;">
-                                <span class="icon"><i class="fab fa-spotify"></i></span>
-                                <span><?php echo t('spotify_link_button'); ?></span>
-                            </a>
-                        <?php elseif ($isActAsUser): ?>
-                            <div class="notification is-warning is-light" style="border-radius: 8px; max-width: 700px; margin: 0 auto;">
-                                Act As mode is active. Linking Spotify is disabled for acting users.
-                            </div>
-                        <?php endif; ?>
+                        <div class="sp-card-body">
+                            <ul style="color: var(--text-secondary); list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; text-align: left;">
+                                <li><?php echo t('spotify_feature_current_song'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!song</code></li>
+                                <li><?php echo t('spotify_feature_song_request'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest [song title] [artist]</code> (or <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!sr</code>)</li>
+                                <li><?php echo t('spotify_feature_example'); ?> <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest Stick Season Noah Kahan</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <p style="color: var(--text-secondary);">
+                        <strong><?php
+                            $accountsLinkedText = t('spotify_accounts_linked');
+                            $accountsLinkedText = str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], $accountsLinkedText);
+                            echo $accountsLinkedText;
+                        ?></strong>
+                    </p>
+                </div>
+                <?php if ($authURL && $connectionStatus !== 'pending'): ?>
+                    <a href="<?php echo $authURL; ?>" class="sp-btn sp-btn-success" style="font-size: 1rem; padding: 0.75rem 1.75rem;">
+                        <i class="fab fa-spotify"></i>
+                        <?php echo t('spotify_link_button'); ?>
+                    </a>
+                <?php elseif ($isActAsUser): ?>
+                    <div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        Act As mode is active. Linking Spotify is disabled for acting users.
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php
