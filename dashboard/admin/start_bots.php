@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // Start output buffering immediately to prevent any accidental output
 ob_start();
 
@@ -1056,7 +1056,7 @@ ob_start();
                         </td>
                         <td>
                             <span class="tag is-dark running-time-tag">
-                                <span>—</span>
+                                <span>-</span>
                             </span>
                         </td>
                         <td>
@@ -1316,7 +1316,7 @@ ob_start();
                             }
                             if (runningTimeTag) {
                                 runningTimeTag.className = 'tag is-dark running-time-tag';
-                                runningTimeTag.innerHTML = '<span>—</span>';
+                                runningTimeTag.innerHTML = '<span>-</span>';
                             }
                             // Show both start buttons and hide restart button for non-running bots
                             if (startStableBtn) {
@@ -1430,7 +1430,7 @@ ob_start();
                         } else {
                             if (botTag) { botTag.className = 'tag is-danger bot-status-tag'; botTag.innerHTML = '<span class="icon"><i class="fas fa-times-circle"></i></span><span>Not Running</span>'; }
                             if (botTypeTag) { botTypeTag.className = 'tag is-dark bot-type-tag'; botTypeTag.innerHTML = '<span>Bot Not Running</span>'; }
-                            if (runningTimeTag) { runningTimeTag.className = 'tag is-dark running-time-tag'; runningTimeTag.innerHTML = '<span>—</span>'; }
+                            if (runningTimeTag) { runningTimeTag.className = 'tag is-dark running-time-tag'; runningTimeTag.innerHTML = '<span>-</span>'; }
                             if (startStableBtn) { startStableBtn.disabled = false; startStableBtn.style.display = 'inline-flex'; }
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
                             if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
@@ -1584,9 +1584,9 @@ ob_start();
                     }
                 }
             } else {
-                // Token invalid — attempt an automatic silent renewal
+                // Token invalid - attempt an automatic silent renewal
                 tokenTag.className = 'tag is-warning token-status-tag';
-                tokenTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Invalid — attempting renew...</span>';
+                tokenTag.innerHTML = '<span class="icon"><i class="fas fa-exclamation-triangle"></i></span><span>Invalid - attempting renew...</span>';
                 const renewed = await renewUserToken(twitchUserId, true);
                 if (renewed) {
                     tokenTag.className = 'tag is-success token-status-tag';

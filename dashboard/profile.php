@@ -388,11 +388,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // No change to bot identity; keep previous verified state
                     $isVerified = $storedVerified;
                 } else {
-                    // Bot name or id changed — reset verification
+                    // Bot name or id changed - reset verification
                     $isVerified = 0;
                 }
             } else {
-                // No existing record — default not verified
+                // No existing record - default not verified
                 $isVerified = 0;
             }
             // Determine whether to UPDATE or INSERT based on whether record exists

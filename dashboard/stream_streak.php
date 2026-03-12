@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -33,7 +33,7 @@ $topStreakers = [];
 $milestoneBreakdown = [];
 
 try {
-    // Most recently updated streaks (one row per user — ordered by last milestone hit)
+    // Most recently updated streaks (one row per user - ordered by last milestone hit)
     $recentRes = $db->query("SELECT user_name, streak_value, updated_at FROM analytic_stream_watch_streak ORDER BY updated_at DESC LIMIT 25");
     if ($recentRes) {
         $recentStreaks = $recentRes->fetch_all(MYSQLI_ASSOC);
@@ -105,7 +105,7 @@ ob_start();
                         <?php foreach ($topStreakers as $t): ?>
                             <li style="margin-bottom:0.5rem;">
                                 <strong><?php echo htmlspecialchars($t['user_name']); ?></strong>
-                                — <?php echo htmlspecialchars($t['highest_streak']); ?> streams
+                                - <?php echo htmlspecialchars($t['highest_streak']); ?> streams
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -119,7 +119,7 @@ ob_start();
                         <?php foreach ($milestoneBreakdown as $m): ?>
                             <li style="margin-bottom:0.4rem;">
                                 <strong><?php echo htmlspecialchars($m['streak_value']); ?> streams</strong>
-                                — <?php echo htmlspecialchars($m['user_count']); ?> viewer<?php echo $m['user_count'] != 1 ? 's' : ''; ?>
+                                - <?php echo htmlspecialchars($m['user_count']); ?> viewer<?php echo $m['user_count'] != 1 ? 's' : ''; ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>

@@ -589,7 +589,7 @@ if (empty($broadcasterId)) {
 }
 // Helper: format RFC3339 -> localized date/time string
 function fmt_dt($rfc3339, $tz, $format = 'D, j M Y - g:ia T') {
-    if (empty($rfc3339)) return '—';
+    if (empty($rfc3339)) return '-';
     try {
         $dt = new DateTime($rfc3339, new DateTimeZone('UTC'));
         $dt->setTimezone(new DateTimeZone($tz));
@@ -609,7 +609,7 @@ function segment_duration_minutes($startRfc3339, $endRfc3339) {
     }
 }
 function fmt_duration_human($minutes) {
-    if (!is_numeric($minutes) || (int)$minutes <= 0) return '—';
+    if (!is_numeric($minutes) || (int)$minutes <= 0) return '-';
     $totalMinutes = (int)$minutes;
     $hours = intdiv($totalMinutes, 60);
     $mins = $totalMinutes % 60;
@@ -773,13 +773,13 @@ ob_start();
                     <input class="sp-input" type="datetime-local" name="segment_start" id="create_segment_start" placeholder="Start (local)" required />
                     <input class="sp-input" type="datetime-local" name="segment_end" id="create_segment_end" placeholder="End (local)" required />
                     <input type="hidden" name="segment_duration" id="create_segment_duration" value="" />
-                    <span class="sp-badge sp-badge-grey" id="create_segment_duration_preview">Duration: —</span>
+                    <span class="sp-badge sp-badge-grey" id="create_segment_duration_preview">Duration: -</span>
                 </div>
             </div>
             <div class="sp-form-group">
                 <div class="sp-field-row">
                     <div style="position:relative; flex:0 0 260px;">
-                        <input class="sp-input" type="text" id="segment_category_search" placeholder="Search category (name or id) — type to search" autocomplete="off" />
+                        <input class="sp-input" type="text" id="segment_category_search" placeholder="Search category (name or id) - type to search" autocomplete="off" />
                         <input type="hidden" name="segment_category_id" id="segment_category_id" />
                         <div id="segment_category_suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
                     </div>
@@ -836,9 +836,9 @@ ob_start();
                             $durationMins = segment_duration_minutes($seg['start_time'] ?? null, $seg['end_time'] ?? null);
                             $startLocalValue = isset($seg['start_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : '';
                             $endLocalValue = isset($seg['end_time']) ? date('Y-m-d\TH:i', (new DateTime($seg['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : '';
-                            $startDateText = '—';
-                            $startTimeText = '—';
-                            $endTimeText = '—';
+                            $startDateText = '-';
+                            $startTimeText = '-';
+                            $endTimeText = '-';
                             $endDateText = '';
                             try {
                                 $startDtLocal = new DateTime($seg['start_time'] ?? '', new DateTimeZone('UTC'));
@@ -958,7 +958,7 @@ ob_start();
         return Math.floor((end.getTime() - start.getTime()) / 60000);
     }
     function formatDurationHuman(mins) {
-        if (mins === null || mins <= 0) return '—';
+        if (mins === null || mins <= 0) return '-';
         const hours = Math.floor(mins / 60);
         const minutes = mins % 60;
         if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
@@ -971,7 +971,7 @@ ob_start();
         let helpText = 'Duration must be between 30 minutes and 23 hours (1380 minutes).';
         if (mins === null) {
             if (hiddenInput) hiddenInput.value = '';
-            if (previewEl) previewEl.textContent = 'Duration: —';
+            if (previewEl) previewEl.textContent = 'Duration: -';
             if (actionButton) actionButton.disabled = true;
             if (endInput) endInput.classList.remove('sp-input-error');
             if (helpEl) helpEl.textContent = helpText;

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -911,7 +911,7 @@ ob_start();
                         const resp = await fetch('module_data_post.php', { method: 'POST', body: form });
                         const json = await resp.json();
                         if (json.success) {
-                            // Persisted to DB OK — propagate live via websocket so overlays/controllers pick it up immediately
+                            // Persisted to DB OK - propagate live via websocket so overlays/controllers pick it up immediately
                             WebSocket.sendCommand('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume });
                             // Also emit explicit MUSIC_SETTINGS event so the websocket relayer forwards music_source right away
                             if (MusicPlayer.socket && MusicPlayer.socket.connected) {

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -983,7 +983,7 @@ function getOnlineUserIds($user_ids, $client_id, $bearer) {
     return $online_ids;
 }
 
-// Prepare an empty placeholder for the online channels — they'll be populated by JS via AJAX.
+// Prepare an empty placeholder for the online channels - they'll be populated by JS via AJAX.
 $online_channels = [];
 $return_ai_stats_json = false;
 // AJAX handlers: bot_overview and online_channels
@@ -2082,7 +2082,7 @@ ob_start();
                     <label class="sp-label">Template</label>
                     <div class="sp-select" style="width:100%;">
                         <select id="message-template-select" style="width:100%;">
-                            <option value="">— Choose Template —</option>
+                            <option value="">- Choose Template -</option>
                             <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
                                 <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
                             <?php endforeach; ?>
@@ -2326,7 +2326,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     scheduleStatusRefresh(meta);
                 }
             } catch (e) {
-                // Not valid JSON — log raw text for diagnosis and show it to user
+                // Not valid JSON - log raw text for diagnosis and show it to user
                 console.error('[admin control] invalid JSON response:', text);
                 Swal.fire({
                     title: 'Error',

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -812,7 +812,7 @@ function toggleRestrictUser(userId, username, twitch_user_id, restrict) {
             <p class="mb-2 has-text-weight-bold">Admin note:</p>
             <p class="mb-2">Restricting a user blocks dashboard access.</p>
             <p class="mb-2">They will not be able to use dashboard controls, including starting or stopping the bot.</p>
-            <p class="mb-0">This can be temporary — you can restore access anytime by clicking <span class="has-text-weight-bold">Unrestrict</span>.</p>
+            <p class="mb-0">This can be temporary - you can restore access anytime by clicking <span class="has-text-weight-bold">Unrestrict</span>.</p>
         </div>
     `;
     const modalHtml = restrict

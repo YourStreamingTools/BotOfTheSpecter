@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 include 'file_paths.php';
 
 // Define the user's directories
@@ -97,7 +97,7 @@ ensureDirectoryWritable($twitch_sound_alert_path);
 // Ensure per-user music folder exists and is writable
 ensureDirectoryWritable($user_music_path);
 
-// Public user-music folder served by music.botspecter.com — mirror/symlink target for uploaded files
+// Public user-music folder served by music.botspecter.com - mirror/symlink target for uploaded files
 $public_user_music_path = "/var/www/usermusic/" . $username;
 ensureDirectoryWritable($public_user_music_path);
 
