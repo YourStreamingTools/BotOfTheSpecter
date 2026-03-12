@@ -47,94 +47,67 @@ $num_rows = count($result);
 
 ob_start();
 ?>
-<div class="card" style="border-radius: 18px;">
-  <header class="card-header">
-    <p class="card-header-title is-size-4">
-      <span class="icon"><i class="fas fa-list-check"></i></span>
-      <span class="ml-2">Your Tasks</span>
-    </p>
-  </header>
-  <div class="card-content">
-    <div class="columns is-vcentered mb-4">
-      <div class="column is-9">
-        <label for="searchInput" class="label mb-1">Search Objectives</label>
-        <div class="control has-icons-left">
-          <input class="input is-rounded" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search...">
-          <span class="icon is-left">
-            <i class="fas fa-search"></i>
-          </span>
-        </div>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <div class="sp-card-title"><i class="fas fa-list-check"></i> Your Tasks</div>
+  </div>
+  <div class="sp-card-body">
+    <div style="display:flex; align-items:flex-end; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      <div style="flex:1; min-width:200px;">
+        <label for="searchInput" class="sp-label">Search Objectives</label>
+        <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search...">
       </div>
-      <div class="column is-3 has-text-right">
-        <label for="categoryFilter" class="label mb-1 has-text-left" style="display:block;">Filter by Category</label>
-        <div class="control has-icons-left">
-          <div class="select is-fullwidth is-rounded">
-            <select id="categoryFilter" onchange="applyCategoryFilter()">
-              <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
-              <?php
-                $categories_sql = "SELECT * FROM categories";
-                $categories_stmt = $db->prepare($categories_sql);
-                $categories_stmt->execute();
-                $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                foreach ($categories_result as $category_row) {
-                  $categoryId = htmlspecialchars($category_row['id']);
-                  $categoryName = htmlspecialchars($category_row['category']);
-                  $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
-                  echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
-                }
-              ?>
-            </select>
-          </div>
-          <span class="icon is-left">
-            <i class="fas fa-filter"></i>
-          </span>
-        </div>
+      <div style="min-width:200px;">
+        <label for="categoryFilter" class="sp-label">Filter by Category</label>
+        <select id="categoryFilter" class="sp-select" onchange="applyCategoryFilter()">
+          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+          <?php
+            $categories_sql = "SELECT * FROM categories";
+            $categories_stmt = $db->prepare($categories_sql);
+            $categories_stmt->execute();
+            $categories_result = $categories_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            foreach ($categories_result as $category_row) {
+              $categoryId = htmlspecialchars($category_row['id']);
+              $categoryName = htmlspecialchars($category_row['category']);
+              $selected = ($categoryFilter == $categoryId) ? 'selected' : '';
+              echo "<option value=\"$categoryId\" $selected>$categoryName</option>";
+            }
+          ?>
+        </select>
       </div>
     </div>
     <?php if ($num_rows < 1): ?>
-      <div class="notification is-info is-light">
-        <span class="icon"><i class="fas fa-tasks"></i></span>
-        <span class="ml-2"><strong>Your to-do list is empty!</strong> Start adding tasks to get organized.</span>
+      <div class="sp-alert sp-alert-info">
+        <i class="fas fa-tasks" style="margin-right:0.5rem;"></i>
+        <strong>Your to-do list is empty!</strong> Start adding tasks to get organized.
       </div>
     <?php else: ?>
-      <h4 class="mb-4">Number of total tasks in the category: <?php echo $num_rows; ?></h4>
-      <div class="columns is-multiline" id="taskCardList">
+      <p style="margin-bottom:1rem; color:var(--text-secondary);">Number of total tasks in the category: <?php echo $num_rows; ?></p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
         <?php foreach ($result as $row): ?>
-          <div class="column is-6-tablet is-4-desktop">
-            <div class="box" style="border-radius: 12px;">
-              <div class="media is-align-items-center">
-                <div class="media-content">
-                  <p class="title is-6 mb-1 is-flex is-align-items-center" style="color:#fff;">
-                    <?php
-                      $objective = htmlspecialchars($row['objective']);
-                      echo ($row['completed'] == 'Yes') ? '<s>' . $objective . '</s>' : $objective;
-                    ?>
-                  </p>
-                  <p class="subtitle is-7 mb-2 is-flex is-align-items-center" style="color:#fff;">
-                    <span class="icon is-align-self-center"><i class="fas fa-folder"></i></span>
-                    <span class="ml-1">
-                      <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
-                    </span>
-                    <span class="ml-2">
-                      <?php echo ($row['completed'] === 'Yes')
-                        ? '<span class="tag is-success is-light">Completed</span>'
-                        : '<span class="tag is-warning is-light">Not completed</span>'; ?>
-                    </span>
-                  </p>
-                  <p class="is-size-7 is-flex is-align-items-center" style="color:#fff;">
-                    <span class="icon"><i class="fas fa-calendar-plus"></i></span>
-                    <span class="ml-1">
-                      Created: <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['created_at']); ?>"><?php echo htmlspecialchars($row['created_at']); ?></span>
-                    </span>
-                  </p>
-                  <p class="is-size-7 is-flex is-align-items-center" style="color:#fff;">
-                    <span class="icon"><i class="fas fa-calendar-pen"></i></span>
-                    <span class="ml-1">
-                      Updated: <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['updated_at']); ?>"><?php echo htmlspecialchars($row['updated_at']); ?></span>
-                    </span>
-                  </p>
-                </div>
-              </div>
+          <div class="sp-card" style="margin-bottom:0;">
+            <div class="sp-card-body">
+              <p style="font-weight:600; margin-bottom:0.4rem;">
+                <?php
+                  $objective = htmlspecialchars($row['objective']);
+                  echo ($row['completed'] == 'Yes') ? '<s>' . $objective . '</s>' : $objective;
+                ?>
+              </p>
+              <p style="font-size:0.8rem; margin-bottom:0.4rem; color:var(--text-secondary); display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                <i class="fas fa-folder"></i>
+                <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                <?php echo ($row['completed'] === 'Yes')
+                  ? '<span class="sp-badge sp-badge-green">Completed</span>'
+                  : '<span class="sp-badge sp-badge-amber">Not completed</span>'; ?>
+              </p>
+              <p style="font-size:0.8rem; display:flex; align-items:center; gap:0.3rem; color:var(--text-secondary); margin-bottom:0.2rem;">
+                <i class="fas fa-calendar-plus"></i>
+                Created: <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['created_at']); ?>"><?php echo htmlspecialchars($row['created_at']); ?></span>
+              </p>
+              <p style="font-size:0.8rem; display:flex; align-items:center; gap:0.3rem; color:var(--text-secondary); margin-bottom:0;">
+                <i class="fas fa-calendar-pen"></i>
+                Updated: <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['updated_at']); ?>"><?php echo htmlspecialchars($row['updated_at']); ?></span>
+              </p>
             </div>
           </div>
         <?php endforeach; ?>
@@ -147,7 +120,6 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bulma@1.0.0/js/bulma.min.js"></script>
 <script src="../js/search.js"></script>
 <script>
   function formatTimestamp(timestamp) {

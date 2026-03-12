@@ -58,70 +58,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column">
-    <div class="card" style="border-radius: 18px;">
-      <header class="card-header">
-        <p class="card-header-title is-size-4">
-          <span class="icon"><i class="fas fa-plus"></i></span>
-          <span class="ml-2">Add a New Task</span>
-        </p>
-      </header>
-      <div class="card-content" style="padding: 2.5rem;">
-        <?php if ($message): ?>
-          <div class="notification <?php echo $messageType; ?> is-light mb-4">
-            <span class="icon is-medium">
-              <?php if ($messageType === 'is-danger'): ?>
-                <i class="fas fa-exclamation-triangle"></i>
-              <?php elseif ($messageType === 'is-success'): ?>
-                <i class="fas fa-check-circle"></i>
-              <?php else: ?>
-                <i class="fas fa-info-circle"></i>
-              <?php endif; ?>
-            </span>
-            <span><?php echo $message; ?></span>
-          </div>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <div class="sp-card-title"><i class="fas fa-plus"></i> Add a New Task</div>
+  </div>
+  <div class="sp-card-body">
+    <?php if ($message): ?>
+      <div class="sp-alert sp-alert-<?php echo preg_replace('/^is-/', '', $messageType); ?>" style="margin-bottom:1rem;">
+        <?php if ($messageType === 'is-danger'): ?>
+          <i class="fas fa-exclamation-triangle" style="margin-right:0.4rem;"></i>
+        <?php elseif ($messageType === 'is-success'): ?>
+          <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
+        <?php else: ?>
+          <i class="fas fa-info-circle" style="margin-right:0.4rem;"></i>
         <?php endif; ?>
-        <form method="post">
-          <div class="field mb-5">
-            <label class="label" for="objective">
-              <span class="icon is-left"><i class="fas fa-tasks"></i></span>
-              Task
-            </label>
-            <div class="control has-icons-left">
-              <textarea id="objective" name="objective" class="textarea is-medium is-rounded" placeholder="Describe your task..."><?php echo htmlspecialchars($objective); ?></textarea> 
-            </div>
-          </div>
-          <div class="field mb-5">
-            <label class="label" for="category">Category</label>
-            <div class="control has-icons-left">
-              <div class="select is-fullwidth is-rounded">
-                <select id="category" name="category">
-                  <?php
-                  $stmt = $db->query("SELECT * FROM categories");
-                  $result = $stmt->fetch_all(MYSQLI_ASSOC);
-                  foreach ($result as $row) {
-                    echo '<option value="'.htmlspecialchars($row['id']).'">'.htmlspecialchars($row['category']).'</option>';
-                  }
-                  ?>
-                </select>
-              </div>
-              <span class="icon is-left">
-                <i class="fas fa-folder"></i>
-              </span>
-            </div>
-          </div>
-          <div class="field is-grouped is-grouped-right mt-6">
-            <div class="control">
-              <button type="submit" class="button is-primary is-medium is-rounded px-5">Add</button>
-            </div>
-            <div class="control">
-              <a href="index.php" class="button is-light is-medium is-rounded px-5">Cancel</a>
-            </div>
-          </div>
-        </form>
+        <span><?php echo $message; ?></span>
       </div>
-    </div>
+    <?php endif; ?>
+    <form method="post">
+      <div class="sp-form-group">
+        <label class="sp-label" for="objective"><i class="fas fa-tasks" style="margin-right:0.3rem;"></i> Task</label>
+        <textarea id="objective" name="objective" class="sp-textarea" placeholder="Describe your task..."><?php echo htmlspecialchars($objective); ?></textarea>
+      </div>
+      <div class="sp-form-group">
+        <label class="sp-label" for="category">Category</label>
+        <select id="category" name="category" class="sp-select">
+          <?php
+          $stmt = $db->query("SELECT * FROM categories");
+          $result = $stmt->fetch_all(MYSQLI_ASSOC);
+          foreach ($result as $row) {
+            echo '<option value="'.htmlspecialchars($row['id']).'">'.htmlspecialchars($row['category']).'</option>';
+          }
+          ?>
+        </select>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+        <button type="submit" class="sp-btn sp-btn-primary">Add</button>
+        <a href="index.php" class="sp-btn sp-btn-secondary">Cancel</a>
+      </div>
+    </form>
   </div>
 </div>
 <?php

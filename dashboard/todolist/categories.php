@@ -78,41 +78,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_category_id'])
 }
 ob_start();
 ?>
-<div class="notification is-info">
-  <div class="columns is-vcentered">
-    <div class="column is-narrow">
-      <span class="icon is-large">
-        <i class="fas fa-list-ul fa-2x"></i> 
-      </span>
-    </div>
-    <div class="column">
-      <p><strong>Manage Your Categories</strong></p>
-      <p>Here's the list of categories you've created. Each category helps you organize your tasks into separate lists.</p> 
-    </div>
+<div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
+  <span style="font-size:1.75rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-list-ul"></i></span>
+  <div>
+    <p style="font-weight:700; margin-bottom:0.25rem;">Manage Your Categories</p>
+    <p style="margin-bottom:0;">Here's the list of categories you've created. Each category helps you organize your tasks into separate lists.</p>
   </div>
 </div>
 <?php if (!empty($message)): ?>
-  <div class="notification is-info mt-4"><?php echo htmlspecialchars($message); ?></div>
+  <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;"><?php echo htmlspecialchars($message); ?></div>
 <?php endif; ?>
-<div class="columns is-multiline">
-  <?php foreach ($result as $row): ?> 
-    <div class="column is-4-tablet is-3-desktop">
-      <div class="box" style="background: transparent; border-radius: 14px; border: 1px solid #d3d3d3; box-shadow: none; padding: 1.5rem 1.25rem;">
-        <div class="media is-align-items-center">
-          <div class="media-left is-flex is-align-items-center">
-            <span class="icon has-text-info is-large">
-              <i class="fas fa-folder fa-lg"></i>
-            </span>
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:1rem;">
+  <?php foreach ($result as $row): ?>
+    <div class="sp-card" style="margin-bottom:0;">
+      <div class="sp-card-body">
+        <div style="display:flex; align-items:center; gap:1rem;">
+          <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-folder"></i></span>
+          <div style="flex:1; min-width:0;">
+            <p style="font-weight:700; margin-bottom:0.25rem; word-break:break-word;"><?php echo htmlspecialchars($row['category']); ?></p>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0;">ID: <?php echo htmlspecialchars($row['id']); ?></p>
           </div>
-          <div class="media-content">
-            <p class="title is-5 mb-1" style="word-break: break-word;"><?php echo htmlspecialchars($row['category']); ?></p>
-            <p class="subtitle is-7" style="font-size: 1rem; color: #fff;">ID: <?php echo htmlspecialchars($row['id']); ?></p>
-          </div>
-          <div class="media-right">
+          <div style="flex-shrink:0;">
             <form method="post" style="margin-bottom:0;" class="remove-category-form">
               <input type="hidden" name="remove_category_id" value="<?php echo $row['id']; ?>">
-              <button type="button" class="button is-danger is-rounded is-small remove-category-btn">
-                <span class="icon"><i class="fas fa-trash"></i></span>
+              <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-category-btn">
+                <i class="fas fa-trash"></i>
               </button>
             </form>
           </div>
