@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
@@ -728,632 +728,436 @@ if ($cookieConsent && isset($_COOKIE['preferred_edit_tab'])) {
 ob_start();
 ?>
 <?php if (isset($status) && !empty($status)): ?>
-    <div class="notification <?php echo $notification_status; ?> is-light"><?php echo $status; ?></div>
+    <?php
+    $spAlertClass = 'sp-alert-info';
+    if (isset($notification_status)) {
+        if (str_contains($notification_status, 'danger'))      $spAlertClass = 'sp-alert-danger';
+        elseif (str_contains($notification_status, 'success')) $spAlertClass = 'sp-alert-success';
+        elseif (str_contains($notification_status, 'warning')) $spAlertClass = 'sp-alert-warning';
+    }
+    ?>
+    <div class="sp-alert <?php echo $spAlertClass; ?>"><?php echo $status; ?></div>
 <?php endif; ?>
-<div class="columns is-centered">
-  <div class="column is-fullwidth">
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-      <header class="card-header" style="border-bottom: 1px solid #23272f;">
-        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-          <span class="icon mr-2"><i class="fas fa-stopwatch"></i></span>
-          <?php echo t('navbar_counters'); ?> & Management
-        </span>
-      </header>
-      <div class="card-content">
-        <!-- Tab Navigation -->
-        <div class="tabs is-centered is-toggle is-toggle-rounded mb-4">
-          <ul>
-            <li class="is-active" data-tab="view">
-              <a onclick="switchMode('view')">
-                <span class="icon is-small"><i class="fas fa-eye"></i></span>
-                <span>View Data</span>
-              </a>
-            </li>
-            <li data-tab="edit">
-              <a onclick="switchMode('edit')">
-                <span class="icon is-small"><i class="fas fa-edit"></i></span>
-                <span>Edit Data</span>
-              </a>
-            </li>
-          </ul>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <h2 class="sp-card-title"><i class="fas fa-stopwatch"></i> <?php echo t('navbar_counters'); ?> & Management</h2>
+  </div>
+  <div class="sp-card-body">
+    <!-- Tab Navigation -->
+    <ul class="sp-tabs-nav">
+      <li class="is-active" data-tab="view">
+        <a onclick="switchMode('view')"><i class="fas fa-eye"></i> View Data</a>
+      </li>
+      <li data-tab="edit">
+        <a onclick="switchMode('edit')"><i class="fas fa-edit"></i> Edit Data</a>
+      </li>
+    </ul>
+    <!-- View Mode -->
+    <div id="view-mode" class="mode-content">
+      <div class="sp-btn-group">
+        <button class="sp-btn sp-btn-info" data-type="lurkers" onclick="loadData('lurkers')"><?php echo t('counters_lurkers'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="typos" onclick="loadData('typos')"><?php echo t('edit_counters_edit_user_typos'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="deaths" onclick="loadData('deaths')"><?php echo t('counters_deaths'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="hugs" onclick="loadData('hugs')"><?php echo t('counters_hugs'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="kisses" onclick="loadData('kisses')"><?php echo t('counters_kisses'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="highfives" onclick="loadData('highfives')"><?php echo t('counters_highfives'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="customCounts" onclick="loadData('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="userCounts" onclick="loadData('userCounts')"><?php echo t('counters_user_counts'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="rewardCounts" onclick="loadData('rewardCounts')"><?php echo t('counters_reward_counts'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="rewardStreaks" onclick="loadData('rewardStreaks')"><?php echo t('counters_reward_streaks'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="rewardUsage" onclick="loadData('rewardUsage')"><?php echo t('counters_reward_usage'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="watchTime" onclick="loadData('watchTime')"><?php echo t('counters_watch_time'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="quotes" onclick="loadData('quotes')"><?php echo t('counters_quotes'); ?></button>
+        <button class="sp-btn sp-btn-info" data-type="manyOptions" onclick="loadData('manyOptions')">Random Pick Lists</button>
+      </div>
+      <div class="sp-table-wrap">
+        <h3 id="table-title" style="font-size:1.1rem; font-weight:700; text-align:center; margin-bottom:0.75rem; color:var(--text-primary);"></h3>
+        <table class="sp-table" style="table-layout: fixed; width: 100%;">
+          <thead>
+            <tr>
+              <th id="info-column-data" style="width: 33%;"></th>
+              <th id="data-column-info" style="width: 33%;"></th>
+              <th id="count-column" style="width: 33%; display: none;"></th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- Content will be dynamically injected here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Edit Mode -->
+    <div id="edit-mode" class="mode-content" style="display: none;">
+      <div class="sp-btn-group">
+        <button class="sp-btn sp-btn-info" data-edit-type="typos" onclick="showEditTab('typos')"><?php echo t('edit_counters_edit_user_typos'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="customCounts" onclick="showEditTab('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="deaths" onclick="showEditTab('deaths')"><?php echo t('counters_deaths'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="hugs" onclick="showEditTab('hugs')"><?php echo t('counters_hugs'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="kisses" onclick="showEditTab('kisses')"><?php echo t('counters_kisses'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="highfives" onclick="showEditTab('highfives')"><?php echo t('counters_highfives'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="userCounts" onclick="showEditTab('userCounts')"><?php echo t('counters_user_counts'); ?></button>
+        <button class="sp-btn sp-btn-info" data-edit-type="quotes" onclick="showEditTab('quotes')"><?php echo t('counters_quotes'); ?></button>
+      </div>
+      <!-- Typos Edit Tab -->
+      <div id="edit-tab-typos" class="edit-tab-content">
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_typos'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="typo-username" name="typo-username" required onchange="updateCurrentCount('typo', this.value); enableButton('typo-username','typo-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($usernames as $name): ?>
+                    <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_typo_count'); ?></label>
+                <input class="sp-input" type="number" id="typo_count" name="typo_count" min="0" required>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="typo-edit-btn" disabled><?php echo t('edit_counters_update_typo_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_typo'); ?></h4>
+            <form action="" method="post" id="typo-remove-form" data-type="typo">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="typo-username-remove" name="typo-username-remove" required onchange="enableButton('typo-username-remove','typo-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($usernames as $name): ?>
+                    <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="typo-remove-btn" disabled><?php echo t('edit_counters_remove_typo_btn'); ?></button>
+            </form>
+          </div></div>
         </div>
-        <!-- View Mode -->
-        <div id="view-mode" class="mode-content">
-          <div class="buttons is-centered mb-4 is-flex-wrap-wrap">
-            <button class="button is-info" data-type="lurkers" onclick="loadData('lurkers')"><?php echo t('counters_lurkers'); ?></button>
-            <button class="button is-info" data-type="typos" onclick="loadData('typos')"><?php echo t('edit_counters_edit_user_typos'); ?></button>
-            <button class="button is-info" data-type="deaths" onclick="loadData('deaths')"><?php echo t('counters_deaths'); ?></button>
-            <button class="button is-info" data-type="hugs" onclick="loadData('hugs')"><?php echo t('counters_hugs'); ?></button>
-            <button class="button is-info" data-type="kisses" onclick="loadData('kisses')"><?php echo t('counters_kisses'); ?></button>
-            <button class="button is-info" data-type="highfives" onclick="loadData('highfives')"><?php echo t('counters_highfives'); ?></button>
-            <button class="button is-info" data-type="customCounts" onclick="loadData('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
-            <button class="button is-info" data-type="userCounts" onclick="loadData('userCounts')"><?php echo t('counters_user_counts'); ?></button>
-            <button class="button is-info" data-type="rewardCounts" onclick="loadData('rewardCounts')"><?php echo t('counters_reward_counts'); ?></button>
-            <button class="button is-info" data-type="rewardStreaks" onclick="loadData('rewardStreaks')"><?php echo t('counters_reward_streaks'); ?></button>
-            <button class="button is-info" data-type="rewardUsage" onclick="loadData('rewardUsage')"><?php echo t('counters_reward_usage'); ?></button>
-            <button class="button is-info" data-type="watchTime" onclick="loadData('watchTime')"><?php echo t('counters_watch_time'); ?></button>
-            <button class="button is-info" data-type="quotes" onclick="loadData('quotes')"><?php echo t('counters_quotes'); ?></button>
-            <button class="button is-info" data-type="manyOptions" onclick="loadData('manyOptions')">Random Pick Lists</button>
-          </div>
-          <div class="content">
-            <div class="table-container">
-              <h3 id="table-title" class="title is-4 has-text-white has-text-centered mb-3"></h3>
-              <table class="table is-fullwidth" style="table-layout: fixed; width: 100%;">
-                <thead>
-                  <tr>
-                    <th id="info-column-data" class="has-text-white" style="width: 33%;"></th>
-                    <th id="data-column-info" class="has-text-white" style="width: 33%;"></th>
-                    <th id="count-column" class="has-text-white" style="width: 33%; display: none;"></th>
-                  </tr>
-                </thead>
-                <tbody id="table-body">
-                  <!-- Content will be dynamically injected here -->
-                </tbody>
-              </table>
-            </div>
-          </div>
+      </div>
+      <!-- Custom Counts Edit Tab -->
+      <div id="edit-tab-customCounts" class="edit-tab-content" style="display:none;">
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_custom_counter'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
+                <select class="sp-select" id="command" name="command" required onchange="updateCurrentCount('command', this.value); enableButton('command','command-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_command'); ?></option>
+                  <?php foreach ($commands as $cmd): ?>
+                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_command_count'); ?></label>
+                <input class="sp-input" type="number" id="command_count" name="command_count" min="0" required>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="command-edit-btn" disabled><?php echo t('edit_counters_update_command_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_custom_counter'); ?></h4>
+            <form action="" method="post" id="command-remove-form">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
+                <select class="sp-select" id="command-remove" name="command-remove" required onchange="enableButton('command-remove','command-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_command'); ?></option>
+                  <?php foreach ($commands as $cmd): ?>
+                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="command-remove-btn" disabled><?php echo t('edit_counters_remove_command_btn'); ?></button>
+            </form>
+          </div></div>
         </div>
-        <!-- Edit Mode -->
-        <div id="edit-mode" class="mode-content" style="display: none;">
-          <div class="buttons is-centered mb-4 is-flex-wrap-wrap">
-            <button class="button is-info" data-edit-type="typos" onclick="showEditTab('typos')"><?php echo t('edit_counters_edit_user_typos'); ?></button>
-            <button class="button is-info" data-edit-type="customCounts" onclick="showEditTab('customCounts')"><?php echo t('counters_custom_counts'); ?></button>
-            <button class="button is-info" data-edit-type="deaths" onclick="showEditTab('deaths')"><?php echo t('counters_deaths'); ?></button>
-            <button class="button is-info" data-edit-type="hugs" onclick="showEditTab('hugs')"><?php echo t('counters_hugs'); ?></button>
-            <button class="button is-info" data-edit-type="kisses" onclick="showEditTab('kisses')"><?php echo t('counters_kisses'); ?></button>
-            <button class="button is-info" data-edit-type="highfives" onclick="showEditTab('highfives')"><?php echo t('counters_highfives'); ?></button>
-            <button class="button is-info" data-edit-type="userCounts" onclick="showEditTab('userCounts')"><?php echo t('counters_user_counts'); ?></button>
-            <button class="button is-info" data-edit-type="quotes" onclick="showEditTab('quotes')"><?php echo t('counters_quotes'); ?></button>
-          </div>
-          <!-- Typos Edit Tab -->
-          <div id="edit-tab-typos" class="edit-tab-content">
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_user_typos'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="typo-username" name="typo-username" required onchange="updateCurrentCount('typo', this.value); enableButton('typo-username','typo-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($usernames as $name): ?>
-                              <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_typo_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="typo_count" name="typo_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="typo-edit-btn" disabled><?php echo t('edit_counters_update_typo_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
+      </div>
+      <!-- Deaths Edit Tab -->
+      <div id="edit-tab-deaths" class="edit-tab-content" style="display:none;">
+        <div class="sp-alert sp-alert-info" style="text-align:center; margin-bottom:1rem;">
+          <strong><?php echo t('edit_counters_total_deaths'); ?>:</strong>
+          <span id="edit-total-deaths" style="font-weight:700; color:var(--red);"><?php echo (int)$totalDeaths; ?></span>
+        </div>
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_game_deaths'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_game_label'); ?></label>
+                <select class="sp-select" id="death-game" name="death-game" required onchange="updateCurrentCount('death', this.value); enableButton('death-game','death-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_game'); ?></option>
+                  <?php foreach ($games as $game): ?>
+                    <option value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
+                  <?php endforeach; ?>
+                </select>
               </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_user_typo'); ?></h4>
-                  <form action="" method="post" id="typo-remove-form" data-type="typo">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="typo-username-remove" name="typo-username-remove" required onchange="enableButton('typo-username-remove','typo-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($usernames as $name): ?>
-                              <option value="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="typo-remove-btn" disabled><?php echo t('edit_counters_remove_typo_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_death_count'); ?></label>
+                <input class="sp-input" type="number" id="death_count" name="death_count" min="0" required>
               </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="death-edit-btn" disabled><?php echo t('edit_counters_update_death_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_game_death_counter'); ?></h4>
+            <form action="" method="post" id="death-remove-form">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_game_label'); ?></label>
+                <select class="sp-select" id="death-game-remove" name="death-game-remove" required onchange="enableButton('death-game-remove','death-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_game'); ?></option>
+                  <?php foreach ($games as $game): ?>
+                    <option value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="death-remove-btn" disabled><?php echo t('edit_counters_remove_game_death_btn'); ?></button>
+            </form>
+          </div></div>
+        </div>
+      </div>
+      <!-- Hugs Edit Tab -->
+      <div id="edit-tab-hugs" class="edit-tab-content" style="display:none;">
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_hugs'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="hug-username" name="hug-username" required onchange="updateCurrentCount('hug', this.value); enableButton('hug-username','hug-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($hugUsers as $user): ?>
+                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_hug_count'); ?></label>
+                <input class="sp-input" type="number" id="hug_count" name="hug_count" min="0" required>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="hug-edit-btn" disabled><?php echo t('edit_counters_update_hug_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_hug'); ?></h4>
+            <form action="" method="post" id="hug-remove-form">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="hug-username-remove" name="hug-username-remove" required onchange="enableButton('hug-username-remove','hug-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($hugUsers as $user): ?>
+                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="hug-remove-btn" disabled><?php echo t('edit_counters_remove_hug_btn'); ?></button>
+            </form>
+          </div></div>
+        </div>
+      </div>
+      <!-- Kisses Edit Tab -->
+      <div id="edit-tab-kisses" class="edit-tab-content" style="display:none;">
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_kisses'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="kiss-username" name="kiss-username" required onchange="updateCurrentCount('kiss', this.value); enableButton('kiss-username','kiss-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($kissUsers as $user): ?>
+                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_kiss_count'); ?></label>
+                <input class="sp-input" type="number" id="kiss_count" name="kiss_count" min="0" required>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="kiss-edit-btn" disabled><?php echo t('edit_counters_update_kiss_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_kiss'); ?></h4>
+            <form action="" method="post" id="kiss-remove-form">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="kiss-username-remove" name="kiss-username-remove" required onchange="enableButton('kiss-username-remove','kiss-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($kissUsers as $user): ?>
+                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="kiss-remove-btn" disabled><?php echo t('edit_counters_remove_kiss_btn'); ?></button>
+            </form>
+          </div></div>
+        </div>
+      </div>
+      <!-- Highfives Edit Tab -->
+      <div id="edit-tab-highfives" class="edit-tab-content" style="display:none;">
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_highfives'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="highfive-username" name="highfive-username" required onchange="updateCurrentCount('highfive', this.value); enableButton('highfive-username','highfive-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($highfiveUsers as $user): ?>
+                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_highfive_count'); ?></label>
+                <input class="sp-input" type="number" id="highfive_count" name="highfive_count" min="0" required>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="highfive-edit-btn" disabled><?php echo t('edit_counters_update_highfive_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_highfive'); ?></h4>
+            <form action="" method="post" id="highfive-remove-form">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="highfive-username-remove" name="highfive-username-remove" required onchange="enableButton('highfive-username-remove','highfive-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                  <?php foreach ($highfiveUsers as $user): ?>
+                    <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="highfive-remove-btn" disabled><?php echo t('edit_counters_remove_highfive_btn'); ?></button>
+            </form>
+          </div></div>
+        </div>
+      </div>
+      <!-- User Counts Edit Tab -->
+      <div id="edit-tab-userCounts" class="edit-tab-content" style="display:none;">
+        <div class="sp-two-col">
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_user_counts'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
+                <select class="sp-select" id="usercount-command" name="usercount-command" required onchange="updateUserCountUsers(this.value); enableButton('usercount-command','usercount-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_command'); ?></option>
+                  <?php foreach ($userCountCommands as $cmd): ?>
+                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="usercount-user" name="usercount-user" required onchange="updateUserCountValue(); enableButton('usercount-user','usercount-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_new_count'); ?></label>
+                <input class="sp-input" type="number" id="usercount_count" name="usercount_count" min="0" required>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="usercount-edit-btn" disabled><?php echo t('edit_counters_update_btn'); ?></button>
+            </form>
+          </div></div>
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_user_count'); ?></h4>
+            <form action="" method="post" id="usercount-remove-form">
+              <input type="hidden" name="action" value="remove">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_command_label'); ?></label>
+                <select class="sp-select" id="usercount-command-remove" name="usercount-command-remove" required onchange="updateUserCountUsersRemove(this.value); enableButton('usercount-command-remove','usercount-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_command'); ?></option>
+                  <?php foreach ($userCountCommands as $cmd): ?>
+                    <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_username_label'); ?></label>
+                <select class="sp-select" id="usercount-user-remove" name="usercount-user-remove" required onchange="enableButton('usercount-user-remove','usercount-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_user'); ?></option>
+                </select>
+              </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="usercount-remove-btn" disabled><?php echo t('edit_counters_remove_btn'); ?></button>
+            </form>
+          </div></div>
+        </div>
+      </div>
+      <!-- Quotes Edit Tab -->
+      <div id="edit-tab-quotes" class="edit-tab-content" style="display:none;">
+        <!-- Add New Quote -->
+        <div class="sp-card" style="margin-bottom:1rem;"><div class="sp-card-body">
+          <h4 class="sp-card-title"><?php echo t('edit_counters_add_quote'); ?></h4>
+          <form action="" method="post">
+            <input type="hidden" name="action" value="add_quote">
+            <div class="sp-form-group">
+              <label class="sp-label"><?php echo t('edit_counters_quote_text'); ?></label>
+              <textarea class="sp-textarea" name="quote_text" rows="3" required placeholder="<?php echo t('edit_counters_quote_placeholder'); ?>"></textarea>
             </div>
-          </div>
-          <!-- Additional edit tabs for other counter types would go here similar to edit_counters.php -->
-          <!-- Deaths, Hugs, Kisses, High-fives, User Counts, Quotes, etc. -->
-          <div id="edit-tab-customCounts" class="edit-tab-content" style="display:none;">
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_custom_counter'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_command_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="command" name="command" required onchange="updateCurrentCount('command', this.value); enableButton('command','command-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                            <?php foreach ($commands as $cmd): ?>
-                              <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_command_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="command_count" name="command_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="command-edit-btn" disabled><?php echo t('edit_counters_update_command_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
+            <button type="submit" class="sp-btn sp-btn-success"><?php echo t('edit_counters_add_quote_btn'); ?></button>
+          </form>
+        </div></div>
+        <div class="sp-two-col">
+          <!-- Edit Existing Quote -->
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_edit_quote'); ?></h4>
+            <form action="" method="post">
+              <input type="hidden" name="action" value="update_quote">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_select_quote'); ?></label>
+                <select class="sp-select" id="quote-id" name="quote_id" required onchange="updateQuoteText(this.value); enableButton('quote-id','quote-edit-btn');">
+                  <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
+                  <?php foreach ($quotesData as $quote): ?>
+                    <option value="<?php echo htmlspecialchars($quote['id']); ?>">
+                      #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
               </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_custom_counter'); ?></h4>
-                  <form action="" method="post" id="command-remove-form">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_command_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="command-remove" name="command-remove" required onchange="enableButton('command-remove','command-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                            <?php foreach ($commands as $cmd): ?>
-                              <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="command-remove-btn" disabled><?php echo t('edit_counters_remove_command_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_quote_text'); ?></label>
+                <textarea class="sp-textarea" id="quote_text_edit" name="quote_text" rows="3" required></textarea>
               </div>
-            </div>
-          </div>
-          <div id="edit-tab-deaths" class="edit-tab-content" style="display:none;">
-            <div class="notification is-info has-text-centered mb-4">
-              <strong><?php echo t('edit_counters_total_deaths'); ?>:</strong>
-              <span id="edit-total-deaths" class="has-text-weight-bold has-text-danger"><?php echo (int)$totalDeaths; ?></span>
-            </div>
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_game_deaths'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_game_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="death-game" name="death-game" required onchange="updateCurrentCount('death', this.value); enableButton('death-game','death-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_game'); ?></option>
-                            <?php foreach ($games as $game): ?>
-                              <option value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_death_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="death_count" name="death_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="death-edit-btn" disabled><?php echo t('edit_counters_update_death_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
+              <button type="submit" class="sp-btn sp-btn-primary" id="quote-edit-btn" disabled><?php echo t('edit_counters_update_quote_btn'); ?></button>
+            </form>
+          </div></div>
+          <!-- Remove Quote -->
+          <div class="sp-card"><div class="sp-card-body">
+            <h4 class="sp-card-title"><?php echo t('edit_counters_remove_quote'); ?></h4>
+            <form action="" method="post" id="quote-remove-form">
+              <input type="hidden" name="action" value="remove_quote">
+              <div class="sp-form-group">
+                <label class="sp-label"><?php echo t('edit_counters_select_quote'); ?></label>
+                <select class="sp-select" id="quote-id-remove" name="quote_id" required onchange="enableButton('quote-id-remove','quote-remove-btn');">
+                  <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
+                  <?php foreach ($quotesData as $quote): ?>
+                    <option value="<?php echo htmlspecialchars($quote['id']); ?>">
+                      #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
               </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_game_death_counter'); ?></h4>
-                  <form action="" method="post" id="death-remove-form">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_game_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="death-game-remove" name="death-game-remove" required onchange="enableButton('death-game-remove','death-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_game'); ?></option>
-                            <?php foreach ($games as $game): ?>
-                              <option value="<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($game); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="death-remove-btn" disabled><?php echo t('edit_counters_remove_game_death_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="edit-tab-hugs" class="edit-tab-content" style="display:none;">
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_user_hugs'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="hug-username" name="hug-username" required onchange="updateCurrentCount('hug', this.value); enableButton('hug-username','hug-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($hugUsers as $user): ?>
-                              <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_hug_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="hug_count" name="hug_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="hug-edit-btn" disabled><?php echo t('edit_counters_update_hug_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_user_hug'); ?></h4>
-                  <form action="" method="post" id="hug-remove-form">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="hug-username-remove" name="hug-username-remove" required onchange="enableButton('hug-username-remove','hug-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($hugUsers as $user): ?>
-                              <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="hug-remove-btn" disabled><?php echo t('edit_counters_remove_hug_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="edit-tab-kisses" class="edit-tab-content" style="display:none;">
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_user_kisses'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="kiss-username" name="kiss-username" required onchange="updateCurrentCount('kiss', this.value); enableButton('kiss-username','kiss-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($kissUsers as $user): ?>
-                              <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_kiss_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="kiss_count" name="kiss_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="kiss-edit-btn" disabled><?php echo t('edit_counters_update_kiss_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_user_kiss'); ?></h4>
-                  <form action="" method="post" id="kiss-remove-form">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="kiss-username-remove" name="kiss-username-remove" required onchange="enableButton('kiss-username-remove','kiss-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($kissUsers as $user): ?>
-                              <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="kiss-remove-btn" disabled><?php echo t('edit_counters_remove_kiss_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="edit-tab-highfives" class="edit-tab-content" style="display:none;">
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_user_highfives'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="highfive-username" name="highfive-username" required onchange="updateCurrentCount('highfive', this.value); enableButton('highfive-username','highfive-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($highfiveUsers as $user): ?>
-                              <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_highfive_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="highfive_count" name="highfive_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="highfive-edit-btn" disabled><?php echo t('edit_counters_update_highfive_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_user_highfive'); ?></h4>
-                  <form action="" method="post" id="highfive-remove-form">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="highfive-username-remove" name="highfive-username-remove" required onchange="enableButton('highfive-username-remove','highfive-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                            <?php foreach ($highfiveUsers as $user): ?>
-                              <option value="<?php echo htmlspecialchars($user); ?>"><?php echo htmlspecialchars($user); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="highfive-remove-btn" disabled><?php echo t('edit_counters_remove_highfive_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="edit-tab-userCounts" class="edit-tab-content" style="display:none;">
-            <div class="columns is-desktop is-multiline">
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_user_counts'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_command_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="usercount-command" name="usercount-command" required onchange="updateUserCountUsers(this.value); enableButton('usercount-command','usercount-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                            <?php foreach ($userCountCommands as $cmd): ?>
-                              <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="usercount-user" name="usercount-user" required onchange="updateUserCountValue(); enableButton('usercount-user','usercount-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_new_count'); ?></label>
-                      <div class="control">
-                        <input class="input" type="number" id="usercount_count" name="usercount_count" min="0" required>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="usercount-edit-btn" disabled><?php echo t('edit_counters_update_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_user_count'); ?></h4>
-                  <form action="" method="post" id="usercount-remove-form">
-                    <input type="hidden" name="action" value="remove">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_command_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="usercount-command-remove" name="usercount-command-remove" required onchange="updateUserCountUsersRemove(this.value); enableButton('usercount-command-remove','usercount-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_command'); ?></option>
-                            <?php foreach ($userCountCommands as $cmd): ?>
-                              <option value="<?php echo htmlspecialchars($cmd); ?>"><?php echo htmlspecialchars($cmd); ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_username_label'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="usercount-user-remove" name="usercount-user-remove" required onchange="enableButton('usercount-user-remove','usercount-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_user'); ?></option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="usercount-remove-btn" disabled><?php echo t('edit_counters_remove_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div id="edit-tab-quotes" class="edit-tab-content" style="display:none;">
-            <div class="columns is-desktop is-multiline">
-              <!-- Add New Quote -->
-              <div class="column is-12">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_add_quote'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="add_quote">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_quote_text'); ?></label>
-                      <div class="control">
-                        <textarea class="textarea" name="quote_text" rows="3" required placeholder="<?php echo t('edit_counters_quote_placeholder'); ?>"></textarea>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-success"><?php echo t('edit_counters_add_quote_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <!-- Edit Existing Quote -->
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_edit_quote'); ?></h4>
-                  <form action="" method="post">
-                    <input type="hidden" name="action" value="update_quote">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_select_quote'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="quote-id" name="quote_id" required onchange="updateQuoteText(this.value); enableButton('quote-id','quote-edit-btn');">
-                            <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
-                            <?php foreach ($quotesData as $quote): ?>
-                              <option value="<?php echo htmlspecialchars($quote['id']); ?>">
-                                #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
-                              </option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_quote_text'); ?></label>
-                      <div class="control">
-                        <textarea class="textarea" id="quote_text_edit" name="quote_text" rows="3" required></textarea>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-primary" id="quote-edit-btn" disabled><?php echo t('edit_counters_update_quote_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              <!-- Remove Quote -->
-              <div class="column is-6">
-                <div class="box has-background-dark">
-                  <h4 class="title is-5 has-text-white"><?php echo t('edit_counters_remove_quote'); ?></h4>
-                  <form action="" method="post" id="quote-remove-form">
-                    <input type="hidden" name="action" value="remove_quote">
-                    <div class="field">
-                      <label class="label has-text-white"><?php echo t('edit_counters_select_quote'); ?></label>
-                      <div class="control">
-                        <div class="select is-fullwidth">
-                          <select id="quote-id-remove" name="quote_id" required onchange="enableButton('quote-id-remove','quote-remove-btn');">
-                            <option value=""><?php echo t('edit_counters_select_quote'); ?></option>
-                            <?php foreach ($quotesData as $quote): ?>
-                              <option value="<?php echo htmlspecialchars($quote['id']); ?>">
-                                #<?php echo htmlspecialchars($quote['id']); ?> - <?php echo htmlspecialchars(substr($quote['quote'], 0, 50)); ?><?php echo strlen($quote['quote']) > 50 ? '...' : ''; ?>
-                              </option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field">
-                      <div class="control">
-                        <button type="submit" class="button is-danger" id="quote-remove-btn" disabled><?php echo t('edit_counters_remove_quote_btn'); ?></button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
+              <button type="submit" class="sp-btn sp-btn-danger" id="quote-remove-btn" disabled><?php echo t('edit_counters_remove_quote_btn'); ?></button>
+            </form>
+          </div></div>
         </div>
       </div>
     </div>
@@ -1375,13 +1179,13 @@ document.addEventListener('DOMContentLoaded', function() {
     switchMode('edit', defaultEditTab);
   } else {
     // Highlight the default button using data-type attribute
-    document.querySelectorAll('.buttons .button').forEach(button => {
+    document.querySelectorAll('#view-mode .sp-btn').forEach(button => {
       if (button.getAttribute('data-type') === defaultType) {
-        button.classList.remove('is-info');
-        button.classList.add('is-primary');
+        button.classList.remove('sp-btn-info');
+        button.classList.add('sp-btn-primary');
       } else {
-        button.classList.remove('is-primary');
-        button.classList.add('is-info');
+        button.classList.remove('sp-btn-primary');
+        button.classList.add('sp-btn-info');
       }
     });
     loadData(defaultType);
@@ -1399,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function formatWatchTime(seconds) {
   if (seconds == 0) {
-    return "<span class='has-text-danger'><?php echo t('counters_watch_time_not_recorded'); ?></span>";
+    return "<span class='sp-text-danger'><?php echo t('counters_watch_time_not_recorded'); ?></span>";
   }
   const units = {
       year: 31536000,
@@ -1416,7 +1220,7 @@ function formatWatchTime(seconds) {
       seconds -= quotient * divisor;
     }
   }
-  return `<span class='has-text-success'>${parts.join(', ')}</span>`;
+  return `<span class='sp-text-success'>${parts.join(', ')}</span>`;
 }
 
 function loadData(type) {
@@ -1531,13 +1335,13 @@ function loadData(type) {
       break;
   }
   // Update active button state using data-type attribute
-  document.querySelectorAll('.buttons .button').forEach(button => {
+  document.querySelectorAll('#view-mode .sp-btn').forEach(button => {
     if (button.getAttribute('data-type') === type) {
-      button.classList.remove('is-info');
-      button.classList.add('is-primary');
+      button.classList.remove('sp-btn-info');
+      button.classList.add('sp-btn-primary');
     } else {
-      button.classList.remove('is-primary');
-      button.classList.add('is-info');
+      button.classList.remove('sp-btn-primary');
+      button.classList.add('sp-btn-info');
     }
   });
   document.getElementById('data-column-info').innerText = dataColumn;
@@ -1549,33 +1353,33 @@ function loadData(type) {
     document.getElementById('count-column').style.display = 'none';
   }
   data.forEach(item => {
-    output += `<tr class="has-text-white">`; // Add has-text-white to table rows
+    output += `<tr>`;
     if (type === 'lurkers') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.lurk_duration}</span></td>`;
+      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.lurk_duration}</span></td>`;
     } else if (type === 'typos') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.typo_count}</span></td>`;
+      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.typo_count}</span></td>`;
     } else if (type === 'deaths') {
-      output += `<td>${item.game_name}</td><td><span class='has-text-success'>${item.death_count}</span></td>`;
+      output += `<td>${item.game_name}</td><td><span class='sp-text-success'>${item.death_count}</span></td>`;
     } else if (type === 'hugs') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.hug_count}</span></td>`;
+      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.hug_count}</span></td>`;
     } else if (type === 'kisses') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.kiss_count}</span></td>`;
+      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.kiss_count}</span></td>`;
     } else if (type === 'highfives') {
-      output += `<td>${item.username}</td><td><span class='has-text-success'>${item.highfive_count}</span></td>`;
+      output += `<td>${item.username}</td><td><span class='sp-text-success'>${item.highfive_count}</span></td>`;
     } else if (type === 'customCounts') {
-      output += `<td>${item.command}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+      output += `<td>${item.command}</td><td><span class='sp-text-success'>${item.count}</span></td>`;
     } else if (type === 'userCounts') {
-      output += `<td>${item.user}</td><td><span class='has-text-success'>${item.command}</span></td><td><span class='has-text-success'>${item.count}</span></td>`;
+      output += `<td>${item.user}</td><td><span class='sp-text-success'>${item.command}</span></td><td><span class='sp-text-success'>${item.count}</span></td>`;
     } else if (type === 'rewardCounts') {
-      output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='has-text-success'>${item.count}</span></td>`;
+      output += `<td>${item.reward_title}</td><td>${item.user}</td><td><span class='sp-text-success'>${item.count}</span></td>`;
     } else if (type === 'rewardStreaks') {
-      output += `<td>${item.reward_title}</td><td>${item.current_user}</td><td><span class='has-text-success'>${item.streak}</span></td>`;
+      output += `<td>${item.reward_title}</td><td>${item.current_user}</td><td><span class='sp-text-success'>${item.streak}</span></td>`;
     } else if (type === 'rewardUsage') {
-      output += `<td>${item.reward_title}</td><td><span class='has-text-success'>${item.usage_count}</span></td>`;
+      output += `<td>${item.reward_title}</td><td><span class='sp-text-success'>${item.usage_count}</span></td>`;
     } else if (type === 'watchTime') { 
       output += `<td>${item.username}</td><td>${formatWatchTime(item.total_watch_time_live)}</td><td>${formatWatchTime(item.total_watch_time_offline)}</td>`;
     } else if (type === 'quotes') {
-      output += `<td>${item.id}</td><td><span class='has-text-success'>${item.quote}</span></td>`;
+      output += `<td>${item.id}</td><td><span class='sp-text-success'>${item.quote}</span></td>`;
     } else if (type === 'manyOptions') {
       const optionItems = Array.isArray(item.items) ? item.items : [];
       const escapedItems = optionItems.map(option =>
@@ -1584,7 +1388,7 @@ function loadData(type) {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
       );
-      let renderedOptions = "<span class='has-text-grey-light'>No options saved</span>";
+      let renderedOptions = "<span class='sp-text-muted'>No options saved</span>";
       if (escapedItems.length > 0) {
         if (escapedItems.length <= 5) {
           renderedOptions = escapedItems.join('<br>');
@@ -1602,7 +1406,7 @@ function loadData(type) {
             `</details>`;
         }
       }
-      output += `<td>!${item.command}</td><td>${renderedOptions}</td><td><span class='has-text-success'>${item.items_count}</span></td>`;
+      output += `<td>!${item.command}</td><td>${renderedOptions}</td><td><span class='sp-text-success'>${item.items_count}</span></td>`;
     }
     // Ensure three cells are added if countColumn is visible and the type doesn't already add three
     if (countColumnVisible) {
@@ -1628,7 +1432,7 @@ function setCookie(name, value, days) {
 function switchMode(mode, editTab) {
   const viewMode = document.getElementById('view-mode');
   const editMode = document.getElementById('edit-mode');
-  const tabs = document.querySelectorAll('.tabs li');
+  const tabs = document.querySelectorAll('.sp-tabs-nav li');
   // Store mode preference in cookie if consent is given
   if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
     setCookie('preferred_mode', mode, 30);
@@ -1657,13 +1461,13 @@ function showEditTab(type) {
   if (selectedTab) {
     selectedTab.style.display = 'block';
   }
-  document.querySelectorAll('#edit-mode .buttons .button').forEach(button => {
+  document.querySelectorAll('#edit-mode .sp-btn').forEach(button => {
     if (button.getAttribute('data-edit-type') === type) {
-      button.classList.remove('is-info');
-      button.classList.add('is-primary');
+      button.classList.remove('sp-btn-info');
+      button.classList.add('sp-btn-primary');
     } else {
-      button.classList.remove('is-primary');
-      button.classList.add('is-info');
+      button.classList.remove('sp-btn-primary');
+      button.classList.add('sp-btn-info');
     }
   });
   if (<?php echo $cookieConsent ? 'true' : 'false'; ?>) {
