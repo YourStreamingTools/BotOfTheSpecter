@@ -2464,8 +2464,7 @@ ob_start();
               </div>
             </form>
             <div style="margin-top:0.75rem;">
-              <button class="sp-btn sp-btn-info modal-button" style="width:100%" style="border-radius: 6px; font-weight: 600;"
-                data-target="savedStreamersModal">
+              <button class="sp-btn sp-btn-info" style="width:100%;" onclick="document.getElementById('savedStreamersModal').classList.remove('hidden');">
                 <span class="icon"><i class="fa-solid fa-people-group"></i></span>
                 <span>View Tracked Streamers</span>
               </button>
@@ -3363,55 +3362,48 @@ ob_start();
           </div>
         </div>
         <!-- Embed Builder Section -->
-        <div style="flex:0 0 100%;" id="feature-box-embedBuilder"
-          style="display: <?php echo $serverManagementSettings['embedBuilder'] ? 'block' : 'none'; ?>;">
-          <div class="sp-card"
-            style="background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; border: 1px solid #3a3a3a; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);">
-            <div>
-              <h2 style="font-size:1.35rem;font-weight:700;margin-bottom:0.5rem;"
-                style="border-bottom: 2px solid #9146ff; padding-bottom: 10px; margin-bottom: 20px;">
-                <span style="display:inline-flex;align-items:center;gap:0.35rem;">
-                  <span class="icon"><i class="fas fa-comment-dots"></i></span>
-                  <span>Custom Embed Builder</span>
-                </span>
-              </h2>
-              <p style="color:var(--text-muted);">Create, manage, and send custom Discord embeds to any channel in your
-                server</p>
+        <div id="feature-box-embedBuilder" style="flex:0 0 100%; display:<?php echo $serverManagementSettings['embedBuilder'] ? 'block' : 'none'; ?>;">
+          <div class="sp-card">
+            <div class="sp-card-header">
+              <div class="sp-card-title">
+                <i class="fas fa-comment-dots"></i>
+                Custom Embed Builder
+              </div>
+            </div>
+            <div class="sp-card-body">
+              <p style="color:var(--text-muted); margin-bottom:1.25rem;">Create, manage, and send custom Discord embeds to any channel in your server</p>
               <!-- Existing Embeds List -->
-              <div class="sp-card"
-              style="background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="font-size:1.15rem;color:var(--text-muted);margin-bottom:0.5rem;">
-                  <span style="display:inline-flex;align-items:center;gap:0.35rem;">
-                    <span class="icon"><i class="fas fa-list"></i></span>
-                    <span>Your Custom Embeds</span>
+              <div style="border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:1.25rem; overflow:hidden;">
+                <div style="padding:0.9rem 1.25rem; background:var(--bg-surface); border-bottom:1px solid var(--border);">
+                  <span style="font-weight:700; font-size:0.9rem; display:flex; align-items:center; gap:0.5rem;">
+                    <i class="fas fa-list"></i> Your Custom Embeds
                   </span>
-                </h3>
-                <div id="embedsList" style="max-height: 400px; overflow-y: auto;">
+                </div>
+                <div id="embedsList" style="max-height:400px; overflow-y:auto; padding:0.25rem 0.75rem;">
                   <!-- Embeds will be loaded here -->
                 </div>
               </div>
               <!-- Create New Embed Button -->
-              <div class="sp-form-group">
-                <div>
-                  <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="createEmbed()"
-                    style="border-radius: 6px; font-weight: 600;">
-                    <span class="icon"><i class="fas fa-plus"></i></span>
-                    <span>Create New Embed</span>
-                  </button>
-                </div>
-              </div>
+              <button class="sp-btn sp-btn-primary" style="width:100%;" type="button" onclick="createEmbed()">
+                <span class="icon"><i class="fas fa-plus"></i></span>
+                <span>Create New Embed</span>
+              </button>
             </div>
           </div>
         </div>
       </div>
     <?php endif; ?>
-
 <!-- Embed Builder Modal -->
-<div id="embedBuilderModal" class="modal">
-  <div class="modal-background"></div>
-  <div class="modal-content" style="width: 90%; max-width: 1200px;">
-    <div class="sp-card" style="background-color: #2d2d2d;">
-      <h2 style="font-size:1.35rem;font-weight:700;margin-bottom:0.5rem;" id="embedModalTitle">Create Custom Embed</h2>
+<div id="embedBuilderModal" class="db-modal-backdrop hidden" onclick="if(event.target===this)closeEmbedModal();">
+  <div class="db-modal" style="max-width:1200px;width:90%;">
+    <div class="db-modal-head" style="background:var(--bg-surface);border-bottom:2px solid var(--accent);">
+      <div class="db-modal-title" style="color:var(--text-primary);">
+        <i class="fas fa-comment-dots"></i>
+        <span id="embedModalTitle">Create Custom Embed</span>
+      </div>
+      <button class="db-modal-close" aria-label="close" onclick="closeEmbedModal()">&times;</button>
+    </div>
+    <div class="db-modal-body" style="overflow-y:auto;max-height:calc(90vh - 180px);">
       <div style="display:flex;gap:1.5rem;align-items:flex-start;">
         <!-- Left Column: Embed Configuration -->
         <div style="flex:7;min-width:0;">
@@ -3434,27 +3426,24 @@ ob_start();
             <label class="sp-label">Description</label>
             <div>
               <textarea class="sp-textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..."
-               
                 oninput="updateEmbedPreview()"></textarea>
             </div>
           </div>
-          <div class="columns">
-            <div>
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:180px;">
               <div class="sp-form-group">
                 <label class="sp-label">Embed Color</label>
                 <div>
                   <input class="sp-input" type="color" id="embed_color" value="#5865f2"
-                   
                     oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
-            <div>
+            <div style="flex:1;min-width:180px;">
               <div class="sp-form-group">
                 <label class="sp-label">URL (optional)</label>
                 <div>
                   <input class="sp-input" type="url" id="embed_url" placeholder="https://example.com"
-                   
                     oninput="updateEmbedPreview()">
                 </div>
               </div>
@@ -3517,7 +3506,7 @@ ob_start();
           </div>
           <!-- Fields Section -->
           <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;">
-            <h4 style="font-size:1rem;color:var(--text-muted);margin:0;">Embed Fields</h4>
+            <h4 style="font-size:1rem;color:var(--text-muted);margin:0 0 0.75rem 0;">Embed Fields</h4>
             <div id="embedFieldsList"></div>
             <button class="sp-btn sp-btn-info sp-btn-sm" type="button" onclick="addEmbedField()">
               <span class="icon"><i class="fas fa-plus"></i></span>
@@ -3528,79 +3517,78 @@ ob_start();
         <!-- Right Column: Preview -->
         <div style="flex:5;min-width:0;">
           <div style="background:#36393f;border-radius:8px;position:sticky;top:20px;padding:1rem;">
-            <h4 style="font-size:1rem;color:var(--text-muted);margin:0;">Preview</h4>
-            <div id="embedPreview" style="background-color: #2f3136; border-radius: 4px; padding: 16px;">
+            <h4 style="font-size:1rem;color:var(--text-muted);margin:0 0 0.75rem 0;">Preview</h4>
+            <div id="embedPreview" style="background-color:#2f3136;border-radius:4px;padding:16px;">
               <!-- Preview will be rendered here -->
             </div>
           </div>
         </div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;">
-        <div>
-          <button class="sp-btn sp-btn-success" onclick="saveEmbed()">
-            <span class="icon"><i class="fas fa-save"></i></span>
-            <span>Save Embed</span>
-          </button>
-        </div>
-        <div>
-          <button class="sp-btn sp-btn-secondary" onclick="closeEmbedModal()">
-            <span class="icon"><i class="fas fa-times"></i></span>
-            <span>Cancel</span>
-          </button>
-        </div>
-      </div>
+    </div>
+    <div class="db-modal-foot">
+      <button class="sp-btn sp-btn-success" onclick="saveEmbed()">
+        <span class="icon"><i class="fas fa-save"></i></span>
+        <span>Save Embed</span>
+      </button>
+      <button class="sp-btn sp-btn-secondary" onclick="closeEmbedModal()">
+        <span class="icon"><i class="fas fa-times"></i></span>
+        <span>Cancel</span>
+      </button>
     </div>
   </div>
-  <button class="modal-close" aria-label="close" onclick="closeEmbedModal()"></button>
 </div>
 <!-- Send Embed Modal -->
-<div id="sendEmbedModal" class="modal">
-  <div class="modal-background"></div>
-  <div class="modal-content" style="width: 500px;">
-    <div class="sp-card">
-      <h3 style="font-size:1.15rem;font-weight:700;margin-bottom:0.5rem;">Send Embed to Channel</h3>
+<div id="sendEmbedModal" class="db-modal-backdrop hidden" onclick="if(event.target===this)closeSendEmbedModal();">
+  <div class="db-modal" style="max-width:500px;">
+    <div class="db-modal-head" style="background:var(--bg-surface);">
+      <div class="db-modal-title" style="color:var(--text-primary);">
+        <i class="fas fa-paper-plane"></i> Send Embed to Channel
+      </div>
+      <button class="db-modal-close" aria-label="close" onclick="closeSendEmbedModal()">&times;</button>
+    </div>
+    <div class="db-modal-body">
       <div class="sp-form-group">
         <label class="sp-label">Select Channel</label>
         <?php echo generateChannelInput('send_embed_channel', 'send_embed_channel', '', 'Select channel to send embed', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;">
-        <div>
-          <button class="sp-btn sp-btn-success" onclick="confirmSendEmbed()">
-            <span class="icon"><i class="fas fa-paper-plane"></i></span>
-            <span>Send</span>
-          </button>
-        </div>
-        <div>
-          <button class="sp-btn sp-btn-secondary" onclick="closeSendEmbedModal()">
-            <span class="icon"><i class="fas fa-times"></i></span>
-            <span>Cancel</span>
-          </button>
-        </div>
+    </div>
+    <div class="db-modal-foot">
+      <button class="sp-btn sp-btn-success" onclick="confirmSendEmbed()">
+        <span class="icon"><i class="fas fa-paper-plane"></i></span>
+        <span>Send</span>
+      </button>
+      <button class="sp-btn sp-btn-secondary" onclick="closeSendEmbedModal()">
+        <span class="icon"><i class="fas fa-times"></i></span>
+        <span>Cancel</span>
+      </button>
+    </div>
+  </div>
+</div>
+<div id="savedStreamersModal" class="db-modal-backdrop hidden" onclick="if(event.target===this)this.classList.add('hidden');">
+  <div class="db-modal" style="max-width:700px;width:90%;">
+    <div class="db-modal-head" style="background:var(--bg-surface);">
+      <div class="db-modal-title" style="color:var(--text-primary);">
+        <i class="fas fa-people-group"></i> Saved Streamers List
+      </div>
+      <button class="db-modal-close" aria-label="close" onclick="document.getElementById('savedStreamersModal').classList.add('hidden')">&times;</button>
+    </div>
+    <div class="db-modal-body" style="padding:0;">
+      <div class="sp-table-wrap">
+        <table class="sp-table">
+          <thead>
+            <tr>
+              <th style="text-align:center;">Twitch Username</th>
+              <th style="text-align:center;">Twitch URL</th>
+              <th style="text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Dynamic content will be injected here -->
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-  <button class="modal-close" aria-label="close" onclick="closeSendEmbedModal()"></button>
-</div>
-<div id="savedStreamersModal" class="modal">
-  <div class="modal-background"></div>
-  <div class="modal-content" style="width: 50%;">
-    <div class="sp-card">
-      <h1 style="font-size:1.35rem;font-weight:700;margin-bottom:0.5rem;">Saved Streamers List</h1>
-      <table class="sp-table">
-        <thead>
-          <tr>
-            <th style="text-align: center;">Twitch Username</th>
-            <th style="text-align: center;">Twitch URL</th>
-            <th style="text-align: center;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Dynamic content will be injected here -->
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <button class="modal-close" aria-label="close"></button>
 </div>
 <?php
 $content = ob_get_clean();
@@ -3633,7 +3621,6 @@ ob_start();
     });
   }
   populateStreamersTable(streamersToDisplay);
-
   function removeStreamer(username) {
     Swal.fire({
       title: 'Remove Tracked Streamer?',
@@ -3660,12 +3647,10 @@ ob_start();
       }
     });
   }
-
   // Embed Builder Functions
   let currentEmbedId = 0;
   let embedFieldsCounter = 0;
   let currentSendEmbedId = 0;
-
   function loadEmbedsList() {
     fetch(`get_custom_embeds.php?server_id=${getCurrentServerId()}`)
       .then(response => response.json())
@@ -3673,31 +3658,21 @@ ob_start();
         const container = document.getElementById('embedsList');
         if (data.success && data.embeds && data.embeds.length > 0) {
           container.innerHTML = data.embeds.map(embed => `
-          <div class="sp-card" style="margin-bottom: 10px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
-              <div>
-                <div>
-                  <div>
-                    <p>${escapeHtml(embed.embed_name)}</p>
-                    <p>${embed.title ? escapeHtml(embed.title) : 'No title'}</p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <div>
-                  <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-                    <button class="sp-btn sp-btn-info sp-btn-sm" onclick="editEmbed(${embed.id})">
-                      <span class="icon"><i class="fas fa-edit"></i></span>
-                    </button>
-                    <button class="sp-btn sp-btn-success sp-btn-sm" onclick="sendEmbed(${embed.id})">
-                      <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                    </button>
-                    <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="deleteEmbed(${embed.id})">
-                      <span class="icon"><i class="fas fa-trash"></i></span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;padding:0.65rem 0.25rem;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:600;color:var(--text-primary);">${escapeHtml(embed.embed_name)}</div>
+              <div style="font-size:0.83rem;color:var(--text-muted);">${embed.title ? escapeHtml(embed.title) : 'No title'}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+              <button class="sp-btn sp-btn-info sp-btn-sm" onclick="editEmbed(${embed.id})">
+                <span class="icon"><i class="fas fa-edit"></i></span>
+              </button>
+              <button class="sp-btn sp-btn-success sp-btn-sm" onclick="sendEmbed(${embed.id})">
+                <span class="icon"><i class="fas fa-paper-plane"></i></span>
+              </button>
+              <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="deleteEmbed(${embed.id})">
+                <span class="icon"><i class="fas fa-trash"></i></span>
+              </button>
             </div>
           </div>
         `).join('');
@@ -3709,15 +3684,13 @@ ob_start();
         console.error('Error loading embeds:', error);
       });
   }
-
   function createEmbed() {
     currentEmbedId = 0;
     document.getElementById('embedModalTitle').textContent = 'Create Custom Embed';
     clearEmbedForm();
-    document.getElementById('embedBuilderModal').classList.add('is-active');
+    document.getElementById('embedBuilderModal').classList.remove('hidden');
     updateEmbedPreview();
   }
-
   function editEmbed(embedId) {
     currentEmbedId = embedId;
     document.getElementById('embedModalTitle').textContent = 'Edit Custom Embed';
@@ -3749,12 +3722,11 @@ ob_start();
               addEmbedField(field.name, field.value, field.inline);
             });
           }
-          document.getElementById('embedBuilderModal').classList.add('is-active');
+          document.getElementById('embedBuilderModal').classList.remove('hidden');
           updateEmbedPreview();
         }
       });
   }
-
   function saveEmbed() {
     const embedName = document.getElementById('embed_name').value.trim();
     if (!embedName) {
@@ -3826,7 +3798,6 @@ ob_start();
         }
       });
   }
-
   function sendEmbed(embedId) {
     currentSendEmbedId = embedId;
     // Fetch the embed to get the channel_id
@@ -3842,9 +3813,8 @@ ob_start();
         }
       })
       .catch(error => console.error('Error fetching embed for channel pre-population:', error));
-    document.getElementById('sendEmbedModal').classList.add('is-active');
+    document.getElementById('sendEmbedModal').classList.remove('hidden');
   }
-
   function confirmSendEmbed() {
     const channelId = document.getElementById('send_embed_channel').value.trim();
     if (!channelId) {
@@ -3892,7 +3862,6 @@ ob_start();
         }
       });
   }
-
   function deleteEmbed(embedId) {
     Swal.fire({
       title: 'Delete Embed?',
@@ -3930,7 +3899,6 @@ ob_start();
       }
     });
   }
-
   function addEmbedField(name = '', value = '', inline = false) {
     embedFieldsCounter++;
     const fieldHtml = `
@@ -3968,12 +3936,10 @@ ob_start();
     document.getElementById('embedFieldsList').insertAdjacentHTML('beforeend', fieldHtml);
     updateEmbedPreview();
   }
-
   function removeEmbedField(fieldId) {
     document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`).remove();
     updateEmbedPreview();
   }
-
   function moveFieldUp(fieldId) {
     const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
     const previousField = field.previousElementSibling;
@@ -3982,7 +3948,6 @@ ob_start();
       updateEmbedPreview();
     }
   }
-
   function moveFieldDown(fieldId) {
     const field = document.querySelector(`.embed-field-item[data-field-id="${fieldId}"]`);
     const nextField = field.nextElementSibling;
@@ -3991,7 +3956,6 @@ ob_start();
       updateEmbedPreview();
     }
   }
-
   function updateEmbedPreview() {
     const title = document.getElementById('embed_title').value;
     const description = document.getElementById('embed_description').value;
@@ -4039,7 +4003,6 @@ ob_start();
     preview += '</div>';
     document.getElementById('embedPreview').innerHTML = preview;
   }
-
   function clearEmbedForm() {
     document.getElementById('embed_name').value = '';
     document.getElementById('embed_title').value = '';
@@ -4057,26 +4020,21 @@ ob_start();
     document.getElementById('embedFieldsList').innerHTML = '';
     embedFieldsCounter = 0;
   }
-
   function closeEmbedModal() {
-    document.getElementById('embedBuilderModal').classList.remove('is-active');
+    document.getElementById('embedBuilderModal').classList.add('hidden');
   }
-
   function closeSendEmbedModal() {
-    document.getElementById('sendEmbedModal').classList.remove('is-active');
+    document.getElementById('sendEmbedModal').classList.add('hidden');
   }
-
   function getCurrentServerId() {
     const guildIdElement = document.getElementById('guild_id_config');
     return guildIdElement ? guildIdElement.value : '';
   }
-
   function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
-
   function parseDiscordMarkdown(text) {
     if (!text) return '';
     // Escape HTML first
@@ -4112,13 +4070,10 @@ ob_start();
     text = text.replace(/\n/g, '<br>');
     return text;
   }
-
-
   // Load embeds list on page load if embed builder is enabled
   if (document.getElementById('embedsList')) {
     loadEmbedsList();
   }
-
   // Add event listeners for embed form fields to update preview in real-time
   document.addEventListener('DOMContentLoaded', function () {
     const embedInputs = [
@@ -4137,7 +4092,6 @@ ob_start();
       }
     });
   });
-
   $(document).ready(function () {
     // Character counters for online/offline text
     function updateCharCounter(inputId, counterId) {
@@ -4583,7 +4537,6 @@ ob_start();
               toggle.dispatchEvent(new Event('change'));
             }
           }
-
           // Update the form fields with the saved values (if returned in response)
           if (data.channel_id) {
             const channelInput = document.getElementById('reaction_roles_channel_id');
@@ -4636,7 +4589,6 @@ ob_start();
         if (button) setButtonLoading(button, false);
       });
   }
-
   // Helper functions to show button loading state
   function setButtonLoading(button, isLoading = true) {
     if (!button) return;
@@ -4653,7 +4605,6 @@ ob_start();
       }
     }
   }
-
   // Handler functions for each save button
   function saveWelcomeMessage() {
     const button = event.target.closest('button');
@@ -4690,7 +4641,6 @@ ob_start();
       setButtonLoading(button, false);
       return;
     }
-
     saveChannelConfig('save_welcome_message', {
       welcome_channel_id: welcomeChannelId,
       welcome_message: useDefault ? '' : welcomeMessage,
@@ -4699,7 +4649,6 @@ ob_start();
       welcome_message_configuration_colour: welcomeColour
     }, button);
   }
-
   function saveAutoRole() {
     const button = event.target.closest('button');
     setButtonLoading(button, true);
@@ -4722,7 +4671,6 @@ ob_start();
       auto_role_id: autoRoleId
     }, button);
   }
-
   function saveMessageTracking() {
     const button = event.target.closest('button');
     setButtonLoading(button, true);
@@ -4745,7 +4693,6 @@ ob_start();
       message_log_channel_id: messageLogChannelId
     }, button);
   }
-
   function saveRoleTracking() {
     const roleLogChannelId = document.getElementById('role_log_channel_id').value;
     if (!roleLogChannelId || roleLogChannelId === '') {
@@ -4764,7 +4711,6 @@ ob_start();
       role_log_channel_id: roleLogChannelId
     });
   }
-
   function saveServerRoleManagement() {
     const serverMgmtLogChannelId = document.getElementById('server_mgmt_log_channel_id').value;
     if (!serverMgmtLogChannelId || serverMgmtLogChannelId === '') {
@@ -4783,7 +4729,6 @@ ob_start();
       server_mgmt_log_channel_id: serverMgmtLogChannelId
     });
   }
-
   function saveUserTracking() {
     const userLogChannelId = document.getElementById('user_log_channel_id').value;
     if (!userLogChannelId || userLogChannelId === '') {
@@ -4802,7 +4747,6 @@ ob_start();
       user_log_channel_id: userLogChannelId
     });
   }
-
   function saveReactionRoles() {
     const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value.trim();
     const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
@@ -4839,7 +4783,6 @@ ob_start();
         }
       }
     }
-
     saveChannelConfig('save_reaction_roles', {
       reaction_roles_channel_id: reactionRolesChannelId,
       reaction_roles_message: reactionRolesMessage,
@@ -4847,13 +4790,11 @@ ob_start();
       allow_multiple_reactions: allowMultipleReactions
     });
   }
-
   function sendReactionRolesMessage() {
     const reactionRolesChannelId = document.getElementById('reaction_roles_channel_id').value.trim();
     const reactionRolesMessage = document.getElementById('reaction_roles_message').value;
     const reactionRolesMappings = document.getElementById('reaction_roles_mappings').value;
     const allowMultipleReactions = document.getElementById('allow_multiple_reactions').checked;
-
     // Validate required fields
     if (!reactionRolesChannelId || reactionRolesChannelId === '') {
       Swal.fire({
@@ -4867,7 +4808,6 @@ ob_start();
       });
       return;
     }
-
     if (!reactionRolesMessage || reactionRolesMessage.trim() === '') {
       Swal.fire({
         toast: true,
@@ -4880,7 +4820,6 @@ ob_start();
       });
       return;
     }
-
     if (!reactionRolesMappings || reactionRolesMappings.trim() === '') {
       Swal.fire({
         toast: true,
@@ -4893,7 +4832,6 @@ ob_start();
       });
       return;
     }
-
     // Validate mapping format
     const lines = reactionRolesMappings.trim().split('\n');
     for (let line of lines) {
@@ -4910,7 +4848,6 @@ ob_start();
         return;
       }
     }
-
     // Confirm before sending
     Swal.fire({
       title: 'Send Reaction Roles Message?',
@@ -4932,7 +4869,6 @@ ob_start();
       }
     }, button);
   }
-
   function saveRules() {
     const button = event.target.closest('button');
     setButtonLoading(button, true);
@@ -4955,7 +4891,6 @@ ob_start();
       });
       return;
     }
-
     // Require title
     if (!rulesTitle || rulesTitle.trim() === '') {
       Swal.fire({
@@ -4969,7 +4904,6 @@ ob_start();
       });
       return;
     }
-
     // Require rules content
     if (!rulesContent || rulesContent.trim() === '') {
       Swal.fire({
@@ -4983,7 +4917,6 @@ ob_start();
       });
       return;
     }
-
     // If assign role is checked, require a role ID
     if (assignRoleOnAccept && (!acceptRoleId || acceptRoleId === '')) {
       Swal.fire({
@@ -4997,7 +4930,6 @@ ob_start();
       });
       return;
     }
-
     saveChannelConfig('save_rules', {
       rules_channel_id: rulesChannelId,
       rules_title: rulesTitle,
@@ -5006,7 +4938,6 @@ ob_start();
       rules_accept_role_id: acceptRoleId
     });
   }
-
   function sendRulesMessage() {
     const rulesChannelId = document.getElementById('rules_channel_id').value.trim();
     const rulesTitle = document.getElementById('rules_title').value;
@@ -5014,7 +4945,6 @@ ob_start();
     const rulesColor = document.getElementById('rules_color').value;
     const assignRoleOnAccept = document.getElementById('rules_assign_role_on_accept').checked;
     const acceptRoleId = assignRoleOnAccept ? document.getElementById('rules_accept_role_id').value.trim() : '';
-
     // Validate required fields
     if (!rulesChannelId || rulesChannelId === '') {
       Swal.fire({
@@ -5028,7 +4958,6 @@ ob_start();
       });
       return;
     }
-
     if (!rulesTitle || rulesTitle.trim() === '') {
       Swal.fire({
         toast: true,
@@ -5041,7 +4970,6 @@ ob_start();
       });
       return;
     }
-
     if (!rulesContent || rulesContent.trim() === '') {
       Swal.fire({
         toast: true,
@@ -5054,7 +4982,6 @@ ob_start();
       });
       return;
     }
-
     // If assign role is checked, require a role ID
     if (assignRoleOnAccept && (!acceptRoleId || acceptRoleId === '')) {
       Swal.fire({
@@ -5068,7 +4995,6 @@ ob_start();
       });
       return;
     }
-
     // Confirm before sending
     Swal.fire({
       title: 'Send Rules Message?',
@@ -5091,7 +5017,6 @@ ob_start();
       }
     }, button);
   }
-
   function saveStreamSchedule(e) {
     const button = (e && e.target) ? e.target.closest('button') : document.querySelector('button[name="save_stream_schedule"]');
     setButtonLoading(button, true);
@@ -5162,7 +5087,6 @@ ob_start();
       setButtonLoading(button, false);
     });
   }
-
   function sendStreamScheduleMessage() {
     const scheduleChannelId = document.getElementById('stream_schedule_channel_id').value.trim();
     const scheduleTitle = document.getElementById('stream_schedule_title').value;
@@ -5228,7 +5152,6 @@ ob_start();
       }
     });
   }
-
   // Handler for Free Games form submission
   function handleFreestuffSubmit(event) {
     const button = document.getElementById('save_freestuff_btn');
@@ -5238,7 +5161,6 @@ ob_start();
     // Let the form submit normally
     return true;
   }
-
   // Generic Clear Feature Function
   function clearFeature(featureName) {
     // Map feature names to display titles and action keys
@@ -5299,13 +5221,11 @@ ob_start();
         action: 'clear_freestuff'
       }
     };
-
     const feature = featureMap[featureName];
     if (!feature) {
       console.error('Unknown feature:', featureName);
       return;
     }
-
     Swal.fire({
       title: feature.title,
       text: feature.text,
@@ -5321,24 +5241,19 @@ ob_start();
       }
     });
   }
-
   // Deprecated individual clear functions (kept for backward compatibility)
   function clearReactionRoles() {
     clearFeature('reactionRoles');
   }
-
   function clearRules() {
     clearFeature('rulesConfiguration');
   }
-
   function clearStreamSchedule() {
     clearFeature('streamSchedule');
   }
-
   function clearFreeGames() {
     clearFeature('freeGames');
   }
-
   // Add event listeners to all Discord setting toggles
   document.addEventListener('DOMContentLoaded', function () {
     // Initialize server management settings from PHP
@@ -5395,7 +5310,6 @@ ob_start();
         }
       }
     });
-
     // Handle welcome message default checkbox to enable/disable custom message textarea
     const useDefaultCheckbox = document.getElementById('use_default_welcome_message');
     const welcomeMessageTextarea = document.getElementById('welcome_message');
@@ -5418,7 +5332,6 @@ ob_start();
       // Add event listener for checkbox changes
       useDefaultCheckbox.addEventListener('change', toggleWelcomeMessage);
     }
-
     // Handle enable embed checkbox to show/hide colour field
     const enableEmbedCheckbox = document.getElementById('enable_embed_message');
     const welcomeColourField = document.getElementById('welcome_colour_field');
@@ -5431,7 +5344,6 @@ ob_start();
         }
       });
     }
-
     // Validate send stream schedule button on page load
     if (typeof validateSendStreamScheduleButton === 'function') {
       validateSendStreamScheduleButton();
@@ -5455,7 +5367,6 @@ ob_start();
         status.classList.remove('enabled');
       }
     }
-
     var toggles = document.querySelectorAll('.server-management-toggles input[type="checkbox"]');
     toggles.forEach(function (t) {
       updateToggleStatus(t);
