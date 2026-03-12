@@ -217,83 +217,61 @@ $initialData = fetchAllEventSubConnections($conn, $clientID);
 
 ob_start();
 ?>
-<div class="box">
-	<div class="level">
-		<div class="level-left">
-			<div class="level-item">
-				<div>
-					<h1 class="title is-4"><span class="icon"><i class="fas fa-bell"></i></span> EventSub Connections</h1>
-					<p class="mb-4">Admin overview of Twitch EventSub connections for all users with stored bot tokens.</p>
-				</div>
-			</div>
-		</div>
-		<div class="level-right">
-			<div class="level-item">
-				<button class="button is-primary" id="refresh-eventsub-btn" onclick="refreshEventSubData()">
-					<span class="icon"><i class="fas fa-sync-alt"></i></span>
-					<span>Refresh</span>
-				</button>
-			</div>
-		</div>
+<div class="sp-card">
+	<div class="sp-card-header">
+		<h1 class="sp-card-title"><span class="icon"><i class="fas fa-bell"></i></span> EventSub Connections</h1>
+		<button class="sp-btn sp-btn-primary" id="refresh-eventsub-btn" onclick="refreshEventSubData()">
+			<span class="icon"><i class="fas fa-sync-alt"></i></span>
+			<span>Refresh</span>
+		</button>
 	</div>
-	<div class="notification is-info is-light" id="last-updated">
+	<div class="sp-card-body">
+	<p style="margin-bottom:1rem;">Admin overview of Twitch EventSub connections for all users with stored bot tokens.</p>
+	<div class="sp-alert sp-alert-info" id="last-updated">
 		<small>Loading EventSub data...</small>
 	</div>
-	<div class="columns is-multiline mb-4">
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box has-background-primary has-text-white">
-				<p class="heading has-text-white">Users Scanned</p>
-				<p class="title is-4 has-text-white" id="stat-users-scanned">0</p>
-			</div>
+	<div class="stats-grid">
+		<div class="stat-card accent-card">
+			<p class="stat-label">Users Scanned</p>
+			<p class="stat-value" id="stat-users-scanned">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box has-background-success has-text-white">
-				<p class="heading has-text-white">Healthy Users</p>
-				<p class="title is-4 has-text-white" id="stat-healthy-users">0</p>
-			</div>
+		<div class="stat-card success-card">
+			<p class="stat-label">Healthy Users</p>
+			<p class="stat-value" id="stat-healthy-users">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box has-background-warning has-text-black">
-				<p class="heading has-text-black">Users With Active WS</p>
-				<p class="title is-4 has-text-black" id="stat-users-active-ws">0</p>
-			</div>
+		<div class="stat-card warning-card">
+			<p class="stat-label">Users With Active WS</p>
+			<p class="stat-value" id="stat-users-active-ws">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box has-background-danger has-text-white">
-				<p class="heading has-text-white">Users With Errors</p>
-				<p class="title is-4 has-text-white" id="stat-users-errors">0</p>
-			</div>
+		<div class="stat-card danger-card">
+			<p class="stat-label">Users With Errors</p>
+			<p class="stat-value" id="stat-users-errors">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box">
-				<p class="heading">Enabled WS Connections</p>
-				<p class="title is-5" id="stat-enabled-connections">0</p>
-			</div>
+		<div class="stat-card">
+			<p class="stat-label">Enabled WS Connections</p>
+			<p class="stat-value" id="stat-enabled-connections">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box">
-				<p class="heading">Enabled WS Subs</p>
-				<p class="title is-5" id="stat-enabled-ws-subs">0</p>
-			</div>
+		<div class="stat-card">
+			<p class="stat-label">Enabled WS Subs</p>
+			<p class="stat-value" id="stat-enabled-ws-subs">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box">
-				<p class="heading">Disabled WS Subs</p>
-				<p class="title is-5" id="stat-disabled-ws-subs">0</p>
-			</div>
+		<div class="stat-card">
+			<p class="stat-label">Disabled WS Subs</p>
+			<p class="stat-value" id="stat-disabled-ws-subs">0</p>
 		</div>
-		<div class="column is-3-desktop is-6-tablet">
-			<div class="box">
-				<p class="heading">Webhook Subs</p>
-				<p class="title is-5" id="stat-webhook-subs">0</p>
-			</div>
+		<div class="stat-card">
+			<p class="stat-label">Webhook Subs</p>
+			<p class="stat-value" id="stat-webhook-subs">0</p>
 		</div>
 	</div>
-</div>
-<div class="box">
-	<h2 class="title is-5">Per-user Twitch Connection Status</h2>
-	<div class="table-container">
-		<table class="table is-fullwidth is-hoverable is-striped">
+	</div><!-- /sp-card-body --></div><!-- /sp-card -->
+<div class="sp-card">
+	<div class="sp-card-header">
+		<h2 class="sp-card-title">Per-user Twitch Connection Status</h2>
+	</div>
+	<div class="sp-card-body">
+	<div class="sp-table-wrap">
+		<table class="sp-table">
 			<thead>
 				<tr>
 					<th>User</th>
@@ -309,12 +287,13 @@ ob_start();
 			</thead>
 			<tbody id="eventsub-users-body">
 				<tr>
-					<td colspan="9" class="has-text-centered has-text-grey">Loading...</td>
+					<td colspan="9" class="sp-text-muted" style="text-align:center;">Loading...</td>
 				</tr>
 			</tbody>
 		</table>
-	</div>
-</div>
+	</div><!-- /sp-table-wrap -->
+	</div><!-- /sp-card-body -->
+</div><!-- /sp-card -->
 <script>
 const initialEventSubData = <?php echo json_encode($initialData, JSON_UNESCAPED_SLASHES); ?>;
 function escapeHtml(text) {
@@ -332,15 +311,15 @@ function formatTimestamp(isoString) {
 
 function statusTag(user) {
 	if (!user.ok) {
-		return '<span class="tag is-danger">Error</span>';
+		return '<span class="sp-badge sp-badge-red">Error</span>';
 	}
 	if ((user.enabled_connections || 0) >= 3) {
-		return '<span class="tag is-warning">High Usage</span>';
+		return '<span class="sp-badge sp-badge-amber">High Usage</span>';
 	}
 	if ((user.enabled_connections || 0) > 0) {
-		return '<span class="tag is-success">Connected</span>';
+		return '<span class="sp-badge sp-badge-green">Connected</span>';
 	}
-	return '<span class="tag is-info">No Active Connections</span>';
+	return '<span class="sp-badge sp-badge-blue">No Active Connections</span>';
 }
 
 function renderEventSubData(data) {
@@ -348,9 +327,9 @@ function renderEventSubData(data) {
 	const updated = document.getElementById('last-updated');
 	if (!data || !data.success) {
 		if (updated) {
-			updated.innerHTML = '<small class="has-text-danger">Failed to load data.</small>';
+			updated.innerHTML = '<small class="sp-text-danger">Failed to load data.</small>';
 		}
-		body.innerHTML = '<tr><td colspan="9" class="has-text-centered has-text-danger">Failed to load EventSub data.</td></tr>';
+		body.innerHTML = '<tr><td colspan="9" class="sp-text-danger" style="text-align:center;">Failed to load EventSub data.</td></tr>';
 		return;
 	}
 	const s = data.summary || {};
@@ -367,7 +346,7 @@ function renderEventSubData(data) {
 	}
 	const users = Array.isArray(data.users) ? data.users : [];
 	if (users.length === 0) {
-		body.innerHTML = '<tr><td colspan="9" class="has-text-centered has-text-grey">No users found.</td></tr>';
+		body.innerHTML = '<tr><td colspan="9" class="sp-text-muted" style="text-align:center;">No users found.</td></tr>';
 		return;
 	}
 	const rows = users.map(user => {
@@ -380,7 +359,7 @@ function renderEventSubData(data) {
 			<tr>
 				<td>
 					<strong>${escapeHtml(displayName)}</strong><br>
-					<small class="has-text-grey">${escapeHtml(username)}</small>
+					<small class="sp-text-muted">${escapeHtml(username)}</small>
 				</td>
 				<td><code>${escapeHtml(user.twitch_user_id || '')}</code></td>
 				<td>${statusTag(user)}</td>
@@ -389,7 +368,7 @@ function renderEventSubData(data) {
 				<td>${escapeHtml(user.disabled_ws_subs || 0)}</td>
 				<td>${escapeHtml(user.webhook_subs || 0)}</td>
 				<td>${escapeHtml(costText)}</td>
-				<td><small class="has-text-grey">${escapeHtml(errorText)}</small></td>
+				<td><small class="sp-text-muted">${escapeHtml(errorText)}</small></td>
 			</tr>
 		`;
 	});
