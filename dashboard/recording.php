@@ -268,20 +268,20 @@ if (isset($_GET['ajax'])) {
 ob_start();
 ?>
 <?php if ($saveStatus): ?>
-    <div class="notification <?= $saveStatus['success'] ? 'is-success' : 'is-danger' ?> is-light mb-4">
+    <div class="sp-alert <?= $saveStatus['success'] ? 'sp-alert-success' : 'sp-alert-danger' ?> mb-4">
         <?= htmlspecialchars($saveStatus['message']) ?>
     </div>
 <?php endif; ?>
-<div class="card">
-    <header class="card-header">
-        <p class="card-header-title is-size-5">
+<div class="sp-card">
+    <header class="sp-card-header">
+        <p class="sp-card-title">
             <span class="icon mr-2"><i class="fas fa-video"></i></span>
             Recording
         </p>
     </header>
-    <div class="card-content">
+    <div class="sp-card-body">
         <div class="content mb-5">
-            <h2 class="is-size-5 mb-3">
+            <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
                 <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
                 Recording Overview
             </h2>
@@ -289,52 +289,48 @@ ob_start();
                 <li>Enable auto-recording to capture your Twitch stream while you are live.</li>
                 <li>Your recordings are handled automatically based on your channel setting below.</li>
             </ul>
-            <h3 class="is-size-6 has-text-weight-semibold mt-4 mb-2">Auto Record from Twitch</h3>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Auto Record from Twitch</h3>
             <p>When enabled, your Twitch stream is recorded automatically while you are live.</p>
             <ul>
                 <li>Everything sent to Twitch during your live stream is included in the recording.</li>
             </ul>
-            <h3 class="is-size-6 has-text-weight-semibold mt-4 mb-2">Storage Info</h3>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Storage Info</h3>
             <ul>
                 <li><?= t('streaming_storage_info_retention') ?></li>
                 <li><?= t('streaming_storage_info_deletion') ?></li>
                 <li><?= t('streaming_auto_record_vod_speed') ?></li>
             </ul>
-            <h3 class="is-size-6 has-text-weight-semibold mt-4 mb-2">Audio Info</h3>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Audio Info</h3>
             <ul>
                 <li>Audio Track 1 (live audio) is recorded.</li>
                 <li>If you use a separate audio stream for Twitch VODs and Clips, it is not captured here.</li>
                 <li>Support for downloading VOD audio through Twitch is planned for a future update.</li>
             </ul>
-            <hr>
+            <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
             <form method="post" action="">
-                <div class="field">
-                    <div class="control">
-                        <label class="checkbox">
-                            <input type="checkbox" name="auto_record" <?= $autoRecordEnabled ? 'checked' : '' ?>>
-                            Enable channel recording
-                        </label>
-                    </div>
+                <div class="sp-form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" name="auto_record" <?= $autoRecordEnabled ? 'checked' : '' ?>>
+                        Enable channel recording
+                    </label>
                 </div>
-                <div class="field is-grouped is-grouped-right mt-4">
-                    <div class="control">
-                        <button type="submit" name="save_recording_settings" class="button is-primary">
-                            <span class="icon"><i class="fas fa-save"></i></span>
-                            <span>Save</span>
-                        </button>
-                    </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+                    <button type="submit" name="save_recording_settings" class="sp-btn sp-btn-primary">
+                        <span class="icon"><i class="fas fa-save"></i></span>
+                        <span>Save</span>
+                    </button>
                 </div>
             </form>
-            <h3 class="is-size-6 has-text-weight-semibold mt-4 mb-2">Files on Recorder Server</h3>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Files on Recorder Server</h3>
             <div id="remote-files-container">
                 <?php if ($remoteFileError): ?>
-                    <div class="notification is-warning is-light">
+                    <div class="sp-alert sp-alert-warning">
                         <?= htmlspecialchars($remoteFileError) ?>
                     </div>
                 <?php else: ?>
                     <?php foreach ($remoteFileSections as $section): ?>
-                        <div class="table-container mb-4">
-                            <table class="table is-fullwidth is-striped is-hoverable">
+                        <div class="sp-table-wrap mb-4">
+                            <table class="sp-table">
                                 <thead>
                                     <tr>
                                         <th>File</th>
@@ -363,7 +359,7 @@ ob_start();
                                             </td>
                                             <td>
                                                 <?php if (!$file['is_directory'] && empty($file['is_partial']) && strtolower((string)pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4'): ?>
-                                                    <a class="button is-small is-link is-light download-link" data-download-link="1" href="recording.php?download=1&amp;file=<?= rawurlencode($file['name']) ?>">
+                                                    <a class="sp-btn sp-btn-primary sp-btn-sm download-link" data-download-link="1" href="recording.php?download=1&amp;file=<?= rawurlencode($file['name']) ?>">
                                                         <span class="icon"><i class="fas fa-download"></i></span>
                                                         <span class="download-label">Download</span>
                                                     </a>
@@ -418,9 +414,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function buildTable(section) {
         var tableContainer = document.createElement('div');
-        tableContainer.className = 'table-container mb-4';
+        tableContainer.className = 'sp-table-wrap mb-4';
         var table = document.createElement('table');
-        table.className = 'table is-fullwidth is-striped is-hoverable';
+        table.className = 'sp-table';
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
         ['File', 'Type', 'Size', 'Modified', 'Action'].forEach(function (heading) {
@@ -458,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var canDownload = !file.is_directory && !file.is_partial && lowerName.endsWith('.mp4');
             if (canDownload) {
                 var link = document.createElement('a');
-                link.className = 'button is-small is-link is-light download-link';
+                link.className = 'sp-btn sp-btn-primary sp-btn-sm download-link';
                 link.setAttribute('data-download-link', '1');
                 link.href = window.location.pathname + '?download=1&file=' + encodeURIComponent(fileName);
                 var icon = document.createElement('span');
@@ -487,7 +483,7 @@ document.addEventListener('DOMContentLoaded', function () {
         container.innerHTML = '';
         if (data && data.remoteFileError) {
             var notice = document.createElement('div');
-            notice.className = 'notification is-warning is-light';
+            notice.className = 'sp-alert sp-alert-warning';
             notice.textContent = data.remoteFileError;
             container.appendChild(notice);
             return;
@@ -495,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var sections = data && Array.isArray(data.remoteFileSections) ? data.remoteFileSections : [];
         if (!sections.length) {
             var empty = document.createElement('div');
-            empty.className = 'notification is-warning is-light';
+            empty.className = 'sp-alert sp-alert-warning';
             empty.textContent = 'No files found in recorder directories for this user yet.';
             container.appendChild(empty);
             return;
@@ -530,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(function () {
                 var notice = document.createElement('div');
-                notice.className = 'notification is-warning is-light';
+                notice.className = 'sp-alert sp-alert-warning';
                 notice.textContent = 'Unable to refresh recorder files right now.';
                 container.innerHTML = '';
                 container.appendChild(notice);
@@ -549,18 +545,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!link || !(link instanceof HTMLAnchorElement)) {
             return;
         }
-        if (link.classList.contains('is-loading')) {
+        if (link.classList.contains('sp-btn-loading')) {
             event.preventDefault();
             return;
         }
-        link.classList.add('is-loading');
+        link.classList.add('sp-btn-loading');
         link.setAttribute('aria-busy', 'true');
         var label = link.querySelector('.download-label');
         if (label) {
             label.textContent = 'Preparing...';
         }
         window.setTimeout(function () {
-            link.classList.remove('is-loading');
+            link.classList.remove('sp-btn-loading');
             link.removeAttribute('aria-busy');
             if (label) {
                 label.textContent = 'Download';
