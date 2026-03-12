@@ -85,176 +85,129 @@ function formatFileNamewithEXT($fileName) {
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="columns is-desktop is-multiline is-centered">
-            <div class="column is-fullwidth" style="max-width: 1200px;">
-                <div class="notification is-danger">
-                    <div class="columns is-vcentered">
-                        <div class="column is-narrow">
-                            <span class="icon is-large">
-                                <i class="fas fa-volume-up fa-2x"></i>
-                            </span>
-                        </div>
-                        <div class="column">
-                            <p class="mb-2"><strong><?php echo t('walkons_setup_title'); ?></strong></p>
-                            <ul>
-                                <li>
-                                    <span class="icon"><i class="fas fa-upload"></i></span>
-                                    <?php echo t('walkons_upload_instruction'); ?>
-                                </li>
-                                <li>
-                                    <span class="icon"><i class="fas fa-headphones"></i></span>
-                                    <?php echo t('walkons_overlay_instruction'); ?>
-                                </li>
-                            </ul>
-                        </div>
+<!-- Setup info banner -->
+<div class="sp-alert sp-alert-danger" style="display:flex; align-items:center; gap:1.25rem; margin-bottom:1.5rem;">
+    <i class="fas fa-volume-up fa-2x" style="flex-shrink:0;"></i>
+    <div>
+        <p style="font-weight:700; margin-bottom:0.5rem;"><?php echo t('walkons_setup_title'); ?></p>
+        <ul style="list-style:disc; padding-left:1.25rem; margin:0;">
+            <li style="margin-bottom:0.25rem;">
+                <i class="fas fa-upload" style="margin-right:0.35rem;"></i>
+                <?php echo t('walkons_upload_instruction'); ?>
+            </li>
+            <li>
+                <i class="fas fa-headphones" style="margin-right:0.35rem;"></i>
+                <?php echo t('walkons_overlay_instruction'); ?>
+            </li>
+        </ul>
+    </div>
+</div>
+<!-- Upload Card -->
+<div class="sp-card">
+    <header class="sp-card-header">
+        <p class="sp-card-title">
+            <i class="fas fa-upload"></i>
+            <?php echo t('walkons_upload_title'); ?>
+        </p>
+    </header>
+    <div class="sp-card-body">
+        <!-- Storage Usage Info -->
+        <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.9rem 1.1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <span><i class="fas fa-database" style="margin-right:0.4rem;"></i><strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
+                <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+            </div>
+            <progress class="progress progress-success" value="<?php echo $storage_percentage; ?>" max="100" style="height:0.75rem;"></progress>
+        </div>
+        <?php if (!empty($status)) : ?>
+            <div class="sp-alert sp-alert-info" id="uploadStatusMsg" style="margin-bottom:1rem;">
+                <?php echo $status; ?>
+            </div>
+        <?php endif; ?>
+        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
+            <!-- File chooser -->
+            <div style="margin-bottom:0.75rem;">
+                <label for="filesToUpload" id="fileDropLabel" style="display:block; border:2px dashed var(--border); border-radius:var(--radius); padding:1.75rem 1.25rem; text-align:center; cursor:pointer; background:var(--bg-input); transition:border-color var(--transition);">
+                    <input type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3,.mp4" style="display:none;">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:1.75rem; color:var(--text-muted); margin-bottom:0.5rem; display:block;"></i>
+                    <span style="font-weight:600; color:var(--text-secondary);"><?php echo t('walkons_choose_files'); ?></span><br>
+                    <span id="file-list" style="font-size:0.82rem; color:var(--text-muted);"><?php echo t('walkons_no_files_selected'); ?></span>
+                </label>
+            </div>
+            <!-- Upload Status Container -->
+            <div id="uploadStatusContainer" style="display:none; margin-bottom:0.75rem;">
+                <div class="sp-alert sp-alert-info">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <strong id="uploadStatusText">Preparing upload...</strong>
+                        <span id="uploadProgressPercent" style="font-weight:600;">0%</span>
                     </div>
+                    <progress class="progress progress-info" id="uploadProgress" value="0" max="100" style="height:1.25rem; border-radius:0.625rem;">0%</progress>
                 </div>
             </div>
-        </div>
-        <!-- Upload Card -->
-        <div class="columns is-desktop is-multiline is-centered">
-            <div class="column is-fullwidth" style="max-width: 1200px;">
-                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                    <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                            <span class="icon mr-2"><i class="fas fa-upload"></i></span>
-                            <?php echo t('walkons_upload_title'); ?>
-                        </span>
-                    </header>
-                    <div class="card-content">
-                        <!-- Storage Usage Info -->
-                        <div class="notification is-dark mb-4" style="background-color: #2b2f3a; border: 1px solid #4a4a4a;">
-                            <div class="level is-mobile">
-                                <div class="level-left">
-                                    <div class="level-item">
-                                        <span class="icon mr-2"><i class="fas fa-database"></i></span>
-                                        <strong><?php echo t('alerts_storage_usage'); ?>:</strong>
-                                    </div>
-                                </div>
-                                <div class="level-right">
-                                    <div class="level-item">
-                                        <?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)
-                                    </div>
-                                </div>
-                            </div>
-                            <progress class="progress is-success" value="<?php echo $storage_percentage; ?>" max="100" style="height: 0.75rem;"></progress>
-                        </div>
-                        <?php if (!empty($status)) : ?>
-                            <article class="message is-info mb-4">
-                                <div class="message-body has-text-white">
-                                    <?php echo $status; ?>
-                                </div>
-                            </article>
-                        <?php endif; ?>
-                        <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-                            <div class="file has-name is-fullwidth is-boxed mb-3">
-                                <label class="file-label" style="width: 100%;">
-                                    <input class="file-input" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".mp3,.mp4">
-                                    <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                                        <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.15em;">
-                                            <?php echo t('walkons_choose_files'); ?>
-                                        </span>
-                                    </span>
-                                    <span class="file-name" id="file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                                        <?php echo t('walkons_no_files_selected'); ?>
-                                    </span>
-                                </label>
-                            </div>
-                            <!-- Upload Status Container -->
-                            <div id="uploadStatusContainer" style="display: none;" class="mb-4">
-                                <div class="notification is-info" style="background-color: #2b2f3a; border: 1px solid #4a8ef5;">
-                                    <div class="level is-mobile mb-2">
-                                        <div class="level-left">
-                                            <div class="level-item">
-                                                <span class="icon mr-2 has-text-white"><i class="fas fa-spinner fa-pulse"></i></span>
-                                                <strong id="uploadStatusText" class="has-text-white">Preparing upload...</strong>
-                                            </div>
-                                        </div>
-                                        <div class="level-right">
-                                            <div class="level-item">
-                                                <span id="uploadProgressPercent" class="has-text-white" style="font-weight: 600;">0%</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <progress class="progress is-primary" id="uploadProgress" value="0" max="100" style="height: 1.5rem; border-radius: 0.75rem;">0%</progress>
-                                </div>
-                            </div>
-                            <button class="button is-primary is-fullwidth" type="submit" name="submit" id="uploadBtn" style="font-weight: 600; font-size: 1.1rem;">
-                                <span class="icon"><i class="fas fa-upload"></i></span>
-                                <span id="uploadBtnText"><?php echo t('walkons_upload_btn'); ?></span>
-                            </button>
-                        </form>
-                    </div>
-                </div>
+            <button class="sp-btn sp-btn-primary" type="submit" name="submit" id="uploadBtn" style="width:100%; font-size:1rem; padding:0.65rem 1.1rem;">
+                <i class="fas fa-upload"></i>
+                <span id="uploadBtnText"><?php echo t('walkons_upload_btn'); ?></span>
+            </button>
+        </form>
+    </div>
+</div>
+<!-- File Management Card -->
+<div class="sp-card">
+    <header class="sp-card-header">
+        <p class="sp-card-title">
+            <i class="fas fa-door-open"></i>
+            <?php echo t('walkons_users_with_walkons'); ?>
+        </p>
+        <button class="sp-btn sp-btn-danger" id="deleteSelectedBtn" disabled>
+            <i class="fas fa-trash"></i>
+            <span><?php echo t('walkons_delete_selected'); ?></span>
+        </button>
+    </header>
+    <div class="sp-card-body">
+        <?php if (!empty($walkon_files)) : ?>
+        <form action="" method="POST" id="deleteForm">
+            <div class="sp-table-wrap">
+                <table class="sp-table" id="walkonsTable">
+                    <thead>
+                        <tr>
+                            <th style="width:70px; text-align:center;"><?php echo t('walkons_select'); ?></th>
+                            <th style="text-align:center;"><?php echo t('walkons_file_name'); ?></th>
+                            <th style="width:100px; text-align:center;"><?php echo t('walkons_action'); ?></th>
+                            <th style="width:150px; text-align:center;"><?php echo t('walkons_test_audio'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($walkon_files as $file): ?>
+                        <tr>
+                            <td style="text-align:center;">
+                                <input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
+                            </td>
+                            <td><?php echo htmlspecialchars(formatFileNamewithEXT($file)); ?></td>
+                            <td style="text-align:center;">
+                                <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                            <td style="text-align:center;">
+                                <button type="button" class="test-walkon sp-btn sp-btn-primary sp-btn-sm" data-file="<?php echo htmlspecialchars(formatFileName($file)); ?>">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
-        </div>
-        <!-- File Management Card -->
-        <div class="columns is-desktop is-multiline is-centered">
-            <div class="column is-fullwidth" style="max-width: 1200px;">
-                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                    <header class="card-header" style="border-bottom: 1px solid #23272f; display: flex; justify-content: space-between; align-items: center;">
-                        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                            <span class="icon mr-2"><i class="fas fa-door-open"></i></span>
-                            <?php echo t('walkons_users_with_walkons'); ?>
-                        </span>
-                        <div class="buttons">
-                            <button class="button is-danger" id="deleteSelectedBtn" disabled>
-                                <span class="icon"><i class="fas fa-trash"></i></span>
-                                <span><?php echo t('walkons_delete_selected'); ?></span>
-                            </button>
-                        </div>
-                    </header>
-                    <div class="card-content">
-                        <?php if (!empty($walkon_files)) : ?>
-                        <form action="" method="POST" id="deleteForm">
-                            <div class="table-container">
-                                <table class="table is-fullwidth has-background-dark" id="walkonsTable">
-                                    <thead>
-                                        <tr>
-                                            <th style="width: 70px;" class="has-text-centered"><?php echo t('walkons_select'); ?></th>
-                                            <th class="has-text-centered"><?php echo t('walkons_file_name'); ?></th>
-                                            <th style="width: 100px;" class="has-text-centered"><?php echo t('walkons_action'); ?></th>
-                                            <th style="width: 150px;" class="has-text-centered"><?php echo t('walkons_test_audio'); ?></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($walkon_files as $file): ?>
-                                        <tr>
-                                            <td class="has-text-centered is-vcentered">
-                                                <input type="checkbox" class="is-checkradio" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
-                                            </td>
-                                            <td class="is-vcentered"><?php echo htmlspecialchars(formatFileNamewithEXT($file)); ?></td>
-                                            <td class="has-text-centered is-vcentered">
-                                                <button type="button" class="delete-single button is-danger is-small" data-file="<?php echo htmlspecialchars($file); ?>">
-                                                    <span class="icon"><i class="fas fa-trash"></i></span>
-                                                </button>
-                                            </td>
-                                            <td class="has-text-centered is-vcentered">
-                                                <button type="button" class="test-walkon button is-primary is-small" data-file="<?php echo htmlspecialchars(formatFileName($file)); ?>">
-                                                    <span class="icon"><i class="fas fa-play"></i></span>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <button type="submit" value="Delete Selected" class="button is-danger mt-3" name="submit_delete" style="display: none;">
-                                <span class="icon"><i class="fas fa-trash"></i></span>
-                                <span><?php echo t('walkons_delete_selected'); ?></span>
-                            </button>
-                        </form>
-                        <?php else: ?>
-                            <div class="has-text-centered py-6">
-                                <h2 class="title is-5 has-text-grey-light"><?php echo t('walkons_no_files_uploaded'); ?></h2>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
+            <button type="submit" value="Delete Selected" class="sp-btn sp-btn-danger" name="submit_delete" style="display:none;">
+                <i class="fas fa-trash"></i>
+                <span><?php echo t('walkons_delete_selected'); ?></span>
+            </button>
+        </form>
+        <?php else: ?>
+            <div style="text-align:center; padding:3rem 0;">
+                <p style="font-size:1.05rem; color:var(--text-muted);"><?php echo t('walkons_no_files_uploaded'); ?></p>
             </div>
-        </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php
@@ -265,9 +218,9 @@ ob_start();
 <script>
 $(document).ready(function() {
     // Auto-dismiss status messages after 15 seconds
-    if ($('.message.is-info .message-body').length) {
+    if ($('#uploadStatusMsg').length) {
         setTimeout(function() {
-            $('.message.is-info').fadeOut(500, function() {
+            $('#uploadStatusMsg').fadeOut(500, function() {
                 $(this).remove();
             });
         }, 15000);
@@ -298,7 +251,7 @@ $(document).ready(function() {
         $('#uploadProgressPercent').text('0%');
         $('#uploadProgress').val(0);
         // Update button state
-        $('#uploadBtn').prop('disabled', true).removeClass('is-primary').addClass('is-loading');
+        $('#uploadBtn').prop('disabled', true).addClass('sp-btn-loading');
         $('#uploadBtnText').text('Uploading...');
         $.ajax({
             url: '',
@@ -331,7 +284,7 @@ $(document).ready(function() {
             },
             error: function() {
                 $('#uploadStatusContainer').hide();
-                $('#uploadBtn').prop('disabled', false).removeClass('is-loading').addClass('is-primary');
+                $('#uploadBtn').prop('disabled', false).removeClass('sp-btn-loading');
                 $('#uploadBtnText').text('<?php echo t("walkons_upload_btn"); ?>');
                 Swal.fire({
                     icon: 'error',
@@ -366,7 +319,7 @@ $(document).ready(function() {
         var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
         $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
     });
-    // Update file name display for Bulma file input
+    // Update file name display
     $('#filesToUpload').on('change', function() {
         let files = this.files;
         let fileNames = [];
