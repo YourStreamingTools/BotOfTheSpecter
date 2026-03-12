@@ -108,41 +108,48 @@ if ($conn) {
 
 ob_start();
 ?>
-<div class="box">
-    <h1 class="title">API Key Management</h1>
-    <p class="subtitle">Manage admin API keys for different services</p>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h1 class="sp-card-title"><i class="fas fa-key"></i> API Key Management</h1>
+    </div>
+    <div class="sp-card-body">
+        <p style="color:var(--text-secondary);">Manage admin API keys for different services</p>
+    </div>
 </div>
-<div class="box">
-    <h2 class="title is-4">Create New API Key</h2>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title">Create New API Key</h2>
+    </div>
+    <div class="sp-card-body">
     <form id="createKeyForm">
-        <div class="field">
-            <label class="label">Service Name</label>
-            <div class="control">
-                <input class="input" type="text" name="service" placeholder="Enter service name" required>
-            </div>
-            <p class="help">Enter a unique name for the service that will use this API key</p>
+        <div class="sp-form-group">
+            <label class="sp-label">Service Name</label>
+            <input class="sp-input" type="text" name="service" placeholder="Enter service name" required>
+            <p class="sp-help">Enter a unique name for the service that will use this API key</p>
         </div>
-        <div class="field">
-            <div class="control">
-                <button type="submit" class="button is-primary">
-                    <span class="icon">
-                        <i class="fas fa-plus"></i>
-                    </span>
-                    <span>Generate API Key</span>
-                </button>
-            </div>
+        <div class="sp-form-group">
+            <button type="submit" class="sp-btn sp-btn-primary">
+                <span class="icon">
+                    <i class="fas fa-plus"></i>
+                </span>
+                <span>Generate API Key</span>
+            </button>
         </div>
     </form>
+    </div>
 </div>
-<div class="box">
-    <h2 class="title is-4">Existing API Keys</h2>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title">Existing API Keys</h2>
+    </div>
+    <div class="sp-card-body">
     <?php if (empty($api_keys)): ?>
-        <div class="notification is-info">
+        <div class="sp-alert sp-alert-info">
             No API keys found. Create one above.
         </div>
     <?php else: ?>
-        <div class="table-container">
-            <table class="table is-fullwidth is-striped is-hoverable">
+        <div class="sp-table-wrap">
+            <table class="sp-table">
                 <thead>
                     <tr>
                         <th>Service</th>
@@ -155,35 +162,29 @@ ob_start();
                         <tr data-service="<?php echo htmlspecialchars($key['service']); ?>">
                             <td><strong><?php echo htmlspecialchars($key['service']); ?></strong></td>
                             <td>
-                                <div class="field has-addons">
-                                    <div class="control is-expanded">
-                                        <input class="input is-family-monospace api-key-input" type="text" value="<?php echo htmlspecialchars($key['api_key']); ?>" readonly autocomplete="off" style="-webkit-text-security: disc;">
-                                    </div>
-                                    <div class="control">
-                                        <button class="button is-info toggle-visibility" title="Show/Hide">
-                                            <span class="icon">
-                                                <i class="fas fa-eye"></i>
-                                            </span>
-                                        </button>
-                                    </div>
-                                    <div class="control">
-                                        <button class="button is-success copy-key" title="Copy to Clipboard">
-                                            <span class="icon">
-                                                <i class="fas fa-copy"></i>
-                                            </span>
-                                        </button>
-                                    </div>
+                                <div class="sp-btn-group">
+                                    <input class="sp-input api-key-input" type="text" value="<?php echo htmlspecialchars($key['api_key']); ?>" readonly autocomplete="off" style="flex:1;font-family:monospace;-webkit-text-security:disc;">
+                                    <button class="sp-btn sp-btn-info toggle-visibility" title="Show/Hide">
+                                        <span class="icon">
+                                            <i class="fas fa-eye"></i>
+                                        </span>
+                                    </button>
+                                    <button class="sp-btn sp-btn-success copy-key" title="Copy to Clipboard">
+                                        <span class="icon">
+                                            <i class="fas fa-copy"></i>
+                                        </span>
+                                    </button>
                                 </div>
                             </td>
                             <td>
-                                <div class="buttons">
-                                    <button class="button is-warning is-small regenerate-key" data-service="<?php echo htmlspecialchars($key['service']); ?>">
+                                <div class="sp-btn-group">
+                                    <button class="sp-btn sp-btn-warning sp-btn-sm regenerate-key" data-service="<?php echo htmlspecialchars($key['service']); ?>">
                                         <span class="icon">
                                             <i class="fas fa-sync"></i>
                                         </span>
                                         <span>Regenerate</span>
                                     </button>
-                                    <button class="button is-danger is-small delete-key" data-service="<?php echo htmlspecialchars($key['service']); ?>">
+                                    <button class="sp-btn sp-btn-danger sp-btn-sm delete-key" data-service="<?php echo htmlspecialchars($key['service']); ?>">
                                         <span class="icon">
                                             <i class="fas fa-trash"></i>
                                         </span>
@@ -197,7 +198,8 @@ ob_start();
             </table>
         </div>
     <?php endif; ?>
-</div>
+    </div><!-- /sp-card-body -->
+</div><!-- /sp-card -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Helper function to escape HTML
@@ -212,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const toggleBtn = row.querySelector('.toggle-visibility');
         if (toggleBtn) {
             toggleBtn.addEventListener('click', function() {
-                const input = this.closest('.field').querySelector('input');
+                const input = this.closest('.sp-btn-group').querySelector('input');
                 const icon = this.querySelector('i');
                 if (input.style.webkitTextSecurity === 'disc') {
                     input.style.webkitTextSecurity = 'none';
@@ -229,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const copyBtn = row.querySelector('.copy-key');
         if (copyBtn) {
             copyBtn.addEventListener('click', async function() {
-                const input = this.closest('.field').querySelector('input');
+                const input = this.closest('.sp-btn-group').querySelector('input');
                 try {
                     await navigator.clipboard.writeText(input.value);
                     const originalIcon = this.querySelector('i');
@@ -288,12 +290,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         title: 'API Key Regenerated',
                         html: `
                             <p>${data.message}</p>
-                            <div class="field">
-                                <label class="label">Your new API key:</label>
-                                <div class="control">
-                                    <input class="input is-family-monospace" type="text" value="${data.api_key}" readonly>
-                                </div>
-                                <p class="help has-text-danger mt-2">Make sure to copy this key now. You won't be able to see it again!</p>
+                            <div class="sp-form-group">
+                                <label class="sp-label">Your new API key:</label>
+                                <input class="sp-input" style="font-family:monospace;" type="text" value="${data.api_key}" readonly>
+                                <p class="sp-help sp-help-danger" style="margin-top:0.5rem;">Make sure to copy this key now. You won't be able to see it again!</p>
                             </div>
                         `,
                         showConfirmButton: true,
@@ -302,10 +302,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Update the key in the table row
                     const row = document.querySelector(`tr[data-service="${service}"]`);
                     if (row) {
-                        const input = row.querySelector('input.is-family-monospace');
+                        const input = row.querySelector('input.api-key-input');
                         if (input) {
                             input.value = data.api_key;
-                            input.type = 'password';
+                            input.style.webkitTextSecurity = 'disc';
                             
                             // Reset the eye icon if it was showing
                             const eyeIcon = row.querySelector('.toggle-visibility i');
@@ -369,13 +369,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Check if table is now empty
                         const tableBody = document.getElementById('apiKeysTable');
                         if (tableBody && tableBody.children.length === 0) {
-                            const box = tableBody.closest('.box');
+                            const box = tableBody.closest('.sp-card');
                             if (box) {
                                 box.innerHTML = `
-                                    <h2 class="title is-4">Existing API Keys</h2>
-                                    <div class="notification is-info">
+                                    <div class="sp-card-header"><h2 class="sp-card-title">Existing API Keys</h2></div>
+                                    <div class="sp-card-body"><div class="sp-alert sp-alert-info">
                                         No API keys found. Create one above.
-                                    </div>
+                                    </div></div>
                                 `;
                             }
                         }
@@ -416,12 +416,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: 'API Key Created',
                     html: `
                         <p>${result.message}</p>
-                        <div class="field">
-                            <label class="label">Your new API key:</label>
-                            <div class="control">
-                                <input class="input is-family-monospace" type="text" value="${result.api_key}" readonly>
-                            </div>
-                            <p class="help has-text-info mt-2">You can view this key anytime from the table below.</p>
+                        <div class="sp-form-group">
+                            <label class="sp-label">Your new API key:</label>
+                            <input class="sp-input" style="font-family:monospace;" type="text" value="${result.api_key}" readonly>
+                            <p class="sp-help sp-help-info" style="margin-top:0.5rem;">You can view this key anytime from the table below.</p>
                         </div>
                     `,
                     showConfirmButton: true,
@@ -429,15 +427,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 // Check if table exists or if we need to create it
                 let tableBody = document.getElementById('apiKeysTable');
-                const noKeysNotification = document.querySelector('.notification.is-info');
+                const noKeysNotification = document.querySelector('.sp-alert.sp-alert-info');
                 if (noKeysNotification && noKeysNotification.textContent.includes('No API keys found')) {
                     // Replace notification with table
-                    const box = noKeysNotification.closest('.box');
+                    const box = noKeysNotification.closest('.sp-card');
                     noKeysNotification.remove();
                     box.innerHTML = `
-                        <h2 class="title is-4">Existing API Keys</h2>
-                        <div class="table-container">
-                            <table class="table is-fullwidth is-striped is-hoverable">
+                        <div class="sp-card-header"><h2 class="sp-card-title">Existing API Keys</h2></div>
+                        <div class="sp-card-body">
+                        <div class="sp-table-wrap">
+                            <table class="sp-table">
                                 <thead>
                                     <tr>
                                         <th>Service</th>
@@ -448,6 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <tbody id="apiKeysTable"></tbody>
                             </table>
                         </div>
+                        </div>
                     `;
                     tableBody = document.getElementById('apiKeysTable');
                 }
@@ -457,35 +457,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 newRow.innerHTML = `
                     <td><strong>${escapeHtml(service)}</strong></td>
                     <td>
-                        <div class="field has-addons">
-                            <div class="control is-expanded">
-                                <input class="input is-family-monospace api-key-input" type="text" value="${result.api_key}" readonly autocomplete="off" style="-webkit-text-security: disc;">
-                            </div>
-                            <div class="control">
-                                <button class="button is-info toggle-visibility" title="Show/Hide">
-                                    <span class="icon">
-                                        <i class="fas fa-eye"></i>
-                                    </span>
-                                </button>
-                            </div>
-                            <div class="control">
-                                <button class="button is-success copy-key" title="Copy to Clipboard">
-                                    <span class="icon">
-                                        <i class="fas fa-copy"></i>
-                                    </span>
-                                </button>
-                            </div>
+                        <div class="sp-btn-group">
+                            <input class="sp-input api-key-input" type="text" value="${result.api_key}" readonly autocomplete="off" style="flex:1;font-family:monospace;-webkit-text-security:disc;">
+                            <button class="sp-btn sp-btn-info toggle-visibility" title="Show/Hide">
+                                <span class="icon">
+                                    <i class="fas fa-eye"></i>
+                                </span>
+                            </button>
+                            <button class="sp-btn sp-btn-success copy-key" title="Copy to Clipboard">
+                                <span class="icon">
+                                    <i class="fas fa-copy"></i>
+                                </span>
+                            </button>
                         </div>
                     </td>
                     <td>
-                        <div class="buttons">
-                            <button class="button is-warning is-small regenerate-key" data-service="${escapeHtml(service)}">
+                        <div class="sp-btn-group">
+                            <button class="sp-btn sp-btn-warning sp-btn-sm regenerate-key" data-service="${escapeHtml(service)}">
                                 <span class="icon">
                                     <i class="fas fa-sync"></i>
                                 </span>
                                 <span>Regenerate</span>
                             </button>
-                            <button class="button is-danger is-small delete-key" data-service="${escapeHtml(service)}">
+                            <button class="sp-btn sp-btn-danger sp-btn-sm delete-key" data-service="${escapeHtml(service)}">
                                 <span class="icon">
                                     <i class="fas fa-trash"></i>
                                 </span>
