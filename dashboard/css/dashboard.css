@@ -623,6 +623,16 @@ ul { list-style: none; margin: 0; padding: 0; }
     color: #000;
 }
 
+.sp-btn-info {
+    background: var(--blue-bg);
+    color: var(--blue);
+    border-color: var(--blue);
+}
+.sp-btn-info:hover {
+    background: var(--blue);
+    color: #fff;
+}
+
 .sp-btn-sm {
     padding: 0.3rem 0.75rem;
     font-size: 0.8rem;
@@ -1844,4 +1854,47 @@ input[type="checkbox"].switch:disabled + label {
     .sp-stat-row {
         grid-template-columns: repeat(2, 1fr);
     }
+}
+
+/* ----------------------------------------------------------
+   23. Tabs Component
+   ---------------------------------------------------------- */
+.sp-tabs-nav {
+    display: flex;
+    list-style: none;
+    margin: 0 0 1.25rem 0;
+    padding: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.sp-tabs-nav li {
+    flex: 1;
+}
+.sp-tabs-nav li a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1rem;
+    color: var(--text-secondary);
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background var(--transition), color var(--transition);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+.sp-tabs-nav li:last-child a {
+    border-right: none;
+}
+.sp-tabs-nav li a:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+.sp-tabs-nav li.is-active a {
+    background: var(--accent-light);
+    color: var(--accent-hover);
+    font-weight: 600;
 }
