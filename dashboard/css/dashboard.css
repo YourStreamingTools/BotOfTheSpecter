@@ -2203,3 +2203,11 @@ input[type="checkbox"].switch:disabled + label {
     overflow-y: auto;
     color: var(--text-secondary);
 }
+
+/* ----------------------------------------------------------
+   30. Raids page
+   ---------------------------------------------------------- */
+.raids-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start; }
+@media (max-width: 900px) { .raids-layout { grid-template-columns: 1fr; } }
+.raids-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; }
+.raids-section-head h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }

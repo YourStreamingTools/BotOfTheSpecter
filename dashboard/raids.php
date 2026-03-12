@@ -75,133 +75,125 @@ try {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column is-fullwidth">
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-      <header class="card-header is-flex is-align-items-center is-justify-content-space-between" style="border-bottom: 1px solid #23272f; padding: 1rem 1.5rem;">
-        <div class="card-header-title is-size-4 has-text-white" style="font-weight:700; padding: 0;">
-          <span class="icon mr-2"><i class="fas fa-bullhorn"></i></span>
-          Raids
+<div class="sp-card mb-5">
+  <header class="sp-card-header">
+    <div class="sp-card-title">
+      <span class="icon mr-2"><i class="fas fa-bullhorn"></i></span>
+      Raids
+    </div>
+  </header>
+  <div class="sp-card-body">
+    <div class="raids-layout">
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;">Recent Raids — Received</h3>
+        <?php if (empty($recentReceivedRaids)): ?>
+          <div style="text-align:center;padding:3rem 0;">
+            <p class="sp-text-muted" style="font-size:1.1rem;">No received raid data available yet.</p>
+          </div>
+        <?php else: ?>
+          <div class="sp-table-wrap">
+            <table class="sp-table">
+              <thead>
+                <tr>
+                  <th>Raider</th>
+                  <th>Viewers</th>
+                  <th>Date / Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($recentReceivedRaids as $r): ?>
+                  <tr>
+                    <td><?php echo htmlspecialchars($r['raider_name']); ?></td>
+                    <td><?php echo htmlspecialchars($r['viewers']); ?></td>
+                    <td><?php echo htmlspecialchars($r['created_at']); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </div>
+      <div>
+        <div class="raids-section-head">
+          <h3>Latest Raid — Sent</h3>
+          <button class="sp-btn sp-btn-info sp-btn-sm" id="showLastFiveSentRaidsBtn" <?php echo empty($recentSentRaids) ? 'disabled' : ''; ?>>
+            Show Last 5
+          </button>
         </div>
-      </header>
-      <div class="card-content">
-        <div class="content">
-          <div class="columns">
-            <div class="column is-two-thirds">
-              <h3 class="title is-5 has-text-white">Recent Raids — Received</h3>
-              <?php if (empty($recentReceivedRaids)): ?>
-                <div class="has-text-centered py-6">
-                  <p class="has-text-grey-light is-size-5">No received raid data available yet.</p>
-                </div>
+        <?php if (empty($latestSentRaid)): ?>
+          <p class="sp-text-muted">No sent raid data available yet.</p>
+        <?php else: ?>
+          <div class="sp-table-wrap">
+            <table class="sp-table">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Viewers</th>
+                  <th>Date / Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><?php echo htmlspecialchars($latestSentRaid['raider_name']); ?></td>
+                  <td><?php echo htmlspecialchars($latestSentRaid['viewers']); ?></td>
+                  <td><?php echo htmlspecialchars($latestSentRaid['created_at']); ?></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+        <div class="sp-modal-backdrop" id="lastFiveSentRaidsModal">
+          <div class="sp-modal" style="max-width:min(900px,95vw);">
+            <header class="sp-modal-head">
+              <p class="sp-modal-title">Last 5 Sent Raids</p>
+              <button class="sp-modal-close" aria-label="close" id="closeLastFiveSentRaidsModal">&times;</button>
+            </header>
+            <section class="sp-modal-body">
+              <?php if (empty($recentSentRaids)): ?>
+                <p class="sp-text-muted">No sent raid data available yet.</p>
               <?php else: ?>
-                <div class="table-container">
-                  <table class="table is-fullwidth has-background-dark has-text-white">
-                    <thead class="has-background-grey-darker">
+                <div class="sp-table-wrap">
+                  <table class="sp-table">
+                    <thead>
                       <tr>
-                        <th class="has-text-white">Raider</th>
-                        <th class="has-text-white">Viewers</th>
-                        <th class="has-text-white">Date / Time</th>
+                        <th>Target</th>
+                        <th>Viewers</th>
+                        <th>Date / Time</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <?php foreach ($recentReceivedRaids as $r): ?>
+                      <?php foreach ($recentSentRaids as $s): ?>
                         <tr>
-                          <td class="has-text-white"><?php echo htmlspecialchars($r['raider_name']); ?></td>
-                          <td class="has-text-white"><?php echo htmlspecialchars($r['viewers']); ?></td>
-                          <td class="has-text-white"><?php echo htmlspecialchars($r['created_at']); ?></td>
+                          <td><?php echo htmlspecialchars($s['raider_name']); ?></td>
+                          <td><?php echo htmlspecialchars($s['viewers']); ?></td>
+                          <td><?php echo htmlspecialchars($s['created_at']); ?></td>
                         </tr>
                       <?php endforeach; ?>
                     </tbody>
                   </table>
                 </div>
               <?php endif; ?>
-            </div>
-            <div class="column">
-              <div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
-                <h3 class="title is-5 has-text-white mb-0">Latest Raid — Sent</h3>
-                <button class="button is-small is-info" id="showLastFiveSentRaidsBtn" <?php echo empty($recentSentRaids) ? 'disabled' : ''; ?>>
-                  Show Last 5
-                </button>
-              </div>
-              <?php if (empty($latestSentRaid)): ?>
-                <p class="has-text-grey-light">No sent raid data available yet.</p>
-              <?php else: ?>
-                <div class="table-container">
-                  <table class="table is-fullwidth has-background-dark has-text-white">
-                    <thead class="has-background-grey-darker">
-                      <tr>
-                        <th class="has-text-white">Target</th>
-                        <th class="has-text-white">Viewers</th>
-                        <th class="has-text-white">Date / Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td class="has-text-white"><?php echo htmlspecialchars($latestSentRaid['raider_name']); ?></td>
-                        <td class="has-text-white"><?php echo htmlspecialchars($latestSentRaid['viewers']); ?></td>
-                        <td class="has-text-white"><?php echo htmlspecialchars($latestSentRaid['created_at']); ?></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              <?php endif; ?>
-              <div class="modal" id="lastFiveSentRaidsModal">
-                <div class="modal-background"></div>
-                <div class="modal-card" style="background-color: #23272f; color: #fff; width: min(900px, 95vw);">
-                  <header class="modal-card-head" style="background-color: #1a1a1a; border-bottom: 1px solid #23272f;">
-                    <p class="modal-card-title has-text-white">Last 5 Sent Raids</p>
-                    <button class="delete" aria-label="close" id="closeLastFiveSentRaidsModal"></button>
-                  </header>
-                  <section class="modal-card-body" style="background-color: #23272f;">
-                    <?php if (empty($recentSentRaids)): ?>
-                      <p class="has-text-grey-light">No sent raid data available yet.</p>
-                    <?php else: ?>
-                      <div class="table-container">
-                        <table class="table is-fullwidth has-background-dark has-text-white">
-                          <thead class="has-background-grey-darker">
-                            <tr>
-                              <th class="has-text-white">Target</th>
-                              <th class="has-text-white">Viewers</th>
-                              <th class="has-text-white">Date / Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <?php foreach ($recentSentRaids as $s): ?>
-                              <tr>
-                                <td class="has-text-white"><?php echo htmlspecialchars($s['raider_name']); ?></td>
-                                <td class="has-text-white"><?php echo htmlspecialchars($s['viewers']); ?></td>
-                                <td class="has-text-white"><?php echo htmlspecialchars($s['created_at']); ?></td>
-                              </tr>
-                            <?php endforeach; ?>
-                          </tbody>
-                        </table>
-                      </div>
-                    <?php endif; ?>
-                  </section>
-                </div>
-              </div>
-              <hr>
-              <h3 class="title is-5 has-text-white">Top Raiders</h3>
-              <?php if (empty($topRaiders)): ?>
-                <p class="has-text-grey-light">No data yet.</p>
-              <?php else: ?>
-                <ul>
-                  <?php foreach ($topRaiders as $t): ?>
-                    <li class="mb-2"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> — <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> viewers</li>
-                  <?php endforeach; ?>
-                </ul>
-              <?php endif; ?>
-              <hr>
-              <h4 class="subtitle is-6 has-text-white">Overall Average Viewers</h4>
-              <p class="has-text-white is-size-5"><?php echo $avgViewers !== null ? htmlspecialchars($avgViewers) . ' viewers' : 'N/A'; ?></p>
-            </div>
+            </section>
           </div>
         </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0;">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">Top Raiders</h3>
+        <?php if (empty($topRaiders)): ?>
+          <p class="sp-text-muted">No data yet.</p>
+        <?php else: ?>
+          <ul style="padding-left:1.25rem;margin:0;">
+            <?php foreach ($topRaiders as $t): ?>
+              <li style="margin-bottom:0.5rem;"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> — <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> viewers</li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0;">
+        <h4 style="font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:0.4rem;">Overall Average Viewers</h4>
+        <p style="font-size:1.1rem;"><?php echo $avgViewers !== null ? htmlspecialchars($avgViewers) . ' viewers' : 'N/A'; ?></p>
       </div>
     </div>
   </div>
 </div>
-
 <?php
 $content = ob_get_clean();
 
@@ -226,10 +218,11 @@ document.addEventListener('DOMContentLoaded', function () {
   if (closeBtn) {
     closeBtn.addEventListener('click', closeModal);
   }
-  const modalBackground = modal.querySelector('.modal-background');
-  if (modalBackground) {
-    modalBackground.addEventListener('click', closeModal);
-  }
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
 });
 </script>
 <?php
