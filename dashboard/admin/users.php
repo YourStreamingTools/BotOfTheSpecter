@@ -130,6 +130,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user_id'])) {
         echo json_encode($response);
         exit;
     }
+    // Cannot delete yourself
+    if ($user_id === $currentAdminUserId) {
+        $response['msg'] = 'You cannot delete your own account.';
+        echo json_encode($response);
+        exit;
+    }
+    // Non-super-admins cannot delete admins or super admins
+    if (!$currentAdminIsSuperAdmin) {
+        $chkStmt = $conn->prepare("SELECT is_admin, super_admin FROM users WHERE id = ? LIMIT 1");
+        $chkStmt->bind_param("i", $user_id);
+        $chkStmt->execute();
+        $chkStmt->bind_result($targetIsAdminFlag, $targetIsSuperAdminFlag);
+        $chkStmt->fetch();
+        $chkStmt->close();
+        if ($targetIsAdminFlag || $targetIsSuperAdminFlag) {
+            $response['msg'] = 'You do not have permission to delete admin users.';
+            echo json_encode($response);
+            exit;
+        }
+    }
     if ($delete_db === '1') {
         // Drop the user's database
         $db_name = $username;
@@ -376,6 +396,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         $is_super_admin = isset($user['super_admin']) && (int) $user['super_admin'] === 1;
                         $is_admin_user = isset($user['is_admin']) && (int) $user['is_admin'] === 1;
                         $can_restrict_user = !$is_super_admin && (!$is_admin_user || $currentAdminIsSuperAdmin);
+                        $can_delete_user = ((int) $user['id'] !== $currentAdminUserId)
+                            && ($currentAdminIsSuperAdmin || (!$is_admin_user && !$is_super_admin));
                         $is_deceased = isset($user['is_deceased']) && (int) $user['is_deceased'] === 1;
                     ?>
                     <?php
@@ -442,7 +464,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                 <button class="sp-btn sp-btn-sm" title="View Details" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
                                     <span class="icon"><i class="fas fa-eye"></i></span>
                                 </button>
-                                <button class="sp-btn sp-btn-danger sp-btn-sm" title="Delete User" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                <?php
+                                $deleteTitle = 'Delete User';
+                                if ((int) $user['id'] === $currentAdminUserId) $deleteTitle = 'Cannot delete your own account';
+                                elseif (!$currentAdminIsSuperAdmin && ($is_admin_user || $is_super_admin)) $deleteTitle = 'Only super admins can delete admin users';
+                                elseif ($is_deceased) $deleteTitle = 'Memorial users cannot be deleted';
+                                ?>
+                                <button class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo $deleteTitle; ?>" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if (!$can_delete_user || $is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-trash"></i></span>
                                 </button>
                                 <?php if ((int) $user['is_admin']): ?>
