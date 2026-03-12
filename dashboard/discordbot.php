@@ -1666,12 +1666,12 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildChannels)) {
     // Show manual input field with enhanced placeholder for manual mode
-    $manualPlaceholder = $useManualIds ? "Text Channel ID (Right-click channel → Copy Channel ID)" : $placeholder;
+    $manualPlaceholder = $useManualIds ? "Text Channel ID (Right-click channel ? Copy Channel ID)" : $placeholder;
     $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
-      <div class=\"control has-icons-left\">
-        <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
-        <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>
+      <div class=\"sp-input-wrap\">
+        <input class=\"sp-input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr>
+        <span class=\"sp-input-icon\"><i class=\"$icon\"></i></span>
       </div>";
   } else {
     // Show dropdown with channels
@@ -1681,15 +1681,13 @@ function generateChannelInput($fieldId, $fieldName, $currentValue, $placeholder,
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
       $channelType = $channel['type'] ?? 0;
-      $prefix = $channelType === 5 ? '📢 ' : ''; // Announcement channels get a megaphone emoji, regular channels have no prefix
+      $prefix = $channelType === 5 ? '?? ' : ''; // Announcement channels get a megaphone emoji, regular channels have no prefix
       $options .= "<option value=\"$channelId\"$selected>$prefix$channelName</option>\n";
     }
     return "
-      <div class=\"control has-icons-left\">
-        <div class=\"select is-fullwidth\" style=\"width: 100%;\">
-          <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
-        </div>
-        <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>
+      <div class=\"sp-input-wrap\">
+        <select class=\"sp-select\" id=\"$fieldId\" name=\"$fieldName\"$requiredAttr>$options</select>
+        <span class=\"sp-input-icon\"><i class=\"$icon\"></i></span>
       </div>";
   }
 }
@@ -1700,11 +1698,11 @@ function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $u
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildRoles)) {
     // Show manual input field with enhanced placeholder for manual mode
-    $manualPlaceholder = $useManualIds ? "Role ID (Right-click role → Copy Role ID)" : $placeholder;
+    $manualPlaceholder = $useManualIds ? "Role ID (Right-click role ? Copy Role ID)" : $placeholder;
     $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
-      <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
-      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+      <input class=\"sp-input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr>
+      <span class=\"sp-input-icon\"><i class=\"$icon\"></i></span>";
   } else {
     // Show dropdown with roles
     $options = "<option value=\"\"" . (empty($currentValue) ? ' selected' : '') . ">Select a role...</option>\n";
@@ -1721,10 +1719,8 @@ function generateRoleInput($fieldId, $fieldName, $currentValue, $placeholder, $u
       $options .= "<option value=\"$roleId\"$selected$colorIndicator>@$roleName</option>\n";
     }
     return "
-      <div class=\"select is-fullwidth\" style=\"width: 100%;\">
-        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
-      </div>
-      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+      <select class=\"sp-select\" id=\"$fieldId\" name=\"$fieldName\"$requiredAttr>$options</select>
+      <span class=\"sp-input-icon\"><i class=\"$icon\"></i></span>";
   }
 }
 
@@ -1734,11 +1730,11 @@ function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeho
   $requiredAttr = $required ? ' required' : '';
   if ($useManualIds || empty($guildVoiceChannels)) {
     // Show manual input field with enhanced placeholder for manual mode
-    $manualPlaceholder = $useManualIds ? "Voice Channel ID (Right-click voice channel → Copy Channel ID)" : $placeholder;
+    $manualPlaceholder = $useManualIds ? "Voice Channel ID (Right-click voice channel ? Copy Channel ID)" : $placeholder;
     $emptyPlaceholder = empty($currentValue) ? " placeholder=\"$manualPlaceholder\"" : '';
     return "
-      <input class=\"input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;\">
-      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+      <input class=\"sp-input\" type=\"text\" id=\"$fieldId\" name=\"$fieldName\" value=\"" . htmlspecialchars($currentValue) . "\"$emptyPlaceholder$requiredAttr>
+      <span class=\"sp-input-icon\"><i class=\"$icon\"></i></span>";
   } else {
     // Show dropdown with voice channels
     $options = "<option value=\"\"" . (empty($currentValue) ? ' selected' : '') . ">Select a voice channel...</option>\n";
@@ -1746,13 +1742,11 @@ function generateVoiceChannelInput($fieldId, $fieldName, $currentValue, $placeho
       $channelId = htmlspecialchars($channel['id']);
       $channelName = htmlspecialchars($channel['name']);
       $selected = ($currentValue === $channel['id']) ? ' selected' : '';
-      $options .= "<option value=\"$channelId\"$selected>🔊 $channelName</option>\n";
+      $options .= "<option value=\"$channelId\"$selected>?? $channelName</option>\n";
     }
     return "
-      <div class=\"select is-fullwidth\" style=\"width: 100%;\">
-        <select id=\"$fieldId\" name=\"$fieldName\"$requiredAttr style=\"background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;\">$options</select>
-      </div>
-      <span class=\"icon is-small is-left has-text-grey-light\"><i class=\"$icon\"></i></span>";
+      <select class=\"sp-select\" id=\"$fieldId\" name=\"$fieldName\"$requiredAttr>$options</select>
+      <span class=\"sp-input-icon\"><i class=\"$icon\"></i></span>";
   }
 }
 
@@ -1773,162 +1767,75 @@ function getChannelNameFromId($channel_id, $channels_array)
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column is-fullwidth">
-    <!-- Modern Discord Integration Hero Section -->
-    <div class="hero is-primary"
-      style="background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">
-      <div class="hero-body" style="padding: 2rem;">
-        <div class="container">
-          <!-- Desktop layout: single row with status on right -->
-          <div class="is-hidden-mobile">
-            <div class="columns is-vcentered">
-              <div class="column">
-                <div class="media">
-                  <div class="media-left">
-                    <figure class="image is-64x64"
-                      style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                      <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
-                    </figure>
-                  </div>
-                  <div class="media-content">
-                    <p class="title is-3-desktop is-4-tablet has-text-white"
-                      style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
-                      Discord Integration
-                    </p>
-                    <p class="subtitle is-5-desktop is-6-tablet has-text-white"
-                      style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
-                      Connect your Discord server with BotOfTheSpecter
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div class="column is-narrow">
-                <?php if ($is_linked): ?>
-                  <div class="has-text-right">
-                    <div class="tags has-addons is-right mb-2">
-                      <span class="tag is-success is-medium" style="border-radius: 50px; font-weight: 600;">
-                        <span class="icon"><i class="fas fa-check-circle"></i></span>
-                        <span>Connected</span>
-                      </span>
-                    </div>
-                    <?php if ($expires_str): ?>
-                      <p class="is-size-7 has-text-white" style="opacity: 0.8; word-wrap: break-word; line-height: 1.3;">
-                        Active for <?php echo htmlspecialchars($expires_str); ?>
-                      </p>
-                    <?php endif; ?>
-                  </div>
-                <?php else: ?>
-                  <div class="has-text-right">
-                    <span class="tag is-warning is-medium" style="border-radius: 50px; font-weight: 600;">
-                      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                      <span>Not Connected</span>
-                    </span>
-                  </div>
-                <?php endif; ?>
-              </div>
-            </div>
-          </div>
-          <!-- Mobile layout: stacked rows -->
-          <div class="is-hidden-tablet">
-            <!-- Header with icon and title -->
-            <div class="columns is-mobile is-vcentered mb-4">
-              <div class="column">
-                <div class="media">
-                  <div class="media-left">
-                    <figure class="image is-48x48-mobile"
-                      style="background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                      <i class="fab fa-discord" style="font-size: 1.5rem; color: white;"></i>
-                    </figure>
-                  </div>
-                  <div class="media-content">
-                    <p class="title is-5-mobile has-text-white"
-                      style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2;">
-                      Discord Integration
-                    </p>
-                    <p class="subtitle is-7-mobile has-text-white"
-                      style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0;">
-                      Connect your Discord server with BotOfTheSpecter
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- Status section - separate row for mobile -->
-            <div class="columns is-mobile">
-              <div class="column">
-                <?php if ($is_linked): ?>
-                  <div class="has-text-centered">
-                    <div class="tags has-addons is-centered mb-2">
-                      <span class="tag is-success is-medium" style="border-radius: 50px; font-weight: 600;">
-                        <span class="icon"><i class="fas fa-check-circle"></i></span>
-                        <span>Connected</span>
-                      </span>
-                    </div>
-                    <?php if ($expires_str): ?>
-                      <p class="is-size-7-mobile has-text-white"
-                        style="opacity: 0.8; word-wrap: break-word; line-height: 1.3;">
-                        Active for <?php echo htmlspecialchars($expires_str); ?>
-                      </p>
-                    <?php endif; ?>
-                  </div>
-                <?php else: ?>
-                  <div class="has-text-centered">
-                    <span class="tag is-warning is-medium" style="border-radius: 50px; font-weight: 600;">
-                      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                      <span>Not Connected</span>
-                    </span>
-                  </div>
-                <?php endif; ?>
-              </div>
-            </div>
-          </div>
-        </div>
+<!-- Modern Discord Integration Hero Section -->
+<div style="background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); border-radius: 16px; overflow: hidden; margin-bottom: 2rem; padding: 2rem;">
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+    <div style="display:flex; align-items:center; gap:1rem; min-width:0;">
+      <div style="background: rgba(255,255,255,0.15); border-radius: 12px; width:64px; height:64px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
+      </div>
+      <div style="min-width:0;">
+        <p style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2; color:white; font-size:1.75rem;">Discord Integration</p>
+        <p style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0; color:white; font-size:1.05rem;">Connect your Discord server with BotOfTheSpecter</p>
       </div>
     </div>
+    <div>
+      <?php if ($is_linked): ?>
+        <div style="text-align:right;">
+          <div style="display:inline-flex;margin-bottom:0.5rem;">
+            <span class="sp-badge sp-badge-green" style="border-radius: 50px; font-weight: 600;">
+              <span class="icon"><i class="fas fa-check-circle"></i></span>
+              <span>Connected</span>
+            </span>
+          </div>
+          <?php if ($expires_str): ?>
+            <p style="font-size:0.8rem; opacity: 0.8; word-wrap: break-word; line-height: 1.3; color:white;">
+              Active for <?php echo htmlspecialchars($expires_str); ?>
+            </p>
+          <?php endif; ?>
+        </div>
+      <?php else: ?>
+        <span class="sp-badge sp-badge-amber" style="border-radius: 50px; font-weight: 600;">
+          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          <span>Not Connected</span>
+        </span>
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
     <!-- Status Cards Section -->
     <?php if ($linkingMessage): ?>
-      <div
-        class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?>"
-        style="border-radius: 12px; margin-bottom: 2rem; border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
-        <div class="level is-mobile">
-          <div class="level-left">
-            <div class="level-item">
-              <span class="icon is-medium">
-                <?php if ($linkingMessageType === 'is-danger'): ?>
-                  <i class="fas fa-exclamation-triangle"></i>
-                <?php elseif ($linkingMessageType === 'is-success'): ?>
-                  <i class="fas fa-check-circle"></i>
-                <?php else: ?>
-                  <i class="fas fa-info-circle"></i>
-                <?php endif; ?>
-              </span>
-              <div class="content" style="margin-left: 0.5rem;">
-                <strong><?php echo $linkingMessage; ?></strong>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="sp-alert <?php echo $linkingMessageType === 'is-success' ? 'sp-alert-success' : ($linkingMessageType === 'is-danger' ? 'sp-alert-danger' : 'sp-alert-warning'); ?>" style="margin-bottom:2rem;">
+        <span class="icon" style="margin-right:0.4rem;">
+          <?php if ($linkingMessageType === 'is-danger'): ?>
+            <i class="fas fa-exclamation-triangle"></i>
+          <?php elseif ($linkingMessageType === 'is-success'): ?>
+            <i class="fas fa-check-circle"></i>
+          <?php else: ?>
+            <i class="fas fa-info-circle"></i>
+          <?php endif; ?>
+        </span>
+        <strong><?php echo $linkingMessage; ?></strong>
       </div>
     <?php endif; ?>
     <!-- Main Content Cards -->
-    <div class="columns is-multiline">
+    <div style="display:flex;flex-wrap:wrap;gap:1.5rem;">
       <?php if (!$is_linked): ?>
         <?php if ($needs_relink): ?>
           <!-- Reconnection Required Card -->
-          <div class="column is-12">
-            <div class="card has-background-dark"
+          <div style="flex:0 0 100%;">
+            <div class="sp-card"
               style="border-radius: 16px; border: 2px solid #ff9800; background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%) !important;">
-              <div class="card-content has-text-centered" style="padding: 3rem 2rem;">
-                <div class="mb-4">
-                  <span class="icon is-large has-text-warning" style="font-size: 4rem;">
+              <div class="sp-card-body" style="padding: 3rem 2rem; text-align:center;">
+                <div style="margin-bottom:1rem;">
+                  <span class="icon" style="font-size: 4rem;">
                     <i class="fas fa-sync-alt"></i>
                   </span>
                 </div>
-                <h3 class="title is-3 has-text-white mb-3">
+                <h3 style="font-size:1.75rem;font-weight:700;margin-bottom:0.75rem;">
                   <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'New Permissions Required' : 'Reconnection Required'; ?>
                 </h3>
-                <p class="subtitle is-5 has-text-grey-light mb-5"
+                <p style="font-size:1.15rem;color:var(--text-muted);margin-bottom:0.5rem;"
                   style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
                   <?php if (isset($discordData['reauth']) && $discordData['reauth'] == 1): ?>
                     We've added new features that require additional Discord permissions. Please re-authorize your account to
@@ -1939,16 +1846,16 @@ ob_start();
                   <?php endif; ?>
                 </p>
                 <?php if ($isActAsUser): ?>
-                  <button class="button is-warning is-large" disabled
+                  <button class="sp-btn sp-btn-warning" style="padding:1rem 2rem;font-size:1rem;" disabled
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3); opacity: 0.7;">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                     <span>
                       <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
                     </span>
                   </button>
-                  <p class="help has-text-warning mt-3">Act As mode is active. Discord linking is disabled for acting users.</p>
+                  <p class="help">Act As mode is active. Discord linking is disabled for acting users.</p>
                 <?php else: ?>
-                  <button class="button is-warning is-large" onclick="linkDiscord()"
+                  <button class="sp-btn sp-btn-warning" style="padding:1rem 2rem;font-size:1rem;" onclick="linkDiscord()"
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                     <span>
@@ -1961,29 +1868,29 @@ ob_start();
           </div>
         <?php else: ?>
           <!-- Connect Discord Card -->
-          <div class="column is-12">
-            <div class="card has-background-dark"
+          <div style="flex:0 0 100%;">
+            <div class="sp-card"
               style="border-radius: 16px; border: 2px solid #5865f2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
-              <div class="card-content has-text-centered" style="padding: 3rem 2rem;">
-                <div class="mb-4">
-                  <span class="icon is-large has-text-primary" style="font-size: 4rem;">
+              <div class="sp-card-body" style="padding: 3rem 2rem; text-align:center;">
+                <div style="margin-bottom:1rem;">
+                  <span class="icon" style="font-size: 4rem;">
                     <i class="fab fa-discord"></i>
                   </span>
                 </div>
-                <h3 class="title is-3 has-text-white mb-3"><?php echo t('discordbot_link_title'); ?></h3>
-                <p class="subtitle is-5 has-text-grey-light mb-5"
+                <h3 style="font-size:1.75rem;font-weight:700;margin-bottom:0.75rem;"><?php echo t('discordbot_link_title'); ?></h3>
+                <p style="font-size:1.15rem;color:var(--text-muted);margin-bottom:0.5rem;"
                   style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
                   <?php echo t('discordbot_link_desc'); ?>
                 </p>
                 <?php if ($isActAsUser): ?>
-                  <button class="button is-primary is-large" disabled
+                  <button class="sp-btn sp-btn-primary" style="padding:1rem 2rem;font-size:1rem;" disabled
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3); opacity: 0.7;">
                     <span class="icon"><i class="fab fa-discord"></i></span>
                     <span><?php echo t('discordbot_link_btn'); ?></span>
                   </button>
-                  <p class="help has-text-warning mt-3">Act As mode is active. Discord linking is disabled for acting users.</p>
+                  <p class="help">Act As mode is active. Discord linking is disabled for acting users.</p>
                 <?php else: ?>
-                  <button class="button is-primary is-large" onclick="linkDiscord()"
+                  <button class="sp-btn sp-btn-primary" style="padding:1rem 2rem;font-size:1rem;" onclick="linkDiscord()"
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
                     <span class="icon"><i class="fab fa-discord"></i></span>
                     <span><?php echo t('discordbot_link_btn'); ?></span>
@@ -1995,150 +1902,91 @@ ob_start();
         <?php endif; ?>
       <?php else: ?>
         <!-- Connected Status Card -->
-        <div class="column is-12">
-          <div class="card has-background-dark"
+        <div style="flex:0 0 100%;">
+          <div class="sp-card"
             style="border-radius: 16px; border: 2px solid #00d1b2; background: linear-gradient(135deg, #2a2a2a 0%, #363636 100%) !important;">
-            <div class="card-content discord-card-content" style="padding: 2rem;">
-              <!-- Desktop layout: single row with buttons on right -->
-              <div class="is-hidden-mobile">
-                <div class="level" style="flex-wrap: wrap !important; overflow: visible !important;">
-                  <div class="level-left"
-                    style="flex: 1 !important; min-width: 0 !important; max-width: calc(100% - 200px) !important; overflow: visible !important;">
-                    <div class="level-item"
-                      style="flex: 1 !important; min-width: 0 !important; overflow: visible !important;">
-                      <div class="media"
-                        style="overflow: visible !important; min-width: 0 !important; flex: 1 !important;">
-                        <div class="media-left">
-                          <span class="icon is-large has-text-success" style="font-size: 3rem;">
-                            <i class="fas fa-check-circle"></i>
-                          </span>
-                        </div>
-                        <div class="media-content"
-                          style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
-                          <h4 class="title is-4 has-text-white mb-2"
-                            style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
-                            <?php echo t('discordbot_linked_title'); ?>
-                          </h4>
-                          <p class="subtitle is-6 has-text-grey-light mb-0"
-                            style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
-                            <?php echo t('discordbot_linked_desc'); ?>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="level-right">
-                    <div class="level-item">
-                      <div class="buttons">
-                        <button class="button is-primary" onclick="inviteBot()"
-                          style="border-radius: 25px; font-weight: 600;">
-                          <span class="icon"><i class="fas fa-plus-circle"></i></span>
-                          <span>Invite Bot</span>
-                        </button>
-                        <button class="button is-danger" onclick="disconnectDiscord()"
-                          style="border-radius: 25px; font-weight: 600;">
-                          <span class="icon"><i class="fas fa-unlink"></i></span>
-                          <span>Disconnect</span>
-                        </button>
-                      </div>
-                    </div>
+            <div class="sp-card-body" style="padding: 2rem;">
+              <!-- Connected status row -->
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+                <div style="display:flex;align-items:center;gap:1rem;flex:1;min-width:0;">
+                  <span class="icon" style="font-size: 3rem;color:var(--green);flex-shrink:0;">
+                    <i class="fas fa-check-circle"></i>
+                  </span>
+                  <div style="min-width:0;overflow-wrap:break-word;word-break:break-word;">
+                    <h4 style="font-size:1.15rem;font-weight:700;margin-bottom:0.35rem;color:var(--text-primary);overflow-wrap:break-word;">
+                      <?php echo t('discordbot_linked_title'); ?>
+                    </h4>
+                    <p style="color:var(--text-muted);margin:0;overflow-wrap:break-word;">
+                      <?php echo t('discordbot_linked_desc'); ?>
+                    </p>
                   </div>
                 </div>
-              </div>
-              <!-- Mobile layout: stacked rows -->
-              <div class="is-hidden-tablet">
-                <!-- Header with icon and title -->
-                <div class="block mb-4">
-                  <div class="media">
-                    <div class="media-left">
-                      <span class="icon is-large has-text-success" style="font-size: 2.5rem;">
-                        <i class="fas fa-check-circle"></i>
-                      </span>
-                    </div>
-                    <div class="media-content"
-                      style="overflow: visible !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; max-width: 100% !important; min-width: 0 !important; flex: 1 !important;">
-                      <h4 class="title is-5-mobile has-text-white mb-2"
-                        style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
-                        <?php echo t('discordbot_linked_title'); ?>
-                      </h4>
-                      <p class="subtitle is-6-mobile has-text-grey-light mb-0"
-                        style="word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: break-word !important; white-space: normal !important; max-width: 100% !important;">
-                        <?php echo t('discordbot_linked_desc'); ?>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <!-- Buttons section - stacked on mobile -->
-                <div class="block">
-                  <div class="buttons is-centered">
-                    <button class="button is-primary is-fullwidth-mobile" onclick="inviteBot()"
-                      style="border-radius: 25px; font-weight: 600;">
-                      <span class="icon"><i class="fas fa-plus-circle"></i></span>
-                      <span>Invite Bot</span>
-                    </button>
-                    <button class="button is-danger is-fullwidth-mobile" onclick="disconnectDiscord()"
-                      style="border-radius: 25px; font-weight: 600;">
-                      <span class="icon"><i class="fas fa-unlink"></i></span>
-                      <span>Disconnect</span>
-                    </button>
-                  </div>
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;flex-shrink:0;">
+                  <button class="sp-btn sp-btn-primary" onclick="inviteBot()"
+                    style="border-radius: 25px; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-plus-circle"></i></span>
+                    <span>Invite Bot</span>
+                  </button>
+                  <button class="sp-btn sp-btn-danger" onclick="disconnectDiscord()"
+                    style="border-radius: 25px; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-unlink"></i></span>
+                    <span>Disconnect</span>
+                  </button>
                 </div>
               </div>
               <?php if ($expires_str): ?>
-                <div class="notification has-background-grey-darker"
+                <div class="sp-alert sp-alert-info"
                   style="border-radius: 12px; margin-top: 1rem; border: 1px solid #3273dc;">
-                  <div class="columns is-mobile is-vcentered">
-                    <div class="column is-narrow">
-                      <span class="icon has-text-info"><i class="fas fa-clock"></i></span>
-                      <strong class="has-text-white" style="margin-left: 0.5rem;">Token Status:</strong>
+                  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                    <div style="flex-shrink:0;">
+                      <span class="icon"><i class="fas fa-clock"></i></span>
+                      <strong style="margin-left: 0.5rem;">Token Status:</strong>
                     </div>
-                    <div class="column">
-                      <span class="has-text-grey-light" style="word-wrap: break-word;">Valid for
+                    <div>
+                      <span style="word-wrap: break-word;">Valid for
                         <?php echo htmlspecialchars($expires_str); ?></span>
                     </div>
                   </div>
                 </div>
               <?php endif; ?>
               <!-- Guild ID Configuration - Independent Form -->
-              <div class="card has-background-grey-darker mb-4"
-                style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem;">
-                <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-                  <p class="card-header-title has-text-white" style="font-weight: 600;">
-                    <span class="icon mr-2 has-text-primary"><i class="fas fa-server"></i></span>
+              <div class="sp-card" style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem;">
+                <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+                  <p class="sp-card-title" style="font-weight: 600;">
+                    <span class="icon"><i class="fas fa-server"></i></span>
                     Discord Server Configuration
                   </p>
-                  <div class="card-header-icon" style="cursor: default;">
-                    <span class="tag is-info is-light">
+                  <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
+                    <span class="sp-badge sp-badge-blue">
                       <span class="icon"><i class="fas fa-cog"></i></span>
                       <span>Required</span>
                     </span>
                   </div>
-                </header>
-                <div class="card-content">
-                  <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+                </div>
+                <div class="sp-card-body">
+                  <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
                     <strong>Required for All Discord Bot Features:</strong> Please select your Discord Server to enable
                     all Discord Bot features including Server Management and Event Channels.
                   </div>
                   <form action="" method="post">
-                    <div class="field">
-                      <label class="label has-text-white" for="guild_id_config" style="font-weight: 500;">Discord
+                    <div class="sp-form-group">
+                      <label class="sp-label" for="guild_id_config" style="font-weight: 500;">Discord
                         Server</label>
-                      <div class="control has-icons-left">
+                      <div class="sp-input-wrap">
                         <?php if ($useManualIds): ?>
                           <!-- Manual ID Input Mode -->
-                          <input class="input" type="text" id="guild_id_config" name="guild_id"
+                          <input class="sp-input" type="text" id="guild_id_config" name="guild_id"
                             value="<?php echo htmlspecialchars($existingGuildId); ?>" <?php if (empty($existingGuildId)) {
                                  echo ' placeholder="e.g. 123456789123456789"';
                                } ?>
-                            style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                          <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
-                          <p class="help has-text-grey-light">Manual ID mode enabled. Right-click your Discord server name →
+                           >
+                          <span class="sp-input-icon"><i class="fab fa-discord"></i></span>
+                          <p class="sp-help">Manual ID mode enabled. Right-click your Discord server name ?
                             Copy Server ID (Developer Mode required)</p>
                         <?php elseif (!empty($userAdminGuilds) && is_array($userAdminGuilds)): ?>
                           <!-- Dropdown Mode -->
-                          <div class="select is-fullwidth" style="width: 100%;">
-                            <select id="guild_id_config" name="guild_id"
+                          <select class="sp-select" id="guild_id_config" name="guild_id"
                               style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;">
                               <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>>Select a Discord
                                 Server...</option>
@@ -2153,16 +2001,15 @@ ob_start();
                                 </option>
                               <?php endforeach; ?>
                             </select>
-                          </div>
-                          <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
+                          <span class="sp-input-icon"><i class="fab fa-discord"></i></span>
                         <?php else: ?>
                           <!-- Fallback/Loading Mode -->
-                          <input class="input" type="text" id="guild_id_config" name="guild_id"
+                          <input class="sp-input" type="text" id="guild_id_config" name="guild_id"
                             value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..."
                             disabled
-                            style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                          <span class="icon is-small is-left has-text-grey-light"><i class="fab fa-discord"></i></span>
-                          <p class="help has-text-warning">
+                           >
+                          <span class="sp-input-icon"><i class="fab fa-discord"></i></span>
+                          <p class="sp-help sp-help-warning">
                             <?php if (!$is_linked || $needs_relink): ?>
                               Please link your Discord account to view available servers.
                             <?php else: ?>
@@ -2172,18 +2019,18 @@ ob_start();
                         <?php endif; ?>
                       </div>
                     </div>
-                    <div class="field">
-                      <div class="control">
-                        <button class="button is-primary is-fullwidth" type="submit"
+                    <div class="sp-form-group">
+                      <div>
+                        <button class="sp-btn sp-btn-primary" style="width:100%" type="submit"
                           style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || (!$useManualIds && empty($userAdminGuilds))) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-save"></i></span>
                           <span>Save Server Configuration</span>
                         </button>
                       </div>
                       <?php if (!$is_linked || $needs_relink): ?>
-                        <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                        <p class="sp-help sp-help-warning" style="text-align:center;">Account not linked or needs relinking</p>
                       <?php elseif (!$useManualIds && empty($userAdminGuilds)): ?>
-                        <p class="help has-text-warning has-text-centered mt-2">No servers available with admin permissions
+                        <p class="sp-help sp-help-warning" style="text-align:center;">No servers available with admin permissions
                         </p>
                       <?php endif; ?>
                     </div>
@@ -2192,25 +2039,25 @@ ob_start();
               </div>
               <!-- Channel Input Mode Notification (moved here from Twitch Online Alert) -->
               <?php if ($useManualIds): ?>
-                <div class="notification is-info is-light"
+                <div class="sp-alert sp-alert-info"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-keyboard"></i></span>
                   <strong>Manual Mode:</strong> Paste channel IDs here (one ID per field).
                 </div>
               <?php elseif (!empty($guildChannels)): ?>
-                <div class="notification is-success is-light"
+                <div class="sp-alert sp-alert-success"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-list"></i></span>
                   <strong>Pick From Server:</strong> Choose channels from the dropdowns below.
                 </div>
               <?php elseif (!empty($existingGuildId)): ?>
-                <div class="notification is-warning is-light"
+                <div class="sp-alert sp-alert-warning"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
                   <strong>Can't load channels:</strong> Reconnect Discord or check the bot's server permissions.
                 </div>
               <?php else: ?>
-                <div class="notification is-warning is-light"
+                <div class="sp-alert sp-alert-warning"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-server"></i></span>
                   <strong>No server selected:</strong> Pick a Discord server above to enable channel dropdowns.
@@ -2222,14 +2069,14 @@ ob_start();
         <!-- Success/Error Messages -->
         <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
           <?php if ($buildStatus): ?>
-            <div class="column is-12">
-              <div class="notification has-background-dark"
+            <div style="flex:0 0 100%;">
+              <div class="sp-alert sp-alert-success"
                 style="border-radius: 12px; border: 2px solid #48c774; box-shadow: 0 4px 16px rgba(72,199,116,0.2);">
-                <div class="level is-mobile">
-                  <div class="level-left">
-                    <div class="level-item">
-                      <span class="icon has-text-success"><i class="fas fa-check-circle"></i></span>
-                      <div class="has-text-white" style="margin-left: 0.5rem;"><?php echo $buildStatus; ?></div>
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                  <div>
+                    <div>
+                      <span class="icon"><i class="fas fa-check-circle"></i></span>
+                      <div style="margin-left: 0.5rem;"><?php echo $buildStatus; ?></div>
                     </div>
                   </div>
                 </div>
@@ -2237,14 +2084,14 @@ ob_start();
             </div>
           <?php endif; ?>
           <?php if ($errorMsg): ?>
-            <div class="column is-12">
-              <div class="notification has-background-dark"
+            <div style="flex:0 0 100%;">
+              <div class="sp-alert sp-alert-success"
                 style="border-radius: 12px; border: 2px solid #ff4e65; box-shadow: 0 4px 16px rgba(255,78,101,0.2);">
-                <div class="level is-mobile">
-                  <div class="level-left">
-                    <div class="level-item">
-                      <span class="icon has-text-danger"><i class="fas fa-exclamation-triangle"></i></span>
-                      <div class="has-text-white" style="margin-left: 0.5rem;"><?php echo $errorMsg; ?></div>
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                  <div>
+                    <div>
+                      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                      <div style="margin-left: 0.5rem;"><?php echo $errorMsg; ?></div>
                     </div>
                   </div>
                 </div>
@@ -2255,165 +2102,164 @@ ob_start();
       <?php endif; ?>
     </div>
     <!-- Discord Server Management Card -->
-    <div class="card has-background-grey-darker mb-5"
-      style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-      <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-        <p class="card-header-title has-text-white" style="font-weight: 600;">
-          <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
+    <div class="sp-card" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+      <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+        <p class="sp-card-title" style="font-weight: 600;">
+          <span class="icon"><i class="fab fa-discord"></i></span>
           Discord Server Management
         </p>
-        <div class="card-header-icon" style="cursor: default;">
-          <span class="tag is-success is-light">
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
+          <span class="sp-badge sp-badge-green">
             <!--<span class="icon"><i class="fas fa-flask"></i></span>
             <span>PARTIAL COMPLETED</span>-->
             <span class="icon"><i class="fas fa-check-circle"></i></span>
             <span>COMPLETED</span>
           </span>
         </div>
-      </header>
-      <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
+      </div>
+      <div class="sp-card-body" style="flex-grow: 1; display: flex; flex-direction: column;">
         <?php if (!$is_linked || $needs_relink): ?>
-          <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+          <div class="sp-alert sp-alert-warning" style="border-radius: 8px; margin-bottom: 1rem;">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
             <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
           </div>
         <?php elseif (!$hasGuildId): ?>
-          <div class="notification is-warning is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+          <div class="sp-alert sp-alert-warning" style="border-radius: 8px; margin-bottom: 1rem;">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
             <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management
             features.
           </div>
         <?php else: ?>
-          <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
+          <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
             <span class="icon"><i class="fas fa-info-circle"></i></span>
             <strong>Control your Discord server with welcome messages, automatic roles, message tracking, and
               more.</strong>
           </div>
         <?php endif; ?>
         <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
-          <div class="field">
-            <label class="label has-text-white" style="font-weight: 500;">Server Management Features</label>
+          <div class="sp-form-group">
+            <label class="sp-label" style="font-weight: 500;">Server Management Features</label>
             <div class="server-management-toggles" style="margin-bottom: 0.75rem;">
-              <div class="toggle-item box">
-                <label for="welcomeMessage" class="toggle-title has-text-white">Welcome Message</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="welcomeMessage" type="checkbox" name="welcomeMessage" <?php echo (!empty($serverManagementSettings['welcomeMessage']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="welcomeMessage" class="toggle-title">Welcome Message</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="welcomeMessage" type="checkbox" name="welcomeMessage" <?php echo (!empty($serverManagementSettings['welcomeMessage']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="welcomeMessage">Disabled</div>
+                  <div class="toggle-status" data-for="welcomeMessage">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="autoRole" class="toggle-title has-text-white">Auto Role on Join</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="autoRole" type="checkbox" name="autoRole" <?php echo (!empty($serverManagementSettings['autoRole']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="autoRole" class="toggle-title">Auto Role on Join</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="autoRole" type="checkbox" name="autoRole" <?php echo (!empty($serverManagementSettings['autoRole']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="autoRole">Disabled</div>
+                  <div class="toggle-status" data-for="autoRole">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="roleHistory" class="toggle-title has-text-white">Role History</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="roleHistory" type="checkbox" name="roleHistory" <?php echo (!empty($serverManagementSettings['roleHistory']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="roleHistory" class="toggle-title">Role History</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="roleHistory" type="checkbox" name="roleHistory" <?php echo (!empty($serverManagementSettings['roleHistory']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="roleHistory">Disabled</div>
+                  <div class="toggle-status" data-for="roleHistory">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="messageTracking" class="toggle-title has-text-white">Message Tracking</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="messageTracking" type="checkbox" name="messageTracking" <?php echo (!empty($serverManagementSettings['messageTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="messageTracking" class="toggle-title">Message Tracking</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="messageTracking" type="checkbox" name="messageTracking" <?php echo (!empty($serverManagementSettings['messageTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="messageTracking">Disabled</div>
+                  <div class="toggle-status" data-for="messageTracking">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="roleTracking" class="toggle-title has-text-white">Role Tracking</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="roleTracking" type="checkbox" name="roleTracking" <?php echo (!empty($serverManagementSettings['roleTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="roleTracking" class="toggle-title">Role Tracking</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="roleTracking" type="checkbox" name="roleTracking" <?php echo (!empty($serverManagementSettings['roleTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="roleTracking">Disabled</div>
+                  <div class="toggle-status" data-for="roleTracking">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="serverRoleManagement" class="toggle-title has-text-white">Server Role Management</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="serverRoleManagement" type="checkbox"
+              <div class="toggle-item">
+                <label for="serverRoleManagement" class="toggle-title">Server Role Management</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="serverRoleManagement" type="checkbox"
                       name="serverRoleManagement" <?php echo (!empty($serverManagementSettings['serverRoleManagement']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="serverRoleManagement">Disabled</div>
+                  <div class="toggle-status" data-for="serverRoleManagement">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="userTracking" class="toggle-title has-text-white">User Tracking</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="userTracking" type="checkbox" name="userTracking" <?php echo (!empty($serverManagementSettings['userTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="userTracking" class="toggle-title">User Tracking</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="userTracking" type="checkbox" name="userTracking" <?php echo (!empty($serverManagementSettings['userTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="userTracking">Disabled</div>
+                  <div class="toggle-status" data-for="userTracking">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="reactionRoles" class="toggle-title has-text-white">Reaction Roles</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="reactionRoles" type="checkbox" name="reactionRoles" <?php echo (!empty($serverManagementSettings['reactionRoles']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="reactionRoles" class="toggle-title">Reaction Roles</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="reactionRoles" type="checkbox" name="reactionRoles" <?php echo (!empty($serverManagementSettings['reactionRoles']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="reactionRoles">Disabled</div>
+                  <div class="toggle-status" data-for="reactionRoles">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="rulesConfiguration" class="toggle-title has-text-white">Rules Configuration</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="rulesConfiguration" type="checkbox" name="rulesConfiguration"
+              <div class="toggle-item">
+                <label for="rulesConfiguration" class="toggle-title">Rules Configuration</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration"
                       <?php echo (!empty($serverManagementSettings['rulesConfiguration']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="rulesConfiguration">Disabled</div>
+                  <div class="toggle-status" data-for="rulesConfiguration">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="streamSchedule" class="toggle-title has-text-white">Stream Schedule</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="streamSchedule" type="checkbox" name="streamSchedule" <?php echo (!empty($serverManagementSettings['streamSchedule']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="streamSchedule" class="toggle-title">Stream Schedule</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="streamSchedule" type="checkbox" name="streamSchedule" <?php echo (!empty($serverManagementSettings['streamSchedule']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="streamSchedule">Disabled</div>
+                  <div class="toggle-status" data-for="streamSchedule">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="embedBuilder" class="toggle-title has-text-white">Embed Builder</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="embedBuilder" type="checkbox" name="embedBuilder" <?php echo (!empty($serverManagementSettings['embedBuilder']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="embedBuilder" class="toggle-title">Embed Builder</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="embedBuilder" type="checkbox" name="embedBuilder" <?php echo (!empty($serverManagementSettings['embedBuilder']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="embedBuilder">Disabled</div>
+                  <div class="toggle-status" data-for="embedBuilder">Disabled</div>
                 </div>
               </div>
-              <div class="toggle-item box">
-                <label for="freeGames" class="toggle-title has-text-white">Free Games</label>
-                <div class="control" style="margin-top:0.5rem;">
-                  <label class="switch is-rounded">
-                    <input class="switch is-rounded" id="freeGames" type="checkbox" name="freeGames" <?php echo (!empty($serverManagementSettings['freeGames']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
+              <div class="toggle-item">
+                <label for="freeGames" class="toggle-title">Free Games</label>
+                <div style="margin-top:0.5rem;">
+                  <label class="switch">
+                    <input id="freeGames" type="checkbox" name="freeGames" <?php echo (!empty($serverManagementSettings['freeGames']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status has-text-grey-light" data-for="freeGames">Disabled</div>
+                  <div class="toggle-status" data-for="freeGames">Disabled</div>
                 </div>
               </div>
             </div>
@@ -2422,61 +2268,61 @@ ob_start();
       </div>
     </div>
     <!-- Discord Event Channels Configuration Cards -->
-    <div class="columns is-variable is-6">
-      <div class="column is-6">
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+      <div style="flex:1;min-width:min(100%,400px);">
         <!-- Twitch Online Alert Card -->
-        <div class="card has-background-grey-darker"
+        <div class="sp-card"
           style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fab fa-discord"></i></span>
+          <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="sp-card-title" style="font-weight: 600;">
+              <span class="icon"><i class="fab fa-discord"></i></span>
               Twitch Online Alert
             </p>
-            <div class="card-header-icon" style="cursor: default;">
-              <span class="tag is-success is-light">
+            <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
+              <span class="sp-badge sp-badge-green">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
               </span>
             </div>
-          </header>
-          <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Stream Online Alerts:</strong> Configure Discord channels for stream
+          </div>
+          <div class="sp-card-body" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p><strong>Stream Online Alerts:</strong> Configure Discord channels for stream
                 online alerts and voice status updates when you go live on Twitch.</p>
             </div>
             <!-- Stream Online / Live Status Form -->
             <form action="" method="post"
               style="flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 1rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
-              <div class="field">
-                <label class="label has-text-white" for="stream_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-success"><i class="fas fa-broadcast-tower"></i></span>
-                  Stream Online Alerts Channel <span class="has-text-danger">*</span>
+              <div class="sp-form-group">
+                <label class="sp-label" for="stream_channel_id" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-broadcast-tower"></i></span>
+                  Stream Online Alerts Channel <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help has-text-grey-light mb-2">For stream online notifications of your channel</p>
-                <div class="control has-icons-left">
+                <p class="help">For stream online notifications of your channel</p>
+                <div class="sp-input-wrap">
                   <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
               </div>
-              <div class="field" id="stream_everyone_field" style="display: none;">
-                <label class="label has-text-white" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-warning"><i class="fas fa-at"></i></span>
+              <div class="sp-form-group" id="stream_everyone_field" style="display: none;">
+                <label class="sp-label" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-at"></i></span>
                   @everyone Mention for Stream Alerts
                 </label>
-                <p class="help has-text-grey-light mb-2">Mention @everyone when posting stream online alerts</p>
-                <div class="control">
+                <p class="help">Mention @everyone when posting stream online alerts</p>
+                <div>
                   <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone"
-                    class="switch is-rounded" value="1" <?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
-                  <label for="stream_alert_everyone" class="has-text-white">Enable @everyone mention</label>
+                    class="switch" value="1" <?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
+                  <label for="stream_alert_everyone">Enable @everyone mention</label>
                 </div>
               </div>
-              <div class="field" id="stream_custom_role_field" style="display: none;">
-                <label class="label has-text-white" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-info"><i class="fas fa-user-tag"></i></span>
+              <div class="sp-form-group" id="stream_custom_role_field" style="display: none;">
+                <label class="sp-label" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-user-tag"></i></span>
                   Custom Role Mention for Stream Alerts
                 </label>
-                <p class="help has-text-grey-light mb-2">Select a custom role to mention instead of @everyone</p>
-                <div class="control has-icons-left">
+                <p class="help">Select a custom role to mention instead of @everyone</p>
+                <div class="sp-input-wrap">
                   <?php echo generateRoleInput(
                     'stream_alert_custom_role',
                     'stream_alert_custom_role',
@@ -2489,61 +2335,61 @@ ob_start();
                   ); ?>
                 </div>
               </div>
-              <div class="field">
-                <label class="label has-text-white" for="live_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-info"><i class="fa-solid fa-volume-high"></i></span>
-                  Live Status Channel <span class="has-text-danger">*</span>
+              <div class="sp-form-group">
+                <label class="sp-label" for="live_channel_id" style="font-weight: 500;">
+                  <span class="icon"><i class="fa-solid fa-volume-high"></i></span>
+                  Live Status Channel <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help has-text-grey-light mb-2">The voice channel to update with live status</p>
-                <div class="control has-icons-left">
+                <p class="help">The voice channel to update with live status</p>
+                <div class="sp-input-wrap">
                   <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
                 </div>
               </div>
-              <div class="field">
-                <label class="label has-text-white" for="online_text" style="font-weight: 500;">
-                  <span class="icon is-small is-left has-text-success"><i class="fas fa-circle"></i></span>
+              <div class="sp-form-group">
+                <label class="sp-label" for="online_text" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-circle"></i></span>
                   Online Text
                 </label>
-                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is
+                <p class="help">Text to update the status voice channel when your channel is
                   online</p>
-                <div class="control has-icons-left">
-                  <input class="input" type="text" id="online_text" name="online_text"
+                <div class="sp-input-wrap">
+                  <input class="sp-input" type="text" id="online_text" name="online_text"
                     value="<?php echo htmlspecialchars($existingOnlineText); ?>" <?php if (empty($existingOnlineText)) {
                          echo ' placeholder="e.g. Stream Online"';
                        } ?> maxlength="20"
-                    style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                  <span class="icon is-small is-left has-text-success"><i class="fa-solid fa-comment"></i></span>
+                   >
+                  <span class="sp-input-icon"><i class="fa-solid fa-comment"></i></span>
                 </div>
-                <p class="help has-text-grey-light">
+                <p class="sp-help">
                   <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
                 </p>
               </div>
-              <div class="field">
-                <label class="label has-text-white" for="offline_text" style="font-weight: 500;">
-                  <span class="icon is-small is-left has-text-danger"><i class="fas fa-circle"></i></span>
+              <div class="sp-form-group">
+                <label class="sp-label" for="offline_text" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-circle"></i></span>
                   Offline Text
                 </label>
-                <p class="help has-text-grey-light mb-2">Text to update the status voice channel when your channel is
+                <p class="help">Text to update the status voice channel when your channel is
                   offline</p>
-                <div class="control has-icons-left">
-                  <input class="input" type="text" id="offline_text" name="offline_text"
+                <div class="sp-input-wrap">
+                  <input class="sp-input" type="text" id="offline_text" name="offline_text"
                     value="<?php echo htmlspecialchars($existingOfflineText); ?>" <?php if (empty($existingOfflineText)) {
                          echo ' placeholder="e.g. Stream Offline"';
                        } ?> maxlength="20"
-                    style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                  <span class="icon is-small is-left has-text-danger"><i class="fa-solid fa-comment"></i></span>
+                   >
+                  <span class="sp-input-icon"><i class="fa-solid fa-comment"></i></span>
                 </div>
-                <p class="help has-text-grey-light">
+                <p class="sp-help">
                   <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
                 </p>
               </div>
               <div style="flex-grow: 1;"></div>
               <?php if ($useManualIds): ?>
-                <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                  <div class="content">
+                <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                  <div>
                     <p><strong>How to get Channel IDs:</strong></p>
-                    <ol class="mb-2">
-                      <li>Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)</li>
+                    <ol style="margin-bottom:0.5rem;">
+                      <li>Enable Developer Mode in Discord (User Settings ? Advanced ? Developer Mode)</li>
                       <li>Right-click on the desired channel</li>
                       <li>Select "Copy Channel ID"</li>
                       <li>Paste the ID into the appropriate field above</li>
@@ -2551,20 +2397,20 @@ ob_start();
                   </div>
                 </div>
               <?php endif; ?>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_online"
+              <div class="sp-form-group">
+                <div>
+                  <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_stream_online"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-cog"></i></span>
                     <span>Save Stream & Live Status</span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
-                  <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                  <p class="sp-help sp-help-warning" style="text-align:center;">Account not linked or needs relinking</p>
                 <?php elseif (!$hasGuildId): ?>
-                  <p class="help has-text-warning has-text-centered mt-2">Guild ID not setup</p>
+                  <p class="sp-help sp-help-warning" style="text-align:center;">Guild ID not setup</p>
                 <?php else: ?>
-                  <p class="help has-text-grey-light has-text-centered mt-2">
+                  <p class="sp-help" style="text-align:center;">
                     These settings control stream online alerts and the voice channel status text.
                   </p>
                 <?php endif; ?>
@@ -2574,52 +2420,51 @@ ob_start();
         </div>
       </div>
       <!-- Right Column -->
-      <div class="column is-6">
+      <div style="flex:1;min-width:min(100%,400px);">
         <!-- Twitch Stream Monitoring Card -->
-        <div class="card has-background-grey-darker mb-5"
-          style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fa-brands fa-twitch"></i></span>
+        <div class="sp-card" style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
+          <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="sp-card-title" style="font-weight: 600;">
+              <span class="icon"><i class="fa-brands fa-twitch"></i></span>
               Twitch Stream Monitoring
             </p>
-            <div class="card-header-icon" style="cursor: default;">
-              <span class="tag is-success is-light">
+            <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
+              <span class="sp-badge sp-badge-green">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
                 <span>COMPLETED</span>
               </span>
             </div>
-          </header>
-          <div class="card-content" style="flex-grow: 1; display: flex; flex-direction: column;">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Stream Monitoring:</strong> Add Twitch streamers to monitor and receive
+          </div>
+          <div class="sp-card-body" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p><strong>Stream Monitoring:</strong> Add Twitch streamers to monitor and receive
                 notifications in your Discord server when they go live.</p>
             </div>
             <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
-              <div class="field">
-                <label class="label has-text-white" for="option" style="font-weight: 500;">Twitch Username</label>
-                <div class="control has-icons-left">
-                  <input class="input" type="text" id="monitor_username" name="monitor_username"
+              <div class="sp-form-group">
+                <label class="sp-label" for="option" style="font-weight: 500;">Twitch Username</label>
+                <div class="sp-input-wrap">
+                  <input class="sp-input" type="text" id="monitor_username" name="monitor_username"
                     placeholder="e.g. botofthespecter"
-                    style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                  <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-person"></i></span>
+                   >
+                  <span class="sp-input-icon"><i class="fas fa-person"></i></span>
                 </div>
               </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit"
+              <div class="sp-form-group">
+                <div>
+                  <button class="sp-btn sp-btn-primary" style="width:100%" type="submit"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-save"></i></span>
                     <span>Add Streamer</span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
-                  <p class="help has-text-warning has-text-centered mt-2">Account not linked or needs relinking</p>
+                  <p class="sp-help sp-help-warning" style="text-align:center;">Account not linked or needs relinking</p>
                 <?php endif; ?>
               </div>
             </form>
-            <div class="mt-3">
-              <button class="button is-link is-fullwidth modal-button" style="border-radius: 6px; font-weight: 600;"
+            <div style="margin-top:0.75rem;">
+              <button class="sp-btn sp-btn-info modal-button" style="width:100%" style="border-radius: 6px; font-weight: 600;"
                 data-target="savedStreamersModal">
                 <span class="icon"><i class="fa-solid fa-people-group"></i></span>
                 <span>View Tracked Streamers</span>
@@ -2628,17 +2473,17 @@ ob_start();
             <!-- Twitch Stream Monitoring Channel Selector -->
             <form action="" method="post" style="margin-top: 0.75rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
-              <div class="field">
-                <label class="label has-text-white" for="twitch_stream_monitor_id" style="font-weight: 500;">Twitch
+              <div class="sp-form-group">
+                <label class="sp-label" for="twitch_stream_monitor_id" style="font-weight: 500;">Twitch
                   Stream Monitoring Channel</label>
-                <p class="help has-text-grey-light mb-2">Channel to post when tracked Twitch users go live</p>
-                <div class="control has-icons-left">
+                <p class="help">Channel to post when tracked Twitch users go live</p>
+                <div class="sp-input-wrap">
                   <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
               </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_stream_monitoring"
+              <div class="sp-form-group">
+                <div>
+                  <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_stream_monitoring"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-wifi"></i></span>
                     <span>Save Monitoring Channel</span>
@@ -2649,52 +2494,52 @@ ob_start();
           </div>
         </div>
         <!-- Twitch Event/Action Audit Log Card (separate box below) -->
-        <div class="card has-background-grey-darker"
+        <div class="sp-card"
           style="border-radius: 12px; border: 1px solid #363636; margin-top: 1rem; width: 100%;">
-          <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-            <p class="card-header-title has-text-white" style="font-weight: 600;">
-              <span class="icon mr-2 has-text-primary"><i class="fas fa-clipboard-list"></i></span>
+          <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+            <p class="sp-card-title" style="font-weight: 600;">
+              <span class="icon"><i class="fas fa-clipboard-list"></i></span>
               Twitch Event/Action Audit Log
             </p>
-            <div class="card-header-icon" style="cursor: default;">
-              <span class="tag is-info is-light">
+            <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
+              <span class="sp-badge sp-badge-blue">
                 <span class="icon"><i class="fas fa-list"></i></span>
                 <span>AUDIT</span>
               </span>
             </div>
-          </header>
-          <div class="card-content" style="display: flex; flex-direction: column;">
-            <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p class="has-text-dark"><strong>Audit Logging:</strong> Track all Twitch moderation actions and events
+          </div>
+          <div class="sp-card-body" style="display: flex; flex-direction: column;">
+            <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+              <p><strong>Audit Logging:</strong> Track all Twitch moderation actions and events
                 with automatic Discord channel logging for full transparency and record-keeping.</p>
             </div>
             <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
-              <div class="field">
-                <label class="label has-text-white" for="mod_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-danger"><i class="fas fa-shield-alt"></i></span>
-                  Twitch Moderation Actions Channel <span class="has-text-danger">*</span>
+              <div class="sp-form-group">
+                <label class="sp-label" for="mod_channel_id" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-shield-alt"></i></span>
+                  Twitch Moderation Actions Channel <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help has-text-grey-light mb-2">Any moderation actions will be logged to this channel, e.g.
+                <p class="help">Any moderation actions will be logged to this channel, e.g.
                   bans, timeouts, message deletions</p>
-                <div class="control has-icons-left">
+                <div class="sp-input-wrap">
                   <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
               </div>
-              <div class="field">
-                <label class="label has-text-white" for="alert_channel_id" style="font-weight: 500;">
-                  <span class="icon mr-1 has-text-warning"><i class="fas fa-exclamation-triangle"></i></span>
-                  Twitch Event Alerts Channel <span class="has-text-danger">*</span>
+              <div class="sp-form-group">
+                <label class="sp-label" for="alert_channel_id" style="font-weight: 500;">
+                  <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                  Twitch Event Alerts Channel <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help has-text-grey-light mb-2">Get a discord notification when a Twitch event occurs, e.g.
+                <p class="help">Get a discord notification when a Twitch event occurs, e.g.
                   Followers, Subscriptions, Bits</p>
-                <div class="control has-icons-left">
+                <div class="sp-input-wrap">
                   <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
               </div>
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="submit" name="save_alert_channels"
+              <div class="sp-form-group">
+                <div>
+                  <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_alert_channels"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-bell"></i></span>
                     <span>Save Audit Log Channels</span>
@@ -2708,88 +2553,87 @@ ob_start();
     </div>
     <!-- Individual Management Feature Cards -->
     <?php if ($hasEnabledFeatures && $is_linked && !$needs_relink && $hasGuildId): ?>
-      <div class="columns is-multiline">
-        <div class="column is-6 is-flex" id="feature-box-welcomeMessage"
+      <div style="display:flex;flex-wrap:wrap;gap:1.5rem;">
+        <div id="feature-box-welcomeMessage" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['welcomeMessage'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-success"><i class="fas fa-door-open"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-door-open"></i></span>
                 Welcome Message Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('welcomeMessage')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('welcomeMessage')" style="margin-right: 10px;"
                   title="Clear all welcome message data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Welcome Messages:</strong> Greet new members with personalized welcome
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Welcome Messages:</strong> Greet new members with personalized welcome
                   messages when they join your Discord server.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Welcome Channel <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Welcome Channel <span style="color:var(--danger);">*</span></label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where welcome messages will be sent</p>
+                  <p class="sp-help">Channel where welcome messages will be sent</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <label class="checkbox has-text-white">
+                <div class="sp-form-group">
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message"
                         style="margin-right: 8px;" <?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
                       Use default welcome message
                     </label>
                   </div>
-                  <p class="help has-text-grey-light">Enable this to use the bot's default welcome message instead of a
+                  <p class="sp-help">Enable this to use the bot's default welcome message instead of a
                     custom one</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <label class="checkbox has-text-white">
+                <div class="sp-form-group">
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="enable_embed_message" name="enable_embed_message"
                         style="margin-right: 8px;" <?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
                       Enable Embed Message
                     </label>
                   </div>
-                  <p class="help has-text-grey-light">Send the welcome message as a rich embed with formatting and colors
+                  <p class="sp-help">Send the welcome message as a rich embed with formatting and colors
                   </p>
                 </div>
-                <div class="field" id="welcome_colour_field"
+                <div class="sp-form-group" id="welcome_colour_field"
                   style="<?php echo $existingWelcomeEmbed ? '' : 'display: none;'; ?>">
-                  <label class="label has-text-white" style="font-weight: 500;">
-                    <span class="icon is-small mr-1"><i class="fas fa-palette"></i></span>
+                  <label class="sp-label" style="font-weight: 500;">
+                    <span class="icon"><i class="fas fa-palette"></i></span>
                     Embed Colour
                   </label>
-                  <div class="control">
-                    <input class="input" type="color" id="welcome_colour" name="welcome_colour"
+                  <div>
+                    <input class="sp-input" type="color" id="welcome_colour" name="welcome_colour"
                       value="<?php echo htmlspecialchars($existingWelcomeColour ?: '#00d1b2'); ?>"
                       style="height: 40px; cursor: pointer;">
                   </div>
-                  <p class="help has-text-grey-light">Choose the colour for the embed border and accent</p>
+                  <p class="sp-help">Choose the colour for the embed border and accent</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Custom Welcome Message</label>
-                  <div class="control">
-                    <textarea class="textarea" id="welcome_message" name="welcome_message" rows="3"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Custom Welcome Message</label>
+                  <div>
+                    <textarea class="sp-textarea" id="welcome_message" name="welcome_message" rows="3"
                       placeholder="Welcome (user) to our server, we're so glad you joined us!"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;" <?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
+                      <?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
                   </div>
-                  <p class="help has-text-grey-light">Use (user) to insert the member's username</p>
+                  <p class="sp-help">Use (user) to insert the member's username</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="button" onclick="saveWelcomeMessage()"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveWelcomeMessage()"
                       name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Welcome Message Configuration</span>
@@ -2800,35 +2644,35 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-autoRole"
+        <div id="feature-box-autoRole" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['autoRole'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-info"><i class="fas fa-user-plus"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-user-plus"></i></span>
                 Auto Role Assignment Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('autoRole')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('autoRole')" style="margin-right: 10px;"
                   title="Clear all auto role data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Auto Role Assignment:</strong> Automatically assign a role to new members
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Auto Role Assignment:</strong> Automatically assign a role to new members
                   when they join your Discord server.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Auto Role</label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Auto Role</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateRoleInput(
                       'auto_role_id',
                       'auto_role_id',
@@ -2840,11 +2684,11 @@ ob_start();
                       false
                     ); ?>
                   </div>
-                  <p class="help has-text-grey-light">Role to automatically assign to new members</p>
+                  <p class="sp-help">Role to automatically assign to new members</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="button" onclick="saveAutoRole()"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveAutoRole()"
                       name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Auto Role Settings</span>
@@ -2855,57 +2699,57 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-roleHistory"
+        <div id="feature-box-roleHistory" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['roleHistory'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-warning"><i class="fas fa-history"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-history"></i></span>
                 Role History Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('roleHistory')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('roleHistory')" style="margin-right: 10px;"
                   title="Clear all role history data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Role History:</strong> Automatically restore roles to members when they
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Role History:</strong> Automatically restore roles to members when they
                   rejoin your server, with configurable retention period for role records.</p>
               </div>
               <form id="roleHistoryForm" method="POST">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Enable Role Restoration</label>
-                  <div class="control">
-                    <label class="checkbox has-text-white">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Enable Role Restoration</label>
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="restore_roles" name="restore_roles" <?php echo ($existingRoleHistoryEnabled == 1 ? 'checked' : ''); ?> style="margin-right: 8px;">
                       Restore all previous roles when member rejoins
                     </label>
                   </div>
-                  <p class="help has-text-grey-light">When enabled, users will automatically receive their previous roles
+                  <p class="sp-help">When enabled, users will automatically receive their previous roles
                     when they rejoin</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">History Retention Period (Days)</label>
-                  <div class="control has-icons-left">
-                    <input class="input" type="number" id="history_retention_days" name="history_retention_days"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">History Retention Period (Days)</label>
+                  <div class="sp-input-wrap">
+                    <input class="sp-input" type="number" id="history_retention_days" name="history_retention_days"
                       value="<?php echo $existingRoleHistoryRetention ?? 30; ?>" min="1" max="365"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;">
-                    <span class="icon is-small is-left has-text-grey-light"><i class="fas fa-calendar"></i></span>
+                     >
+                    <span class="sp-input-icon"><i class="fas fa-calendar"></i></span>
                   </div>
-                  <p class="help has-text-grey-light">How long to keep role history data after a member leaves (1-365
+                  <p class="sp-help">How long to keep role history data after a member leaves (1-365
                     days)</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_role_history"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_role_history"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Role History Settings</span>
@@ -2916,55 +2760,55 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-messageTracking"
+        <div id="feature-box-messageTracking" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['messageTracking'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-danger"><i class="fas fa-eye"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-eye"></i></span>
                 Message Tracking Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('messageTracking')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('messageTracking')" style="margin-right: 10px;"
                   title="Clear all message tracking data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Message Tracking:</strong> Track and log edited and deleted messages in
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Message Tracking:</strong> Track and log edited and deleted messages in
                   your Discord server for moderation and transparency purposes.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Message Log Channel ID</label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Message Log Channel ID</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('message_tracking_log_channel_id', 'message_tracking_log_channel_id', $existingMessageTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where message edit/delete logs will be sent</p>
+                  <p class="sp-help">Channel where message edit/delete logs will be sent</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                  <div class="control">
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Tracking Options</label>
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_message_edits" style="margin-right: 8px;" <?php echo $existingMessageTrackingEdits ? 'checked' : ''; ?>>
                       Track message edits
                     </label>
-                    <label class="checkbox has-text-white">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_message_deletes" style="margin-right: 8px;" <?php echo $existingMessageTrackingDeletes ? 'checked' : ''; ?>>
                       Track message deletions
                     </label>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_message_tracking"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_message_tracking"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Message Tracking Settings</span>
@@ -2975,55 +2819,55 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-roleTracking"
+        <div id="feature-box-roleTracking" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['roleTracking'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-primary"><i class="fas fa-users-cog"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-users-cog"></i></span>
                 Role Tracking Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('roleTracking')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('roleTracking')" style="margin-right: 10px;"
                   title="Clear all role tracking data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Role Tracking:</strong> Monitor and log role assignments and removals for
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Role Tracking:</strong> Monitor and log role assignments and removals for
                   audit and transparency purposes in your Discord server.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Role Log Channel</label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Role Log Channel</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('role_tracking_log_channel_id', 'role_tracking_log_channel_id', $existingRoleTrackingLogChannel, 'Select log channel', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where role change logs will be sent</p>
+                  <p class="sp-help">Channel where role change logs will be sent</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                  <div class="control">
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Tracking Options</label>
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" <?php echo $existingRoleTrackingAdditions ? 'checked' : ''; ?>>
                       Track role additions
                     </label>
-                    <label class="checkbox has-text-white">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" <?php echo $existingRoleTrackingRemovals ? 'checked' : ''; ?>>
                       Track role removals
                     </label>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_role_tracking"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_role_tracking"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Role Tracking Settings</span>
@@ -3034,59 +2878,59 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-serverRoleManagement"
+        <div id="feature-box-serverRoleManagement" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['serverRoleManagement'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-link"><i class="fas fa-cogs"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon" style="color:var(--info);"><i class="fas fa-cogs"></i></span>
                 Server Role Management Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('serverRoleManagement')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('serverRoleManagement')" style="margin-right: 10px;"
                   title="Clear all server role management data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Server Role Management:</strong> Track role creation, deletion, and edits
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Server Role Management:</strong> Track role creation, deletion, and edits
                   within your Discord server for full server management audit logs.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Server Management Log Channel ID</label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Server Management Log Channel ID</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerRoleManagementLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where server role management logs will be sent</p>
+                  <p class="sp-help">Channel where server role management logs will be sent</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Management Options</label>
-                  <div class="control">
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Management Options</label>
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" <?php echo $existingRoleCreationTracking ? 'checked' : ''; ?>>
                       Track role creation
                     </label>
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" <?php echo $existingRoleDeletionTracking ? 'checked' : ''; ?>>
                       Track role deletion
                     </label>
-                    <label class="checkbox has-text-white">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_role_edits" style="margin-right: 8px;" <?php echo $existingRoleEditTracking ? 'checked' : ''; ?>>
                       Track role edits
                     </label>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_server_role_management"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_server_role_management"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Server Role Management Settings</span>
@@ -3097,71 +2941,71 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-userTracking"
+        <div id="feature-box-userTracking" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['userTracking'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-info"><i class="fas fa-user-edit"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-user-edit"></i></span>
                 User Tracking Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFeature('userTracking')" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFeature('userTracking')" style="margin-right: 10px;"
                   title="Clear all user tracking data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>User Tracking:</strong> Track and log user activity including joins,
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>User Tracking:</strong> Track and log user activity including joins,
                   leaves, nickname changes, avatar updates, and status changes in your Discord server.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">User Tracking Log Channel ID</label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">User Tracking Log Channel ID</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('user_tracking_log_channel_id', 'user_tracking_log_channel_id', $existingUserTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where user tracking logs will be sent</p>
+                  <p class="sp-help">Channel where user tracking logs will be sent</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Tracking Options</label>
-                  <div class="control">
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Tracking Options</label>
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_joins" style="margin-right: 8px;" <?php echo $existingUserJoinTracking ? 'checked' : ''; ?>>
                       Track user joins
                     </label>
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_leaves" style="margin-right: 8px;" <?php echo $existingUserLeaveTracking ? 'checked' : ''; ?>>
                       Track user leaves
                     </label>
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_nickname" style="margin-right: 8px;" <?php echo $existingUserNicknameTracking ? 'checked' : ''; ?>>
                       Track nickname changes
                     </label>
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_username" style="margin-right: 8px;" <?php echo $existingUserUsernameTracking ? 'checked' : ''; ?>>
                       Track username changes
                     </label>
-                    <label class="checkbox has-text-white mb-2" style="display: block;">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_avatar" style="margin-right: 8px;" <?php echo $existingUserAvatarTracking ? 'checked' : ''; ?>>
                       Track avatar changes
                     </label>
-                    <label class="checkbox has-text-white">
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_user_status" style="margin-right: 8px;" <?php echo $existingUserStatusTracking ? 'checked' : ''; ?>>
                       Track status changes
                     </label>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_user_tracking"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_user_tracking"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save User Tracking Settings</span>
@@ -3172,306 +3016,299 @@ ob_start();
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-reactionRoles"
+        <div id="feature-box-reactionRoles" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['reactionRoles'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-purple"><i class="fas fa-hand-paper"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon" style="color:#9b59b6;"><i class="fas fa-hand-paper"></i></span>
                 Reaction Roles Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearReactionRoles()" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearReactionRoles()" style="margin-right: 10px;"
                   title="Clear all reaction roles data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in
                   your Discord server.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Channel ID</label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Reaction Roles Channel ID</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where reaction roles messages will be posted</p>
+                  <p class="sp-help">Channel where reaction roles messages will be posted</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Reaction Roles Message</label>
-                  <div class="control">
-                    <textarea class="textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Reaction Roles Message</label>
+                  <div>
+                    <textarea class="sp-textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3"
                       placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
+                     ><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
                   </div>
-                  <p class="help has-text-grey-light">Message to display above the reaction roles. Leave empty for no
+                  <p class="sp-help">Message to display above the reaction roles. Leave empty for no
                     message.</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Reaction Role Mappings</label>
-                  <div class="control">
-                    <textarea class="textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Reaction Role Mappings</label>
+                  <div>
+                    <textarea class="sp-textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4"
                       placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
+                     ><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
                   </div>
-                  <p class="help has-text-grey-light">Format: :emoji: Description @RoleName [color] (one per line)<br>
+                  <p class="sp-help">Format: :emoji: Description @RoleName [color] (one per line)<br>
                     Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <label class="checkbox has-text-white">
+                <div class="sp-form-group">
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions"
                         style="margin-right: 8px;" <?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
                       Allow users to select multiple roles
                     </label>
                   </div>
-                  <p class="help has-text-grey-light">If unchecked, users can only have one role from this reaction role
+                  <p class="sp-help">If unchecked, users can only have one role from this reaction role
                     set</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="button" onclick="saveReactionRoles()"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveReactionRoles()"
                       name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Reaction Roles Settings</span>
                     </button>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-success is-fullwidth" type="button" onclick="sendReactionRolesMessage()"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-success" style="width:100%" type="button" onclick="sendReactionRolesMessage()"
                       id="send_reaction_roles_message" name="send_reaction_roles_message"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
                       <span>Send Message to Channel</span>
                     </button>
                   </div>
-                  <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the reaction roles message
+                  <p class="sp-help" style="text-align:center;">Posts or updates the reaction roles message
                     in Discord and applies the emoji mappings</p>
                 </div>
               </form>
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-rulesConfiguration"
+        <div id="feature-box-rulesConfiguration" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['rulesConfiguration'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-info"><i class="fas fa-gavel"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-gavel"></i></span>
                 Rules Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearRules()" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearRules()" style="margin-right: 10px;"
                   title="Clear all rules data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Server Rules:</strong> Post an embed with your server rules to keep your
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Server Rules:</strong> Post an embed with your server rules to keep your
                   community informed and set clear expectations for all members.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Rules Channel <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Rules Channel <span style="color:var(--danger);">*</span></label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where the rules message will be posted</p>
+                  <p class="sp-help">Channel where the rules message will be posted</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Rules Title <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control">
-                    <input class="input" type="text" id="rules_title" name="rules_title"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Rules Title <span style="color:var(--danger);">*</span></label>
+                  <div>
+                    <input class="sp-input" type="text" id="rules_title" name="rules_title"
                       value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                     
                       required>
                   </div>
-                  <p class="help has-text-grey-light">Title for the rules embed (appears at the top)</p>
+                  <p class="sp-help">Title for the rules embed (appears at the top)</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Rules Content <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control">
-                    <textarea class="textarea" id="rules_content" name="rules_content" rows="8"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Rules Content <span style="color:var(--danger);">*</span></label>
+                  <div>
+                    <textarea class="sp-textarea" id="rules_content" name="rules_content" rows="8"
                       placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                     
                       required><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
                   </div>
-                  <p class="help has-text-grey-light">Enter your server rules. You can use numbered lists, bullet points,
+                  <p class="sp-help">Enter your server rules. You can use numbered lists, bullet points,
                     or any format you prefer. Discord markdown is supported.</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
-                  <div class="control">
-                    <input class="input" type="color" id="rules_color" name="rules_color"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Embed Color</label>
+                  <div>
+                    <input class="sp-input" type="color" id="rules_color" name="rules_color"
                       value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>"
                       style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
                   </div>
-                  <p class="help has-text-grey-light">Choose a color for the rules embed border (default is Discord blue)
+                  <p class="sp-help">Choose a color for the rules embed border (default is Discord blue)
                   </p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <label class="checkbox has-text-white">
+                <div class="sp-form-group">
+                  <div>
+                    <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="rules_assign_role_on_accept" name="rules_assign_role_on_accept"
                         style="margin-right: 8px;" <?php echo !empty($existingRulesAcceptRoleID) ? ' checked' : ''; ?>>
                       Assign role on rule acceptance
                     </label>
                   </div>
-                  <p class="help has-text-grey-light">When enabled, users who react with ✅ to the rules will be assigned
+                  <p class="sp-help">When enabled, users who react with ? to the rules will be assigned
                     the selected role</p>
                 </div>
-                <div class="field" id="rules_accept_role_field"
+                <div class="sp-form-group" id="rules_accept_role_field"
                   style="<?php echo empty($existingRulesAcceptRoleID) ? 'display: none;' : ''; ?>">
-                  <label class="label has-text-white" style="font-weight: 500;">Rules Acceptance Role</label>
-                  <div class="control has-icons-left">
+                  <label class="sp-label" style="font-weight: 500;">Rules Acceptance Role</label>
+                  <div class="sp-input-wrap">
                     <?php echo generateRoleInput('rules_accept_role_id', 'rules_accept_role_id', $existingRulesAcceptRoleID ?? '', 'e.g. 123456789123456789', $useManualIds, $guildRoles); ?>
                   </div>
-                  <p class="help has-text-grey-light">Role to assign when users react with ✅ to accept the rules</p>
+                  <p class="sp-help">Role to assign when users react with ? to accept the rules</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="button" onclick="saveRules()" name="save_rules"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveRules()" name="save_rules"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Rules Configuration</span>
                     </button>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-success is-fullwidth" type="button" onclick="sendRulesMessage()"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-success" style="width:100%" type="button" onclick="sendRulesMessage()"
                       id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
                       <span>Send Rules to Channel</span>
                     </button>
                   </div>
-                  <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the rules embed in the
+                  <p class="sp-help" style="text-align:center;">Posts or updates the rules embed in the
                     selected Discord channel with the latest configuration</p>
                 </div>
               </form>
             </div>
           </div>
         </div>
-        <div class="column is-6 is-flex" id="feature-box-streamSchedule"
+        <div id="feature-box-streamSchedule" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="display: <?php echo $serverManagementSettings['streamSchedule'] ? 'flex' : 'none'; ?>;">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-primary"><i class="fas fa-calendar-alt"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-calendar-alt"></i></span>
                 Stream Schedule Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearStreamSchedule()" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearStreamSchedule()" style="margin-right: 10px;"
                   title="Clear all schedule data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to
                   keep your community informed about when you stream.</p>
               </div>
               <form action="" method="post">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Schedule Channel <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Schedule Channel <span style="color:var(--danger);">*</span></label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('stream_schedule_channel_id', 'stream_schedule_channel_id', $existingStreamScheduleChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where the stream schedule message will be posted</p>
+                  <p class="sp-help">Channel where the stream schedule message will be posted</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Schedule Title <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control">
-                    <input class="input" type="text" id="stream_schedule_title" name="stream_schedule_title"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Schedule Title <span style="color:var(--danger);">*</span></label>
+                  <div>
+                    <input class="sp-input" type="text" id="stream_schedule_title" name="stream_schedule_title"
                       value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>"
                       placeholder="e.g. Weekly Stream Schedule"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                     
                       required>
                   </div>
-                  <p class="help has-text-grey-light">Title for the stream schedule embed (appears at the top)</p>
+                  <p class="sp-help">Title for the stream schedule embed (appears at the top)</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Stream Schedule Content <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control">
-                    <textarea class="textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10"
-                      placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;🎮 Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;🎮 Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;🎮 Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;🎮 Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST"
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Stream Schedule Content <span style="color:var(--danger);">*</span></label>
+                  <div>
+                    <textarea class="sp-textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10"
+                      placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;?? Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;?? Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;?? Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;?? Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST"
+                     
                       required><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
                   </div>
-                  <p class="help has-text-grey-light">Enter your stream schedule. You can use emojis, bullet points, or
+                  <p class="sp-help">Enter your stream schedule. You can use emojis, bullet points, or
                     any format you prefer. Discord markdown is supported. <a
                       href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">View
                       markdown guide</a></p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Timezone <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control">
-                    <input class="input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Timezone <span style="color:var(--danger);">*</span></label>
+                  <div>
+                    <input class="sp-input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone"
                       value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>"
                       placeholder="e.g. EST, PST, UTC, etc."
-                      style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px;"
+                     
                       required>
                   </div>
-                  <p class="help has-text-grey-light">Specify your timezone for clarity (will be shown in the footer)</p>
+                  <p class="sp-help">Specify your timezone for clarity (will be shown in the footer)</p>
                 </div>
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Embed Color</label>
-                  <div class="control">
-                    <input class="input" type="color" id="stream_schedule_color" name="stream_schedule_color"
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Embed Color</label>
+                  <div>
+                    <input class="sp-input" type="color" id="stream_schedule_color" name="stream_schedule_color"
                       value="<?php echo htmlspecialchars($existingStreamScheduleColor ?: '#9146ff'); ?>"
                       style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
                   </div>
-                  <p class="help has-text-grey-light">Choose a color for the schedule embed border (default is Twitch
+                  <p class="sp-help">Choose a color for the schedule embed border (default is Twitch
                     purple)</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="button" onclick="saveStreamSchedule(event)"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveStreamSchedule(event)"
                       name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Schedule Configuration</span>
                     </button>
                   </div>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-success is-fullwidth" type="button" onclick="sendStreamScheduleMessage()"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-success" style="width:100%" type="button" onclick="sendStreamScheduleMessage()"
                       id="send_stream_schedule_message" name="send_stream_schedule_message"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
                       <span>Send Schedule to Channel</span>
                     </button>
                   </div>
-                  <p class="help has-text-grey-light has-text-centered mt-2">Posts or updates the stream schedule embed in
+                  <p class="sp-help" style="text-align:center;">Posts or updates the stream schedule embed in
                     the selected Discord channel with the latest configuration</p>
                 </div>
               </form>
@@ -3479,43 +3316,42 @@ ob_start();
           </div>
         </div>
         <!-- Free Games Configuration Section -->
-        <div class="column is-6 is-flex" id="feature-box-freeGames"
+        <div id="feature-box-freeGames" style="flex:0 0 calc(50% - 0.75rem);min-width:0;display:flex;flex-direction:column;"
           style="<?php echo $serverManagementSettings['freeGames'] ? 'display: flex;' : 'display: none !important;'; ?>">
-          <div class="card has-background-grey-darker"
+          <div class="sp-card"
             style="border-radius: 12px; border: 1px solid #363636; width: 100%; display: flex; flex-direction: column;">
-            <header class="card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
-              <p class="card-header-title has-text-white" style="font-weight: 600;">
-                <span class="icon mr-2 has-text-success"><i class="fas fa-gift"></i></span>
+            <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
+              <p class="sp-card-title" style="font-weight: 600;">
+                <span class="icon"><i class="fas fa-gift"></i></span>
                 Free Games Configuration
               </p>
               <div class="card-header-icon">
-                <button class="button is-ghost" onclick="clearFreeGames()" style="margin-right: 10px;"
+                <button class="sp-btn sp-btn-ghost" onclick="clearFreeGames()" style="margin-right: 10px;"
                   title="Clear all free games data and disable this feature">
-                  <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
+                  <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
                   <span>COMPLETED</span>
                 </span>
               </div>
-            </header>
-            <div class="card-content">
-              <div class="notification is-info is-light" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p class="has-text-dark"><strong>Free Games:</strong> Get notified in your Discord server when free games
+            </div>
+            <div class="sp-card-body">
+              <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
+                <p><strong>Free Games:</strong> Get notified in your Discord server when free games
                   are available from various platforms.</p>
               </div>
               <form action="" method="post" onsubmit="handleFreestuffSubmit(event)">
-                <div class="field">
-                  <label class="label has-text-white" style="font-weight: 500;">Discord Channel <span
-                      class="has-text-danger">*</span></label>
-                  <div class="control has-icons-left">
+                <div class="sp-form-group">
+                  <label class="sp-label" style="font-weight: 500;">Discord Channel <span style="color:var(--danger);">*</span></label>
+                  <div class="sp-input-wrap">
                     <?php echo generateChannelInput('freestuff_channel_id', 'freestuff_channel_id', $existingFreestuffChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="help has-text-grey-light">Channel where free game announcements will be posted</p>
+                  <p class="sp-help">Channel where free game announcements will be posted</p>
                 </div>
-                <div class="field">
-                  <div class="control">
-                    <button class="button is-primary is-fullwidth" type="submit" name="save_freestuff_settings" id="save_freestuff_btn"
+                <div class="sp-form-group">
+                  <div>
+                    <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_freestuff_settings" id="save_freestuff_btn"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
                       <span>Save Free Games Settings</span>
@@ -3527,25 +3363,25 @@ ob_start();
           </div>
         </div>
         <!-- Embed Builder Section -->
-        <div class="column is-12" id="feature-box-embedBuilder"
+        <div style="flex:0 0 100%;" id="feature-box-embedBuilder"
           style="display: <?php echo $serverManagementSettings['embedBuilder'] ? 'block' : 'none'; ?>;">
-          <div class="box"
+          <div class="sp-card"
             style="background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%); border-radius: 12px; border: 1px solid #3a3a3a; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);">
-            <div class="content">
-              <h2 class="title is-4 has-text-white"
+            <div>
+              <h2 style="font-size:1.35rem;font-weight:700;margin-bottom:0.5rem;"
                 style="border-bottom: 2px solid #9146ff; padding-bottom: 10px; margin-bottom: 20px;">
-                <span class="icon-text">
-                  <span class="icon has-text-info"><i class="fas fa-comment-dots"></i></span>
+                <span style="display:inline-flex;align-items:center;gap:0.35rem;">
+                  <span class="icon"><i class="fas fa-comment-dots"></i></span>
                   <span>Custom Embed Builder</span>
                 </span>
               </h2>
-              <p class="has-text-grey-light mb-4">Create, manage, and send custom Discord embeds to any channel in your
+              <p style="color:var(--text-muted);">Create, manage, and send custom Discord embeds to any channel in your
                 server</p>
               <!-- Existing Embeds List -->
-              <div class="box"
-                style="background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; margin-bottom: 20px;">
-                <h3 class="subtitle is-5 has-text-white mb-3">
-                  <span class="icon-text">
+              <div class="sp-card"
+              style="background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="font-size:1.15rem;color:var(--text-muted);margin-bottom:0.5rem;">
+                  <span style="display:inline-flex;align-items:center;gap:0.35rem;">
                     <span class="icon"><i class="fas fa-list"></i></span>
                     <span>Your Custom Embeds</span>
                   </span>
@@ -3555,9 +3391,9 @@ ob_start();
                 </div>
               </div>
               <!-- Create New Embed Button -->
-              <div class="field">
-                <div class="control">
-                  <button class="button is-primary is-fullwidth" type="button" onclick="createEmbed()"
+              <div class="sp-form-group">
+                <div>
+                  <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="createEmbed()"
                     style="border-radius: 6px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-plus"></i></span>
                     <span>Create New Embed</span>
@@ -3569,147 +3405,145 @@ ob_start();
         </div>
       </div>
     <?php endif; ?>
-  </div>
-</div>
 
 <!-- Embed Builder Modal -->
 <div id="embedBuilderModal" class="modal">
   <div class="modal-background"></div>
   <div class="modal-content" style="width: 90%; max-width: 1200px;">
-    <div class="box" style="background-color: #2d2d2d; border-radius: 12px;">
-      <h2 class="title is-4 has-text-white mb-4" id="embedModalTitle">Create Custom Embed</h2>
-      <div class="columns">
+    <div class="sp-card" style="background-color: #2d2d2d;">
+      <h2 style="font-size:1.35rem;font-weight:700;margin-bottom:0.5rem;" id="embedModalTitle">Create Custom Embed</h2>
+      <div style="display:flex;gap:1.5rem;align-items:flex-start;">
         <!-- Left Column: Embed Configuration -->
-        <div class="column is-7">
-          <div class="field">
-            <label class="label has-text-white">Embed Name</label>
-            <div class="control">
-              <input class="input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+        <div style="flex:7;min-width:0;">
+          <div class="sp-form-group">
+            <label class="sp-label">Embed Name</label>
+            <div>
+              <input class="sp-input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements"
+                oninput="updateEmbedPreview()">
             </div>
-            <p class="help has-text-grey-light">Internal name to identify this embed (not shown in Discord)</p>
+            <p class="sp-help">Internal name to identify this embed (not shown in Discord)</p>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Embed Title</label>
-            <div class="control">
-              <input class="input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Embed Title</label>
+            <div>
+              <input class="sp-input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Description</label>
-            <div class="control">
-              <textarea class="textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..."
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;"
+          <div class="sp-form-group">
+            <label class="sp-label">Description</label>
+            <div>
+              <textarea class="sp-textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..."
+               
                 oninput="updateEmbedPreview()"></textarea>
             </div>
           </div>
           <div class="columns">
-            <div class="column">
-              <div class="field">
-                <label class="label has-text-white">Embed Color</label>
-                <div class="control">
-                  <input class="input" type="color" id="embed_color" value="#5865f2"
-                    style="background-color: #3a3a3a; border-color: #5a5a5a; height: 50px;"
+            <div>
+              <div class="sp-form-group">
+                <label class="sp-label">Embed Color</label>
+                <div>
+                  <input class="sp-input" type="color" id="embed_color" value="#5865f2"
+                   
                     oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
-            <div class="column">
-              <div class="field">
-                <label class="label has-text-white">URL (optional)</label>
-                <div class="control">
-                  <input class="input" type="url" id="embed_url" placeholder="https://example.com"
-                    style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;"
+            <div>
+              <div class="sp-form-group">
+                <label class="sp-label">URL (optional)</label>
+                <div>
+                  <input class="sp-input" type="url" id="embed_url" placeholder="https://example.com"
+                   
                     oninput="updateEmbedPreview()">
                 </div>
               </div>
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Thumbnail URL (optional)</label>
-            <div class="control">
-              <input class="input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Thumbnail URL (optional)</label>
+            <div>
+              <input class="sp-input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Image URL (optional)</label>
-            <div class="control">
-              <input class="input" type="url" id="embed_image" placeholder="https://example.com/image.png"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Image URL (optional)</label>
+            <div>
+              <input class="sp-input" type="url" id="embed_image" placeholder="https://example.com/image.png"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Footer Text (optional)</label>
-            <div class="control">
-              <input class="input" type="text" id="embed_footer_text" placeholder="Footer text"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Footer Text (optional)</label>
+            <div>
+              <input class="sp-input" type="text" id="embed_footer_text" placeholder="Footer text"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Footer Icon URL (optional)</label>
-            <div class="control">
-              <input class="input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Footer Icon URL (optional)</label>
+            <div>
+              <input class="sp-input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Author Name (optional)</label>
-            <div class="control">
-              <input class="input" type="text" id="embed_author_name" placeholder="Author name"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Author Name (optional)</label>
+            <div>
+              <input class="sp-input" type="text" id="embed_author_name" placeholder="Author name"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Author URL (optional)</label>
-            <div class="control">
-              <input class="input" type="url" id="embed_author_url" placeholder="https://example.com"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Author URL (optional)</label>
+            <div>
+              <input class="sp-input" type="url" id="embed_author_url" placeholder="https://example.com"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="label has-text-white">Author Icon URL (optional)</label>
-            <div class="control">
-              <input class="input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png"
-                style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" oninput="updateEmbedPreview()">
+          <div class="sp-form-group">
+            <label class="sp-label">Author Icon URL (optional)</label>
+            <div>
+              <input class="sp-input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png"
+                oninput="updateEmbedPreview()">
             </div>
           </div>
-          <div class="field">
-            <label class="checkbox has-text-white">
+          <div class="sp-form-group">
+            <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
               <input type="checkbox" id="embed_timestamp" onchange="updateEmbedPreview()">
               Include Timestamp
             </label>
           </div>
           <!-- Fields Section -->
-          <div class="box" style="background-color: #3a3a3a; border: 1px solid #5a5a5a;">
-            <h4 class="subtitle is-6 has-text-white">Embed Fields</h4>
+          <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;">
+            <h4 style="font-size:1rem;color:var(--text-muted);margin:0;">Embed Fields</h4>
             <div id="embedFieldsList"></div>
-            <button class="button is-small is-info" type="button" onclick="addEmbedField()">
+            <button class="sp-btn sp-btn-info sp-btn-sm" type="button" onclick="addEmbedField()">
               <span class="icon"><i class="fas fa-plus"></i></span>
               <span>Add Field</span>
             </button>
           </div>
         </div>
         <!-- Right Column: Preview -->
-        <div class="column is-5">
-          <div class="box" style="background-color: #36393f; border-radius: 8px; position: sticky; top: 20px;">
-            <h4 class="subtitle is-6 has-text-white mb-3">Preview</h4>
+        <div style="flex:5;min-width:0;">
+          <div style="background:#36393f;border-radius:8px;position:sticky;top:20px;padding:1rem;">
+            <h4 style="font-size:1rem;color:var(--text-muted);margin:0;">Preview</h4>
             <div id="embedPreview" style="background-color: #2f3136; border-radius: 4px; padding: 16px;">
               <!-- Preview will be rendered here -->
             </div>
           </div>
         </div>
       </div>
-      <div class="field is-grouped mt-4">
-        <div class="control">
-          <button class="button is-success" onclick="saveEmbed()">
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;">
+        <div>
+          <button class="sp-btn sp-btn-success" onclick="saveEmbed()">
             <span class="icon"><i class="fas fa-save"></i></span>
             <span>Save Embed</span>
           </button>
         </div>
-        <div class="control">
-          <button class="button is-light" onclick="closeEmbedModal()">
+        <div>
+          <button class="sp-btn sp-btn-secondary" onclick="closeEmbedModal()">
             <span class="icon"><i class="fas fa-times"></i></span>
             <span>Cancel</span>
           </button>
@@ -3717,27 +3551,27 @@ ob_start();
       </div>
     </div>
   </div>
-  <button class="modal-close is-large" aria-label="close" onclick="closeEmbedModal()"></button>
+  <button class="modal-close" aria-label="close" onclick="closeEmbedModal()"></button>
 </div>
 <!-- Send Embed Modal -->
 <div id="sendEmbedModal" class="modal">
   <div class="modal-background"></div>
   <div class="modal-content" style="width: 500px;">
-    <div class="box" style="background-color: #2d2d2d;">
-      <h3 class="title is-5 has-text-white">Send Embed to Channel</h3>
-      <div class="field">
-        <label class="label has-text-white">Select Channel</label>
+    <div class="sp-card">
+      <h3 style="font-size:1.15rem;font-weight:700;margin-bottom:0.5rem;">Send Embed to Channel</h3>
+      <div class="sp-form-group">
+        <label class="sp-label">Select Channel</label>
         <?php echo generateChannelInput('send_embed_channel', 'send_embed_channel', '', 'Select channel to send embed', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
       </div>
-      <div class="field is-grouped mt-4">
-        <div class="control">
-          <button class="button is-success" onclick="confirmSendEmbed()">
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;">
+        <div>
+          <button class="sp-btn sp-btn-success" onclick="confirmSendEmbed()">
             <span class="icon"><i class="fas fa-paper-plane"></i></span>
             <span>Send</span>
           </button>
         </div>
-        <div class="control">
-          <button class="button is-light" onclick="closeSendEmbedModal()">
+        <div>
+          <button class="sp-btn sp-btn-secondary" onclick="closeSendEmbedModal()">
             <span class="icon"><i class="fas fa-times"></i></span>
             <span>Cancel</span>
           </button>
@@ -3745,19 +3579,19 @@ ob_start();
       </div>
     </div>
   </div>
-  <button class="modal-close is-large" aria-label="close" onclick="closeSendEmbedModal()"></button>
+  <button class="modal-close" aria-label="close" onclick="closeSendEmbedModal()"></button>
 </div>
 <div id="savedStreamersModal" class="modal">
   <div class="modal-background"></div>
   <div class="modal-content" style="width: 50%;">
-    <div class="box">
-      <h1 class="title is-4 has-text-centered">Saved Streamers List</h1>
-      <table class="table is-fullwidth has-text-centered">
+    <div class="sp-card">
+      <h1 style="font-size:1.35rem;font-weight:700;margin-bottom:0.5rem;">Saved Streamers List</h1>
+      <table class="sp-table">
         <thead>
           <tr>
-            <th class="has-text-centered" style="text-align: center;">Twitch Username</th>
-            <th class="has-text-centered" style="text-align: center;">Twitch URL</th>
-            <th class="has-text-centered" style="text-align: center;">Actions</th>
+            <th style="text-align: center;">Twitch Username</th>
+            <th style="text-align: center;">Twitch URL</th>
+            <th style="text-align: center;">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -3766,7 +3600,7 @@ ob_start();
       </table>
     </div>
   </div>
-  <button class="modal-close is-large" aria-label="close"></button>
+  <button class="modal-close" aria-label="close"></button>
 </div>
 <?php
 $content = ob_get_clean();
@@ -3780,7 +3614,7 @@ ob_start();
   function populateStreamersTable() {
     tableBody.innerHTML = '';
     if (streamersToDisplay.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="3" class="has-text-centered">No streamers saved yet.</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No streamers saved yet.</td></tr>';
       return;
     }
     streamersToDisplay.forEach(streamer => {
@@ -3789,7 +3623,7 @@ ob_start();
       <td>${streamer.username}</td>
       <td><a href="${streamer.stream_url}" target="_blank">${streamer.stream_url}</a></td>
       <td>
-        <button class="button is-danger is-small" onclick="removeStreamer('${streamer.username}')">
+        <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="removeStreamer('${streamer.username}')">
           <span class="icon"><i class="fas fa-trash"></i></span>
           <span>Remove</span>
         </button>
@@ -3839,26 +3673,26 @@ ob_start();
         const container = document.getElementById('embedsList');
         if (data.success && data.embeds && data.embeds.length > 0) {
           container.innerHTML = data.embeds.map(embed => `
-          <div class="box" style="background-color: #3a3a3a; border: 1px solid #5a5a5a; margin-bottom: 10px;">
-            <div class="level">
-              <div class="level-left">
-                <div class="level-item">
+          <div class="sp-card" style="margin-bottom: 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+              <div>
+                <div>
                   <div>
-                    <p class="title is-6 has-text-white">${escapeHtml(embed.embed_name)}</p>
-                    <p class="subtitle is-7 has-text-grey-light">${embed.title ? escapeHtml(embed.title) : 'No title'}</p>
+                    <p>${escapeHtml(embed.embed_name)}</p>
+                    <p>${embed.title ? escapeHtml(embed.title) : 'No title'}</p>
                   </div>
                 </div>
               </div>
-              <div class="level-right">
-                <div class="level-item">
-                  <div class="buttons">
-                    <button class="button is-small is-info" onclick="editEmbed(${embed.id})">
+              <div>
+                <div>
+                  <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                    <button class="sp-btn sp-btn-info sp-btn-sm" onclick="editEmbed(${embed.id})">
                       <span class="icon"><i class="fas fa-edit"></i></span>
                     </button>
-                    <button class="button is-small is-success" onclick="sendEmbed(${embed.id})">
+                    <button class="sp-btn sp-btn-success sp-btn-sm" onclick="sendEmbed(${embed.id})">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
                     </button>
-                    <button class="button is-small is-danger" onclick="deleteEmbed(${embed.id})">
+                    <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="deleteEmbed(${embed.id})">
                       <span class="icon"><i class="fas fa-trash"></i></span>
                     </button>
                   </div>
@@ -3868,7 +3702,7 @@ ob_start();
           </div>
         `).join('');
         } else {
-          container.innerHTML = '<p class="has-text-grey-light has-text-centered">No custom embeds yet. Create one to get started!</p>';
+          container.innerHTML = '<p style="color:var(--text-muted);">No custom embeds yet. Create one to get started!</p>';
         }
       })
       .catch(error => {
@@ -4100,31 +3934,31 @@ ob_start();
   function addEmbedField(name = '', value = '', inline = false) {
     embedFieldsCounter++;
     const fieldHtml = `
-    <div class="box embed-field-item" style="background-color: #2a2a2a; border: 1px solid #5a5a5a; margin-bottom: 10px;" data-field-id="${embedFieldsCounter}">
-      <div class="field">
-        <label class="label has-text-white is-small">Field Name</label>
-        <div class="control">
-          <input class="input is-small field-name" type="text" value="${escapeHtml(name)}" placeholder="Field name" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" onchange="updateEmbedPreview()">
+    <div class="sp-card embed-field-item" style="margin-bottom: 10px;" data-field-id="${embedFieldsCounter}">
+      <div class="sp-form-group">
+        <label class="sp-label">Field Name</label>
+        <div>
+          <input class="sp-input field-name" type="text" value="${escapeHtml(name)}" placeholder="Field name" onchange="updateEmbedPreview()">
         </div>
       </div>
-      <div class="field">
-        <label class="label has-text-white is-small">Field Value</label>
-        <div class="control">
-          <textarea class="textarea is-small field-value" placeholder="Field value" style="background-color: #3a3a3a; border-color: #5a5a5a; color: white;" onchange="updateEmbedPreview()">${escapeHtml(value)}</textarea>
+      <div class="sp-form-group">
+        <label class="sp-label">Field Value</label>
+        <div>
+          <textarea class="sp-textarea field-value" placeholder="Field value" onchange="updateEmbedPreview()">${escapeHtml(value)}</textarea>
         </div>
       </div>
-      <div class="field">
-        <label class="checkbox has-text-white is-small">
+      <div class="sp-form-group">
+        <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.35rem;">
           <input type="checkbox" class="field-inline" ${inline ? 'checked' : ''} onchange="updateEmbedPreview()"> Inline
         </label>
-        <div class="buttons is-pulled-right">
-          <button class="button is-small is-info" type="button" onclick="moveFieldUp(${embedFieldsCounter})" title="Move Up">
+        <div style="display:flex;gap:0.35rem;justify-content:flex-end;">
+          <button class="sp-btn sp-btn-info sp-btn-sm" type="button" onclick="moveFieldUp(${embedFieldsCounter})" title="Move Up">
             <span class="icon"><i class="fas fa-arrow-up"></i></span>
           </button>
-          <button class="button is-small is-info" type="button" onclick="moveFieldDown(${embedFieldsCounter})" title="Move Down">
+          <button class="sp-btn sp-btn-info sp-btn-sm" type="button" onclick="moveFieldDown(${embedFieldsCounter})" title="Move Down">
             <span class="icon"><i class="fas fa-arrow-down"></i></span>
           </button>
-          <button class="button is-small is-danger" type="button" onclick="removeEmbedField(${embedFieldsCounter})">
+          <button class="sp-btn sp-btn-danger sp-btn-sm" type="button" onclick="removeEmbedField(${embedFieldsCounter})">
             <span class="icon"><i class="fas fa-trash"></i></span>
           </button>
         </div>
@@ -4199,7 +4033,7 @@ ob_start();
       preview += '<div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #4a4a4a;">';
       if (footerIcon) preview += `<img src="${footerIcon}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 8px;" onerror="this.style.display='none'">`;
       preview += `<span style="color: #72767d; font-size: 12px;">${parseDiscordMarkdown(footerText)}`;
-      if (timestamp) preview += ` • ${new Date().toLocaleString()}`;
+      if (timestamp) preview += ` � ${new Date().toLocaleString()}`;
       preview += '</span></div>';
     }
     preview += '</div>';
@@ -5080,7 +4914,7 @@ ob_start();
     // Confirm before sending
     Swal.fire({
       title: 'Send Reaction Roles Message?',
-      html: `Are you sure you want to send the reaction roles message to the selected Discord channel?<br><br><span class="has-text-weight-bold">This will post the message and add reaction emojis for users to interact with.</span>`,
+      html: `Are you sure you want to send the reaction roles message to the selected Discord channel?<br><br><span style="font-weight:bold;">This will post the message and add reaction emojis for users to interact with.</span>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send Message',
@@ -5238,7 +5072,7 @@ ob_start();
     // Confirm before sending
     Swal.fire({
       title: 'Send Rules Message?',
-      html: `Are you sure you want to send the rules message to the selected Discord channel?<br><br><span class="has-text-weight-bold">This will post an embed with your server rules.</span>`,
+      html: `Are you sure you want to send the rules message to the selected Discord channel?<br><br><span style="font-weight:bold;">This will post an embed with your server rules.</span>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send Rules',
@@ -5375,7 +5209,7 @@ ob_start();
     // Confirm before sending
     Swal.fire({
       title: 'Send Stream Schedule?',
-      html: `Are you sure you want to send the stream schedule to the selected Discord channel?<br><br><span class="has-text-weight-bold">This will post an embed with your streaming schedule.</span>`,
+      html: `Are you sure you want to send the stream schedule to the selected Discord channel?<br><br><span style="font-weight:bold;">This will post an embed with your streaming schedule.</span>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send Schedule',
