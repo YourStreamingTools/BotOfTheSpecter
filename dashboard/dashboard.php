@@ -176,322 +176,155 @@ if ($isLoggedIn) {
     // Start output buffering for layout system
     ob_start();
     ?>
-    <!-- Dashboard Welcome Section -->
-    <div class="hero is-small">
-        <div class="hero-body">
-            <div class="container">
-                <h1 class="title is-2 has-text-white">
-                    <i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($twitchDisplayName); ?>!
-                </h1>
-                <p class="subtitle is-6 has-text-grey-light mt-2 mb-0">Live overview of your bot systems, storage, and community activity.</p>
+    <!-- Welcome -->
+    <div class="sp-page-header">
+        <h1><i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($twitchDisplayName); ?>!</h1>
+        <p>Live overview of your bot systems, storage, and community activity.</p>
+    </div>
+    <!-- Channel Info Stats -->
+    <div class="db-section-label">Channel Info</div>
+    <div class="sp-stat-row" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-bottom: 2rem;">
+        <div class="sp-stat">
+            <div class="sp-stat-label">Followers</div>
+            <div class="sp-stat-value"><?php echo number_format($followerCount); ?></div>
+            <div class="sp-stat-sub">Tracked follower records</div>
+        </div>
+        <div class="sp-stat">
+            <div class="sp-stat-label">Subscribers</div>
+            <div class="sp-stat-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : 'N/A'; ?></div>
+            <div class="sp-stat-sub"><?php echo htmlspecialchars($subscriberSubtext); ?></div>
+        </div>
+        <div class="sp-stat">
+            <div class="sp-stat-label">Raids</div>
+            <div class="sp-stat-value"><?php echo number_format($raidCount); ?></div>
+            <div class="sp-stat-sub"><?php echo number_format($raidViewersTotal); ?> total raider viewers &middot; <?php echo number_format($raidUniqueRaiders); ?> unique raiders</div>
+        </div>
+    </div>
+    <!-- Main Metrics -->
+    <div class="db-section-label">Dashboard Metrics</div>
+    <div class="sp-stat-row" style="margin-bottom: 2rem;">
+        <div class="sp-stat <?php echo $activeBotRunning ? 'online' : 'offline'; ?>">
+            <div class="sp-stat-label">Active Bot</div>
+            <div class="sp-stat-value"><?php echo htmlspecialchars($activeBotLabel); ?></div>
+            <div class="sp-stat-sub">
+                <?php if ($activeBotRunning): ?>
+                    v<?php echo htmlspecialchars($activeBotCurrentVersion); ?> &bull; <?php echo htmlspecialchars($activeBotLabel); ?>
+                <?php else: ?>
+                    No active bot runtime
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="sp-stat<?php echo $storagePercent >= 90 ? ' warn' : ''; ?>">
+            <div class="sp-stat-label">Storage Usage</div>
+            <div class="sp-stat-value"><?php echo number_format($storagePercent, 1); ?>%</div>
+            <div class="sp-stat-sub"><?php echo number_format($storageUsedMb, 2); ?> MB of <?php echo number_format($storageMaxMb, 2); ?> MB</div>
+        </div>
+        <div class="sp-stat">
+            <div class="sp-stat-label">Commands</div>
+            <div class="sp-stat-value"><?php echo $customCommandCount + $builtinEnabledCount; ?></div>
+            <div class="sp-stat-sub"><?php echo $customCommandCount; ?> Custom &middot; <?php echo $builtinEnabledCount; ?>/<?php echo $builtinCommandCount; ?> Built-in</div>
+        </div>
+        <div class="sp-stat">
+            <div class="sp-stat-label">To-Do Progress</div>
+            <div class="sp-stat-value"><?php echo $todoCompletedCount; ?>/<?php echo $todoTotalCount; ?></div>
+            <div class="sp-stat-sub"><?php echo $todoOpenCount; ?> task<?php echo $todoOpenCount !== 1 ? 's' : ''; ?> remaining</div>
+        </div>
+    </div>
+    <!-- Runtime + Activity -->
+    <div class="db-two-col">
+        <div class="sp-card">
+            <div class="sp-card-header">
+                <span class="sp-card-title"><i class="fas fa-server"></i> Bot Runtime</span>
+                <span class="sp-badge <?php echo $activeBotRunning ? 'sp-badge-green' : 'sp-badge-red'; ?>"><?php echo $activeBotRunning ? 'Running' : 'Stopped'; ?></span>
+            </div>
+            <div class="sp-card-body">
+                <p style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">System: <?php echo htmlspecialchars($activeBotLabel); ?></p>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.25rem;">Current: <?php echo htmlspecialchars($activeBotCurrentVersion); ?></p>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem;">Latest: <?php echo htmlspecialchars($activeBotLatestVersion); ?></p>
+                <a href="bot.php" class="sp-btn sp-btn-primary">
+                    <i class="fas fa-cogs"></i> Open Bot Control
+                </a>
+            </div>
+        </div>
+        <div class="sp-card">
+            <div class="sp-card-header">
+                <span class="sp-card-title"><i class="fas fa-chart-line"></i> Activity Snapshot</span>
+            </div>
+            <div class="sp-card-body">
+                <div class="db-snapshot-item"><span>Known Users</span><strong><?php echo number_format($knownUsersCount); ?></strong></div>
+                <div class="db-snapshot-item"><span>Live Lurkers</span><strong><?php echo number_format($liveLurkersCount); ?></strong></div>
+                <div class="db-snapshot-item"><span>Watch Time Profiles</span><strong><?php echo number_format($watchUsersCount); ?></strong></div>
+                <div class="db-snapshot-item"><span>Rewards Configured</span><strong><?php echo number_format($rewardsCount); ?></strong></div>
+                <div class="db-snapshot-item"><span>Quotes Saved</span><strong><?php echo number_format($quotesCount); ?></strong></div>
+                <div class="db-snapshot-item"><span>Moderator Channels</span><strong><?php echo number_format($modChannelCount); ?></strong></div>
             </div>
         </div>
     </div>
-    <!-- Channel Info Section -->
-    <section class="section pt-4 pb-2">
-        <div class="container">
-            <h2 class="title is-4 has-text-white mb-3">Channel Info</h2>
-            <div class="columns is-multiline dashboard-metrics-row">
-                <div class="column is-12-mobile is-6-tablet is-4-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">Followers</p>
-                            <p class="dashboard-metric-value"><?php echo number_format($followerCount); ?></p>
-                            <p class="dashboard-metric-subtext">Tracked follower records</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-12-mobile is-6-tablet is-4-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">Subscribers</p>
-                            <p class="dashboard-metric-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : 'N/A'; ?></p>
-                            <p class="dashboard-metric-subtext"><?php echo htmlspecialchars($subscriberSubtext); ?></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-12-mobile is-6-tablet is-4-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">Raids</p>
-                            <p class="dashboard-metric-value"><?php echo number_format($raidCount); ?></p>
-                            <p class="dashboard-metric-subtext"><?php echo number_format($raidViewersTotal); ?> total raider viewers · <?php echo number_format($raidUniqueRaiders); ?> unique raiders</p>
-                        </div>
-                    </div>
-                </div>
+    <!-- Quick Links -->
+    <div class="db-section-label">Quick Links</div>
+    <div class="db-quick-grid">
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-robot fa-2x"></i></div>
+                <h4 class="db-quick-title">Bot Control</h4>
+                <p class="db-quick-desc">Start, stop, and monitor your bot</p>
+                <a href="bot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cogs"></i> Manage Bot</a>
             </div>
         </div>
-    </section>
-    <!-- Dashboard Metrics Section -->
-    <section class="section pt-4 pb-2">
-        <div class="container">
-            <div class="columns is-multiline dashboard-metrics-row">
-                <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">Active Bot Runtime</p>
-                            <p class="dashboard-metric-subtext">
-                                <?php if ($activeBotRunning): ?>
-                                    Running version <?php echo htmlspecialchars($activeBotCurrentVersion); ?>&nbsp;<?php echo htmlspecialchars($activeBotLabel); ?>
-                                <?php else: ?>
-                                    No active bot runtime detected
-                                <?php endif; ?>
-                            </p>
-                            <p class="dashboard-metric-value">&nbsp;</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">Storage Usage <span class="dashboard-metric-value"><?php echo number_format($storagePercent, 1); ?>%</span></p>
-                            <p class="dashboard-metric-subtext"><?php echo number_format($storageUsedMb, 2); ?> MB of <?php echo number_format($storageMaxMb, 2); ?> MB</p>
-                            <progress class="progress is-info mt-2" value="<?php echo (int)round($storagePercent); ?>" max="100"></progress>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">Commands</p>
-                            <p class="dashboard-metric-value"><?php echo $customCommandCount + $builtinEnabledCount; ?> Total</p>
-                            <p class="dashboard-metric-subtext"><?php echo $customCommandCount; ?> Custom · <?php echo $builtinEnabledCount; ?>/<?php echo $builtinCommandCount; ?> Built-in Enabled</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                    <div class="card dashboard-metric-card">
-                        <div class="card-content">
-                            <p class="dashboard-metric-label">To-Do Progress</p>
-                            <span class="dashboard-metric-value">&nbsp;</span>
-                            <p class="dashboard-metric-subtext"><?php echo $todoCompletedCount; ?> completed · <?php echo $todoTotalCount; ?> total tasks</p>
-                        </div>
-                    </div>
-                </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--green);"><i class="fas fa-terminal fa-2x"></i></div>
+                <h4 class="db-quick-title">Commands</h4>
+                <p class="db-quick-desc">Create and edit custom commands</p>
+                <a href="custom_commands.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-plus"></i> Edit Commands</a>
             </div>
         </div>
-    </section>
-    <!-- Runtime + Activity Section -->
-    <section class="section pt-2 pb-2">
-        <div class="container">
-            <div class="columns is-multiline">
-                <div class="column is-12-tablet is-7-desktop">
-                    <div class="card dashboard-panel-card">
-                        <header class="card-header">
-                            <p class="card-header-title"><i class="fas fa-server mr-2"></i> Bot Runtime</p>
-                            <span class="card-header-icon">
-                                <span class="tag <?php echo $activeBotRunning ? 'is-success' : 'is-danger'; ?> is-light"><?php echo $activeBotRunning ? 'Running' : 'Stopped'; ?></span>
-                            </span>
-                        </header>
-                        <div class="card-content">
-                            <div class="dashboard-runtime-item">
-                                <p class="has-text-weight-semibold mb-2">System: <?php echo htmlspecialchars($activeBotLabel); ?></p>
-                                <p class="is-size-7 has-text-grey-light mb-1">Current: <?php echo htmlspecialchars($activeBotCurrentVersion); ?></p>
-                                <p class="is-size-7 has-text-grey-light">Latest: <?php echo htmlspecialchars($activeBotLatestVersion); ?></p>
-                            </div>
-                            <div class="mt-4">
-                                <a href="bot.php" class="button is-info">
-                                    <span class="icon"><i class="fas fa-cogs"></i></span>
-                                    <span>Open Bot Control</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-12-tablet is-5-desktop">
-                    <div class="card dashboard-panel-card">
-                        <header class="card-header">
-                            <p class="card-header-title"><i class="fas fa-chart-line mr-2"></i> Activity Snapshot</p>
-                        </header>
-                        <div class="card-content">
-                            <div class="dashboard-snapshot-item">
-                                <span>Known Users</span>
-                                <strong><?php echo number_format($knownUsersCount); ?></strong>
-                            </div>
-                            <div class="dashboard-snapshot-item">
-                                <span>Live Lurkers</span>
-                                <strong><?php echo number_format($liveLurkersCount); ?></strong>
-                            </div>
-                            <div class="dashboard-snapshot-item">
-                                <span>Watch Time Profiles</span>
-                                <strong><?php echo number_format($watchUsersCount); ?></strong>
-                            </div>
-                            <div class="dashboard-snapshot-item">
-                                <span>Rewards Configured</span>
-                                <strong><?php echo number_format($rewardsCount); ?></strong>
-                            </div>
-                            <div class="dashboard-snapshot-item">
-                                <span>Quotes Saved</span>
-                                <strong><?php echo number_format($quotesCount); ?></strong>
-                            </div>
-                            <div class="dashboard-snapshot-item">
-                                <span>Moderator Channels</span>
-                                <strong><?php echo number_format($modChannelCount); ?></strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--accent-hover);"><i class="fab fa-discord fa-2x"></i></div>
+                <h4 class="db-quick-title">Discord Bot</h4>
+                <p class="db-quick-desc">Manage your Discord integration</p>
+                <a href="discordbot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cog"></i> Manage Discord</a>
             </div>
         </div>
-    </section>
-    <!-- Quick Actions Section -->
-    <div class="section quick-actions">
-        <div class="container">
-            <h2 class="title is-3">Quick Links</h2>
-            <div class="columns is-multiline">
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-info">
-                                    <i class="fas fa-robot fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">Bot Control</h4>
-                            <p class="subtitle is-6">Start, stop, and monitor your bot</p>
-                            <a href="bot.php" class="button is-info is-fullwidth">
-                                <span class="icon"><i class="fas fa-cogs"></i></span>
-                                <span>Manage Bot</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-success">
-                                    <i class="fas fa-terminal fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">Commands</h4>
-                            <p class="subtitle is-6">Create and edit custom commands</p>
-                            <a href="custom_commands.php" class="button is-success is-fullwidth">
-                                <span class="icon"><i class="fas fa-plus"></i></span>
-                                <span>Edit Commands</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-primary">
-                                    <i class="fab fa-discord fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">Discord Bot</h4>
-                            <p class="subtitle is-6">Manage your Discord integration</p>
-                            <a href="discordbot.php" class="button is-primary is-fullwidth">
-                                <span class="icon"><i class="fas fa-cog"></i></span>
-                                <span>Manage Discord Bot</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-warning">
-                                    <i class="fas fa-list-check fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">To-Do List</h4>
-                            <p class="subtitle is-6">Manage your streaming tasks</p>
-                            <a href="../todolist" class="button is-warning is-fullwidth">
-                                <span class="icon"><i class="fas fa-list"></i></span>
-                                <span>Open To-Do</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-danger">
-                                    <i class="fas fa-gift fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">Rewards</h4>
-                            <p class="subtitle is-6">Manage channel rewards</p>
-                            <a href="channel_rewards.php" class="button is-danger is-fullwidth">
-                                <span class="icon"><i class="fas fa-star"></i></span>
-                                <span>Setup Rewards</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-link">
-                                    <i class="fas fa-plug fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5"><?php echo t('obsconnector_title'); ?></h4>
-                            <p class="subtitle is-6"><?php echo t('obsconnector_banner_title'); ?></p>
-                            <a href="controllerapp.php" class="button is-link is-fullwidth">
-                                <span class="icon"><i class="fas fa-cogs"></i></span>
-                                <span><?php echo t('obsconnector_title'); ?></span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-info">
-                                    <i class="fas fa-music fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">DMCA Music</h4>
-                            <p class="subtitle is-6">Safe music for streaming</p>
-                            <a href="music.php" class="button is-info is-fullwidth">
-                                <span class="icon"><i class="fas fa-play"></i></span>
-                                <span>Browse Music</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop is-hidden">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-link">
-                                    <i class="fas fa-video fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">Streaming</h4>
-                            <p class="subtitle is-6">Our custom streaming service</p>
-                            <a href="streaming.php" class="button is-link is-fullwidth">
-                                <span class="icon"><i class="fas fa-broadcast-tower"></i></span>
-                                <span>Manage Streaming</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-6-tablet is-3-desktop">
-                    <div class="card">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-3">
-                                <span class="icon is-large has-text-grey-light">
-                                    <i class="fas fa-book fa-2x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-5">Documentation</h4>
-                            <p class="subtitle is-6">Learn how to use BotOfTheSpecter</p>
-                            <a href="/generate_handoff.php" class="button is-light is-fullwidth">
-                                <span class="icon"><i class="fas fa-external-link-alt"></i></span>
-                                <span>View Docs</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--amber);"><i class="fas fa-list-check fa-2x"></i></div>
+                <h4 class="db-quick-title">To-Do List</h4>
+                <p class="db-quick-desc">Manage your streaming tasks</p>
+                <a href="../todolist" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-list"></i> Open To-Do</a>
+            </div>
+        </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--red);"><i class="fas fa-gift fa-2x"></i></div>
+                <h4 class="db-quick-title">Rewards</h4>
+                <p class="db-quick-desc">Manage channel rewards</p>
+                <a href="channel_rewards.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-star"></i> Setup Rewards</a>
+            </div>
+        </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-plug fa-2x"></i></div>
+                <h4 class="db-quick-title"><?php echo t('obsconnector_title'); ?></h4>
+                <p class="db-quick-desc"><?php echo t('obsconnector_banner_title'); ?></p>
+                <a href="controllerapp.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cogs"></i> <?php echo t('obsconnector_title'); ?></a>
+            </div>
+        </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-music fa-2x"></i></div>
+                <h4 class="db-quick-title">DMCA Music</h4>
+                <p class="db-quick-desc">Safe music for streaming</p>
+                <a href="music.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-play"></i> Browse Music</a>
+            </div>
+        </div>
+        <div class="sp-card db-quick-card">
+            <div class="sp-card-body">
+                <div class="db-quick-icon" style="color: var(--text-muted);"><i class="fas fa-book fa-2x"></i></div>
+                <h4 class="db-quick-title">Documentation</h4>
+                <p class="db-quick-desc">Learn how to use BotOfTheSpecter</p>
+                <a href="/generate_handoff.php" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> View Docs</a>
             </div>
         </div>
     </div>
@@ -501,416 +334,167 @@ if ($isLoggedIn) {
 } else {
     // User is not logged in - show landing page
     $pageTitle = 'Dashboard Information';
-    // Start output buffering for content
-    ob_start();
+    // Function to generate a UUID v4 for cache busting
+    function uuidv4() { return bin2hex(random_bytes(4)); }
     ?>
-    <!-- Hero Section -->
-    <section class="hero is-small hero-gradient">
-        <div class="hero-body">
-            <div class="container has-text-centered">
-                <h1 class="title is-2 has-text-white mt-4">
-                    <i class="fas fa-robot"></i> BotOfTheSpecter Dashboard
-                </h1>
-                <h2 class="subtitle is-4 has-text-white">
-                    Your Complete Twitch Bot Management Solution
-                </h2>
-                <p class="is-size-6 has-text-white mb-4">
-                    Take control of your Twitch channel with our powerful, feature-rich bot and dashboard.<br>
-                    Manage commands, configure your alerts, track analytics, and so much more, get started today!
-                </p>
-            </div>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BotOfTheSpecter - <?php echo $pageTitle; ?></title>
+        <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
+        <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo uuidv4(); ?>">
+        <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
+        <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
+        <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    </head>
+    <body>
+        <!-- Top nav -->
+        <header class="db-topnav">
+            <a href="dashboard.php" class="db-topnav-brand">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter">
+                BotOfTheSpecter
+            </a>
+            <a href="login.php" class="sp-btn sp-btn-primary" style="border-radius: var(--radius-pill);"><i class="fab fa-twitch"></i> Login with Twitch</a>
+        </header>
+        <!-- Hero -->
+        <section class="db-hero">
+            <h1><i class="fas fa-robot"></i> BotOfTheSpecter Dashboard</h1>
+            <p class="db-hero-sub">Your Complete Twitch Bot Management Solution</p>
+            <p class="db-hero-desc">Take control of your Twitch channel with our powerful, feature-rich bot and dashboard. Manage commands, configure your alerts, track analytics, and so much more.</p>
+        </section>
+        <!-- Login card -->
+        <div class="db-login-card">
+            <h3><i class="fas fa-sign-in-alt"></i> Access Your Dashboard</h3>
+            <p>Join the rest of the streamers who use BotOfTheSpecter to enhance and manage their Twitch channel.</p>
+            <a href="login.php" class="db-twitch-btn"><i class="fab fa-twitch"></i> Login with Twitch</a>
+            <p class="db-login-note"><i class="fas fa-shield-alt"></i> Your data is secure and protected using SHA-384 encryption.</p>
         </div>
-    </section>
-    <!-- Login Section -->
-    <section class="section">
-        <div class="container">
-            <div class="columns is-centered">
-                <div class="column is-6">
-                    <div class="box login-section has-text-centered">
-                        <h3 class="title is-3 has-text-white mb-4">
-                            <i class="fas fa-sign-in-alt"></i> Access Your Dashboard
-                        </h3>
-                        <p class="has-text-grey-light mb-5">
-                            Join the rest of the streamers who use BotOfTheSpecter to enhance and manage their Twitch channel.
-                        </p>
-                        <a href="login.php" class="button is-large twitch-purple has-text-white">
-                            <span class="icon">
-                                <i class="fab fa-twitch"></i>
-                            </span>
-                            <span>Login with Twitch</span>
-                        </a>
-                        <p class="is-size-7 has-text-grey mt-4">
-                            <i class="fas fa-shield-alt"></i> Your data is secure and protected using SHA-384 encryption.
-                        </p>
-                    </div>
-                </div>
+        <!-- Features -->
+        <div class="db-landing-section">
+            <div class="db-landing-section-header">
+                <h2>Dashboard Features</h2>
+                <p>Explore the powerful features that make BotOfTheSpecter the ultimate Twitch bot management solution, with many more features that aren't listed below.</p>
             </div>
-        </div>
-    </section>
-    <!-- Features Section -->
-    <section class="section">
-        <div class="container">
-            <h2 class="title is-2 has-text-centered has-text-white mb-1">
-                Dashboard Features
-            </h2>
-            <p class="has-text-centered has-text-grey-light mb-4">
-                Explore the powerful features that make BotOfTheSpecter the ultimate Twitch bot management solution, with many more features that aren't listed below.
-            </p>
-            <div class="columns is-multiline">
-                <!-- Bot Control -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-info">
-                                    <i class="fas fa-robot fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Bot Control</h4>
-                            <p class="has-text-grey-light">
-                                Start, stop, and monitor your bot with real-time status updates and comprehensive logging.
-                            </p>
-                        </div>
-                    </div>
+            <div class="db-features-grid">
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--blue);"><i class="fas fa-robot"></i></div>
+                    <h4>Bot Control</h4>
+                    <p>Start, stop, and monitor your bot with real-time status updates and comprehensive logging.</p>
                 </div>
-                <!-- Custom Commands -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-success">
-                                    <i class="fas fa-terminal fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Custom Commands</h4>
-                            <p class="has-text-grey-light">
-                                Create and manage custom chat commands with advanced features and permission levels.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--green);"><i class="fas fa-terminal"></i></div>
+                    <h4>Custom Commands</h4>
+                    <p>Create and manage custom chat commands with advanced features and permission levels.</p>
                 </div>
-                <!-- Analytics -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-warning">
-                                    <i class="fas fa-chart-line fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Analytics & Logs</h4>
-                            <p class="has-text-grey-light">
-                                Track your channel's growth, monitor user activity, and analyze command usage statistics.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--amber);"><i class="fas fa-chart-line"></i></div>
+                    <h4>Analytics &amp; Logs</h4>
+                    <p>Track your channel's growth, monitor user activity, and analyze command usage statistics.</p>
                 </div>
-                <!-- Channel Rewards -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-danger">
-                                    <i class="fas fa-gift fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Channel Rewards</h4>
-                            <p class="has-text-grey-light">
-                                Manage Twitch channel point rewards and create engaging interactive experiences.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--red);"><i class="fas fa-gift"></i></div>
+                    <h4>Channel Rewards</h4>
+                    <p>Manage Twitch channel point rewards and create engaging interactive experiences.</p>
                 </div>
-                <!-- Stream Alerts -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-link">
-                                    <i class="fas fa-volume-up fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Stream Alerts</h4>
-                            <p class="has-text-grey-light">
-                                Configure sound alerts, video alerts, and walk-on alerts for followers and subscribers.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--blue);"><i class="fas fa-volume-up"></i></div>
+                    <h4>Stream Alerts</h4>
+                    <p>Configure sound alerts, video alerts, and walk-on alerts for followers and subscribers.</p>
                 </div>
-                <!-- Integrations -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-primary">
-                                    <i class="fas fa-plug fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Integrations</h4>
-                            <p class="has-text-grey-light">
-                                Connect with Discord, Spotify, StreamElements, and other popular streaming platforms.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--accent-hover);"><i class="fas fa-plug"></i></div>
+                    <h4>Integrations</h4>
+                    <p>Connect with Discord, Spotify, StreamElements, and other popular streaming platforms.</p>
                 </div>
-                <!-- Points System -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-warning">
-                                    <i class="fas fa-coins fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Points System</h4>
-                            <p class="has-text-grey-light">
-                                Reward your viewers with a custom points system and create point-based mini-games.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--amber);"><i class="fas fa-coins"></i></div>
+                    <h4>Points System</h4>
+                    <p>Reward your viewers with a custom points system and create point-based mini-games.</p>
                 </div>
-                <!-- Overlays -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-info">
-                                    <i class="fas fa-layer-group fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">Stream Overlays</h4>
-                            <p class="has-text-grey-light">
-                                Create dynamic overlays for recent followers, latest donations, and now playing music.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--blue);"><i class="fas fa-layer-group"></i></div>
+                    <h4>Stream Overlays</h4>
+                    <p>Create dynamic overlays for recent followers, latest donations, and now playing music.</p>
                 </div>
-                <!-- User Management -->
-                <div class="column is-4">
-                    <div class="card feature-card has-background-dark">
-                        <div class="card-content has-text-centered">
-                            <div class="mb-4">
-                                <span class="icon is-large has-text-success">
-                                    <i class="fas fa-users fa-3x"></i>
-                                </span>
-                            </div>
-                            <h4 class="title is-4 has-text-white">User Management</h4>
-                            <p class="has-text-grey-light">
-                                Manage your community with tools for moderators, VIPs, subscribers, and regular viewers.
-                            </p>
-                        </div>
-                    </div>
+                <div class="db-feature-card">
+                    <div class="db-feature-card-icon" style="color: var(--green);"><i class="fas fa-users"></i></div>
+                    <h4>User Management</h4>
+                    <p>Manage your community with tools for moderators, VIPs, subscribers, and regular viewers.</p>
                 </div>
             </div>
         </div>
-    </section>
-    <!-- Premium Plans Section -->
-    <section class="section mb-6">
-        <div class="container">
-            <h2 class="title is-2 has-text-centered has-text-white mb-1">
-                Premium Plans
-            </h2>
-            <p class="has-text-centered has-text-grey-light mb-4">
-                Unlock additional features and support the development of BotOfTheSpecter by subscribing to one of our premium plans via Twitch.
-            </p>
-            <div class="columns is-multiline is-variable is-5">
+        <!-- Premium Plans -->
+        <div class="db-landing-section" style="padding-top: 0;">
+            <div class="db-landing-section-header">
+                <h2>Premium Plans</h2>
+                <p>Unlock additional features and support the development of BotOfTheSpecter by subscribing to one of our premium plans via Twitch.</p>
+            </div>
+            <div class="db-plans-grid">
                 <!-- Free Plan -->
-                <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                    <div class="card feature-card has-shadow is-shadowless-mobile has-background-dark" style="height: 100%; border-radius: 12px;">
-                        <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
-                            <div class="has-text-centered mb-4">
-                                <div class="icon is-large has-text-grey-light mb-2">
-                                    <i class="fas fa-rocket fa-2x"></i>
-                                </div>
-                                <h3 class="title is-4 has-text-weight-bold has-text-white mb-2">
-                                    Free
-                                </h3>
-                                <p class="subtitle is-5 has-text-weight-semibold has-text-primary">
-                                    $0/month
-                                </p>
-                            </div>
-                            <div class="content" style="flex-grow: 1;">
-                                <ul class="is-size-6" style="list-style: none; padding-left: 0;">
-                                    <li class="mb-2">
-                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        Core Bot Features
-                                    </li>
-                                    <li class="mb-2">
-                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        Community Support
-                                    </li>
-                                    <li class="mb-2">
-                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        20MB Storage
-                                    </li>
-                                    <li class="mb-2">
-                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        Shared Bot Name (BotOfTheSpecter)
-                                    </li>
-                                    <li class="mb-2">
-                                        <span class="icon has-text-warning"><i class="fas fa-flask"></i></span>
-                                        Custom Bot Name (Your Custom Bot Name, Experimental/Coming Soon)
-                                    </li>
-                                </ul>
-                                <p class="is-size-7 has-text-grey mt-3 has-text-centered">
-                                    <strong>90-95% of the bot is FREE!</strong>
-                                </p>
-                            </div>
-                            <footer class="mt-4">
-                                <a href="login.php" class="button is-success is-fullwidth is-rounded has-text-weight-semibold">
-                                    <span class="icon"><i class="fas fa-sign-in-alt"></i></span>
-                                    <span>Get Started</span>
-                                </a>
-                            </footer>
-                        </div>
-                    </div>
+                <div class="db-plan-card">
+                    <div class="db-plan-card-icon" style="color: var(--text-muted);"><i class="fas fa-rocket"></i></div>
+                    <h3>Free</h3>
+                    <div class="db-plan-price">$0/month</div>
+                    <ul>
+                        <li><i class="fas fa-check"></i> Core Bot Features</li>
+                        <li><i class="fas fa-check"></i> Community Support</li>
+                        <li><i class="fas fa-check"></i> 20MB Storage</li>
+                        <li><i class="fas fa-check"></i> Shared Bot Name (BotOfTheSpecter)</li>
+                        <li><i class="fas fa-flask"></i> Custom Bot Name (Experimental/Coming Soon)</li>
+                    </ul>
+                    <a href="login.php" class="sp-btn sp-btn-success" style="width: 100%; justify-content: center;"><i class="fas fa-sign-in-alt"></i> Get Started</a>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.75rem;"><strong>90-95% of the bot is FREE!</strong></p>
                 </div>
-                <!-- Premium Plans -->
                 <?php
                 $plans = [
                     '1000' => [
                         'name' => 'Tier 1',
                         'price' => '$4.99/month',
-                            'features' => [
-                            'Song Request Command',
-                            'Priority Support',
-                            'Beta Access',
-                            '50MB Storage',
-                        ],
+                        'features' => ['Song Request Command', 'Priority Support', 'Beta Access', '50MB Storage'],
                         'icon' => 'fas fa-star',
-                        'color' => 'has-text-info',
+                        'icon_color' => 'var(--blue)',
                     ],
                     '2000' => [
                         'name' => 'Tier 2',
                         'price' => '$9.99/month',
-                        'features' => [
-                            'Everything in Tier 1',
-                            'Personal Support',
-                            'AI Features',
-                            '100MB Storage',
-                        ],
+                        'features' => ['Everything in Tier 1', 'Personal Support', 'AI Features', '100MB Storage'],
                         'icon' => 'fas fa-crown',
-                        'color' => 'has-text-warning',
+                        'icon_color' => 'var(--amber)',
                     ],
                     '3000' => [
                         'name' => 'Tier 3',
                         'price' => '$24.99/month',
-                            'features' => [
-                            'Everything in Tier 2',
-                            '200MB Storage',
-                        ],
+                        'features' => ['Everything in Tier 2', '200MB Storage'],
                         'icon' => 'fas fa-gem',
-                        'color' => 'has-text-danger',
+                        'icon_color' => 'var(--red)',
                     ],
                 ];
-                foreach ($plans as $planKey => $planDetails):
-                ?>
-                <div class="column is-12-mobile is-6-tablet is-3-desktop">
-                    <div class="card feature-card has-shadow is-shadowless-mobile has-background-dark" style="height: 100%; border-radius: 12px;">
-                        <div class="card-content" style="height: 100%; display: flex; flex-direction: column;">
-                            <div class="has-text-centered mb-4">
-                                <div class="icon is-large <?php echo $planDetails['color']; ?> mb-2">
-                                    <i class="<?php echo $planDetails['icon']; ?> fa-2x"></i>
-                                </div>
-                                <h3 class="title is-4 has-text-weight-bold has-text-white mb-2">
-                                    <?php echo htmlspecialchars($planDetails['name']); ?>
-                                </h3>
-                                <p class="subtitle is-5 has-text-weight-semibold has-text-primary">
-                                    <?php echo htmlspecialchars($planDetails['price']); ?>
-                                </p>
-                            </div>
-                            <div class="content" style="flex-grow: 1;">
-                                <ul class="is-size-6" style="list-style: none; padding-left: 0;">
-                                    <?php foreach ($planDetails['features'] as $feature): ?>
-                                    <li class="mb-2">
-                                        <span class="icon has-text-success"><i class="fas fa-check"></i></span>
-                                        <?php echo htmlspecialchars($feature); ?>
-                                    </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
-                            <footer class="mt-4">
-                                <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="button is-primary is-fullwidth is-rounded has-text-weight-semibold">
-                                    <span class="icon">
-                                        <i class="fas fa-plus-circle"></i>
-                                    </span>
-                                    <span>Subscribe</span>
-                                </a>
-                            </footer>
-                        </div>
-                    </div>
+                foreach ($plans as $planDetails): ?>
+                <div class="db-plan-card">
+                    <div class="db-plan-card-icon" style="color: <?php echo $planDetails['icon_color']; ?>;"><i class="<?php echo $planDetails['icon']; ?>"></i></div>
+                    <h3><?php echo htmlspecialchars($planDetails['name']); ?></h3>
+                    <div class="db-plan-price"><?php echo htmlspecialchars($planDetails['price']); ?></div>
+                    <ul>
+                        <?php foreach ($planDetails['features'] as $feature): ?>
+                        <li><i class="fas fa-check"></i> <?php echo htmlspecialchars($feature); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-plus-circle"></i> Subscribe</a>
                 </div>
                 <?php endforeach; ?>
             </div>
         </div>
-    </section>
-    <?php
-    $content = ob_get_clean();
-    // For non-logged in users, we'll create a custom layout without the dashboard navigation
-    // Function to generate a UUID v4 for cache busting
-    function uuidv4() { return bin2hex(random_bytes(4)); }
-    ?>
-    <!DOCTYPE html>
-    <html lang="en" class="theme-dark">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BotOfTheSpecter - <?php echo $pageTitle; ?></title>
-        <!-- Bulma CSS 1.0.0 -->
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
-        <!-- Font Awesome -->
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.css">
-        <!-- Custom CSS -->
-        <link rel="stylesheet" href="css/custom.css?v=<?php echo uuidv4(); ?>">
-        <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
-        <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
-        <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-    </head>
-    <body style="display: flex; flex-direction: column; min-height: 100vh;">
-        <!-- Main content -->
-        <div style="flex: 1 0 auto;">
-            <?php echo $content; ?>
-        </div>
         <!-- Footer -->
-        <footer class="footer is-dark has-text-white" style="width:100%; max-width:none; margin-left:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.75rem 1rem; flex-shrink:0; position: relative;">
-            <div style="position: absolute; bottom: 12px; left: 12px;" class="is-hidden-mobile">
-                <span class="tag is-info is-light">Dashboard Version: <?php echo $dashboardVersion; ?></span>
-            </div>
-            <div style="width: 100%; max-width: none; padding: 0 1.5rem;" class="is-hidden-mobile">
-                &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-                <?php include '/var/www/config/project-time.php'; ?>
-                BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
-                This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-                All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
-            </div>
-            <div style="max-width: 1500px;" class="is-hidden-tablet">
-                &copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
-                <span class="tag is-info is-light mt-2">Dashboard Version: <?php echo $dashboardVersion; ?></span><br>
-                BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia (ABN 20 447 022 747).<br>
-                This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-                All trademarks, logos, and brand names including Twitch, Discord, Spotify, and StreamElements are the property of their respective owners and are used for identification purposes only.
-            </div>
+        <footer class="db-landing-footer">
+            &copy; 2023&ndash;<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+            <?php include '/var/www/config/project-time.php'; ?>
+            BotOfTheSpecter is a project operated under the business name &ldquo;YourStreamingTools&rdquo;, registered in Australia (ABN 20 447 022 747).<br>
+            This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
+            All trademarks, logos, and brand names are the property of their respective owners and are used for identification purposes only.
+            <br><span class="sp-version-badge" style="margin-top: 0.5rem; display: inline-flex;">Dashboard v<?php echo $dashboardVersion; ?></span>
         </footer>
-        <!-- JavaScript dependencies -->
-        <!-- jQuery is still included because some page scripts (animations) rely on it -->
-        <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-        <script>
-            // Add smooth scrolling for internal links
-            $(document).ready(function() {
-                // Add animation to feature cards on scroll
-                $(window).scroll(function() {
-                    $('.feature-card').each(function() {
-                        var elementTop = $(this).offset().top;
-                        var elementBottom = elementTop + $(this).outerHeight();
-                        var viewportTop = $(window).scrollTop();
-                        var viewportBottom = viewportTop + $(window).height();
-                        if (elementBottom > viewportTop && elementTop < viewportBottom) {
-                            $(this).addClass('animate__animated animate__fadeInUp');
-                        }
-                    });
-                });
-            });
-        </script>
     </body>
     </html>
     <?php
