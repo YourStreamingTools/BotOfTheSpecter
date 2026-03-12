@@ -277,33 +277,33 @@ ob_start();
 ?>
 <div style="display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-bottom: 0.5rem;">
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <p class="heading">Total Input Tokens</p>
-        <p class="title is-5"><?php echo number_format($total_input_tokens); ?></p>
+        <span class="admin-heading">Total Input Tokens</span>
+        <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo number_format($total_input_tokens); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <p class="heading">Total Output Tokens</p>
-        <p class="title is-5"><?php echo number_format($total_output_tokens); ?></p>
+        <span class="admin-heading">Total Output Tokens</span>
+        <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo number_format($total_output_tokens); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <p class="heading">Estimated Cost</p>
-        <p class="title is-5">$<?php echo number_format($ai_total_estimated_cost, 4); ?></p>
+        <span class="admin-heading">Estimated Cost</span>
+        <p style="font-size:1.1rem; font-weight:700; margin:0;">$<?php echo number_format($ai_total_estimated_cost, 4); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <p class="heading">Token Efficiency (Out/In)</p>
-        <p class="title is-5"><?php echo $total_efficiency_ratio !== null ? number_format($total_efficiency_ratio, 2) . 'x' : 'N/A'; ?></p>
+        <span class="admin-heading">Token Efficiency (Out/In)</span>
+        <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo $total_efficiency_ratio !== null ? number_format($total_efficiency_ratio, 2) . 'x' : 'N/A'; ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <p class="heading">Total Requests</p>
-        <p class="title is-5"><?php echo number_format((int)$ai_total_requests); ?></p>
+        <span class="admin-heading">Total Requests</span>
+        <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo number_format((int)$ai_total_requests); ?></p>
     </div>
     <div style="flex: 1 1 170px; min-width: 170px;">
-        <p class="heading">Requests/Day</p>
-        <p class="title is-5"><?php echo $ai_requests_per_day !== null ? number_format($ai_requests_per_day, 1) : 'N/A'; ?></p>
+        <span class="admin-heading">Requests/Day</span>
+        <p style="font-size:1.1rem; font-weight:700; margin:0;"><?php echo $ai_requests_per_day !== null ? number_format($ai_requests_per_day, 1) : 'N/A'; ?></p>
     </div>
 </div>
 <br>
-<div style="overflow:auto;">
-    <table class="table is-fullwidth is-striped is-narrow">
+<div class="sp-table-wrap">
+    <table class="sp-table">
         <thead>
             <tr>
                 <th>Model</th>
@@ -331,7 +331,7 @@ ob_start();
             <?php endforeach; ?>
         <?php else: ?>
             <tr>
-                <td colspan="5" class="has-text-grey">No AI usage data available for this window.</td>
+                <td colspan="5" class="sp-text-muted">No AI usage data available for this window.</td>
             </tr>
         <?php endif; ?>
         </tbody>
@@ -1691,264 +1691,272 @@ ob_start();
 ?>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<div class="box">
-    <h1 class="title is-3"><span class="icon"><i class="fas fa-shield-alt"></i></span> Administrator Dashboard</h1>
-    <p class="mb-4">This is the admin dashboard. Use the links below to manage users, view logs, and perform other administrative tasks.</p>
-    <div class="buttons">
-        <a href="users.php" class="button is-primary is-light">
-            <span class="icon"><i class="fas fa-users-cog"></i></span>
-            <span>User Management</span>
-        </a>
-        <a href="start_bots.php" class="button is-success is-light">
-            <span class="icon"><i class="fas fa-play-circle"></i></span>
-            <span>Start User Bots</span>
-        </a>
-        <a href="logs.php" class="button is-info is-light">
-            <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-            <span>Log Management</span>
-        </a>
-        <a href="twitch_tokens.php" class="button is-primary is-light">
-            <span class="icon"><i class="fab fa-twitch"></i></span>
-            <span>Twitch Tokens</span>
-        </a>
-        <a href="discordbot_overview.php" class="button is-link is-light">
-            <span class="icon"><i class="fab fa-discord"></i></span>
-            <span>Discord Bot Overview</span>
-        </a>
-        <a href="websocket_clients.php" class="button is-success is-light">
-            <span class="icon"><i class="fas fa-plug"></i></span>
-            <span>Websocket Clients</span>
-        </a>
-        <a href="terminal.php" class="button is-warning is-light">
-            <span class="icon"><i class="fas fa-terminal"></i></span>
-            <span>Web Terminal</span>
-        </a>
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="sp-card-header">
+        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-shield-alt"></i></span> Administrator Dashboard</h1>
+    </div>
+    <div class="sp-card-body">
+        <p style="margin-bottom:1rem;">This is the admin dashboard. Use the links below to manage users, view logs, and perform other administrative tasks.</p>
+        <div class="sp-btn-group" style="flex-wrap:wrap;">
+            <a href="users.php" class="sp-btn sp-btn-primary">
+                <span class="icon"><i class="fas fa-users-cog"></i></span>
+                <span>User Management</span>
+            </a>
+            <a href="start_bots.php" class="sp-btn sp-btn-success">
+                <span class="icon"><i class="fas fa-play-circle"></i></span>
+                <span>Start User Bots</span>
+            </a>
+            <a href="logs.php" class="sp-btn sp-btn-info">
+                <span class="icon"><i class="fas fa-clipboard-list"></i></span>
+                <span>Log Management</span>
+            </a>
+            <a href="twitch_tokens.php" class="sp-btn sp-btn-primary">
+                <span class="icon"><i class="fab fa-twitch"></i></span>
+                <span>Twitch Tokens</span>
+            </a>
+            <a href="discordbot_overview.php" class="sp-btn sp-btn-info">
+                <span class="icon"><i class="fab fa-discord"></i></span>
+                <span>Discord Bot Overview</span>
+            </a>
+            <a href="websocket_clients.php" class="sp-btn sp-btn-success">
+                <span class="icon"><i class="fas fa-plug"></i></span>
+                <span>Websocket Clients</span>
+            </a>
+            <a href="terminal.php" class="sp-btn sp-btn-warning">
+                <span class="icon"><i class="fas fa-terminal"></i></span>
+                <span>Web Terminal</span>
+            </a>
+        </div>
     </div>
 </div>
 
-<div class="box">
-    <h2 class="title is-4"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
-    <div class="columns is-multiline">
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
+    </div>
+    <div class="sp-card-body">
+    <div class="admin-service-grid">
         <!-- Discord Bot Service -->
-        <div class="column is-full-mobile is-one-fifth-tablet">
-            <div class="box hover-box">
+        <div>
+            <div class="admin-service-card">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon has-text-link">
+                        <span class="icon sp-text-info">
                             <i class="fab fa-discord fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <p class="heading">Discord Bot</p>
-                            <p class="title is-6 has-text-info" id="discord-status">Loading...</p>
+                            <span class="admin-heading">Discord Bot</span>
+                            <span class="admin-service-status sp-text-info" id="discord-status">Loading...</span>
                         </div>
                     </div>
                     <div>
-                        <span class="tag is-light has-text-black" id="discord-pid">PID: ...</span>
+                        <span class="sp-badge sp-badge-grey" id="discord-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small mt-4" id="discord-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('discordbot.service', 'start')" disabled>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="discord-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('discordbot.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('discordbot.service', 'stop')" disabled>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('discordbot.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('discordbot.service', 'restart')" disabled>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('discordbot.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
             </div>
         </div>
         <!-- API Server Service -->
-        <div class="column is-full-mobile is-one-fifth-tablet">
-            <div class="box hover-box">
+        <div>
+            <div class="admin-service-card">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon has-text-primary">
+                        <span class="icon sp-text-accent">
                             <i class="fas fa-code fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <p class="heading">API Server</p>
-                            <p class="title is-6 has-text-info" id="api-status">Loading...</p>
+                            <span class="admin-heading">API Server</span>
+                            <span class="admin-service-status sp-text-info" id="api-status">Loading...</span>
                         </div>
                     </div>
                     <div>
-                        <span class="tag is-light has-text-black" id="api-pid">PID: ...</span>
+                        <span class="sp-badge sp-badge-grey" id="api-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small mt-4" id="api-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('fastapi.service', 'start')" disabled>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="api-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('fastapi.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('fastapi.service', 'stop')" disabled>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('fastapi.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('fastapi.service', 'restart')" disabled>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('fastapi.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
             </div>
         </div>
         <!-- WebSocket Server Service -->
-        <div class="column is-full-mobile is-one-fifth-tablet">
-            <div class="box hover-box">
+        <div>
+            <div class="admin-service-card">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon has-text-success">
+                        <span class="icon sp-text-success">
                             <i class="fas fa-plug fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <p class="heading">WebSocket Server</p>
-                            <p class="title is-6 has-text-info" id="websocket-status">Loading...</p>
+                            <span class="admin-heading">WebSocket Server</span>
+                            <span class="admin-service-status sp-text-info" id="websocket-status">Loading...</span>
                         </div>
                     </div>
                     <div>
-                        <span class="tag is-light has-text-black" id="websocket-pid">PID: ...</span>
+                        <span class="sp-badge sp-badge-grey" id="websocket-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small mt-4" id="websocket-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('websocket.service', 'start')" disabled>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="websocket-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('websocket.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('websocket.service', 'stop')" disabled>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('websocket.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('websocket.service', 'restart')" disabled>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('websocket.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
             </div>
         </div>
         <!-- MySQL Server Service -->
-        <div class="column is-full-mobile is-one-fifth-tablet">
-            <div class="box hover-box">
+        <div>
+            <div class="admin-service-card">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon has-text-warning">
+                        <span class="icon sp-text-warning">
                             <i class="fas fa-database fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <p class="heading">MySQL Server</p>
-                            <p class="title is-6 has-text-info" id="mysql-status">Loading...</p>
+                            <span class="admin-heading">MySQL Server</span>
+                            <span class="admin-service-status sp-text-info" id="mysql-status">Loading...</span>
                         </div>
                     </div>
                     <div>
-                        <span class="tag is-light has-text-black" id="mysql-pid">PID: ...</span>
+                        <span class="sp-badge sp-badge-grey" id="mysql-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small mt-4" id="mysql-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('mysql.service', 'start')" disabled>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="mysql-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('mysql.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('mysql.service', 'stop')" disabled>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('mysql.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('mysql.service', 'restart')" disabled>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('mysql.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
             </div>
         </div>
         <!-- Export Queue Worker Service -->
-        <div class="column is-full-mobile is-one-fifth-tablet">
-            <div class="box hover-box">
+        <div>
+            <div class="admin-service-card">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon has-text-info">
+                        <span class="icon sp-text-info">
                             <i class="fas fa-file-export fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <p class="heading">Export Queue Worker</p>
-                            <p class="title is-6 has-text-info" id="export-queue-status">Loading...</p>
+                            <span class="admin-heading">Export Queue Worker</span>
+                            <span class="admin-service-status sp-text-info" id="export-queue-status">Loading...</span>
                         </div>
                     </div>
                     <div>
-                        <span class="tag is-light has-text-black" id="export-queue-pid">PID: ...</span>
+                        <span class="sp-badge sp-badge-grey" id="export-queue-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small mt-4" id="export-queue-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('export_queue_worker.service', 'start')" disabled>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="export-queue-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('export_queue_worker.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('export_queue_worker.service', 'stop')" disabled>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('export_queue_worker.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('export_queue_worker.service', 'restart')" disabled>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('export_queue_worker.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
             </div>
         </div>
         <!-- Twitch Recorder Service -->
-        <div class="column is-full-mobile is-one-fifth-tablet">
-            <div class="box hover-box">
+        <div>
+            <div class="admin-service-card">
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                        <span class="icon has-text-danger">
+                        <span class="icon sp-text-danger">
                             <i class="fas fa-video fa-lg"></i>
                         </span>
                         <div style="min-width: 0;">
-                            <p class="heading">Twitch Recorder</p>
-                            <p class="title is-6 has-text-info" id="twitch-recorder-status">Loading...</p>
+                            <span class="admin-heading">Twitch Recorder</span>
+                            <span class="admin-service-status sp-text-info" id="twitch-recorder-status">Loading...</span>
                         </div>
                     </div>
                     <div>
-                        <span class="tag is-light has-text-black" id="twitch-recorder-pid">PID: ...</span>
+                        <span class="sp-badge sp-badge-grey" id="twitch-recorder-pid">PID: ...</span>
                     </div>
                 </div>
-                <div class="buttons are-small mt-4" id="twitch-recorder-buttons">
-                    <button type="button" class="button is-success" onclick="controlService('twitch-recorder.service', 'start')" disabled>
+                <div class="sp-btn-group" style="margin-top:1rem;" id="twitch-recorder-buttons">
+                    <button type="button" class="sp-btn sp-btn-success sp-btn-sm" onclick="controlService('twitch-recorder.service', 'start')" disabled>
                         <span class="icon"><i class="fas fa-play"></i></span>
                     </button>
-                    <button type="button" class="button is-danger" onclick="controlService('twitch-recorder.service', 'stop')" disabled>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" onclick="controlService('twitch-recorder.service', 'stop')" disabled>
                         <span class="icon"><i class="fas fa-stop"></i></span>
                     </button>
-                    <button type="button" class="button is-warning" onclick="controlService('twitch-recorder.service', 'restart')" disabled>
+                    <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" onclick="controlService('twitch-recorder.service', 'restart')" disabled>
                         <span class="icon"><i class="fas fa-redo"></i></span>
                     </button>
                 </div>
             </div>
         </div>
     </div>
+    </div>
 </div>
-<div class="box">
-    <div class="collapsible-header" onclick="toggleCollapsible('token-management', event)" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0;">
-        <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
-        <span class="collapse-icon" data-section="token-management" style="font-size: 1.5rem; transition: transform 0.3s ease;">▶</span>
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="admin-collapsible-header" onclick="toggleCollapsible('token-management', event)">
+        <h2><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
+        <span class="collapse-icon" data-section="token-management">▶</span>
     </div>
     <div class="collapsible-content" id="token-management" style="display: none; padding-top: 1rem;">
-    <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between;">
-        <div style="flex: 1; min-width: 250px;">
-            <div class="box hover-box">
-                <h3 class="title is-5"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
-                <button type="button" class="button is-success is-fullwidth" onclick="refreshSpotifyTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+    <div class="admin-token-grid">
+        <div>
+            <div class="admin-service-card">
+                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
+                <button type="button" class="sp-btn sp-btn-success w-100" onclick="refreshSpotifyTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                     <span class="icon"><i class="fas fa-sync"></i></span>
                     <span>Refresh Spotify Tokens</span>
                 </button>
             </div>
         </div>
-        <div style="flex: 1; min-width: 250px;">
-            <div class="box hover-box">
-                <h3 class="title is-5"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
-                <button type="button" class="button is-info is-fullwidth" onclick="refreshStreamElementsTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+        <div>
+            <div class="admin-service-card">
+                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
+                <button type="button" class="sp-btn sp-btn-info w-100" onclick="refreshStreamElementsTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                     <span class="icon"><i class="fas fa-sync"></i></span>
                     <span>Refresh StreamElements Tokens</span>
                 </button>
             </div>
         </div>
-        <div style="flex: 1; min-width: 250px;">
-            <div class="box hover-box">
-                <h3 class="title is-5"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
-                <button type="button" class="button is-link is-fullwidth" onclick="refreshDiscordTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+        <div>
+            <div class="admin-service-card">
+                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
+                <button type="button" class="sp-btn sp-btn-primary w-100" onclick="refreshDiscordTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                     <span class="icon"><i class="fas fa-sync"></i></span>
                     <span>Refresh Discord Tokens</span>
                 </button>
             </div>
         </div>
-        <div style="flex: 1; min-width: 250px;">
-            <div class="box hover-box">
-                <h3 class="title is-5"><span class="icon"><i class="fas fa-robot"></i></span> Custom Bots</h3>
-                <button type="button" class="button is-warning is-fullwidth" onclick="refreshCustomBotTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
+        <div>
+            <div class="admin-service-card">
+                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-robot"></i></span> Custom Bots</h3>
+                <button type="button" class="sp-btn sp-btn-warning w-100" onclick="refreshCustomBotTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
                     <span class="icon"><i class="fas fa-sync"></i></span>
                     <span>Refresh Custom Bot Tokens</span>
                 </button>
@@ -1957,16 +1965,16 @@ ob_start();
     </div>
     </div>
 </div>
-<div class="box">
-    <div class="collapsible-header" onclick="toggleCollapsible('bot-message-counts', event)" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0;">
-        <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
-        <span class="collapse-icon" data-section="bot-message-counts" style="font-size: 1.5rem; transition: transform 0.3s ease;">▶</span>
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="admin-collapsible-header" onclick="toggleCollapsible('bot-message-counts', event)">
+        <h2><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
+        <span class="collapse-icon" data-section="bot-message-counts">▶</span>
     </div>
     <div class="collapsible-content" id="bot-message-counts" style="display: none; padding-top: 1rem;">
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; grid-auto-rows: 1fr;">
+    <div class="admin-msg-grid">
         <?php foreach ($messageSystemNames as $key => $label): ?>
-        <div class="box hover-box bot-message-box" data-bot-system="<?php echo $key; ?>">
-            <h3 class="title is-5"><?php echo $label; ?></h3>
+        <div class="admin-service-card" data-bot-system="<?php echo $key; ?>">
+            <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.5rem;"><?php echo $label; ?></h3>
             <div class="bot-message-count-display">
                 <div class="bot-message-count-number">
                     <?php 
@@ -1992,121 +2000,112 @@ ob_start();
     </div>
     </div>
 </div>
-<div class="box">
-    <div class="collapsible-header" onclick="toggleCollapsible('bot-overview', event)" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0;">
-        <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
-        <span class="collapse-icon" data-section="bot-overview" style="font-size: 1.5rem; transition: transform 0.3s ease;">▼</span>
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="admin-collapsible-header" onclick="toggleCollapsible('bot-overview', event)">
+        <h2><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
+        <span class="collapse-icon" data-section="bot-overview">▼</span>
     </div>
     <div class="collapsible-content" id="bot-overview" style="display: block;">
         <div id="bot-overview-container">
-            <p class="mb-5">Loading bot overview...</p>
+            <p style="margin-bottom:1.25rem;">Loading bot overview...</p>
         </div>
     </div>
 </div>
-<div class="columns is-variable is-3" style="align-items: stretch;">
-    <div class="column is-half is-hidden">
-        <div class="box" style="height: 100%; display: flex; flex-direction: column;">
-            <h2 class="title is-4"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
-            <div class="columns" style="flex: 1;">
-                <div class="column is-half">
-                    <div style="max-width: 300px; margin: 0 auto;">
-                        <canvas id="userChart" width="300" height="300"></canvas>
-                    </div>
-                </div>
-                <div class="column is-half" style="display: flex; flex-direction: column; justify-content: space-between;">
+<div class="admin-cols-row">
+    <div style="display:none;">
+        <div class="sp-card" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="sp-card-header">
+                <h2 class="sp-card-title"><span class="icon"><i class="fas fa-chart-pie"></i></span> User Overview</h2>
+            </div>
+            <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; flex:1;">
                     <div>
-                        <p class="mb-4">Quick stats on user distribution:</p>
-                        <ul>
-                            <li><strong>Total Users:</strong> <?php echo $total_users; ?></li>
-                            <li><strong>Admins:</strong> <?php echo $admin_count; ?></li>
-                            <li><strong>Beta Users:</strong> <?php echo $beta_count; ?></li>
-                            <li><strong>Premium Users:</strong> <?php echo $premium_count; ?></li>
-                            <li><strong>Regular Users:</strong> <?php echo $regular_count; ?></li>
-                        </ul>
+                        <div style="max-width: 300px; margin: 0 auto;">
+                            <canvas id="userChart" width="300" height="300"></canvas>
+                        </div>
                     </div>
-                    <a href="users.php" class="button is-link is-light mt-4">
-                        <span class="icon"><i class="fas fa-users-cog"></i></span>
-                        <span>Manage Users</span>
-                    </a>
+                    <div style="display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <p style="margin-bottom:1rem;">Quick stats on user distribution:</p>
+                            <ul>
+                                <li><strong>Total Users:</strong> <?php echo $total_users; ?></li>
+                                <li><strong>Admins:</strong> <?php echo $admin_count; ?></li>
+                                <li><strong>Beta Users:</strong> <?php echo $beta_count; ?></li>
+                                <li><strong>Premium Users:</strong> <?php echo $premium_count; ?></li>
+                                <li><strong>Regular Users:</strong> <?php echo $regular_count; ?></li>
+                            </ul>
+                        </div>
+                        <a href="users.php" class="sp-btn sp-btn-primary" style="margin-top:1rem;">
+                            <span class="icon"><i class="fas fa-users-cog"></i></span>
+                            <span>Manage Users</span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="column is-half">
-        <div class="box" style="height: 100%">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem;">
-                <h2 class="title is-4" style="margin-bottom: 0;"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
-                <button id="refresh-ai-stats" type="button" class="button is-small is-light">
-                    <span class="icon is-small"><i class="fas fa-sync-alt"></i></span>
-                    <span>Refresh</span>
-                </button>
-            </div>
+    <div class="sp-card">
+        <div class="sp-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+            <h2 class="sp-card-title" style="margin:0;"><span class="icon"><i class="fas fa-brain"></i></span> Ai Platform Stats</h2>
+            <button id="refresh-ai-stats" type="button" class="sp-btn sp-btn-sm">
+                <span class="icon is-small"><i class="fas fa-sync-alt"></i></span>
+                <span>Refresh</span>
+            </button>
+        </div>
+        <div class="sp-card-body">
             <div id="ai-platform-stats-content">
-                <p class="has-text-grey">Loading AI platform stats…</p>
+                <p class="sp-text-muted">Loading AI platform stats…</p>
             </div>
         </div>
     </div>
-    <div class="column is-half">
-        <div class="box" style="height: 100%">
-            <h2 class="title is-4"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
+    <div class="sp-card">
+        <div class="sp-card-header">
+            <h2 class="sp-card-title"><span class="icon"><i class="fas fa-paper-plane"></i></span> Send Bot Message</h2>
+        </div>
+        <div class="sp-card-body">
             <form id="send-message-form" method="post">
-                <div class="field">
-                    <label class="label">Select Channel</label>
-                    <div class="control">
-                        <div class="select">
-                            <!-- Populated via AJAX to avoid blocking page load -->
-                            <select name="channel_id" id="channel-select" required>
-                                <option value="">Loading channels...</option>
-                            </select>
-                        </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Select Channel</label>
+                    <div class="sp-select" style="width:100%;">
+                        <select name="channel_id" id="channel-select" required style="width:100%;">
+                            <option value="">Loading channels...</option>
+                        </select>
                     </div>
                 </div>
-                <div class="field">
-                    <div class="control">
-                        <label class="checkbox">
-                            <input type="checkbox" id="include-offline">
-                            Include offline channels
-                        </label>
+                <div class="sp-form-group">
+                    <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-secondary); cursor:pointer;">
+                        <input type="checkbox" id="include-offline">
+                        Include offline channels
+                    </label>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Template</label>
+                    <div class="sp-select" style="width:100%;">
+                        <select id="message-template-select" style="width:100%;">
+                            <option value="">— Choose Template —</option>
+                            <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
+                                <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 </div>
-                <div class="field">
-                    <label class="label">Template</label>
-                    <div class="control">
-                        <div class="select">
-                            <select id="message-template-select">
-                                <option value="">— Choose Template —</option>
-                                <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
-                                    <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Message</label>
+                    <textarea class="sp-textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
+                    <small id="char-count" class="sp-text-muted">0 / 255 characters</small>
                 </div>
-                <div class="field">
-                    <label class="label">Message</label>
-                    <div class="control">
-                        <textarea class="textarea" name="message" id="message" placeholder="Enter your message..." required></textarea>
-                    </div>
-                    <small id="char-count" class="has-text-grey">0 / 255 characters</small>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button class="button is-primary" type="submit" name="send_message" id="send" disabled>Send Message</button>
-                    </div>
+                <div class="sp-form-group">
+                    <button class="sp-btn sp-btn-primary" type="submit" name="send_message" id="send" disabled>Send Message</button>
                 </div>
             </form>
-            <hr>
-            <div class="field">
-                <label class="label">Shoutout Username</label>
-                <div class="control">
-                    <input class="input" type="text" id="shoutout-username" placeholder="Enter Twitch username (for example: BotOfTheSpecter)">
-                </div>
-                <small id="shoutout-helper-text" class="has-text-grey">Please select a channel above</small>
+            <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+            <div class="sp-form-group">
+                <label class="sp-label">Shoutout Username</label>
+                <input class="sp-input" type="text" id="shoutout-username" placeholder="Enter Twitch username (for example: BotOfTheSpecter)">
+                <small id="shoutout-helper-text" class="sp-text-muted">Please select a channel above</small>
             </div>
-            <div class="field">
-                <div class="control">
-                    <button class="button is-link" type="button" id="send-shoutout" disabled>Send Shoutout</button>
-                </div>
+            <div class="sp-form-group">
+                <button class="sp-btn sp-btn-primary" type="button" id="send-shoutout" disabled>Send Shoutout</button>
             </div>
         </div>
     </div>
@@ -2581,13 +2580,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const buttonsElement = document.getElementById(buttonsElementId);
                 // Update status with appropriate color
                 statusElement.textContent = data.status;
-                statusElement.className = 'title is-6';
+                statusElement.className = 'admin-service-status';
                 if (data.status === 'Running') {
-                    statusElement.classList.add('has-text-success');
+                    statusElement.classList.add('sp-text-success');
                 } else if (data.status === 'Stopped' || data.status === 'Failed') {
-                    statusElement.classList.add('has-text-danger');
+                    statusElement.classList.add('sp-text-danger');
                 } else {
-                    statusElement.classList.add('has-text-warning');
+                    statusElement.classList.add('sp-text-warning');
                 }
                 // Update PID
                 pidElement.textContent = `PID: ${data.pid}`;
@@ -2613,7 +2612,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error(`Error fetching ${service} status:`, error);
                 const statusElement = document.getElementById(statusElementId);
                 statusElement.textContent = 'Error';
-                statusElement.className = 'title is-6 has-text-danger';
+                statusElement.className = 'admin-service-status sp-text-danger';
             });
     }
     // Load service statuses after page load
@@ -2666,50 +2665,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to generate HTML for a single bot (returns element HTML and uses stable data attributes)
     function generateBotHtml(bot) {
         const profileImage = bot.profile_image || '';
-        const iconColor = bot.type === 'beta' ? 'has-text-warning' : (bot.type === 'custom' ? 'has-text-grey' : 'has-text-primary');
-        const tagClass = bot.type === 'beta' ? 'is-warning' : (bot.type === 'custom' ? 'is-dark' : 'is-primary');
+        const iconColor = bot.type === 'beta' ? 'sp-text-warning' : (bot.type === 'custom' ? 'sp-text-muted' : 'sp-text-accent');
+        const tagClass = bot.type === 'beta' ? 'sp-badge-amber' : (bot.type === 'custom' ? 'sp-badge-grey' : 'sp-badge-accent');
         const typeLabel = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
         const safeId = 'bot-' + sanitizeId(bot.channel);
-        let html = '<div class="column is-one-quarter" id="' + safeId + '" data-bot-id="' + safeId + '">';
-        html += '<div class="box hover-box">';
-        html += '<div class="level is-mobile">';
-        html += '<div class="level-left">';
-        html += '<div class="level-item">';
+        let html = '<div class="admin-bot-card" id="' + safeId + '" data-bot-id="' + safeId + '">';
+        html += '<div class="admin-service-card">';
+        html += '<div class="admin-level-row">';
         if (profileImage) {
-            html += '<figure class="image is-32x32">';
-            html += '<img src="' + profileImage + '" alt="Profile" class="is-rounded bot-profile-img">';
-            html += '</figure>';
+            html += '<img src="' + profileImage + '" alt="Profile" class="admin-bot-avatar bot-profile-img">';
         } else {
             html += '<span class="icon ' + iconColor + '">';
             html += '<i class="fas fa-robot fa-lg"></i>';
             html += '</span>';
         }
+        html += '<p class="bot-channel">' + bot.channel + '</p>';
         html += '</div>';
-        html += '<div class="level-item" style="min-width: 0;">';
-        html += '<p class="heading bot-channel" style="word-break: break-word; overflow-wrap: break-word;">' + bot.channel + '</p>';
-        html += '</div>';
-        html += '</div>';
-        html += '</div>';
-        html += '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">';
-        html += '<span class="tag bot-type-tag ' + tagClass + '">' + typeLabel + '</span>';
-        html += '<span class="tag is-light has-text-black bot-pid">PID: ' + bot.pid + '</span>';
+        html += '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom:0.5rem;">';
+        html += '<span class="sp-badge bot-type-tag ' + tagClass + '">' + typeLabel + '</span>';
+        html += '<span class="sp-badge sp-badge-grey bot-pid">PID: ' + bot.pid + '</span>';
         if (bot.version) {
-            html += '<span class="tag is-info bot-version">v' + bot.version + '</span>';
+            html += '<span class="sp-badge sp-badge-blue bot-version">v' + bot.version + '</span>';
         }
         if (bot.is_outdated) {
-            html += '<span class="tag is-danger">OUTDATED</span>';
+            html += '<span class="sp-badge sp-badge-red">OUTDATED</span>';
         }
         html += '</div>';
-        html += '<div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">';
-        html += '<button type="button" class="button is-danger is-small bot-stop-button" data-pid="' + bot.pid + '" title="Stop Bot">';
+        html += '<div style="display: flex; gap: 0.5rem;">';
+        html += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm bot-stop-button" data-pid="' + bot.pid + '" title="Stop Bot">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
-        html += '<button type="button" class="button is-info is-small bot-restart-button" data-username="' + bot.channel + '" data-bot-type="' + bot.type + '" data-pid="' + bot.pid + '" title="Restart Bot">';
+        html += '<button type="button" class="sp-btn sp-btn-info sp-btn-sm bot-restart-button" data-username="' + bot.channel + '" data-bot-type="' + bot.type + '" data-pid="' + bot.pid + '" title="Restart Bot">';
         html += '<span class="icon"><i class="fas fa-sync-alt"></i></span>';
         html += '</button>';
         html += '</div>';
         html += '</div>';
-        return html;
+        return html + '</div>';
     }
     // Load bot overview after page load (diffs DOM instead of replacing everything)
     const loadBotOverview = () => {
@@ -2728,7 +2719,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (headerTitle) {
                 const small = document.createElement('small');
                 small.id = 'bot-updated-at';
-                small.className = 'ml-2 has-text-grey';
+                small.className = 'ml-2 sp-text-muted';
                 small.textContent = 'Updated: --';
                 headerTitle.appendChild(small);
             }
@@ -2738,7 +2729,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!columns) {
             columns = document.createElement('div');
             columns.id = 'bot-columns';
-            columns.className = 'columns is-multiline';
+            columns.className = 'admin-bot-grid';
             botContainer.appendChild(columns);
         }
         const base = window.location.href.split('?')[0];
@@ -2758,7 +2749,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     botHasLoadedOnce = true;
                     setBotUpdatedNow();
                     // No bots: clear columns and show message
-                    columns.innerHTML = '<div class="column"><p>' + (data.error || 'None') + '</p></div>';
+                    columns.innerHTML = '<div class="admin-bot-card"><p>' + (data.error || 'None') + '</p></div>';
                     return;
                 }
                 Array.from(columns.children).forEach(child => {
@@ -2795,7 +2786,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const tagEl = existingEl.querySelector('.bot-type-tag');
                         if (tagEl) {
                             tagEl.textContent = bot.type.charAt(0).toUpperCase() + bot.type.slice(1);
-                            tagEl.className = 'tag bot-type-tag ' + (bot.type === 'beta' ? 'is-warning' : (bot.type === 'custom' ? 'is-dark' : 'is-primary'));
+                            tagEl.className = 'sp-badge bot-type-tag ' + (bot.type === 'beta' ? 'sp-badge-amber' : (bot.type === 'custom' ? 'sp-badge-grey' : 'sp-badge-accent'));
                         }
                         // update version tag
                         const versionEl = existingEl.querySelector('.bot-version');
@@ -2806,7 +2797,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const pidEl = existingEl.querySelector('.bot-pid');
                             if (pidEl) {
                                 const versionTag = document.createElement('span');
-                                versionTag.className = 'tag is-info bot-version';
+                                versionTag.className = 'sp-badge sp-badge-blue bot-version';
                                 versionTag.textContent = 'v' + bot.version;
                                 pidEl.insertAdjacentElement('afterend', versionTag);
                             }
@@ -2819,7 +2810,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const versionEl = existingEl.querySelector('.bot-version');
                                 if (versionEl) {
                                     const outdatedTag = document.createElement('span');
-                                    outdatedTag.className = 'tag is-danger';
+                                    outdatedTag.className = 'sp-badge sp-badge-red';
                                     outdatedTag.textContent = 'OUTDATED';
                                     versionEl.insertAdjacentElement('afterend', outdatedTag);
                                 }
@@ -2839,7 +2830,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
                             newStopBtn.addEventListener('click', function() {
                                 const pid = this.getAttribute('data-pid');
-                                const element = this.closest('.column');
+                                const element = this.closest('.admin-bot-card');
                                 stopBot(pid, element);
                             });
                         }
@@ -2856,7 +2847,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const pid = this.getAttribute('data-pid');
                                 const username = this.getAttribute('data-username');
                                 const botType = this.getAttribute('data-bot-type');
-                                const element = this.closest('.column');
+                                const element = this.closest('.admin-bot-card');
                                 restartBot(username, botType, pid, element);
                             });
                         }
@@ -2872,7 +2863,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (stopButton) {
                                     stopButton.addEventListener('click', function() {
                                         const pid = this.getAttribute('data-pid');
-                                        const element = this.closest('.column');
+                                        const element = this.closest('.admin-bot-card');
                                         stopBot(pid, element);
                                     });
                                 }
@@ -2882,7 +2873,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         const pid = this.getAttribute('data-pid');
                                         const username = this.getAttribute('data-username');
                                         const botType = this.getAttribute('data-bot-type');
-                                        const element = this.closest('.column');
+                                        const element = this.closest('.admin-bot-card');
                                         restartBot(username, botType, pid, element);
                                     });
                                 }
@@ -2991,7 +2982,7 @@ document.addEventListener('DOMContentLoaded', function() {
         aiStatsLoading = true;
         if (refreshAiStatsButton) {
             refreshAiStatsButton.disabled = true;
-            refreshAiStatsButton.classList.add('is-loading');
+            refreshAiStatsButton.classList.add('sp-btn-loading');
         }
         fetch('index.php?ajax=ai_platform_stats', {
             method: 'GET',
@@ -3002,18 +2993,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data && data.success && typeof data.html === 'string') {
                     aiStatsContainer.innerHTML = data.html;
                 } else {
-                    aiStatsContainer.innerHTML = '<p class="has-text-danger">Failed to load AI platform stats.</p>';
+                    aiStatsContainer.innerHTML = '<p class="sp-text-danger">Failed to load AI platform stats.</p>';
                 }
             })
             .catch(err => {
                 console.error('Error loading AI platform stats:', err);
-                aiStatsContainer.innerHTML = '<p class="has-text-danger">Failed to load AI platform stats.</p>';
+                aiStatsContainer.innerHTML = '<p class="sp-text-danger">Failed to load AI platform stats.</p>';
             })
             .finally(() => {
                 aiStatsLoading = false;
                 if (refreshAiStatsButton) {
                     refreshAiStatsButton.disabled = false;
-                    refreshAiStatsButton.classList.remove('is-loading');
+                    refreshAiStatsButton.classList.remove('sp-btn-loading');
                 }
             });
     }
@@ -3059,11 +3050,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const length = messageTextarea.value.length;
         charCountElement.textContent = length + ' / 255 characters';
         if (length > 255) {
-            charCountElement.className = 'has-text-danger';
+            charCountElement.className = 'sp-text-danger';
         } else if (length > 230) {
-            charCountElement.className = 'has-text-warning';
+            charCountElement.className = 'sp-text-warning';
         } else {
-            charCountElement.className = 'has-text-grey';
+            charCountElement.className = 'sp-text-muted';
         }
     }
     function updateSendButtonState() {
@@ -3096,9 +3087,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function setShoutoutInputState(state) {
         if (!shoutoutUsernameInput) return;
-        shoutoutUsernameInput.classList.remove('is-success', 'is-danger', 'is-warning');
+        shoutoutUsernameInput.classList.remove('is-success', 'is-danger', 'is-warning'); // CSS handles sp-input state
         if (state === 'success') {
-            shoutoutUsernameInput.classList.add('is-success');
+            shoutoutUsernameInput.classList.add('is-success'); // sp-input.is-success handled in CSS
         } else if (state === 'error') {
             shoutoutUsernameInput.classList.add('is-danger');
         } else if (state === 'loading') {
