@@ -1920,84 +1920,113 @@ ob_start();
     </div>
 </div>
 <div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="admin-collapsible-header" onclick="toggleCollapsible('token-management', event)">
-        <h2><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
-        <span class="collapse-icon" data-section="token-management">▶</span>
+    <div class="sp-card-header">
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-key"></i></span> Token Management</h2>
     </div>
-    <div class="collapsible-content" id="token-management" style="display: none; padding-top: 1rem;">
-    <div class="admin-token-grid">
-        <div>
-            <div class="admin-service-card">
-                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-spotify"></i></span> Spotify</h3>
-                <button type="button" class="sp-btn sp-btn-success w-100" onclick="refreshSpotifyTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                    <span class="icon"><i class="fas fa-sync"></i></span>
-                    <span>Refresh Spotify Tokens</span>
-                </button>
+    <div class="sp-card-body">
+        <div class="admin-token-grid">
+            <div>
+                <div class="admin-service-card">
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                        <span class="icon sp-text-success"><i class="fab fa-spotify fa-lg"></i></span>
+                        <div>
+                            <span class="admin-heading">Token Service</span>
+                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">Spotify</span>
+                        </div>
+                    </div>
+                    <button type="button" class="sp-btn sp-btn-success" style="width:100%;" onclick="refreshSpotifyTokens()">
+                        <span class="icon"><i class="fas fa-sync"></i></span>
+                        <span>Refresh Spotify Tokens</span>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <div class="admin-service-card">
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                        <span class="icon sp-text-info"><i class="fas fa-stream fa-lg"></i></span>
+                        <div>
+                            <span class="admin-heading">Token Service</span>
+                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">StreamElements</span>
+                        </div>
+                    </div>
+                    <button type="button" class="sp-btn sp-btn-info" style="width:100%;" onclick="refreshStreamElementsTokens()">
+                        <span class="icon"><i class="fas fa-sync"></i></span>
+                        <span>Refresh StreamElements Tokens</span>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <div class="admin-service-card">
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                        <span class="icon sp-text-accent"><i class="fab fa-discord fa-lg"></i></span>
+                        <div>
+                            <span class="admin-heading">Token Service</span>
+                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">Discord</span>
+                        </div>
+                    </div>
+                    <button type="button" class="sp-btn sp-btn-primary" style="width:100%;" onclick="refreshDiscordTokens()">
+                        <span class="icon"><i class="fas fa-sync"></i></span>
+                        <span>Refresh Discord Tokens</span>
+                    </button>
+                </div>
+            </div>
+            <div>
+                <div class="admin-service-card">
+                    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                        <span class="icon sp-text-warning"><i class="fas fa-robot fa-lg"></i></span>
+                        <div>
+                            <span class="admin-heading">Token Service</span>
+                            <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);">Custom Bots</span>
+                        </div>
+                    </div>
+                    <button type="button" class="sp-btn sp-btn-warning" style="width:100%;" onclick="refreshCustomBotTokens()">
+                        <span class="icon"><i class="fas fa-sync"></i></span>
+                        <span>Refresh Custom Bot Tokens</span>
+                    </button>
+                </div>
             </div>
         </div>
-        <div>
-            <div class="admin-service-card">
-                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-stream"></i></span> StreamElements</h3>
-                <button type="button" class="sp-btn sp-btn-info w-100" onclick="refreshStreamElementsTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                    <span class="icon"><i class="fas fa-sync"></i></span>
-                    <span>Refresh StreamElements Tokens</span>
-                </button>
-            </div>
-        </div>
-        <div>
-            <div class="admin-service-card">
-                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-discord"></i></span> Discord</h3>
-                <button type="button" class="sp-btn sp-btn-primary w-100" onclick="refreshDiscordTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                    <span class="icon"><i class="fas fa-sync"></i></span>
-                    <span>Refresh Discord Tokens</span>
-                </button>
-            </div>
-        </div>
-        <div>
-            <div class="admin-service-card">
-                <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-robot"></i></span> Custom Bots</h3>
-                <button type="button" class="sp-btn sp-btn-warning w-100" onclick="refreshCustomBotTokens()" style="white-space: normal; overflow-wrap: break-word; height: auto; padding: 0.75rem;">
-                    <span class="icon"><i class="fas fa-sync"></i></span>
-                    <span>Refresh Custom Bot Tokens</span>
-                </button>
-            </div>
-        </div>
-    </div>
     </div>
 </div>
+<?php
+$botIconMap = [
+    'discordbot'     => ['icon' => 'fab fa-discord',  'color' => 'sp-text-info'],
+    'twitch_stable'  => ['icon' => 'fab fa-twitch',   'color' => 'sp-text-accent'],
+    'twitch_beta'    => ['icon' => 'fab fa-twitch',   'color' => 'sp-text-success'],
+    'twitch_custom'  => ['icon' => 'fas fa-robot',    'color' => 'sp-text-warning'],
+];
+?>
 <div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="admin-collapsible-header" onclick="toggleCollapsible('bot-message-counts', event)">
-        <h2><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
-        <span class="collapse-icon" data-section="bot-message-counts">▶</span>
+    <div class="sp-card-header">
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-comments"></i></span> Bot Message Counts</h2>
     </div>
-    <div class="collapsible-content" id="bot-message-counts" style="display: none; padding-top: 1rem;">
-    <div class="admin-msg-grid">
-        <?php foreach ($messageSystemNames as $key => $label): ?>
-        <div class="admin-service-card" data-bot-system="<?php echo $key; ?>">
-            <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.5rem;"><?php echo $label; ?></h3>
-            <div class="bot-message-count-display">
-                <div class="bot-message-count-number">
-                    <?php 
-                    if (isset($botMessageStats[$key]) && $botMessageStats[$key]['messages_sent'] > 0) {
-                        echo number_format($botMessageStats[$key]['messages_sent']);
-                    } else {
-                        echo 'Not Counting Yet';
-                    }
-                    ?>
+    <div class="sp-card-body">
+        <div class="admin-msg-grid">
+            <?php foreach ($messageSystemNames as $key => $label):
+                $iconCfg = $botIconMap[$key] ?? ['icon' => 'fas fa-robot', 'color' => 'sp-text-info'];
+                $hasData = isset($botMessageStats[$key]) && $botMessageStats[$key]['messages_sent'] > 0;
+            ?>
+            <div class="admin-service-card" data-bot-system="<?php echo $key; ?>">
+                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+                    <span class="icon <?php echo $iconCfg['color']; ?>"><i class="<?php echo $iconCfg['icon']; ?> fa-lg"></i></span>
+                    <div>
+                        <span class="admin-heading">Message Count</span>
+                        <span style="display:block; font-size:0.95rem; font-weight:700; color:var(--text-primary);"><?php echo $label; ?></span>
+                    </div>
                 </div>
-                <div class="bot-message-count-timestamp">
-                    <?php 
-                    if (isset($botMessageStats[$key]['last_updated'])) {
-                        echo 'Last Updated: ' . date('M d, Y H:i:s', strtotime($botMessageStats[$key]['last_updated']));
-                    } else {
-                        echo 'No data yet';
-                    }
-                    ?>
+                <div class="bot-message-count-display">
+                    <div class="bot-message-count-number" style="color:var(--blue);">
+                        <?php echo $hasData ? number_format($botMessageStats[$key]['messages_sent']) : '<span style="font-size:0.9rem; color:var(--text-muted);">Not Counting Yet</span>'; ?>
+                    </div>
+                    <div class="bot-message-count-timestamp">
+                        <?php echo isset($botMessageStats[$key]['last_updated'])
+                            ? 'Last Updated: ' . date('M d, Y H:i:s', strtotime($botMessageStats[$key]['last_updated']))
+                            : 'No data yet'; ?>
+                    </div>
                 </div>
             </div>
+            <?php endforeach; ?>
         </div>
-        <?php endforeach; ?>
-    </div>
     </div>
 </div>
 <div class="sp-card" style="margin-bottom:1.5rem;">
