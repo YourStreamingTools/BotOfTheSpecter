@@ -202,218 +202,217 @@ if ($res) {
 
 ob_start();
 ?>
-<div class="columns" style="flex: 1 0 auto;">
-    <div class="column is-10 is-offset-1 main-content">
-        <section class="section">
-            <div class="notification is-warning">
-                <strong>⚠️ Beta Feature:</strong> This is a beta 5.8 version feature currently in testing. Functionality may change or have unexpected behavior.
+<div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
+    <strong>⚠️ Beta Feature:</strong> This is a beta 5.8 version feature currently in testing. Functionality may change or have unexpected behavior.
+</div>
+<?php if ($message): ?>
+    <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;"><?php echo htmlspecialchars($message); ?></div>
+<?php endif; ?>
+
+<!-- Create New Raffle -->
+<div class="sp-card">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-ticket-alt"></i> Create New Raffle</span>
+    </header>
+    <div class="sp-card-body">
+        <form method="post">
+            <input type="hidden" name="action" value="create">
+            <div class="sp-form-group">
+                <label class="sp-label">Raffle Name</label>
+                <input class="sp-input" name="name" required>
             </div>
-            <?php if ($message): ?>
-                <div class="notification is-info"><?php echo htmlspecialchars($message); ?></div>
-            <?php endif; ?>
-            <div class="box">
-                <h3 class="title is-5">Create New Raffle</h3>
-                <form method="post">
-                    <input type="hidden" name="action" value="create">
-                    <div class="field">
-                        <label class="label">Raffle Name</label>
-                        <div class="control"><input class="input" name="name" required></div>
+            <div class="sp-form-group">
+                <label class="sp-label">Prize Description</label>
+                <textarea class="sp-textarea" name="prize" placeholder="What are they winning?" required></textarea>
+            </div>
+            <div class="sp-form-group">
+                <label class="sp-label">Number of Winners</label>
+                <input class="sp-input" type="number" name="number_of_winners" min="1" value="1" required style="max-width:120px;">
+            </div>
+            <div class="sp-form-group">
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
+                    <input type="checkbox" name="weighted" id="weighted-checkbox" onchange="toggleWeightSettings()">
+                    Enable Weighted Raffle (subscribers and VIPs get enhanced odds)
+                </label>
+            </div>
+            <div id="weight-settings" style="display:none;border-left:3px solid var(--accent);padding-left:1rem;margin-left:1rem;margin-bottom:1rem;">
+                <p style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.75rem;">Weight Multipliers</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="sp-form-group" style="margin-bottom:0;">
+                        <label class="sp-label">Tier 1 Subscriber</label>
+                        <input class="sp-input" type="number" name="weight_sub_t1" step="0.01" min="1" value="2.00">
                     </div>
-                    <div class="field">
-                        <label class="label">Prize Description</label>
-                        <div class="control"><textarea class="textarea" name="prize" placeholder="What are they winning?" required></textarea></div>
+                    <div class="sp-form-group" style="margin-bottom:0;">
+                        <label class="sp-label">Tier 2 Subscriber</label>
+                        <input class="sp-input" type="number" name="weight_sub_t2" step="0.01" min="1" value="3.00">
                     </div>
-                    <div class="field">
-                        <label class="label">Number of Winners</label>
-                        <div class="control"><input class="input" type="number" name="number_of_winners" min="1" value="1" required></div>
+                    <div class="sp-form-group" style="margin-bottom:0;">
+                        <label class="sp-label">Tier 3 Subscriber</label>
+                        <input class="sp-input" type="number" name="weight_sub_t3" step="0.01" min="1" value="4.00">
                     </div>
-                    <div class="field">
-                        <label class="checkbox">
-                            <input type="checkbox" name="weighted" id="weighted-checkbox" onchange="toggleWeightSettings()"> 
-                            Enable Weighted Raffle (subscribers and VIPs get enhanced odds)
-                        </label>
+                    <div class="sp-form-group" style="margin-bottom:0;">
+                        <label class="sp-label">VIP</label>
+                        <input class="sp-input" type="number" name="weight_vip" step="0.01" min="1" value="1.50">
                     </div>
-                    <div id="weight-settings" style="display: none; border-left: 3px solid #3273dc; padding-left: 1rem; margin-left: 1rem; margin-bottom: 1rem;">
-                        <h4 class="subtitle is-6">Weight Multipliers</h4>
-                        <div class="columns">
-                            <div class="column">
-                                <div class="field">
-                                    <label class="label">Tier 1 Subscriber</label>
-                                    <div class="control"><input class="input" type="number" name="weight_sub_t1" step="0.01" min="1" value="2.00"></div>
-                                </div>
-                            </div>
-                            <div class="column">
-                                <div class="field">
-                                    <label class="label">Tier 2 Subscriber</label>
-                                    <div class="control"><input class="input" type="number" name="weight_sub_t2" step="0.01" min="1" value="3.00"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="columns">
-                            <div class="column">
-                                <div class="field">
-                                    <label class="label">Tier 3 Subscriber</label>
-                                    <div class="control"><input class="input" type="number" name="weight_sub_t3" step="0.01" min="1" value="4.00"></div>
-                                </div>
-                            </div>
-                            <div class="column">
-                                <div class="field">
-                                    <label class="label">VIP</label>
-                                    <div class="control"><input class="input" type="number" name="weight_vip" step="0.01" min="1" value="1.50"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label class="checkbox">
-                            <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
-                        </label>
-                    </div>
-                    <div class="field">
-                        <label class="checkbox">
-                            <input type="checkbox" name="subscribers_only"> Only Subscribers Can Enter
-                        </label>
-                    </div>
-                    <div class="field">
-                        <label class="checkbox">
-                            <input type="checkbox" name="followers_only" id="followers-only-checkbox" onchange="toggleFollowerMinimumSettings()"> Only Followers Can Enter
-                        </label>
-                    </div>
-                    <div id="follower-minimum-settings" style="display: none; border-left: 3px solid #23d160; padding-left: 1rem; margin-left: 1rem;">
-                        <div class="field">
-                            <label class="checkbox">
-                                <input type="checkbox" name="followers_min_enabled" id="followers-min-enabled-checkbox" onchange="toggleFollowerMinimumInputs()"> Require Minimum Follow Time
-                            </label>
-                        </div>
-                        <div id="follower-minimum-inputs" style="display: none;">
-                        <div class="field">
-                            <label class="label">Minimum Follow Time</label>
-                            <div class="columns">
-                                <div class="column is-one-third">
-                                    <div class="control">
-                                        <input class="input" type="number" name="followers_min_value" min="0" value="0">
-                                    </div>
-                                </div>
-                                <div class="column is-one-third">
-                                    <div class="control">
-                                        <div class="select is-fullwidth">
-                                            <select name="followers_min_unit">
-                                                <option value="days">Days</option>
-                                                <option value="weeks">Weeks</option>
-                                                <option value="months">Months</option>
-                                                <option value="years">Years</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                </div>
+            </div>
+            <div class="sp-form-group">
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
+                    <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
+                </label>
+            </div>
+            <div class="sp-form-group">
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
+                    <input type="checkbox" name="subscribers_only"> Only Subscribers Can Enter
+                </label>
+            </div>
+            <div class="sp-form-group">
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
+                    <input type="checkbox" name="followers_only" id="followers-only-checkbox" onchange="toggleFollowerMinimumSettings()"> Only Followers Can Enter
+                </label>
+            </div>
+            <div id="follower-minimum-settings" style="display:none;border-left:3px solid var(--green);padding-left:1rem;margin-left:1rem;margin-bottom:1rem;">
+                <div class="sp-form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
+                        <input type="checkbox" name="followers_min_enabled" id="followers-min-enabled-checkbox" onchange="toggleFollowerMinimumInputs()"> Require Minimum Follow Time
+                    </label>
+                </div>
+                <div id="follower-minimum-inputs" style="display:none;">
+                    <div class="sp-form-group">
+                        <label class="sp-label">Minimum Follow Time</label>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <input class="sp-input" type="number" name="followers_min_value" min="0" value="0" style="max-width:100px;">
+                            <select class="sp-select" name="followers_min_unit" style="max-width:140px;">
+                                <option value="days">Days</option>
+                                <option value="weeks">Weeks</option>
+                                <option value="months">Months</option>
+                                <option value="years">Years</option>
+                            </select>
                         </div>
                     </div>
-                    <script>
-                        function toggleWeightSettings() {
-                            const checkbox = document.getElementById('weighted-checkbox');
-                            const settings = document.getElementById('weight-settings');
-                            settings.style.display = checkbox.checked ? 'block' : 'none';
+                </div>
+            </div>
+            <script>
+                function toggleWeightSettings() {
+                    const checkbox = document.getElementById('weighted-checkbox');
+                    const settings = document.getElementById('weight-settings');
+                    settings.style.display = checkbox.checked ? 'block' : 'none';
+                }
+                function toggleFollowerMinimumSettings() {
+                    const checkbox = document.getElementById('followers-only-checkbox');
+                    const settings = document.getElementById('follower-minimum-settings');
+                    settings.style.display = checkbox.checked ? 'block' : 'none';
+                    if (!checkbox.checked) {
+                        const minEnabled = document.getElementById('followers-min-enabled-checkbox');
+                        if (minEnabled) {
+                            minEnabled.checked = false;
                         }
-                        function toggleFollowerMinimumSettings() {
-                            const checkbox = document.getElementById('followers-only-checkbox');
-                            const settings = document.getElementById('follower-minimum-settings');
-                            settings.style.display = checkbox.checked ? 'block' : 'none';
-                            if (!checkbox.checked) {
-                                const minEnabled = document.getElementById('followers-min-enabled-checkbox');
-                                if (minEnabled) {
-                                    minEnabled.checked = false;
-                                }
-                                toggleFollowerMinimumInputs();
-                            }
-                        }
-                        function toggleFollowerMinimumInputs() {
-                            const checkbox = document.getElementById('followers-min-enabled-checkbox');
-                            const settings = document.getElementById('follower-minimum-inputs');
-                            settings.style.display = checkbox && checkbox.checked ? 'block' : 'none';
-                        }
-                    </script>
-                    <div class="field" style="margin-top: 1.5rem;">
-                        <div class="control"><button class="button is-primary" type="submit">Start Raffle</button></div>
-                    </div>
-                </form>
-                <hr>
-                <h3 class="title is-5">Active Raffles</h3>
-                <table class="table is-fullwidth is-striped">
-                    <thead>
+                        toggleFollowerMinimumInputs();
+                    }
+                }
+                function toggleFollowerMinimumInputs() {
+                    const checkbox = document.getElementById('followers-min-enabled-checkbox');
+                    const settings = document.getElementById('follower-minimum-inputs');
+                    settings.style.display = checkbox && checkbox.checked ? 'block' : 'none';
+                }
+            </script>
+            <div style="margin-top:1.5rem;">
+                <button class="sp-btn sp-btn-primary" type="submit">
+                    <i class="fas fa-ticket-alt"></i> Create Raffle
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Active Raffles -->
+<div class="sp-card">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-list"></i> Active Raffles</span>
+    </header>
+    <div class="sp-card-body">
+        <div class="sp-table-wrap">
+            <table class="sp-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Prize</th>
+                        <th># Winners</th>
+                        <th>Status</th>
+                        <th>Weights</th>
+                        <th>Exclusions</th>
+                        <th>Winner(s)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($raffles as $r): ?>
                         <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Prize</th>
-                            <th># Winners</th>
-                            <th>Status</th>
-                            <th>Weights</th>
-                            <th>Exclusions</th>
-                            <th>Winner(s)</th>
-                            <th>Action</th>
+                            <td><?php echo htmlspecialchars($r['id']); ?></td>
+                            <td><?php echo htmlspecialchars($r['name']); ?></td>
+                            <td><?php echo htmlspecialchars($r['prize'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($r['number_of_winners']); ?></td>
+                            <td>
+                                <?php
+                                $statusClass = match($r['status']) {
+                                    'running'   => 'sp-badge-green',
+                                    'scheduled' => 'sp-badge-blue',
+                                    'ended'     => 'sp-badge-grey',
+                                    default     => 'sp-badge-grey',
+                                };
+                                ?>
+                                <span class="sp-badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($r['status']); ?></span>
+                            </td>
+                            <td>
+                                <?php if ($r['is_weighted']): ?>
+                                    <span class="sp-badge sp-badge-accent" title="T1: <?php echo $r['weight_sub_t1']; ?>x | T2: <?php echo $r['weight_sub_t2']; ?>x | T3: <?php echo $r['weight_sub_t3']; ?>x | VIP: <?php echo $r['weight_vip']; ?>x">
+                                        ✓ Weighted
+                                    </span>
+                                <?php else: ?>
+                                    <span style="color:var(--text-muted);">No</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php
+                                $exclusions = [];
+                                if ($r['exclude_mods']) $exclusions[] = 'Mods excluded';
+                                if ($r['subscribers_only']) $exclusions[] = 'Subs only';
+                                if ($r['followers_only']) {
+                                    $followersLabel = 'Followers only';
+                                    if (intval($r['followers_min_enabled']) === 1 && intval($r['followers_min_value']) > 0) {
+                                        $followersLabel .= ' (' . intval($r['followers_min_value']) . ' ' . htmlspecialchars($r['followers_min_unit']) . ' min)';
+                                    }
+                                    $exclusions[] = $followersLabel;
+                                }
+                                echo !empty($exclusions) ? htmlspecialchars(implode(', ', $exclusions)) : '<span style="color:var(--text-muted);">None</span>';
+                                ?>
+                            </td>
+                            <td>
+                                <?php if (!empty($r['winners'])): ?>
+                                    <span style="color:var(--green);"><?php echo htmlspecialchars(implode(', ', $r['winners'])); ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($r['status'] === 'scheduled'): ?>
+                                    <form method="post" style="display:inline">
+                                        <input type="hidden" name="action" value="start">
+                                        <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
+                                        <button class="sp-btn sp-btn-success sp-btn-sm" type="submit"><i class="fas fa-play"></i> Start</button>
+                                    </form>
+                                <?php elseif ($r['status'] === 'running'): ?>
+                                    <form method="post" style="display:inline">
+                                        <input type="hidden" name="action" value="draw">
+                                        <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
+                                        <button class="sp-btn sp-btn-warning sp-btn-sm" type="submit"><i class="fas fa-star"></i> Draw</button>
+                                    </form>
+                                <?php endif; ?>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($raffles as $r): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($r['id']); ?></td>
-                                <td><?php echo htmlspecialchars($r['name']); ?></td>
-                                <td><?php echo htmlspecialchars($r['prize'] ?? ''); ?></td>
-                                <td><?php echo htmlspecialchars($r['number_of_winners']); ?></td>
-                                <td><?php echo htmlspecialchars($r['status']); ?></td>
-                                <td>
-                                    <?php if ($r['is_weighted']): ?>
-                                        <span title="T1: <?php echo $r['weight_sub_t1']; ?>x | T2: <?php echo $r['weight_sub_t2']; ?>x | T3: <?php echo $r['weight_sub_t3']; ?>x | VIP: <?php echo $r['weight_vip']; ?>x">
-                                            ✓ (hover for details)
-                                        </span>
-                                    <?php else: ?>
-                                        No
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    $exclusions = [];
-                                    if ($r['exclude_mods']) $exclusions[] = 'Mods excluded';
-                                    if ($r['subscribers_only']) $exclusions[] = 'Subs only';
-                                    if ($r['followers_only']) {
-                                        $followersLabel = 'Followers only';
-                                        if (intval($r['followers_min_enabled']) === 1 && intval($r['followers_min_value']) > 0) {
-                                            $followersLabel .= ' (' . intval($r['followers_min_value']) . ' ' . htmlspecialchars($r['followers_min_unit']) . ' min)';
-                                        }
-                                        $exclusions[] = $followersLabel;
-                                    }
-                                    echo !empty($exclusions) ? implode(', ', $exclusions) : 'None';
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    if (!empty($r['winners'])) {
-                                        echo htmlspecialchars(implode(', ', $r['winners']));
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php if ($r['status'] === 'scheduled'): ?>
-                                        <form method="post" style="display:inline">
-                                            <input type="hidden" name="action" value="start">
-                                            <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                            <button class="button is-small is-success" type="submit">Start</button>
-                                        </form>
-                                    <?php elseif ($r['status'] === 'running'): ?>
-                                        <form method="post" style="display:inline">
-                                            <input type="hidden" name="action" value="draw">
-                                            <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                            <button class="button is-small is-warning" type="submit">Draw</button>
-                                        </form>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 <?php
