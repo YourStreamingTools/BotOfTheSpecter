@@ -295,50 +295,41 @@ if (!empty($staleProfileImages)) {
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-            <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                    <span class="icon mr-2"><i class="fas fa-user-shield"></i></span>
-                    <?php echo t('mods_heading'); ?>
-                </span>
-            </header>
-            <div class="card-content">
-                <div class="content">
-                    <div class="notification has-background-grey-darker has-text-white mb-4" style="border: 1px solid #4a4a4a;">
-                        <div class="columns is-vcentered">
-                            <div class="column is-narrow">
-                                <span class="icon is-large has-text-primary">
-                                    <i class="fas fa-user-shield fa-2x"></i> 
-                                </span>
-                            </div>
-                            <div class="column">
-                                <p><span class="has-text-weight-bold"><?php echo t('mods_dashboard_access_title'); ?></span></p>
-                                <p><?php echo t('mods_dashboard_access_desc'); ?></p>
-                                <hr class="has-background-grey my-2" style="height: 1px;">
-                                <p><span class="has-text-weight-bold"><?php echo t('mods_security_warning'); ?></span></p>
-                            </div>
+<div class="sp-card mb-5">
+    <div class="sp-card-header">
+        <span class="sp-card-title">
+            <span class="icon mr-2"><i class="fas fa-user-shield"></i></span>
+            <?php echo t('mods_heading'); ?>
+        </span>
+    </div>
+    <div class="sp-card-body">
+                    <div class="sp-alert sp-alert-info mb-4" style="display:flex;gap:1rem;align-items:flex-start;">
+                        <span class="icon" style="flex-shrink:0;font-size:1.5rem;"><i class="fas fa-user-shield"></i></span>
+                        <div>
+                            <p><strong><?php echo t('mods_dashboard_access_title'); ?></strong></p>
+                            <p><?php echo t('mods_dashboard_access_desc'); ?></p>
+                            <hr style="border:none;border-top:1px solid var(--border);margin:0.5rem 0;">
+                            <p><strong><?php echo t('mods_security_warning'); ?></strong></p>
                         </div>
                     </div>
-                    <div class="notification has-background-grey-dark has-text-white mb-4" style="border: 1px solid #4a4a4a;">
-                        <p class="has-text-weight-bold mb-2"><i class="fas fa-info-circle mr-2"></i><?php echo t('mods_how_it_works_title'); ?></p>
-                        <div class="content is-small">
-                            <p><span class="has-text-weight-semibold"><?php echo t('mods_table_name'); ?>:</span> <?php echo t('mods_column_name_desc'); ?></p>
-                            <p><span class="has-text-weight-semibold"><?php echo t('mods_table_registered'); ?>:</span> <?php echo t('mods_column_registration_desc'); ?></p>
-                            <p><span class="has-text-weight-semibold"><?php echo t('mods_table_access'); ?>:</span> <?php echo t('mods_column_access_desc'); ?></p>
-                            <hr class="has-background-grey my-2" style="height: 1px;">
-                            <p class="is-size-7 has-text-grey-light"><span class="has-text-info has-text-weight-semibold"><?php echo t('mods_automatic_access_note'); ?></span></p>
-                            <p class="is-size-7 has-text-grey-light"><span class="has-text-info has-text-weight-semibold"><?php echo t('mods_bot_filtering_note'); ?></span></p>
+                    <div class="sp-card mb-4">
+                        <div class="sp-card-body">
+                            <p class="mb-2"><strong><i class="fas fa-info-circle mr-2"></i><?php echo t('mods_how_it_works_title'); ?></strong></p>
+                            <p><strong><?php echo t('mods_table_name'); ?>:</strong> <?php echo t('mods_column_name_desc'); ?></p>
+                            <p><strong><?php echo t('mods_table_registered'); ?>:</strong> <?php echo t('mods_column_registration_desc'); ?></p>
+                            <p><strong><?php echo t('mods_table_access'); ?>:</strong> <?php echo t('mods_column_access_desc'); ?></p>
+                            <hr style="border:none;border-top:1px solid var(--border);margin:0.5rem 0;">
+                            <p class="sp-text-muted" style="font-size:0.82rem;"><span class="sp-text-info"><strong><?php echo t('mods_automatic_access_note'); ?></strong></span></p>
+                            <p class="sp-text-muted" style="font-size:0.82rem;"><span class="sp-text-info"><strong><?php echo t('mods_bot_filtering_note'); ?></strong></span></p>
                         </div>
                     </div>
-                    <div class="table-container">
-                        <table class="table is-fullwidth has-text-white">
+                    <div class="sp-table-wrap">
+                        <table class="sp-table">
                             <thead>
-                                <tr style="background-color: #2b2b2b;">
-                                    <th class="has-text-white"><?php echo t('mods_table_name'); ?></th>
-                                    <th class="has-text-white"><?php echo t('mods_table_registered'); ?></th>
-                                    <th class="has-text-white"><?php echo t('mods_table_access'); ?></th>
+                                <tr>
+                                    <th><?php echo t('mods_table_name'); ?></th>
+                                    <th><?php echo t('mods_table_registered'); ?></th>
+                                    <th><?php echo t('mods_table_access'); ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -354,33 +345,33 @@ ob_start();
                                         $isRegistered = true;
                                     }
                                     $profileImg = isset($modProfileImages[$modUserId]) && $modProfileImages[$modUserId]
-                                        ? '<img src="' . htmlspecialchars($modProfileImages[$modUserId]) . '" alt="' . htmlspecialchars($modDisplayName) . '" style="width:32px;height:32px;margin-right:0.5em;border-radius:50%;object-fit:cover;">'
-                                        : '<span class="has-background-primary has-text-white is-flex is-justify-content-center is-align-items-center" style="width:32px;height:32px;font-size:1.2rem;font-weight:700;display:inline-flex;margin-right:0.5em;border-radius:50%;">' . strtoupper(mb_substr($modDisplayName, 0, 1)) . '</span>';
+                                        ? '<img src="' . htmlspecialchars($modProfileImages[$modUserId]) . '" alt="' . htmlspecialchars($modDisplayName) . '" style="width:32px;height:32px;margin-right:0.5em;border-radius:50%;object-fit:cover;flex-shrink:0;">'
+                                        : '<span style="width:32px;height:32px;font-size:1.1rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:0.5em;border-radius:50%;background:var(--accent-light);color:var(--accent-hover);flex-shrink:0;">' . strtoupper(mb_substr($modDisplayName, 0, 1)) . '</span>';
                                 ?>
-                                <tr style="background-color: #363636;">
-                                    <td class="has-text-white">
+                                <tr>
+                                    <td>
                                         <span style="display:flex;align-items:center;">
                                             <?php echo $profileImg; ?>
                                             <?php echo htmlspecialchars($modDisplayName); ?>
                                             <?php if ($isStaleAccess): ?>
-                                                <span class="tag is-warning is-light ml-2">No longer mod</span>
+                                                <span class="sp-badge sp-badge-amber ml-2">No longer mod</span>
                                             <?php endif; ?>
                                         </span>
                                     </td>
-                                    <td class="has-text-white">
+                                    <td>
                                         <?php if ($isRegistered) : ?>
-                                            <span class="has-text-success"><?php echo t('yes'); ?></span>
+                                            <span class="sp-text-success"><?php echo t('yes'); ?></span>
                                         <?php else : ?>
-                                            <span class="has-text-danger"><?php echo t('no'); ?></span>
+                                            <span class="sp-text-danger"><?php echo t('no'); ?></span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="has-text-white">
+                                    <td>
                                         <?php if (strtolower($modDisplayName) === 'botofthespecter') : ?>
-                                            <button class="button is-success" disabled><?php echo t('mods_always_has_access'); ?></button>
+                                            <button class="sp-btn sp-btn-success" disabled><?php echo t('mods_always_has_access'); ?></button>
                                         <?php elseif ($hasAccess) : ?>
-                                            <button class="button is-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
+                                            <button class="sp-btn sp-btn-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
                                         <?php else : ?>
-                                            <button class="button is-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
+                                            <button class="sp-btn sp-btn-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -388,9 +379,6 @@ ob_start();
                             </tbody>
                         </table>
                     </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 <?php
@@ -441,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         console.debug('mods: sending', { moderator_id: twitchUserId, action: action });
         btn.disabled = true;
-        btn.classList.add('is-loading');
+        btn.classList.add('sp-btn-loading');
         var formData = new FormData();
         formData.append('moderator_id', twitchUserId);
         formData.append('action', action);
@@ -455,13 +443,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(function(json) {
             if (json.status === 'ok') {
                 if (json.action === 'add') {
-                    btn.classList.remove('is-primary');
-                    btn.classList.add('is-danger');
+                    btn.classList.remove('sp-btn-primary');
+                    btn.classList.add('sp-btn-danger');
                     btn.setAttribute('data-action', 'remove');
                     btn.textContent = removeText;
                 } else if (json.action === 'remove') {
-                    btn.classList.remove('is-danger');
-                    btn.classList.add('is-primary');
+                    btn.classList.remove('sp-btn-danger');
+                    btn.classList.add('sp-btn-primary');
                     btn.setAttribute('data-action', 'add');
                     btn.textContent = addText;
                 }
@@ -483,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!isActingAs) {
                 btn.disabled = false;
             }
-            btn.classList.remove('is-loading');
+            btn.classList.remove('sp-btn-loading');
         });
     }
     var buttons = document.querySelectorAll('.access-control');
