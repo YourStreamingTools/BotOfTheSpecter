@@ -155,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Check if new command name is built-in
         if (array_key_exists($new_command_name, $builtinCommands['commands'])) {
             $status = "Failed to update: The new command name matches a built-in command.";
-            $notification_status = "is-danger";
+            $notification_status = "sp-alert-danger";
         } else {
             try {
                 // If the command name is changed, update it as well
@@ -171,10 +171,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
                 if ($updateSTMT->affected_rows > 0) {
                     $status = "Command ". $command_to_edit . " updated successfully!";
-                    $notification_status = "is-success";
+                    $notification_status = "sp-alert-success";
                 } else {
                     $status = $command_to_edit . " not found or no changes made.";
-                    $notification_status = "is-danger";
+                    $notification_status = "sp-alert-danger";
                 }
                 $updateSTMT->close();
                 $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $commandsSTMT->close();
             } catch (Exception $e) {
                 $status = "Error updating " .$command_to_edit . ": " . $e->getMessage();
-                $notification_status = "is-danger";
+                $notification_status = "sp-alert-danger";
             }
         }
     }
@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Check if command is built-in
         if (array_key_exists($newCommand, $builtinCommands['commands'])) {
             $status = "Failed to add: The custom command name matches a built-in command.";
-            $notification_status = "is-danger";
+            $notification_status = "sp-alert-danger";
         } else {
             // Insert new command into MySQL database
             try {
@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $commandsSTMT->close();
             } catch (Exception $e) {
                 $status = t('custom_commands_error_generic');
-                $notification_status = "is-danger";
+                $notification_status = "sp-alert-danger";
             }
         }
     }
@@ -287,34 +287,30 @@ $userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="notification is-info mb-5">
-    <div class="columns is-vcentered">
-        <div class="column is-narrow">
-            <span class="icon is-large"><i class="fas fa-info-circle fa-2x"></i></span>
-        </div>
-        <div class="column">
-            <p class="title is-6 mb-2"><?php echo t('navbar_edit_custom_commands'); ?></p>
-            <ol class="ml-5 mb-3">
-                <li><?php echo t('custom_commands_skip_exclamation'); ?></li>
-                <li>
-                    <?php echo t('custom_commands_add_in_chat'); ?> <code>!addcommand [command] [message]</code>
-                    <div class="ml-4 mt-1"><code>!addcommand mycommand <?php echo t('custom_commands_example_message'); ?></code></div>
-                </li>
-            </ol>
-            <p class="mb-1"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
-            <p class="mb-1"><?php echo t('custom_commands_explore_variables'); ?></p>
-            <p class="mb-2"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('custom_commands_note_detail'); ?></p>
-            <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="button is-primary is-small">
-                <span class="icon"><i class="fas fa-code"></i></span>
-                <span><?php echo t('custom_commands_view_variables'); ?></span>
-            </a>
-        </div>
+<div class="sp-alert sp-alert-info" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.5rem;">
+    <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-info-circle"></i></span>
+    <div>
+        <p style="font-weight:700; margin-bottom:0.4rem;"><?php echo t('navbar_edit_custom_commands'); ?></p>
+        <ol style="margin-left:1.25rem; margin-bottom:0.75rem;">
+            <li><?php echo t('custom_commands_skip_exclamation'); ?></li>
+            <li>
+                <?php echo t('custom_commands_add_in_chat'); ?> <code>!addcommand [command] [message]</code>
+                <div style="margin-left:1rem; margin-top:0.25rem;"><code>!addcommand mycommand <?php echo t('custom_commands_example_message'); ?></code></div>
+            </li>
+        </ol>
+        <p style="margin-bottom:0.25rem;"><strong><?php echo t('custom_commands_level_up'); ?></strong></p>
+        <p style="margin-bottom:0.25rem;"><?php echo t('custom_commands_explore_variables'); ?></p>
+        <p style="margin-bottom:0.5rem;"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('custom_commands_note_detail'); ?></p>
+        <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
+            <i class="fas fa-code"></i>
+            <span><?php echo t('custom_commands_view_variables'); ?></span>
+        </a>
     </div>
 </div>
 <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
     <?php if (isset($_POST['command']) && isset($_POST['response']) && empty($status)): ?>
-        <div class="notification is-success is-light mb-4">
-            <span class="icon"><i class="fas fa-check-circle"></i></span>
+        <div class="sp-alert sp-alert-success" style="margin-bottom:1rem;">
+            <i class="fas fa-check-circle"></i>
             <span>
                 <?php
                 $commandAdded = strtolower(str_replace(' ', '', $_POST['command']));
@@ -326,278 +322,257 @@ ob_start();
             </span>
         </div>
     <?php else: ?>
-        <div class="notification <?php echo $notification_status; ?> is-light mb-4">
+        <div class="sp-alert <?php echo $notification_status; ?>" style="margin-bottom:1rem;">
             <?php echo $status; ?>
         </div>
     <?php endif; ?>
 <?php endif; ?>
-<h4 class="title is-4 has-text-centered mb-5"><?php echo t('navbar_edit_custom_commands'); ?></h4>
-<div class="columns is-desktop is-multiline is-centered command-columns-equal" style="align-items: stretch;">
-    <div class="column is-6-desktop is-12-mobile">
-        <div class="box" style="min-height: 500px; display: flex; flex-direction: column;">
-            <form method="post" action="" style="flex: 1; display: flex; flex-direction: column;">
-                <div class="mb-3" style="display: flex; align-items: center; justify-content: space-between;">
-                    <div style="display: flex; align-items: center;">
-                        <span class="icon is-large has-text-primary" style="margin-right: 0.5rem;">
-                            <i class="fas fa-plus-circle fa-2x"></i>
-                        </span>
-                        <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_add_title'); ?></h4>
-                    </div>
-                    <button class="button is-primary" type="submit">
-                        <span class="icon"><i class="fas fa-plus"></i></span>
-                        <span><?php echo t('custom_commands_add_btn'); ?></span>
-                    </button>
+<h4 style="font-size:1.15rem; font-weight:700; text-align:center; color:var(--text-primary); margin-bottom:1.5rem;"><?php echo t('navbar_edit_custom_commands'); ?></h4>
+<div class="cc-form-grid">
+    <div class="sp-card">
+        <form method="post" action="" style="display:flex; flex-direction:column; height:100%;">
+            <div class="sp-card-header">
+                <div class="sp-card-title">
+                    <i class="fas fa-plus-circle" style="color:var(--accent);"></i>
+                    <?php echo t('custom_commands_add_title'); ?>
                 </div>
-                <div class="field mb-4">
-                    <label class="label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
-                    <div class="control has-icons-left">
-                        <input class="input" type="text" name="command" id="command" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
-                        <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
+                <button class="sp-btn sp-btn-primary" type="submit">
+                    <i class="fas fa-plus"></i>
+                    <span><?php echo t('custom_commands_add_btn'); ?></span>
+                </button>
+            </div>
+            <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
+                <div class="sp-form-group">
+                    <label class="sp-label" for="command"><?php echo t('custom_commands_command_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <i class="fas fa-terminal sp-input-icon"></i>
+                        <input class="sp-input" type="text" name="command" id="command" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
                     </div>
                 </div>
-                <div class="field mb-4">
-                    <label class="label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
-                    <div class="control has-icons-left">
-                        <input class="input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
-                        <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="response"><?php echo t('custom_commands_response_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <i class="fas fa-message sp-input-icon"></i>
+                        <input class="sp-input" type="text" name="response" id="response" required oninput="updateCharCount('response', 'responseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
                     </div>
-                    <p id="responseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
-                    <button id="addManyOptionsBtn" class="button is-link is-light is-small mt-2" style="display:none;" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
-                        <span class="icon"><i class="fas fa-list"></i></span>
+                    <small id="responseCharCount" class="sp-help">0/255 <?php echo t('custom_commands_characters'); ?></small>
+                    <button id="addManyOptionsBtn" class="sp-btn sp-btn-secondary sp-btn-sm" style="display:none; margin-top:0.5rem;" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
+                        <i class="fas fa-list"></i>
                         <span>Manage options for your command (Beta 5.8)</span>
                     </button>
                 </div>
-                <div class="field mb-4">
-                    <label class="label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
-                    <div class="control has-icons-left">
-                        <input class="input" type="number" min="1" name="cooldown" id="cooldown" value="15" required>
-                        <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                    <div class="sp-input-wrap">
+                        <i class="fas fa-clock sp-input-icon"></i>
+                        <input class="sp-input" type="number" min="1" name="cooldown" id="cooldown" value="15" required>
                     </div>
                 </div>
-                <div class="field mb-4">
-                    <label class="label" for="permission">Permission Level</label>
-                    <div class="control has-icons-left">
-                        <div class="select is-fullwidth">
-                            <select id="permission" name="permission" required style="padding-left: 35px;">
+                <div class="sp-form-group">
+                    <label class="sp-label" for="permission">Permission Level</label>
+                    <div class="sp-input-wrap">
+                        <i class="fas fa-users sp-input-icon"></i>
+                        <select id="permission" name="permission" class="sp-select" required>
+                            <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
+                                <option value="<?php echo htmlspecialchars($displayName); ?>" <?php echo $displayName === 'Everyone' ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($displayName); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="sp-card">
+        <?php if (!empty($commands)): ?>
+            <form method="post" action="" style="display:flex; flex-direction:column; height:100%;">
+                <div class="sp-card-header">
+                    <div class="sp-card-title">
+                        <i class="fas fa-edit" style="color:var(--blue);"></i>
+                        <?php echo t('custom_commands_edit_title'); ?>
+                    </div>
+                    <button type="submit" class="sp-btn sp-btn-primary">
+                        <i class="fas fa-save"></i>
+                        <span><?php echo t('custom_commands_update_btn'); ?></span>
+                    </button>
+                </div>
+                <div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
+                        <select name="command_to_edit" id="command_to_edit" class="sp-select" onchange="showResponse()" required>
+                            <option value=""><?php echo t('custom_commands_edit_select_placeholder'); ?></option>
+                            <?php foreach ($commands as $command): ?>
+                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
+                        <div class="sp-input-wrap">
+                            <i class="fas fa-terminal sp-input-icon"></i>
+                            <input class="sp-input" type="text" name="new_command_name" id="new_command_name" value="" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
+                        </div>
+                        <small class="sp-help"><?php echo t('custom_commands_skip_exclamation'); ?></small>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
+                        <div class="sp-input-wrap">
+                            <i class="fas fa-message sp-input-icon"></i>
+                            <input class="sp-input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
+                        </div>
+                        <small id="editResponseCharCount" class="sp-help">0/255 <?php echo t('custom_commands_characters'); ?></small>
+                        <button id="editManyOptionsBtn" class="sp-btn sp-btn-secondary sp-btn-sm" style="display:none; margin-top:0.5rem;" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
+                            <i class="fas fa-list"></i>
+                            <span>Manage options for your command (Beta 5.8)</span>
+                        </button>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
+                        <div class="sp-input-wrap">
+                            <i class="fas fa-clock sp-input-icon"></i>
+                            <input class="sp-input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
+                        </div>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label" for="permission_response">Permission Level</label>
+                        <div class="sp-input-wrap">
+                            <i class="fas fa-users sp-input-icon"></i>
+                            <select id="permission_response" name="permission_response" class="sp-select" required>
                                 <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
-                                    <option value="<?php echo htmlspecialchars($displayName); ?>" <?php echo $displayName === 'Everyone' ? 'selected' : ''; ?>>
+                                    <option value="<?php echo htmlspecialchars($displayName); ?>">
                                         <?php echo htmlspecialchars($displayName); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
                     </div>
                 </div>
             </form>
-        </div>
-    </div>
-    <div class="column is-6-desktop is-12-mobile">
-        <div class="box" style="min-height: 500px; display: flex; flex-direction: column;">
-            <?php if (!empty($commands)): ?>
-                <form method="post" action="" style="flex: 1; display: flex; flex-direction: column;">
-                    <div class="mb-3" style="display: flex; align-items: center; justify-content: space-between;">
-                        <div style="display: flex; align-items: center;">
-                            <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
-                                <i class="fas fa-edit fa-2x"></i>
-                            </span>
-                            <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
-                        </div>
-                        <button type="submit" class="button is-primary">
-                            <span class="icon"><i class="fas fa-save"></i></span>
-                            <span><?php echo t('custom_commands_update_btn'); ?></span>
-                        </button>
-                    </div>
-                    <div class="field mb-4">
-                        <label class="label" for="command_to_edit"><?php echo t('custom_commands_edit_select_label'); ?></label>
-                        <div class="control">
-                            <div class="select is-fullwidth">
-                                <select name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
-                                    <option value=""><?php echo t('custom_commands_edit_select_placeholder'); ?></option>
-                                    <?php foreach ($commands as $command): ?>
-                                        <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="field mb-4">
-                        <label class="label" for="new_command_name"><?php echo t('custom_commands_edit_new_name_label'); ?></label>
-                        <div class="control has-icons-left">
-                            <input class="input" type="text" name="new_command_name" id="new_command_name" value="" required placeholder="<?php echo t('custom_commands_command_placeholder'); ?>">
-                            <span class="icon is-small is-left"><i class="fas fa-terminal"></i></span>
-                        </div>
-                        <p class="help"><?php echo t('custom_commands_skip_exclamation'); ?></p>
-                    </div>
-                    <div class="field mb-4">
-                        <label class="label" for="command_response"><?php echo t('custom_commands_response_label'); ?></label>
-                        <div class="control has-icons-left">
-                            <input class="input" type="text" name="command_response" id="command_response" value="" required oninput="updateCharCount('command_response', 'editResponseCharCount')" maxlength="255" placeholder="<?php echo t('custom_commands_response_placeholder'); ?>">
-                            <span class="icon is-small is-left"><i class="fas fa-message"></i></span>
-                        </div>
-                        <p id="editResponseCharCount" class="help mt-1">0/255 <?php echo t('custom_commands_characters'); ?></p>
-                        <button id="editManyOptionsBtn" class="button is-link is-light is-small mt-2" style="display:none;" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
-                            <span class="icon"><i class="fas fa-list"></i></span>
-                            <span>Manage options for your command (Beta 5.8)</span>
-                        </button>
-                    </div>
-                    <div class="field mb-4">
-                        <label class="label" for="cooldown_response"><?php echo t('custom_commands_cooldown_label'); ?></label>
-                        <div class="control has-icons-left">
-                            <input class="input" type="number" min="1" name="cooldown_response" id="cooldown_response" value="" required>
-                            <span class="icon is-small is-left"><i class="fas fa-clock"></i></span>
-                        </div>
-                    </div>
-                    <div class="field mb-4">
-                        <label class="label" for="permission_response">Permission Level</label>
-                        <div class="control has-icons-left">
-                            <div class="select is-fullwidth">
-                                <select id="permission_response" name="permission_response" required style="padding-left: 35px;">
-                                    <?php foreach ($permissionsMap as $displayName => $dbValue): ?>
-                                        <option value="<?php echo htmlspecialchars($displayName); ?>">
-                                            <?php echo htmlspecialchars($displayName); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <span class="icon is-small is-left"><i class="fas fa-users"></i></span>
-                        </div>
-                    </div>
-                </form>
-            <?php else: ?>
-                <div class="mb-3" style="display: flex; align-items: center;">
-                    <span class="icon is-large has-text-link" style="margin-right: 0.5rem;">
-                        <i class="fas fa-edit fa-2x"></i>
-                    </span>
-                    <h4 class="subtitle is-4 mb-0"><?php echo t('custom_commands_edit_title'); ?></h4>
+        <?php else: ?>
+            <div class="sp-card-header">
+                <div class="sp-card-title">
+                    <i class="fas fa-edit" style="color:var(--blue);"></i>
+                    <?php echo t('custom_commands_edit_title'); ?>
                 </div>
-                <h4 class="subtitle is-4 has-text-grey-light"><?php echo t('custom_commands_no_commands'); ?></h4>
-            <?php endif; ?>
-        </div>
+            </div>
+            <div class="sp-card-body">
+                <p style="color:var(--text-muted);"><?php echo t('custom_commands_no_commands'); ?></p>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-            <header class="card-header" style="border-bottom: 1px solid #23272f; display: flex; justify-content: space-between; align-items: center;">
-                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                    <span class="icon mr-2"><i class="fas fa-terminal"></i></span>
-                    <?php echo t('custom_commands_header'); ?>
-                </span>
-                <?php if (!empty($commands)): ?>
-                    <div class="field mb-0" style="min-width: 300px;">
-                        <div class="control has-icons-left">
-                            <input class="input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white; min-width: 300px;">
-                            <span class="icon is-left"><i class="fas fa-search" style="color: #b5b5b5;"></i></span>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </header>
-            <div class="card-content">
-                <?php if (empty($commands)): ?>
-                    <p><?php echo t('builtin_commands_no_commands'); ?></p>
-                <?php else: ?>
-                    <div class="table-container">
-                        <table class="table is-fullwidth has-background-dark" id="commandsTable">
-                            <thead>
-                                <tr>
-                                    <th class="has-text-centered is-narrow"><?php echo t('builtin_commands_table_command'); ?></th>
-                                    <th class="has-text-centered"><?php echo t('builtin_commands_table_description'); ?></th>
-                                    <th class="has-text-centered is-narrow"><?php echo t('builtin_commands_table_usage_level'); ?></th>
-                                    <th class="has-text-centered is-narrow"><?php echo t('custom_commands_cooldown_label'); ?></th>
-                                    <th class="has-text-centered is-narrow"><?php echo t('builtin_commands_table_status'); ?></th>
-                                    <th class="has-text-centered is-narrow"><?php echo t('builtin_commands_table_action'); ?></th>
-                                    <th class="has-text-centered is-narrow"><?php echo t('custom_commands_remove'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($commands as $command): ?>
-                                    <tr>
-                                        <td class="is-narrow" style="vertical-align: middle;">!<?php echo htmlspecialchars($command['command']); ?></td>
-                                        <td style="vertical-align: middle;"><?php echo htmlspecialchars($command['response']); ?></td>
-                                        <td class="has-text-centered" style="vertical-align: middle;"><?php echo $permissionsMapReverse[$command['permission']] ?? 'Everyone'; ?>
-                                        </td>
-                                        <td class="has-text-centered" style="vertical-align: middle;"><?php echo (int)$command['cooldown']; ?><?php echo t('custom_commands_cooldown_seconds'); ?></td>
-                                        <td class="has-text-centered" style="vertical-align: middle;">
-                                            <span class="tag is-medium <?php echo ($command['status'] == 'Enabled') ? 'is-success' : 'is-danger'; ?>">
-                                                <?php echo t($command['status'] == 'Enabled' ? 'builtin_commands_status_enabled' : 'builtin_commands_status_disabled'); ?>
-                                            </span>
-                                        </td>                                        <td class="has-text-centered is-narrow" style="vertical-align: middle;">
-                                            <label class="checkbox" style="cursor:pointer;">
-                                                <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked, this)" style="display:none;">
-                                                <span class="icon is-medium" onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();">
-                                                    <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
-                                                </span>
-                                            </label>
-                                        </td>
-                                        <td class="has-text-centered is-narrow" style="vertical-align: middle;">
-                                            <form method="POST" style="display:inline;" class="remove-command-form">
-                                                <input type="hidden" name="remove_command" value="<?php echo htmlspecialchars($command['command']); ?>">
-                                                <button type="button" class="button is-small is-danger remove-command-btn" title="<?php echo t('custom_commands_remove'); ?>"><i class="fas fa-trash-alt"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title">
+            <i class="fas fa-terminal"></i>
+            <?php echo t('custom_commands_header'); ?>
         </div>
+        <?php if (!empty($commands)): ?>
+            <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="max-width:300px;">
+        <?php endif; ?>
+    </div>
+    <div class="sp-card-body">
+        <?php if (empty($commands)): ?>
+            <p><?php echo t('builtin_commands_no_commands'); ?></p>
+        <?php else: ?>
+            <div class="sp-table-wrap">
+                <table class="sp-table" id="commandsTable">
+                    <thead>
+                        <tr>
+                            <th><?php echo t('builtin_commands_table_command'); ?></th>
+                            <th><?php echo t('builtin_commands_table_description'); ?></th>
+                            <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
+                            <th style="text-align:center;"><?php echo t('custom_commands_cooldown_label'); ?></th>
+                            <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
+                            <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
+                            <th style="text-align:center;"><?php echo t('custom_commands_remove'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($commands as $command): ?>
+                            <tr>
+                                <td>!<?php echo htmlspecialchars($command['command']); ?></td>
+                                <td><?php echo htmlspecialchars($command['response']); ?></td>
+                                <td style="text-align:center;"><?php echo $permissionsMapReverse[$command['permission']] ?? 'Everyone'; ?></td>
+                                <td style="text-align:center;"><?php echo (int)$command['cooldown']; ?><?php echo t('custom_commands_cooldown_seconds'); ?></td>
+                                <td style="text-align:center;">
+                                    <span class="sp-badge <?php echo ($command['status'] == 'Enabled') ? 'sp-badge-green' : 'sp-badge-red'; ?>">
+                                        <?php echo t($command['status'] == 'Enabled' ? 'builtin_commands_status_enabled' : 'builtin_commands_status_disabled'); ?>
+                                    </span>
+                                </td>
+                                <td style="text-align:center;">
+                                    <label style="cursor:pointer;">
+                                        <input type="checkbox" class="toggle-checkbox" <?php echo $command['status'] == 'Enabled' ? 'checked' : ''; ?> onchange="toggleStatus('<?php echo $command['command']; ?>', this.checked, this)" style="display:none;">
+                                        <span onclick="event.preventDefault(); event.stopPropagation(); this.previousElementSibling.click();" style="font-size:1.3rem; color:<?php echo $command['status'] == 'Enabled' ? 'var(--green)' : 'var(--text-muted)'; ?>;">
+                                            <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i>
+                                        </span>
+                                    </label>
+                                </td>
+                                <td style="text-align:center;">
+                                    <form method="POST" style="display:inline;" class="remove-command-form">
+                                        <input type="hidden" name="remove_command" value="<?php echo htmlspecialchars($command['command']); ?>">
+                                        <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-command-btn" title="<?php echo t('custom_commands_remove'); ?>"><i class="fas fa-trash-alt"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 <!-- Hidden fields for YourLinks API -->
 <input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
 <!-- YourLinks URL Shortener Modal -->
-<div id="yourlinksModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head" style="background-color: #2c3e50; border-bottom: 3px solid #3498db;">
-            <p class="modal-card-title has-text-white">
-                <span class="icon"><i class="fas fa-link"></i></span>
-                <span>Create Short Link with YourLinks.click</span>
-            </p>
-            <button id="yourlinks_close_btn" class="delete" aria-label="close"></button>
-        </header>
-        <section class="modal-card-body" style="background-color: #1e2936;">
-            <div id="yourlinks_status" class="mb-4"></div>
-            
-            <div class="field">
-                <label class="label has-text-white">Destination URL</label>
-                <div class="control has-icons-left">
-                    <input class="input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
-                    <span class="icon is-small is-left"><i class="fas fa-globe"></i></span>
-                </div>
-                <p class="help has-text-grey-light">The URL you entered in the message</p>
+<div id="yourlinksModal" class="cc-modal-backdrop">
+    <div class="cc-modal">
+        <div class="cc-modal-head">
+            <div class="cc-modal-title">
+                <i class="fas fa-link"></i>
+                Create Short Link with YourLinks.click
             </div>
-            <div class="field">
-                <label class="label has-text-white">Link Name <span style="color: #f14668;">*</span></label>
-                <div class="control has-icons-left">
-                    <input class="input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
-                    <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+            <button id="yourlinks_close_btn" class="sp-btn sp-btn-ghost sp-btn-sm" aria-label="close" style="font-size:1.2rem; line-height:1;">×</button>
+        </div>
+        <div class="cc-modal-body">
+            <div id="yourlinks_status" style="margin-bottom:1rem;"></div>
+            <div class="sp-form-group">
+                <label class="sp-label" for="yourlinks_destination">Destination URL</label>
+                <div class="sp-input-wrap">
+                    <i class="fas fa-globe sp-input-icon"></i>
+                    <input class="sp-input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
                 </div>
-                <p class="help has-text-grey-light">Alphanumeric characters, hyphens, and underscores only. Will be: <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code></p>
+                <small class="sp-help">The URL you entered in the message</small>
             </div>
-            <div class="field">
-                <label class="label has-text-white">Title (Optional)</label>
-                <div class="control has-icons-left">
-                    <input class="input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
-                    <span class="icon is-small is-left"><i class="fas fa-heading"></i></span>
+            <div class="sp-form-group">
+                <label class="sp-label" for="yourlinks_link_name">Link Name <span style="color:var(--red);">*</span></label>
+                <div class="sp-input-wrap">
+                    <i class="fas fa-link sp-input-icon"></i>
+                    <input class="sp-input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
                 </div>
-                <p class="help has-text-grey-light">Display name for the link (for your reference)</p>
+                <small class="sp-help">Alphanumeric characters, hyphens, and underscores only. Will be: <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code></small>
             </div>
-        </section>
-        <footer class="modal-card-foot" style="justify-content: flex-end; gap: 10px;">
-            <button id="yourlinks_cancel_btn" class="button is-light">
-                <span class="icon"><i class="fas fa-times"></i></span>
+            <div class="sp-form-group">
+                <label class="sp-label" for="yourlinks_title">Title (Optional)</label>
+                <div class="sp-input-wrap">
+                    <i class="fas fa-heading sp-input-icon"></i>
+                    <input class="sp-input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
+                </div>
+                <small class="sp-help">Display name for the link (for your reference)</small>
+            </div>
+        </div>
+        <div class="cc-modal-foot">
+            <button id="yourlinks_cancel_btn" class="sp-btn sp-btn-secondary">
+                <i class="fas fa-times"></i>
                 <span>Cancel</span>
             </button>
-            <button id="yourlinks_submit_btn" class="button is-primary">
-                <span class="icon"><i class="fas fa-link"></i></span>
+            <button id="yourlinks_submit_btn" class="sp-btn sp-btn-primary">
+                <i class="fas fa-link"></i>
                 <span>Create Link</span>
             </button>
-        </footer>
+        </div>
     </div>
 </div>
 <?php
@@ -949,7 +924,7 @@ function toggleStatus(command, isChecked, elem) {
                         icon.className = isChecked ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off";
                         // Update the status tag
                         if (statusSpan) {
-                            statusSpan.className = "tag is-medium " + (isChecked ? "is-success" : "is-danger");
+                            statusSpan.className = "sp-badge " + (isChecked ? "sp-badge-green" : "sp-badge-red");
                             statusSpan.textContent = isChecked ? "<?php echo t('builtin_commands_status_enabled'); ?>" : "<?php echo t('builtin_commands_status_disabled'); ?>";
                         }
                         if (response.affected_rows === 0) {
@@ -1000,12 +975,7 @@ function searchFunction() {
     }
 }
 
-document.getElementById("openModalButton").addEventListener("click", function() {
-    document.getElementById("customVariablesModal").classList.add("is-active");
-});
-document.getElementById("closeModalButton").addEventListener("click", function() {
-    document.getElementById("customVariablesModal").classList.remove("is-active");
-});
+
 
 function showResponse() {
     var command = document.getElementById('command_to_edit').value;
@@ -1074,16 +1044,16 @@ function updateCharCount(inputId, counterId) {
     counter.textContent = currentLength + '/' + maxLength + ' characters';
     // Update styling based on character count
     if (currentLength > maxLength) {
-        counter.className = 'help is-danger';
-        input.classList.add('is-danger');
+        counter.className = 'sp-help sp-help-danger';
+        input.classList.add('sp-input-error');
         // Trim the input to maxLength characters
         input.value = input.value.substring(0, maxLength);
     } else if (currentLength > maxLength * 0.8) {
-        counter.className = 'help is-warning';
-        input.classList.remove('is-danger');
+        counter.className = 'sp-help sp-help-warning';
+        input.classList.remove('sp-input-error');
     } else {
-        counter.className = 'help is-info';
-        input.classList.remove('is-danger');
+        counter.className = 'sp-help';
+        input.classList.remove('sp-input-error');
     }
 }
 
@@ -1095,14 +1065,14 @@ function validateForm(form) {
     const textInputs = form.querySelectorAll('input[type="text"][maxlength]');
     textInputs.forEach(input => {
         if (input.value.length > maxLength) {
-            input.classList.add('is-danger');
+            input.classList.add('sp-input-error');
             valid = false;
             // Find associated help text and update
             const helpId = input.id + 'CharCount';
             const helpText = document.getElementById(helpId);
             if (helpText) {
                 helpText.textContent = input.value.length + '/' + maxLength + ' characters - Exceeds limit!';
-                helpText.className = 'help is-danger';
+                helpText.className = 'sp-help sp-help-danger';
             }
         }
     });
