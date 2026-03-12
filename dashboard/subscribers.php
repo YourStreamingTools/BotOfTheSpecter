@@ -146,114 +146,98 @@ if (!$showNoSubscriberAccessMessage && !$subscribersError && !empty($userIds)) {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-            <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                    <span class="icon mr-2"><i class="fas fa-star"></i></span>
-                    <?php echo t('subscribers_heading'); ?>
-                </span>
-            </header>
-            <div class="card-content">
-                <div class="content">
-                    <?php if ($showNoSubscriberAccessMessage) : ?>
-                        <article class="message is-info" style="background:#1f2a36;border-radius:10px;">
-                            <div class="message-body has-text-white">
-                                <?php if (!empty($isOwner)) : ?>
-                                    <?php echo t('subscribers_normal_broadcaster_owner'); ?>
-                                <?php else : ?>
-                                    <?php echo t('subscribers_normal_broadcaster_other', ['channel' => htmlspecialchars($channelDisplayName)]); ?>
-                                <?php endif; ?>
-                            </div>
-                        </article>
-                    <?php elseif ($subscribersError) : ?>
-                        <article class="message is-danger" style="background:#3d1f26;border-radius:10px;">
-                            <div class="message-body has-text-white">
-                                <?php echo htmlspecialchars($subscribersError); ?>
-                            </div>
-                        </article>
-                    <?php else : ?>
-                        <?php if ($displaySearchBar) : ?>
-                            <div class="field mb-4">
-                                <div class="control">
-                                    <input class="input has-background-grey-darker has-text-white" type="text" id="subscriber-search" placeholder="<?php echo t('subscribers_search_placeholder'); ?>" style="border: 1px solid #4a4a4a;">
+<div class="sp-card mb-5">
+    <div class="sp-card-header">
+        <span class="sp-card-title">
+            <span class="icon mr-2"><i class="fas fa-star"></i></span>
+            <?php echo t('subscribers_heading'); ?>
+        </span>
+    </div>
+    <div class="sp-card-body">
+        <?php if ($showNoSubscriberAccessMessage) : ?>
+            <div class="sp-alert sp-alert-info">
+                <?php if (!empty($isOwner)) : ?>
+                    <?php echo t('subscribers_normal_broadcaster_owner'); ?>
+                <?php else : ?>
+                    <?php echo t('subscribers_normal_broadcaster_other', ['channel' => htmlspecialchars($channelDisplayName)]); ?>
+                <?php endif; ?>
+            </div>
+        <?php elseif ($subscribersError) : ?>
+            <div class="sp-alert sp-alert-danger">
+                <?php echo htmlspecialchars($subscribersError); ?>
+            </div>
+        <?php else : ?>
+            <?php if ($displaySearchBar) : ?>
+                <div class="sp-form-group mb-4">
+                    <input class="sp-input" type="text" id="subscriber-search" placeholder="<?php echo t('subscribers_search_placeholder'); ?>">
+                </div>
+            <?php endif; ?>
+            <p id="live-data" class="sp-text-muted mb-4"></p>
+            <div id="subscribers-list" class="subscribers-grid">
+                <?php
+                usort($subscribersForCurrentPage, function ($a, $b) {
+                    $tierOrder = ['3000', '2000', '1000'];
+                    $tierA = $a['tier'];
+                    $tierB = $b['tier'];
+                    $indexA = array_search($tierA, $tierOrder);
+                    $indexB = array_search($tierB, $tierOrder);
+                    return $indexA - $indexB;
+                });
+                foreach ($subscribersForCurrentPage as $subscriber) :
+                    $subscriberDisplayName = $subscriber['user_name'];
+                    $isGift = $subscriber['is_gift'] ?? false;
+                    $gifterName = $subscriber['gifter_name'] ?? '';
+                    $subscriptionTier = '';
+                    $badgeColor = '';
+                    $subscriptionPlanId = $subscriber['tier'];
+                    if ($subscriptionPlanId == '1000') {
+                        $subscriptionTier = '1';
+                        $badgeColor = 'background: linear-gradient(90deg,#cd7f32,#b87333); color: #fff;';
+                    } elseif ($subscriptionPlanId == '2000') {
+                        $subscriptionTier = '2';
+                        $badgeColor = 'background: linear-gradient(90deg,#c0c0c0,#e0e0e0); color: #333;';
+                    } elseif ($subscriptionPlanId == '3000') {
+                        $subscriptionTier = '3';
+                        $badgeColor = 'background: linear-gradient(90deg,#ffd700,#ffec8b); color: #333;';
+                    } else {
+                        $subscriptionTier = t('subscribers_tier_unknown');
+                        $badgeColor = 'background: #eee; color: #333;';
+                    }
+                    $badgeTitle = $isGift && $gifterName ? "title=\"" . str_replace('{gifter}', htmlspecialchars($gifterName), t('subscribers_gifted_by')) . "\"" : "";
+                    $profileImg = isset($profileImages[$subscriber['user_id']]) && $profileImages[$subscriber['user_id']]
+                        ? "<img src=\"{$profileImages[$subscriber['user_id']]}\" alt=\"" . htmlspecialchars($subscriberDisplayName) . "\" class=\"follower-avatar-img\">"
+                        : "<span class=\"follower-avatar-initials\">" . strtoupper(mb_substr($subscriberDisplayName, 0, 1)) . "</span>";
+                    $badgeHtml = "<span class='sub-tier-badge' style='display:block;width:100%;padding:0.4em 0.8em 0.4em 0.8em;margin-bottom:0.3em;border-radius:12px;font-weight:600;font-size:1em;{$badgeColor};text-align:left;' {$badgeTitle}>"
+                        . t('subscribers_tier_label') . " " . htmlspecialchars($subscriptionTier) . "</span>";
+                    echo "<div class='subscriber-card-col subscriber-box'>
+                            <div class='sp-card'>
+                                <div class='follower-card-media sp-card-body'>
+                                    <div class='follower-card-avatar'>
+                                        {$profileImg}
+                                    </div>
+                                    <div class='follower-card-content'>
+                                        {$badgeHtml}
+                                        <span class='subscriber-name' style='display:block;margin-top:0.2em;'>" . htmlspecialchars($subscriberDisplayName) . "</span>
+                                    </div>
                                 </div>
                             </div>
-                        <?php endif; ?>
-                        <h3 id="live-data" class="subtitle is-6 has-text-grey mb-4"></h3>
-                        <div id="subscribers-list" class="columns is-multiline is-centered">
-                            <?php
-                            usort($subscribersForCurrentPage, function ($a, $b) {
-                                $tierOrder = ['3000', '2000', '1000'];
-                                $tierA = $a['tier'];
-                                $tierB = $b['tier'];
-                                $indexA = array_search($tierA, $tierOrder);
-                                $indexB = array_search($tierB, $tierOrder);
-                                return $indexA - $indexB;
-                            });
-                            foreach ($subscribersForCurrentPage as $subscriber) :
-                                $subscriberDisplayName = $subscriber['user_name'];
-                                $isGift = $subscriber['is_gift'] ?? false;
-                                $gifterName = $subscriber['gifter_name'] ?? '';
-                                $subscriptionTier = '';
-                                $badgeColor = '';
-                                $subscriptionPlanId = $subscriber['tier'];
-                                if ($subscriptionPlanId == '1000') {
-                                    $subscriptionTier = '1';
-                                    $badgeColor = 'background: linear-gradient(90deg,#cd7f32,#b87333); color: #fff;';
-                                } elseif ($subscriptionPlanId == '2000') {
-                                    $subscriptionTier = '2';
-                                    $badgeColor = 'background: linear-gradient(90deg,#c0c0c0,#e0e0e0); color: #333;';
-                                } elseif ($subscriptionPlanId == '3000') {
-                                    $subscriptionTier = '3';
-                                    $badgeColor = 'background: linear-gradient(90deg,#ffd700,#ffec8b); color: #333;';
-                                } else {
-                                    $subscriptionTier = t('subscribers_tier_unknown');
-                                    $badgeColor = 'background: #eee; color: #333;';
-                                }
-                                $badgeTitle = $isGift && $gifterName ? "title=\"" . str_replace('{gifter}', htmlspecialchars($gifterName), t('subscribers_gifted_by')) . "\"" : "";
-                                $profileImg = isset($profileImages[$subscriber['user_id']]) && $profileImages[$subscriber['user_id']]
-                                    ? "<img src=\"{$profileImages[$subscriber['user_id']]}\" alt=\"" . htmlspecialchars($subscriberDisplayName) . "\" class=\"is-rounded\" style=\"width:64px;height:64px;\">"
-                                    : "<span class=\"has-background-primary has-text-white is-flex is-justify-content-center is-align-items-center is-rounded\" style=\"width:64px;height:64px;font-size:2rem;font-weight:700;\">" . strtoupper(mb_substr($subscriberDisplayName, 0, 1)) . "</span>";
-                                $badgeHtml = "<span class='sub-tier-badge' style='display:block;width:100%;padding:0.4em 0.8em 0.4em 0.8em;margin-bottom:0.3em;border-radius:12px;font-weight:600;font-size:1em;{$badgeColor};text-align:left;' {$badgeTitle}>"
-                                    . t('subscribers_tier_label') . " " . htmlspecialchars($subscriptionTier) . "</span>";
-                                echo "<div class='column is-12-mobile is-6-tablet is-3-desktop subscriber-box'>
-                                        <div class='box has-background-grey-darker has-text-white' style='border-radius: 8px;'>
-                                            <article class='media is-align-items-center'>
-                                                <figure class='media-left'>
-                                                    <p class='image is-64x64'>
-                                                        {$profileImg}
-                                                    </p>
-                                                </figure>
-                                                <div class='media-content'>
-                                                    <div class='content'>
-                                                        {$badgeHtml}
-                                                        <span class='has-text-weight-semibold has-text-white' style='display:block;margin-top:0.2em;'>" . htmlspecialchars($subscriberDisplayName) . "</span>
-                                                    </div>
-                                                </div>
-                                            </article>
-                                        </div>
-                                      </div>";
-                            endforeach;
-                            ?>
-                        </div>
-                        <!-- Pagination -->
-                        <?php if ($totalPages > 1) : ?>
-                            <nav class="pagination is-centered" role="navigation" aria-label="pagination">
-                                <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
-                                    <?php if ($page === $currentPage) : ?>
-                                        <span class="pagination-link is-current has-background-primary has-text-white"><?php echo $page; ?></span>
-                                    <?php else : ?>
-                                        <a class="pagination-link has-background-grey-darker has-text-white" href="?page=<?php echo $page; ?>" style="border: 1px solid #4a4a4a;"><?php echo $page; ?></a>
-                                    <?php endif; ?>
-                                <?php endfor; ?>
-                            </nav>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </div>
+                          </div>";
+                endforeach;
+                ?>
             </div>
-        </div>
+            <!-- Pagination -->
+            <?php if ($totalPages > 1) : ?>
+                <nav class="sp-pagination" role="navigation" aria-label="pagination">
+                    <?php for ($page = 1; $page <= $totalPages; $page++) : ?>
+                        <?php if ($page === $currentPage) : ?>
+                            <span class="sp-pagination-link is-current"><?php echo $page; ?></span>
+                        <?php else : ?>
+                            <a class="sp-pagination-link" href="?page=<?php echo $page; ?>"><?php echo $page; ?></a>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                </nav>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -264,7 +248,7 @@ $(document).ready(function() {
     $('#subscriber-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
         $('.subscriber-box').each(function() {
-            var subscriberName = $(this).find('.has-text-weight-semibold').first().text().toLowerCase();
+            var subscriberName = $(this).find('.subscriber-name').first().text().toLowerCase();
             if (subscriberName.includes(searchTerm)) {
                 $(this).show();
             } else {
