@@ -1374,6 +1374,134 @@ input[type="checkbox"].switch:disabled + label {
 .progress-warning::-webkit-progress-value { background: var(--amber) !important; }
 .progress-warning::-moz-progress-bar      { background: var(--amber) !important; }
 
+/* ----------------------------------------------------------
+   EventSub Notifications page
+   ---------------------------------------------------------- */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+}
+.stat-card.danger-card  { border-color: var(--red);   background: var(--red-bg); }
+.stat-card.warning-card { border-color: var(--amber); background: var(--amber-bg); }
+.stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.35rem;
+}
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
+}
+.stat-secondary { font-size: 0.8rem; color: var(--text-muted); }
+.info-box {
+    background: var(--blue-bg);
+    border: 1px solid var(--blue);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+.error-box {
+    background: var(--red-bg);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+.session-group {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+.session-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--bg-card-hover);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.session-name { color: var(--accent-hover); font-weight: 600; }
+.session-id   { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; }
+.sub-count {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.sub-type    { display: inline-block; font-size: 0.8rem; color: var(--accent-hover); font-weight: 500; }
+.sub-version { display: inline-block; font-size: 0.75rem; background: var(--grey-bg); color: var(--grey); border-radius: 4px; padding: 0.1rem 0.4rem; }
+.status-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-transform: capitalize;
+    background: var(--grey-bg);
+    color: var(--grey);
+}
+.status-enabled { background: var(--green-bg); color: var(--green); }
+.status-disabled,
+.status-notification_failures_exceeded,
+.status-websocket_failed_ping_undelivered { background: var(--red-bg); color: var(--red); }
+.status-authorization_revoked,
+.status-moderator_removed { background: var(--amber-bg); color: var(--amber); }
+.delete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+}
+.delete-btn:hover { background: var(--red); color: #fff; }
+.custom-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+}
+.custom-btn:hover { background: var(--red); color: #fff; }
+
 /* API limit helper text */
 .api-helper-text {
     display: block;
