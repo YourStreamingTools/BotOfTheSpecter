@@ -1,4 +1,5 @@
 ﻿<?php
+ob_start();
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -176,6 +177,7 @@ $oauth = $dbTwitchSettings['chat_token'];
 
 // Handle AJAX request for token generation BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $clientID = isset($_POST['client_id']) ? trim($_POST['client_id']) : '';
@@ -207,6 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_token'])) {
 
 // Handle AJAX request for token validation BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $token = isset($_POST['access_token']) ? trim($_POST['access_token']) : '';
@@ -285,6 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
 
 // Handle AJAX request for chat token renewal and persist to bot_chat_token table
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_chat_token'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $clientID = isset($_POST['client_id']) ? trim($_POST['client_id']) : '';
@@ -326,6 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_chat_token'])) 
 
 // Handle AJAX request for token renewal BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $userId = isset($_POST['twitch_user_id']) ? trim($_POST['twitch_user_id']) : '';
@@ -457,6 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_token'])) {
 
 // Handle AJAX request to save token validation results to cache
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $tokenId = isset($_POST['token_id']) ? trim($_POST['token_id']) : '';
@@ -503,6 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_token_cache'])) 
 
 // Handle AJAX request to fetch current user token from database
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_user_token'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $userId = isset($_POST['twitch_user_id']) ? trim($_POST['twitch_user_id']) : '';
@@ -546,6 +553,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_user_token'])) 
 
 // Handle AJAX request to fetch current custom bot token from database
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
@@ -623,6 +631,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_custom_token'])
 
 // Handle AJAX request to load token validation cache
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['load_token_cache'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $cacheFile = '/var/www/cache/tokens/token_validation_cache.json';
@@ -642,6 +651,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['load_token_cache'])) {
 
 // Handle AJAX request to renew a custom bot's user token using its refresh_token
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
+    ob_end_clean();
     header('Content-Type: application/json');
     try {
         $botChannelId = isset($_POST['bot_channel_id']) ? trim($_POST['bot_channel_id']) : '';
