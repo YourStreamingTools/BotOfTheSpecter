@@ -236,14 +236,21 @@ ob_start();
 ?>
 <script>
 $(document).ready(function() {
+    // Fade in all VIP cards
+    $('.follower-box').each(function(index) {
+        var $el = $(this);
+        setTimeout(function() {
+            $el.addClass('visible');
+        }, index * 40);
+    });
     $('#vip-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
         $('.follower-box').each(function() {
             var vipName = $(this).find('.vip-name').text().toLowerCase();
             if (vipName.includes(searchTerm)) {
-                $(this).show();
+                $(this).css('display', '').addClass('visible');
             } else {
-                $(this).hide();
+                $(this).css('display', 'none');
             }
         });
     });
