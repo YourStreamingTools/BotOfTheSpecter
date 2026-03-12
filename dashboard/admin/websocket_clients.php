@@ -185,7 +185,7 @@ ob_start();
     <div class="sp-card-header">
         <div>
             <h1 class="sp-card-title"><span class="icon"><i class="fas fa-plug"></i></span> Websocket Clients Overview</h1>
-            <p class="mb-4">Monitor active websocket connections, registered clients, and global listeners in real-time.</p>
+            <p style="margin-bottom:1rem;">Monitor active websocket connections, registered clients, and global listeners in real-time.</p>
         </div>
         <button class="sp-btn sp-btn-primary" onclick="refreshData()">
             <span class="icon"><i class="fas fa-sync-alt"></i></span>
@@ -204,51 +204,33 @@ ob_start();
         </div>
     <?php endif; ?>
     <!-- Statistics Cards -->
-    <div class="ws-stat-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;">
-        <div class="sp-card" style="background:var(--blue-bg);border-color:var(--blue);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                    <p style="font-size:1.5rem;font-weight:700;color:var(--blue);" id="stat-total"><?php echo $totalConnections; ?></p>
-                    <p style="color:var(--text-muted);font-size:0.85rem;">Total Connections</p>
-                </div>
-                <i class="fas fa-network-wired fa-2x sp-text-info"></i>
-            </div>
+    <div class="sp-stat-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="sp-stat" style="border-color:var(--blue);background:var(--blue-bg);">
+            <span class="sp-stat-label">Total Connections</span>
+            <span class="sp-stat-value" style="color:var(--blue);" id="stat-total"><?php echo $totalConnections; ?></span>
         </div>
-        <div class="sp-card" style="background:var(--accent-light);border-color:var(--accent);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                    <p style="font-size:1.5rem;font-weight:700;color:var(--accent);" id="stat-clients"><?php echo $totalClients; ?></p>
-                    <p style="color:var(--text-muted);font-size:0.85rem;">Registered Clients</p>
-                </div>
-                <i class="fas fa-users fa-2x sp-text-accent"></i>
-            </div>
+        <div class="sp-stat" style="border-color:var(--accent);background:var(--accent-light);">
+            <span class="sp-stat-label">Registered Clients</span>
+            <span class="sp-stat-value" style="color:var(--accent);" id="stat-clients"><?php echo $totalClients; ?></span>
         </div>
-        <div class="sp-card" style="background:var(--amber-bg);border-color:var(--amber);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                    <p style="font-size:1.5rem;font-weight:700;color:var(--amber);" id="stat-codes"><?php echo $totalCodes; ?></p>
-                    <p style="color:var(--text-muted);font-size:0.85rem;">Active Codes</p>
-                </div>
-                <i class="fas fa-key fa-2x sp-text-warning"></i>
-            </div>
+        <div class="sp-stat" style="border-color:var(--amber);background:var(--amber-bg);">
+            <span class="sp-stat-label">Active Codes</span>
+            <span class="sp-stat-value" style="color:var(--amber);" id="stat-codes"><?php echo $totalCodes; ?></span>
         </div>
-        <div class="sp-card" style="background:var(--green-bg);border-color:var(--green);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                    <p style="font-size:1.5rem;font-weight:700;color:var(--green);" id="stat-global"><?php echo $totalGlobalListeners; ?></p>
-                    <p style="color:var(--text-muted);font-size:0.85rem;">Listeners</p>
-                </div>
-                <i class="fas fa-globe fa-2x sp-text-success"></i>
-            </div>
+        <div class="sp-stat" style="border-color:var(--green);background:var(--green-bg);">
+            <span class="sp-stat-label">Listeners</span>
+            <span class="sp-stat-value" style="color:var(--green);" id="stat-global"><?php echo $totalGlobalListeners; ?></span>
         </div>
     </div>
     </div>
 </div>
 <!-- Registered Clients Section -->
 <div class="sp-card">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title"><i class="fas fa-users" style="margin-right:0.5rem;"></i>Registered Users</h2>
+    </div>
     <div class="sp-card-body">
-    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-users"></i></span> Registered Users</h2>
-    <p class="mb-4">Users with active websocket connections grouped by their API keys.</p>
+    <p style="margin-bottom:1rem;">Users with active websocket connections grouped by their API keys.</p>
     <div style="margin-bottom:1rem;">
         <div class="search-wrapper">
             <span class="search-icon"><i class="fas fa-search"></i></span>
@@ -313,9 +295,11 @@ ob_start();
 <!-- Listeners Section -->
 <?php if (!empty($websocketData['global_listeners'])): ?>
 <div class="sp-card">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title"><i class="fas fa-globe" style="margin-right:0.5rem;"></i>Global Listeners</h2>
+    </div>
     <div class="sp-card-body">
-    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-globe"></i></span> Global Listeners</h2>
-    <p class="mb-4">Global Listeners are admin-authenticated websocket connections that receive real-time events from all channels simultaneously. These connections are typically used for system monitoring, administrative dashboards, and global event tracking. Unlike regular clients which are tied to specific user API keys, Global Listeners have elevated permissions to observe activity across the entire platform.</p>
+    <p style="margin-bottom:1rem;">Global Listeners are admin-authenticated websocket connections that receive real-time events from all channels simultaneously. These connections are typically used for system monitoring, administrative dashboards, and global event tracking. Unlike regular clients which are tied to specific user API keys, Global Listeners have elevated permissions to observe activity across the entire platform.</p>
     <div class="sp-table-wrap">
         <table class="sp-table" id="global-listeners-table">
             <thead>
@@ -365,20 +349,20 @@ ob_start();
 </div>
 <?php endif; ?>
 <!-- User Clients Modal -->
-<div class="sp-modal-backdrop" id="user-clients-modal" style="display:none;" onclick="closeUserClientsModal()">
+<div class="sp-modal-backdrop" id="user-clients-modal" onclick="closeUserClientsModal()">
     <div class="sp-modal" style="max-width:1400px;width:90vw;" onclick="event.stopPropagation()">
         <div class="sp-modal-head">
-            <span class="sp-modal-title">
+            <h2 class="sp-modal-title">
                 <span class="icon"><i class="fas fa-users"></i></span>
                 User Clients: <span id="modal-user-name"></span>
-            </span>
-            <button class="sp-modal-close" aria-label="close" onclick="closeUserClientsModal()">&#x2715;</button>
+            </h2>
+            <button class="sp-modal-close" aria-label="close" onclick="closeUserClientsModal()"><i class="fas fa-times"></i></button>
         </div>
         <div class="sp-modal-body" id="user-clients-content">
             <!-- Content will be loaded dynamically -->
         </div>
         <div style="padding:1rem;display:flex;justify-content:flex-end;border-top:1px solid var(--border);">
-            <button class="sp-btn" onclick="closeUserClientsModal()">Close</button>
+            <button class="sp-btn sp-btn-secondary" onclick="closeUserClientsModal()">Close</button>
         </div>
     </div>
 </div>
@@ -754,7 +738,7 @@ async function showUserClients(apiKey, displayName) {
         `;
         document.getElementById('user-clients-content').innerHTML = content;
         const modal = document.getElementById('user-clients-modal');
-        modal.style.display = 'flex';
+        modal.classList.add('is-active');
     } catch (error) {
         console.error('Failed to load user clients:', error);
         Swal.fire({
@@ -767,7 +751,7 @@ async function showUserClients(apiKey, displayName) {
 
 function closeUserClientsModal() {
     const modal = document.getElementById('user-clients-modal');
-    modal.style.display = 'none';
+    modal.classList.remove('is-active');
 }
 
 function showListenerDetails(sid, name) {
