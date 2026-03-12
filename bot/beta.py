@@ -46,7 +46,9 @@ load_dotenv()
 
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
-from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
+# Temp Disable HedgehogOBrienModule import 
+#from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
+hedgehogobrien_module = None
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
