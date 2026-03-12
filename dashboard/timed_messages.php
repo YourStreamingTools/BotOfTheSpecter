@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -251,8 +251,8 @@ ob_start();
                 <div class="sp-card-body">
                     <h5 style="font-size:0.9rem; font-weight:600; margin-bottom:0.5rem;"><i class="fas fa-info-circle" style="margin-right:0.4rem;"></i><?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
                     <ul style="list-style:disc inside; margin-bottom:0;">
-                        <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
-                        <li><code>(command.yourcommand)</code> – <?php echo t('timed_messages_var_command') ?: 'Runs a custom command and sends its processed response as an additional chat message.'; ?></li>
+                        <li><code>(game)</code> - <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
+                        <li><code>(command.yourcommand)</code> - <?php echo t('timed_messages_var_command') ?: 'Runs a custom command and sends its processed response as an additional chat message.'; ?></li>
                         <!-- Add more variables here as needed -->
                     </ul>
                     <div style="margin-top:0.75rem;">
