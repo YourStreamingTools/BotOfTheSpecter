@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -729,126 +729,99 @@ foreach ($segmentsByDay as $dayKey => $dayData) {
 // Render page content with output buffering
 ob_start();
 ?>
-<div class="hero is-small has-background-dark">
-    <div class="hero-body">
-        <div class="container">
-            <h1 class="title is-3 has-text-white"><i class="fas fa-calendar-days"></i> Twitch Schedule</h1>
-            <p class="subtitle has-text-grey-light">Your official Twitch schedule.</p>
-        </div>
+<div class="sp-page-header">
+    <h1><i class="fas fa-calendar-days"></i> Twitch Schedule</h1>
+    <p>Your official Twitch schedule.</p>
+</div>
+<?php if ($error): ?>
+    <div class="sp-alert sp-alert-danger">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Notice:</strong> <?php echo htmlspecialchars($error); ?>
+    </div>
+<?php endif; ?>
+<?php if (!empty($success)): ?>
+    <div class="sp-alert sp-alert-success">
+        <i class="fas fa-check-circle"></i>
+        <strong>Success:</strong> <?php echo htmlspecialchars($success); ?>
+    </div>
+<?php endif; ?>
+<!-- Vacation / Schedule settings + Add segment -->
+<div class="sp-card">
+    <div class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-calendar-alt"></i> Schedule Settings</span>
+    </div>
+    <div class="sp-card-body">
+        <form method="post">
+            <div class="sp-form-group">
+                <label class="sp-label">Vacation / Off dates</label>
+                <div class="sp-field-row">
+                    <input class="sp-input" type="datetime-local" name="vacation_start" value="<?php echo isset($schedule['vacation']['start_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
+                    <input class="sp-input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
+                    <button class="sp-btn sp-btn-primary" type="submit" name="action" value="save">Start Vacation</button>
+                    <?php if (!empty($schedule['vacation'])): ?>
+                    <button class="sp-btn sp-btn-danger" type="submit" name="action" value="clear">Cancel Vacation</button>
+                    <?php endif; ?>
+                </div>
+                <span class="sp-help">Times are shown in your profile timezone (<?php echo htmlspecialchars($timezone); ?>). If this is wrong, update your timezone in your profile settings.</span>
+            </div>
+        </form>
+        <hr style="border:0; border-top:1px solid var(--border); margin:1.25rem 0;">
+        <form method="post" id="createSegmentForm">
+            <div class="sp-form-group">
+                <label class="sp-label">Add schedule segment</label>
+                <div class="sp-field-row">
+                    <input class="sp-input" type="datetime-local" name="segment_start" id="create_segment_start" placeholder="Start (local)" required />
+                    <input class="sp-input" type="datetime-local" name="segment_end" id="create_segment_end" placeholder="End (local)" required />
+                    <input type="hidden" name="segment_duration" id="create_segment_duration" value="" />
+                    <span class="sp-badge sp-badge-grey" id="create_segment_duration_preview">Duration: —</span>
+                </div>
+            </div>
+            <div class="sp-form-group">
+                <div class="sp-field-row">
+                    <div style="position:relative; flex:0 0 260px;">
+                        <input class="sp-input" type="text" id="segment_category_search" placeholder="Search category (name or id) — type to search" autocomplete="off" />
+                        <input type="hidden" name="segment_category_id" id="segment_category_id" />
+                        <div id="segment_category_suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
+                    </div>
+                    <input class="sp-input" type="text" name="segment_title" maxlength="140" placeholder="Title (optional)" style="flex:0 0 220px;" />
+                    <label style="color:var(--text-secondary); display:flex; align-items:center; gap:0.35rem; cursor:pointer; white-space:nowrap;"><input type="checkbox" name="segment_recurring" value="1"> Recurring</label>
+                    <button class="sp-btn sp-btn-primary" type="submit" name="action" value="create_segment" id="create_segment_btn">Create</button>
+                </div>
+            </div>
+            <span class="sp-help" id="create_segment_duration_help">Duration must be between 30 minutes and 23 hours (1380 minutes). Non-recurring segments may be restricted to partners/affiliates.</span>
+        </form>
     </div>
 </div>
-<section class="section">
-    <div class="container">
-        <?php if ($error): ?>
-            <div class="notification is-danger is-light">
-                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                <strong>Notice:</strong> <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-        <?php if (!empty($success)): ?>
-            <div class="notification is-success is-light">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <strong>Success:</strong> <?php echo htmlspecialchars($success); ?>
-            </div>
-        <?php endif; ?>
-        <!-- Vacation / Schedule settings + Add segment -->
-        <div class="box has-background-darker mb-4">
-            <form method="post" class="columns is-vcentered is-multiline">
-                <div class="column is-12">
-                    <label class="label has-text-white">Vacation / Off dates</label>
-                    <div class="field is-grouped is-align-items-center">
-                        <div class="control">
-                            <input class="input" type="datetime-local" name="vacation_start" value="<?php echo isset($schedule['vacation']['start_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
-                        </div>
-                        <div class="control">
-                            <input class="input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
-                        </div>
-                        <div class="control">
-                            <button class="button is-link" type="submit" name="action" value="save">Start Vacation</button>
-                        </div>
-                        <?php if (!empty($schedule['vacation'])): ?>
-                        <div class="control">
-                            <button class="button is-danger" type="submit" name="action" value="clear">Cancel Vacation</button>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    <p class="help has-text-grey-light">Times are shown in your profile timezone (<?php echo htmlspecialchars($timezone); ?>). If this is wrong, update your timezone in your profile settings.</p>
+<?php if (empty($segmentsByDay)): ?>
+    <div class="sp-card" style="text-align:center; padding:2.5rem 1.25rem;">
+        <p style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;">No scheduled segments</p>
+        <p class="sp-text-muted">You don't have any scheduled stream segments on Twitch. Use the Twitch Creator Dashboard to add schedule entries.</p>
+    </div>
+<?php else: ?>
+    <div class="sp-card schedule-summary-box">
+        <div class="sp-card-body">
+            <p class="sp-card-title" style="margin-bottom:0.75rem;">Stream Summary</p>
+            <div class="schedule-summary-grid">
+                <div class="schedule-summary-item">
+                    <span>Streams</span>
+                    <strong id="scheduleSummaryStreams"><?php echo (int)$nextSevenSummary['total']; ?></strong>
                 </div>
-            </form>
-            <hr style="border:0; border-top:2px solid #5a5a5a; margin:1.25rem 0 1.25rem 0; opacity:1;">
-            <form method="post" class="columns is-vcentered is-multiline" id="createSegmentForm">
-                <div class="column is-12">
-                    <label class="label has-text-white">Add schedule segment</label>
-                    <div class="field is-grouped is-align-items-center">
-                        <div class="control">
-                            <input class="input" type="datetime-local" name="segment_start" id="create_segment_start" placeholder="Start (local)" required />
-                        </div>
-                        <div class="control">
-                            <input class="input" type="datetime-local" name="segment_end" id="create_segment_end" placeholder="End (local)" required />
-                            <input type="hidden" name="segment_duration" id="create_segment_duration" value="" />
-                        </div>
-                        <div class="control schedule-duration-display">
-                            <span class="tag is-dark" id="create_segment_duration_preview">Duration: —</span>
-                        </div>
-                    </div>
-                    <div class="field is-grouped is-align-items-center mt-2">
-                        <div class="control" style="min-width:260px; position:relative;">
-                            <input class="input" type="text" id="segment_category_search" placeholder="Search category (name or id) — type to search" autocomplete="off" />
-                            <input type="hidden" name="segment_category_id" id="segment_category_id" />
-                            <div id="segment_category_suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--card-bg); border:1px solid #333; border-radius:4px; margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
-                        </div>
-                        <div class="control" style="min-width:220px;">
-                            <input class="input" type="text" name="segment_title" maxlength="140" placeholder="Title (optional)" />
-                        </div>
-                        <div class="control">
-                            <label class="checkbox"><input type="checkbox" name="segment_recurring" value="1"> Recurring</label>
-                        </div>
-                        <div class="control">
-                            <button class="button is-primary" type="submit" name="action" value="create_segment" id="create_segment_btn">Create</button>
-                        </div>
-                    </div>
-                    <p class="help has-text-grey-light" id="create_segment_duration_help">Duration must be between 30 minutes and 23 hours (1380 minutes). Non-recurring segments may be restricted to partners/affiliates.</p>
+                <div class="schedule-summary-item">
+                    <span>Recurring</span>
+                    <strong class="sp-text-info" id="scheduleSummaryRecurring"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
                 </div>
-            </form>
+                <div class="schedule-summary-item">
+                    <span>Canceled</span>
+                    <strong class="sp-text-danger" id="scheduleSummaryCanceled"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
+                </div>
+                <div class="schedule-summary-item">
+                    <span>Vacation</span>
+                    <strong class="<?php echo !empty($nextSevenSummary['vacation']) ? 'sp-text-warning' : 'sp-text-success'; ?>"><?php echo !empty($nextSevenSummary['vacation']) ? 'Active' : 'Off'; ?></strong>
+                </div>
+            </div>
         </div>
-        <?php if (empty($segmentsByDay)): ?>
-            <div class="box has-background-dark">
-                <div class="content has-text-centered">
-                    <p class="title is-5 has-text-white">No scheduled segments</p>
-                    <p class="has-text-grey-light">You don't have any scheduled stream segments on Twitch. Use the Twitch Creator Dashboard to add schedule entries.</p>
-                </div>
-            </div>
-        <?php else: ?>
-            <div class="box has-background-darker mb-4 schedule-summary-box">
-                <p class="title is-6 has-text-white mb-3">Stream Summary</p>
-                <div class="columns is-mobile is-multiline mb-0">
-                    <div class="column is-6-mobile is-3-tablet">
-                        <div class="schedule-summary-item">
-                            <span class="has-text-grey-light">Streams</span>
-                            <strong class="has-text-white" id="scheduleSummaryStreams"><?php echo (int)$nextSevenSummary['total']; ?></strong>
-                        </div>
-                    </div>
-                    <div class="column is-6-mobile is-3-tablet">
-                        <div class="schedule-summary-item">
-                            <span class="has-text-grey-light">Recurring</span>
-                            <strong class="has-text-info" id="scheduleSummaryRecurring"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
-                        </div>
-                    </div>
-                    <div class="column is-6-mobile is-3-tablet">
-                        <div class="schedule-summary-item">
-                            <span class="has-text-grey-light">Canceled</span>
-                            <strong class="has-text-danger" id="scheduleSummaryCanceled"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
-                        </div>
-                    </div>
-                    <div class="column is-6-mobile is-3-tablet">
-                        <div class="schedule-summary-item">
-                            <span class="has-text-grey-light">Vacation</span>
-                            <strong class="<?php echo !empty($nextSevenSummary['vacation']) ? 'has-text-warning' : 'has-text-success'; ?>"><?php echo !empty($nextSevenSummary['vacation']) ? 'Active' : 'Off'; ?></strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="columns is-multiline schedule-day-columns">
+    </div>
+    <div class="schedule-day-columns">
             <?php foreach ($segmentsByDay as $dayKey => $dayData): ?>
                 <?php
                     $isDayInitiallyVisible = empty($initialDayKeySet) || isset($initialDayKeySet[$dayKey]);
@@ -882,86 +855,66 @@ ob_start();
                                 // Keep fallback placeholders above.
                             }
                             ?>
-                <div class="column is-12-mobile is-6-tablet is-4-desktop<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>" data-segment-recurring="<?php echo $isRecurring ? '1' : '0'; ?>" data-segment-canceled="<?php echo $canceled ? '1' : '0'; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
+                <div class="sched-col<?php echo $isDayInitiallyVisible ? '' : ' schedule-day-hidden'; ?>" data-day-key="<?php echo htmlspecialchars($dayKey); ?>" data-day-order="<?php echo $dayOrderIndex; ?>" data-segment-recurring="<?php echo $isRecurring ? '1' : '0'; ?>" data-segment-canceled="<?php echo $canceled ? '1' : '0'; ?>"<?php echo $isDayInitiallyVisible ? '' : ' style="display:none;"'; ?>>
                     <div class="schedule-day-group mb-5">
                         <?php if ($segIndex === 0): ?>
-                        <h2 class="title is-5 has-text-white mb-3"><?php echo htmlspecialchars($dayData['label']); ?></h2>
+                        <h2 class="sched-day-label"><?php echo htmlspecialchars($dayData['label']); ?></h2>
                         <?php else: ?>
-                        <h2 class="title is-5 has-text-white mb-3" style="visibility:hidden;" aria-hidden="true">&nbsp;</h2>
+                        <h2 class="sched-day-label" style="visibility:hidden;" aria-hidden="true">&nbsp;</h2>
                         <?php endif; ?>
-                        <div class="card schedule-segment-card<?php echo $canceled ? ' schedule-segment-card-canceled' : ''; ?>">
-                            <header class="card-header">
-                                <p class="card-header-title">
-                                    <?php echo htmlspecialchars($seg['title'] ?: 'Untitled'); ?>
-                                </p>
-                                <span class="schedule-card-tags has-text-grey-light" aria-hidden="true">
+                        <div class="sp-card schedule-segment-card<?php echo $canceled ? ' schedule-segment-card-canceled' : ''; ?>">
+                            <div class="sp-card-header">
+                                <span class="sp-card-title"><?php echo htmlspecialchars($seg['title'] ?: 'Untitled'); ?></span>
+                                <span class="schedule-card-tags" aria-hidden="true">
                                     <?php if ($isRecurring): ?>
-                                        <span class="tag is-small is-info">Recurring</span>
+                                        <span class="sp-badge sp-badge-blue">Recurring</span>
                                     <?php endif; ?>
                                     <?php if ($canceled): ?>
-                                        <span class="tag is-small is-danger" data-role="canceled-tag">Canceled</span>
+                                        <span class="sp-badge sp-badge-red" data-role="canceled-tag">Canceled</span>
                                     <?php endif; ?>
                                 </span>
-                            </header>
-                            <div class="card-content">
-                                <div class="content">
-                                    <p class="mb-1"><strong>Start Date:</strong> <?php echo htmlspecialchars($startDateText); ?></p>
-                                    <p class="mb-1"><strong>Start Time:</strong> <?php echo htmlspecialchars($startTimeText); ?></p>
-                                    <p class="mb-1"><strong>End Time:</strong> <?php echo htmlspecialchars($endTimeText); ?></p>
-                                    <?php if ($endDateText !== ''): ?>
-                                        <p class="mb-1"><strong>End Date:</strong> <?php echo htmlspecialchars($endDateText); ?></p>
-                                    <?php endif; ?>
-                                    <p class="mb-1"><strong>Duration</strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
-                                    <p class="mb-2"><strong>Category</strong><br><?php echo $category ? htmlspecialchars($category) : '<em>Not specified</em>'; ?></p>
-                                </div>
                             </div>
-                            <div class="card-content has-background-darker">
-                                <form method="post" class="columns is-multiline segment-edit-form" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">
+                            <div class="sp-card-body">
+                                <p class="mb-1"><strong>Start Date:</strong> <?php echo htmlspecialchars($startDateText); ?></p>
+                                <p class="mb-1"><strong>Start Time:</strong> <?php echo htmlspecialchars($startTimeText); ?></p>
+                                <p class="mb-1"><strong>End Time:</strong> <?php echo htmlspecialchars($endTimeText); ?></p>
+                                <?php if ($endDateText !== ''): ?>
+                                    <p class="mb-1"><strong>End Date:</strong> <?php echo htmlspecialchars($endDateText); ?></p>
+                                <?php endif; ?>
+                                <p class="mb-1"><strong>Duration</strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
+                                <p class="mb-2"><strong>Category</strong><br><?php echo $category ? htmlspecialchars($category) : '<em>Not specified</em>'; ?></p>
+                            </div>
+                            <div class="sp-card-body" style="border-top:1px solid var(--border); padding-top:1rem;">
+                                <form method="post" class="segment-edit-form" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">
                                     <input type="hidden" name="segment_id" value="<?php echo htmlspecialchars($seg['id']); ?>" />
-                                    <div class="column is-12">
-                                        <div class="field is-grouped is-align-items-center is-flex-wrap-wrap">
-                                            <div class="control">
-                                                <input class="input segment-start-input" type="datetime-local" name="segment_start" value="<?php echo $startLocalValue; ?>" />
-                                            </div>
-                                            <div class="control">
-                                                <input class="input segment-end-input" type="datetime-local" name="segment_end" value="<?php echo $endLocalValue; ?>" />
-                                                <input type="hidden" name="segment_duration" class="segment-duration-hidden" value="<?php echo ($durationMins !== null) ? (int)$durationMins : ''; ?>" />
-                                            </div>
+                                    <div class="sp-form-group">
+                                        <div class="sp-field-row">
+                                            <input class="sp-input segment-start-input" type="datetime-local" name="segment_start" value="<?php echo $startLocalValue; ?>" />
+                                            <input class="sp-input segment-end-input" type="datetime-local" name="segment_end" value="<?php echo $endLocalValue; ?>" />
+                                            <input type="hidden" name="segment_duration" class="segment-duration-hidden" value="<?php echo ($durationMins !== null) ? (int)$durationMins : ''; ?>" />
                                         </div>
-                                        <div class="field">
-                                            <div class="control schedule-duration-display">
-                                                <span class="tag is-dark segment-duration-preview">Duration: <?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></span>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <div class="control is-expanded" style="position:relative;">
-                                                <input class="input segment-category-search" type="text" placeholder="Search category..." value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
-                                                <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" />
-                                                <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--card-bg); border:1px solid #333; border-radius:4px; margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <div class="control is-expanded">
-                                                <input class="input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="Title" />
-                                            </div>
-                                        </div>
-                                        <div class="field is-grouped is-align-items-center is-flex-wrap-wrap">
-                                            <div class="control">
-                                                <button class="button is-link segment-update-btn" type="submit" name="action" value="update_segment">Update</button>
-                                            </div>
-                                            <div class="control">
-                                                <button class="button <?php echo $canceled ? 'is-warning' : 'is-danger'; ?>" type="submit" name="action" value="cancel_segment">
-                                                    <?php echo $canceled ? 'Uncancel' : 'Cancel Stream'; ?>
-                                                </button>
-                                                <input type="hidden" name="cancel_state" value="<?php echo $canceled ? '0' : '1'; ?>" />
-                                            </div>
-                                            <div class="control">
-                                                <button class="button is-danger is-light" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">Delete</button>
-                                            </div>
-                                        </div>
-                                        <p class="help has-text-grey-light segment-duration-help">Duration must be between 30 minutes and 23 hours (1380 minutes).</p>
-                                        <p class="help has-text-grey-light">"Cancel Stream" only cancels this segment. For multiple streams in a row, use "Vacation / Off dates" above.</p>
                                     </div>
+                                    <div class="schedule-duration-display sp-form-group">
+                                        <span class="sp-badge sp-badge-grey segment-duration-preview">Duration: <?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></span>
+                                    </div>
+                                    <div class="sp-form-group" style="position:relative;">
+                                        <input class="sp-input segment-category-search" type="text" placeholder="Search category..." value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
+                                        <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" />
+                                        <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
+                                    </div>
+                                    <div class="sp-form-group">
+                                        <input class="sp-input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="Title" />
+                                    </div>
+                                    <div class="sp-btn-group">
+                                        <button class="sp-btn sp-btn-primary segment-update-btn" type="submit" name="action" value="update_segment">Update</button>
+                                        <button class="sp-btn <?php echo $canceled ? 'sp-btn-warning' : 'sp-btn-danger'; ?>" type="submit" name="action" value="cancel_segment">
+                                            <?php echo $canceled ? 'Uncancel' : 'Cancel Stream'; ?>
+                                        </button>
+                                        <input type="hidden" name="cancel_state" value="<?php echo $canceled ? '0' : '1'; ?>" />
+                                        <button class="sp-btn sp-btn-danger" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">Delete</button>
+                                    </div>
+                                    <span class="sp-help segment-duration-help">Duration must be between 30 minutes and 23 hours (1380 minutes).</span>
+                                    <span class="sp-help">"Cancel Stream" only cancels this segment. For multiple streams in a row, use "Vacation / Off dates" above.</span>
                                 </form>
                             </div>
                         </div>
@@ -970,21 +923,21 @@ ob_start();
                 <?php endforeach; ?>
             <?php endforeach; ?>
             </div>
-            <?php if ($hasMoreDays): ?>
-                <div class="has-text-centered mt-4">
-                    <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? 'Load 1 More' : ('Load ' . (int)$initialLoadMoreEvents . ' More'); ?>
-                    <button type="button" class="button is-link is-light" id="loadMoreDaysBtn" data-day-batch-size="<?php echo (int)$loadMoreDayBatchSize; ?>"><?php echo htmlspecialchars($initialLoadMoreLabel); ?></button>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($schedule['vacation'])): ?>
-                <div class="box mt-4 has-background-dark">
-                    <p class="title is-6 has-text-white">Vacation / Off dates</p>
-                    <p class="has-text-grey-light">From <?php echo fmt_dt($schedule['vacation']['start_time'] ?? null, $timezone); ?> to <?php echo fmt_dt($schedule['vacation']['end_time'] ?? null, $timezone); ?></p>
-                </div>
-            <?php endif; ?>
+        <?php if ($hasMoreDays): ?>
+            <div style="text-align:center; margin-top:1rem;">
+                <?php $initialLoadMoreLabel = ($initialLoadMoreEvents === 1) ? 'Load 1 More' : ('Load ' . (int)$initialLoadMoreEvents . ' More'); ?>
+                <button type="button" class="sp-btn sp-btn-primary" id="loadMoreDaysBtn" data-day-batch-size="<?php echo (int)$loadMoreDayBatchSize; ?>"><?php echo htmlspecialchars($initialLoadMoreLabel); ?></button>
+            </div>
         <?php endif; ?>
-    </div>
-</section>
+        <?php if (!empty($schedule['vacation'])): ?>
+            <div class="sp-card" style="margin-top:1rem;">
+                <div class="sp-card-body">
+                    <p class="sp-card-title" style="margin-bottom:0.5rem;">Vacation / Off dates</p>
+                    <p class="sp-text-muted">From <?php echo fmt_dt($schedule['vacation']['start_time'] ?? null, $timezone); ?> to <?php echo fmt_dt($schedule['vacation']['end_time'] ?? null, $timezone); ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+<?php endif; ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <script>
@@ -1020,7 +973,7 @@ ob_start();
             if (hiddenInput) hiddenInput.value = '';
             if (previewEl) previewEl.textContent = 'Duration: —';
             if (actionButton) actionButton.disabled = true;
-            if (endInput) endInput.classList.remove('is-danger');
+            if (endInput) endInput.classList.remove('sp-input-error');
             if (helpEl) helpEl.textContent = helpText;
             return false;
         }
@@ -1034,11 +987,11 @@ ob_start();
         }
         if (valid) {
             if (hiddenInput) hiddenInput.value = String(mins);
-            if (endInput) endInput.classList.remove('is-danger');
+            if (endInput) endInput.classList.remove('sp-input-error');
             if (actionButton) actionButton.disabled = false;
         } else {
             if (hiddenInput) hiddenInput.value = '';
-            if (endInput) endInput.classList.add('is-danger');
+            if (endInput) endInput.classList.add('sp-input-error');
             if (actionButton) actionButton.disabled = true;
         }
         if (helpEl) helpEl.textContent = helpText;
@@ -1055,7 +1008,7 @@ ob_start();
             el.innerHTML = '<strong>' + (it.name || '') + '</strong> <span style="float:right;opacity:0.8;">id:' + (it.id||'') + '</span>';
             el.addEventListener('click', () => {
                 container.style.display = 'none';
-                const root = container.closest('.control');
+                const root = container.closest('.sp-form-group');
                 const hidden = root.querySelector('input[type="hidden"]');
                 const visible = root.querySelector('input[type="text"]');
                 if (hidden) hidden.value = it.id || '';
@@ -1090,7 +1043,7 @@ ob_start();
         const recurringEl = document.getElementById('scheduleSummaryRecurring');
         const canceledEl = document.getElementById('scheduleSummaryCanceled');
         if (!streamsEl && !recurringEl && !canceledEl) return;
-        const visibleColumns = Array.from(document.querySelectorAll('.schedule-day-columns > .column')).filter((col) => {
+        const visibleColumns = Array.from(document.querySelectorAll('.schedule-day-columns > .sched-col')).filter((col) => {
             const hiddenByClass = col.classList.contains('schedule-day-hidden');
             const hiddenByStyle = col.style && col.style.display === 'none';
             return !hiddenByClass && !hiddenByStyle;
@@ -1175,7 +1128,7 @@ ob_start();
     }
     // Per-segment search boxes
     document.querySelectorAll('.segment-category-search').forEach(function(input){
-        const root = input.closest('.control');
+        const root = input.closest('.sp-form-group');
         const hidden = root.querySelector('.segment-category-id');
         const sug = root.querySelector('.suggestions');
         // if input has data-current-id, try to resolve name (in case only id saved)
@@ -1285,19 +1238,19 @@ ob_start();
                     if (card) {
                         card.classList.toggle('schedule-segment-card-canceled', isCanceled);
                     }
-                    const segmentColumn = f.closest('.schedule-day-columns > .column');
+                    const segmentColumn = f.closest('.schedule-day-columns > .sched-col');
                     if (segmentColumn) {
                         segmentColumn.setAttribute('data-segment-canceled', isCanceled ? '1' : '0');
                     }
                     if (cancelStateInput) cancelStateInput.value = isCanceled ? '0' : '1';
                     submitBtn.textContent = isCanceled ? 'Uncancel' : 'Cancel Stream';
-                    submitBtn.classList.toggle('is-warning', isCanceled);
-                    submitBtn.classList.toggle('is-danger', !isCanceled);
+                    submitBtn.classList.toggle('sp-btn-warning', isCanceled);
+                    submitBtn.classList.toggle('sp-btn-danger', !isCanceled);
                     if (tagContainer) {
                         let canceledTag = tagContainer.querySelector('[data-role="canceled-tag"]');
                         if (isCanceled && !canceledTag) {
                             canceledTag = document.createElement('span');
-                            canceledTag.className = 'tag is-small is-danger';
+                            canceledTag.className = 'sp-badge sp-badge-red';
                             canceledTag.setAttribute('data-role', 'canceled-tag');
                             canceledTag.textContent = 'Canceled';
                             tagContainer.appendChild(canceledTag);
