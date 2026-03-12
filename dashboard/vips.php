@@ -135,116 +135,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column is-fullwidth">
-    <!-- VIPs List -->
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-      <header class="card-header is-flex is-align-items-center is-justify-content-space-between" style="border-bottom: 1px solid #23272f; padding: 1rem 1.5rem;">
-        <div class="card-header-title is-size-4 has-text-white" style="font-weight:700; padding: 0;">
-          <span class="icon mr-2"><i class="fas fa-star"></i></span>
-          <?php echo t('vips_list_title'); ?>
-        </div>
-        <div class="is-flex is-align-items-center">
-          <button class="button is-primary mr-3" id="manage-vip-btn">
-            <span class="icon"><i class="fas fa-user-cog"></i></span>
-            <span>Manage VIPs</span>
-          </button>
-          <div class="field" style="margin-bottom: 0;">
-            <div class="control has-icons-left">
-              <input class="input" type="text" id="vip-search" placeholder="<?php echo t('vips_search_placeholder'); ?>" style="width: 300px; background-color: #363636; border-color: #4a4a4a; color: white;">
-              <span class="icon is-small is-left has-text-grey-light">
-                <i class="fas fa-search"></i>
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-      <div class="card-content">
-        <div class="content">
+<!-- VIPs List -->
+<div class="sp-card mb-5">
+  <header class="sp-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <div class="sp-card-title">
+      <span class="icon mr-2"><i class="fas fa-star"></i></span>
+      <?php echo t('vips_list_title'); ?>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <button class="sp-btn sp-btn-primary" id="manage-vip-btn">
+        <span class="icon"><i class="fas fa-user-cog"></i></span>
+        <span>Manage VIPs</span>
+      </button>
+      <div style="position:relative;">
+        <input class="sp-input" type="text" id="vip-search" placeholder="<?php echo t('vips_search_placeholder'); ?>" style="width:300px;padding-left:2.25rem;">
+        <span style="position:absolute;left:0.7rem;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;"><i class="fas fa-search"></i></span>
+      </div>
+    </div>
+  </header>
+  <div class="sp-card-body">
           <?php if (!empty($VIPUserStatus)): ?>
-            <div class="notification is-info is-light has-text-dark mb-4">
+            <div class="sp-alert sp-alert-info mb-4">
               <span class="icon"><i class="fas fa-info-circle"></i></span>
               <?php echo $VIPUserStatus; ?>
             </div>
           <?php endif; ?>
           <?php if (empty($allVIPs)): ?>
-            <div class="has-text-centered py-6">
-              <span class="icon is-large has-text-grey-light mb-3">
+            <div style="text-align:center;padding:3rem 0;">
+              <span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;">
                 <i class="fas fa-star fa-3x"></i>
               </span>
-              <p class="has-text-grey-light is-size-5">No VIPs found</p>
+              <p class="sp-text-muted" style="font-size:1.1rem;">No VIPs found</p>
             </div>
           <?php else: ?>
-            <div class="columns is-multiline is-centered">
+            <div class="followers-grid">
               <?php foreach ($allVIPs as $vip) : 
                   $vipDisplayName = $vip['user_name'];
                   $profileImg = !empty($vip['profile_image_url'])
-                      ? '<img src="' . htmlspecialchars($vip['profile_image_url']) . '" alt="' . htmlspecialchars($vipDisplayName) . '" class="is-rounded" style="width:64px;height:64px;">'
-                      : '<span class="has-background-primary has-text-white is-flex is-justify-content-center is-align-items-center is-rounded" style="width:64px;height:64px;font-size:2rem;font-weight:700;">' . strtoupper(substr($vipDisplayName, 0, 1)) . '</span>';
+                      ? '<img src="' . htmlspecialchars($vip['profile_image_url']) . '" alt="' . htmlspecialchars($vipDisplayName) . '" class="follower-avatar-img">'
+                      : '<span class="follower-avatar-initials">' . strtoupper(substr($vipDisplayName, 0, 1)) . '</span>';
               ?>
-              <div class="column is-12-mobile is-6-tablet is-3-desktop follower-box">
-                <div class="box has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                  <article class="media is-align-items-center">
-                    <figure class="media-left">
-                      <p class="image is-64x64">
-                        <?php echo $profileImg; ?>
-                      </p>
-                    </figure>
-                    <div class="media-content">
-                      <div class="content">
-                        <p>
-                          <span class="has-text-weight-semibold has-text-white"><?php echo $vipDisplayName; ?></span><br>
-                          <span class="tag is-primary is-small mt-1">
-                            <span class="icon is-small"><i class="fas fa-star"></i></span>
-                            <span>VIP</span>
-                          </span>
-                        </p>
+              <div class="follower-card-col follower-box">
+                <div class="sp-card">
+                  <div class="follower-card-media sp-card-body">
+                    <div class="follower-card-avatar">
+                      <?php echo $profileImg; ?>
+                    </div>
+                    <div class="follower-card-content">
+                      <span class="vip-name"><?php echo $vipDisplayName; ?></span>
+                      <div style="margin-top:0.35rem;">
+                        <span class="sp-badge sp-badge-accent">
+                          <span class="icon is-small"><i class="fas fa-star"></i></span>
+                          <span>VIP</span>
+                        </span>
                       </div>
                     </div>
-                  </article>
+                  </div>
                 </div>
               </div>
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
 <!-- VIP Management Modal -->
-<div class="modal" id="vip-modal">
-  <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head has-background-dark">
-      <p class="modal-card-title has-text-white">
+<div class="sp-modal-backdrop" id="vip-modal">
+  <div class="sp-modal">
+    <header class="sp-modal-head">
+      <p class="sp-modal-title">
         <span class="icon mr-2"><i class="fas fa-user-plus"></i></span>
         <?php echo t('vips_add_remove_title'); ?>
       </p>
-      <button class="delete" aria-label="close" id="close-modal"></button>
+      <button class="sp-modal-close" aria-label="close" id="close-modal">&times;</button>
     </header>
-    <section class="modal-card-body has-background-grey-darker has-text-white">
+    <section class="sp-modal-body">
       <form method="POST">
-        <div class="field">
-          <label class="label has-text-white" for="vip-username"><?php echo t('vips_username_label'); ?></label>
-          <div class="control">
-            <input class="input" type="text" id="vip-username" name="vip-username" required placeholder="Enter username">
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label" for="vip-username"><?php echo t('vips_username_label'); ?></label>
+          <input class="sp-input" type="text" id="vip-username" name="vip-username" required placeholder="Enter username">
         </div>
-        <div class="field is-grouped">
-          <div class="control">
-            <button class="button is-success" type="submit" name="action" value="add">
-              <span class="icon"><i class="fas fa-plus"></i></span>
-              <span><?php echo t('vips_add_btn'); ?></span>
-            </button>
-          </div>
-          <div class="control">
-            <button class="button is-danger" type="submit" name="action" value="remove">
-              <span class="icon"><i class="fas fa-minus"></i></span>
-              <span><?php echo t('vips_remove_btn'); ?></span>
-            </button>
-          </div>
+        <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+          <button class="sp-btn sp-btn-success" type="submit" name="action" value="add">
+            <span class="icon"><i class="fas fa-plus"></i></span>
+            <span><?php echo t('vips_add_btn'); ?></span>
+          </button>
+          <button class="sp-btn sp-btn-danger" type="submit" name="action" value="remove">
+            <span class="icon"><i class="fas fa-minus"></i></span>
+            <span><?php echo t('vips_remove_btn'); ?></span>
+          </button>
         </div>
       </form>
     </section>
@@ -260,7 +239,7 @@ $(document).ready(function() {
     $('#vip-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
         $('.follower-box').each(function() {
-            var vipName = $(this).find('.has-text-weight-semibold').text().toLowerCase();
+            var vipName = $(this).find('.vip-name').text().toLowerCase();
             if (vipName.includes(searchTerm)) {
                 $(this).show();
             } else {
@@ -272,9 +251,13 @@ $(document).ready(function() {
     $('#manage-vip-btn').on('click', function() {
         $('#vip-modal').addClass('is-active');
     });
-
-    $('#close-modal, .modal-background').on('click', function() {
+    $('#close-modal').on('click', function() {
         $('#vip-modal').removeClass('is-active');
+    });
+    $('#vip-modal').on('click', function(e) {
+        if ($(e.target).is('#vip-modal')) {
+            $('#vip-modal').removeClass('is-active');
+        }
     });
     // Close modal on escape key
     $(document).on('keyup', function(e) {
