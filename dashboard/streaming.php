@@ -401,13 +401,11 @@ if ($selected_server == 'au-east-1') {
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="notification is-danger is-light mb-4" style="max-width: 600px; margin: 50px auto;">
-    <div class="is-flex is-align-items-center">
-        <span class="icon mr-3"><i class="fas fa-exclamation-circle"></i></span>
-        <div>
-            <p class="has-text-weight-bold">Streaming Service - Terminated</p>
-            <p class="mt-2">The streaming service has been terminated and is no longer available. The core code has been preserved in case this project resumes at a later stage in the future. For assistance, please contact support.</p>
-        </div>
+<div class="sp-alert sp-alert-danger" style="max-width: 600px; margin: 50px auto; display:flex; align-items:center; gap:0.75rem;">
+    <span class="icon"><i class="fas fa-exclamation-circle"></i></span>
+    <div>
+        <p style="font-weight:700;">Streaming Service - Terminated</p>
+        <p style="margin-top:0.5rem;">The streaming service has been terminated and is no longer available. The core code has been preserved in case this project resumes at a later stage in the future. For assistance, please contact support.</p>
     </div>
 </div>
 <?php /* CONTENT HIDDEN - SERVICE TERMINATED
