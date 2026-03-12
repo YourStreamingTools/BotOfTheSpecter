@@ -38,16 +38,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_feedback_id'])
 }
 ?>
 
-<div class="container">
-    <h1 class="title">Feedback Management</h1>
-    <p class="subtitle">View and manage user feedback submissions</p>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h1 class="sp-card-title"><i class="fas fa-comments"></i> Feedback Management</h1>
+    </div>
+    <div class="sp-card-body">
+    <p style="color:var(--text-secondary);margin-bottom:1.25rem;">View and manage user feedback submissions</p>
     <?php if (empty($feedback)): ?>
-        <div class="notification is-info">
+        <div class="sp-alert sp-alert-info">
             <p>No feedback submissions found.</p>
         </div>
     <?php else: ?>
-        <div class="table-container">
-            <table class="table is-fullwidth is-striped is-hoverable">
+        <div class="sp-table-wrap">
+            <table class="sp-table">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -61,18 +64,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_feedback_id'])
                 </thead>
                 <tbody>
                     <?php foreach ($feedback as $item): ?>
-                        <tr class="<?php echo $item['is_bug_report'] ? 'has-background-danger-light' : ''; ?>">
+                        <tr<?php if ($item['is_bug_report']) echo ' style="background:var(--red-bg);"'; ?>>
                             <td><?php echo htmlspecialchars($item['id']); ?></td>
                             <td>
                                 <?php if ($item['is_bug_report']): ?>
-                                    <span class="tag is-danger">
-                                        <span class="icon"><i class="fas fa-bug"></i></span>
-                                        <span>Bug</span>
+                                    <span class="sp-badge sp-badge-red">
+                                        <i class="fas fa-bug"></i> Bug
                                     </span>
                                 <?php else: ?>
-                                    <span class="tag is-info">
-                                        <span class="icon"><i class="fas fa-comment"></i></span>
-                                        <span>Feedback</span>
+                                    <span class="sp-badge sp-badge-blue">
+                                        <i class="fas fa-comment"></i> Feedback
                                     </span>
                                 <?php endif; ?>
                             </td>
@@ -84,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_feedback_id'])
                             </td>
                             <td>
                                 <?php if ($item['is_bug_report']): ?>
-                                    <button class="button is-small is-info view-bug-details" 
+                                    <button class="sp-btn sp-btn-info sp-btn-sm view-bug-details" 
                                             data-id="<?php echo $item['id']; ?>"
                                             data-category="<?php echo htmlspecialchars($item['bug_category']); ?>"
                                             data-severity="<?php echo htmlspecialchars($item['severity']); ?>"
@@ -97,12 +98,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_feedback_id'])
                                         <span>View Details</span>
                                     </button>
                                 <?php else: ?>
-                                    <span class="has-text-grey">N/A</span>
+                                    <span class="sp-text-muted">N/A</span>
                                 <?php endif; ?>
                             </td>
                             <td><?php echo htmlspecialchars($item['created_at']); ?></td>
                             <td>
-                                <button class="button is-small is-danger delete-feedback-btn"
+                                <button class="sp-btn sp-btn-danger sp-btn-sm delete-feedback-btn"
                                         data-id="<?php echo $item['id']; ?>"
                                         data-display-name="<?php echo htmlspecialchars($item['display_name']); ?>">
                                     <span class="icon">
@@ -117,7 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_feedback_id'])
             </table>
         </div>
     <?php endif; ?>
-</div>
+    </div><!-- /sp-card-body -->
+</div><!-- /sp-card -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -131,39 +133,39 @@ document.addEventListener('DOMContentLoaded', function() {
             const actual = this.getAttribute('data-actual');
             const browser = this.getAttribute('data-browser');
             const error = this.getAttribute('data-error');
-            let severityClass = 'is-info';
-            if (severity === 'critical') severityClass = 'is-danger';
-            else if (severity === 'high') severityClass = 'is-warning';
-            else if (severity === 'medium') severityClass = 'is-warning';
+            let severityClass = 'sp-badge-blue';
+            if (severity === 'critical') severityClass = 'sp-badge-red';
+            else if (severity === 'high') severityClass = 'sp-badge-amber';
+            else if (severity === 'medium') severityClass = 'sp-badge-amber';
             const htmlContent = `
-                <div class="content has-text-left">
-                    <div class="field">
-                        <label class="label">Category:</label>
-                        <span class="tag is-info">${category || 'N/A'}</span>
+                <div style="text-align:left;">
+                    <div class="sp-form-group">
+                        <label class="sp-label">Category:</label>
+                        <span class="sp-badge sp-badge-blue">${category || 'N/A'}</span>
                     </div>
-                    <div class="field">
-                        <label class="label">Severity:</label>
-                        <span class="tag ${severityClass}">${severity || 'N/A'}</span>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Severity:</label>
+                        <span class="sp-badge ${severityClass}">${severity || 'N/A'}</span>
                     </div>
-                    <div class="field">
-                        <label class="label">Steps to Reproduce:</label>
-                        <div class="box" style="white-space: pre-wrap;">${steps || 'N/A'}</div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Steps to Reproduce:</label>
+                        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:0.65rem;white-space:pre-wrap;">${steps || 'N/A'}</div>
                     </div>
-                    <div class="field">
-                        <label class="label">Expected Behavior:</label>
-                        <div class="box" style="white-space: pre-wrap;">${expected || 'N/A'}</div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Expected Behavior:</label>
+                        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:0.65rem;white-space:pre-wrap;">${expected || 'N/A'}</div>
                     </div>
-                    <div class="field">
-                        <label class="label">Actual Behavior:</label>
-                        <div class="box" style="white-space: pre-wrap;">${actual || 'N/A'}</div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Actual Behavior:</label>
+                        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:0.65rem;white-space:pre-wrap;">${actual || 'N/A'}</div>
                     </div>
-                    ${error ? `<div class="field">
-                        <label class="label">Error Message:</label>
-                        <div class="box" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${error}</div>
+                    ${error ? `<div class="sp-form-group">
+                        <label class="sp-label">Error Message:</label>
+                        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:0.65rem;white-space:pre-wrap;font-family:monospace;font-size:0.85em;">${error}</div>
                     </div>` : ''}
-                    ${category === 'dashboard' && browser ? `<div class="field">
-                        <label class="label">Browser Info:</label>
-                        <div class="box" style="font-size: 0.85em; word-break: break-all;">${browser}</div>
+                    ${category === 'dashboard' && browser ? `<div class="sp-form-group">
+                        <label class="sp-label">Browser Info:</label>
+                        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:0.65rem;font-size:0.85em;word-break:break-all;">${browser}</div>
                     </div>` : ''}
                 </div>
             `;
