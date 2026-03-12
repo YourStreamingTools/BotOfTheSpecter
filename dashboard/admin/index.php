@@ -2041,11 +2041,10 @@ $botIconMap = [
     </div>
 </div>
 <div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="admin-collapsible-header" onclick="toggleCollapsible('bot-overview', event)">
-        <h2><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
-        <span class="collapse-icon" data-section="bot-overview">▼</span>
+    <div class="sp-card-header">
+        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
     </div>
-    <div class="collapsible-content" id="bot-overview" style="display: block;">
+    <div class="sp-card-body">
         <div id="bot-overview-container">
             <p style="margin-bottom:1.25rem;">Loading bot overview...</p>
         </div>
@@ -2106,11 +2105,9 @@ $botIconMap = [
             <form id="send-message-form" method="post">
                 <div class="sp-form-group">
                     <label class="sp-label">Select Channel</label>
-                    <div class="sp-select" style="width:100%;">
-                        <select name="channel_id" id="channel-select" required style="width:100%;">
-                            <option value="">Loading channels...</option>
-                        </select>
-                    </div>
+                    <select class="sp-select" name="channel_id" id="channel-select" required>
+                        <option value="">Loading channels...</option>
+                    </select>
                 </div>
                 <div class="sp-form-group">
                     <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-secondary); cursor:pointer;">
@@ -2120,14 +2117,12 @@ $botIconMap = [
                 </div>
                 <div class="sp-form-group">
                     <label class="sp-label">Template</label>
-                    <div class="sp-select" style="width:100%;">
-                        <select id="message-template-select" style="width:100%;">
-                            <option value="">- Choose Template -</option>
-                            <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
-                                <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+                    <select class="sp-select" id="message-template-select">
+                        <option value="">- Choose Template -</option>
+                        <?php foreach ($message_templates as $tpl_key => $tpl_text): ?>
+                            <option value="<?php echo htmlspecialchars($tpl_key); ?>"><?php echo htmlspecialchars($tpl_key); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="sp-form-group">
                     <label class="sp-label">Message</label>
@@ -2745,25 +2740,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load bot overview after page load (diffs DOM instead of replacing everything)
     const loadBotOverview = () => {
         // Check if bot-overview section is open before fetching
-        const botOverviewSection = document.getElementById('bot-overview');
-        if (botOverviewSection && !botOverviewSection.classList.contains('open')) {
-            // Section is closed, skip refresh to save resources
-            return;
-        }
         const botContainer = document.getElementById('bot-overview-container');
         if (!botContainer) return;
-        // Add timestamp to the collapsible header if not already present
-        const collapsibleHeader = botContainer.closest('.collapsible-content')?.previousElementSibling;
-        if (collapsibleHeader && !document.getElementById('bot-updated-at')) {
-            const headerTitle = collapsibleHeader.querySelector('.title');
-            if (headerTitle) {
-                const small = document.createElement('small');
-                small.id = 'bot-updated-at';
-                small.className = 'ml-2 sp-text-muted';
-                small.textContent = 'Updated: --';
-                headerTitle.appendChild(small);
-            }
-        }
         // Ensure columns wrapper exists
         let columns = document.getElementById('bot-columns');
         if (!columns) {
