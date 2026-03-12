@@ -219,10 +219,10 @@ $displayMessageData = !empty($_GET['successMessage']) || !empty($_GET['errorMess
 if ($displayMessageData) {
     if (!empty($_GET['successMessage'])) {
         $errorMessage = isset($_GET['successMessage']) ? $_GET['successMessage'] : '';
-        $displayMessages = "<p class='has-text-black'>" . htmlspecialchars($_GET['successMessage']) . "</p>";
+        $displayMessages = "<p>" . htmlspecialchars($_GET['successMessage']) . "</p>";
     } elseif (!empty($_GET['errorMessage'])) {
         $errorMessage = isset($_GET['errorMessage']) ? $_GET['errorMessage'] : '';
-        $displayMessages = "<p class='has-text-black'>". htmlspecialchars($errorMessage) . "</p>";
+        $displayMessages = "<p>". htmlspecialchars($errorMessage) . "</p>";
     }
 }
 
@@ -237,327 +237,276 @@ $userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
 // Start output buffering for layout template
 ob_start();
 ?>
-<div class="section p-0">
-    <div class="container">
-        <div class="columns is-centered">
-            <div class="column is-fullwidth">
-                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                    <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                            <span class="icon mr-2"><i class="fas fa-clock"></i></span>
-                            <?php echo t('timed_messages_title'); ?>
-                        </span>
-                    </header>
-                    <div class="card-content">
-                        <!-- Variables Information Card -->
-                        <div class="columns is-desktop is-multiline is-centered mb-5">
-                            <div class="column is-fullwidth" style="max-width: 1200px;">
-                                <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                                    <div class="card-content">
-                                        <h5 class="title is-6 mb-2"><span class="icon"><i class="fas fa-info-circle"></i></span> <?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
-                                        <ul class="mb-0" style="list-style: disc inside;">
-                                            <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
-                                            <li><code>(command.yourcommand)</code> – <?php echo t('timed_messages_var_command') ?: 'Runs a custom command and sends its processed response as an additional chat message.'; ?></li>
-                                            <!-- Add more variables here as needed -->
-                                        </ul>
-                                        <div class="mt-3">
-                                            <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="button is-primary is-small">
-                                                <span class="icon"><i class="fas fa-code"></i></span>
-                                                <span><?php echo t('custom_commands_view_variables') ?: 'View Custom Variables'; ?></span>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- End Variables Information Card -->
-                        <div class="notification is-info mb-5">
-                            <span class="icon"><i class="fas fa-info-circle"></i></span>
-                            <?php echo t('timed_messages_info'); ?>
-                        </div>
-                        <?php if ($displayMessages): ?>
-                            <div class="notification is-primary">
-                                <?php echo $displayMessages; ?>
-                            </div>
-                        <?php endif; ?>
-                        <div class="columns is-desktop is-multiline">
-                            <!-- Add Timed Message -->
-                            <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
-                                <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
-                                    <h4 class="title is-5"><?php echo t('timed_messages_add_title'); ?></h4>
-                                    <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
-                                        <div class="field">
-                                            <label class="label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); toggleAddButton();">
-                                                <p id="charCount" class="help">0/255 <?php echo t('timed_messages_characters'); ?></p>
-                                                <span id="messageError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></span>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label">Trigger Type <span class="tag is-warning is-light ml-2" style="font-size:0.7rem; vertical-align:middle;">5.8 Beta</span></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="trigger_type" id="trigger_type" onchange="toggleAddTriggerType(); toggleAddButton();">
-                                                        <option value="timer">Timer (minutes)</option>
-                                                        <option value="chat_lines">Chat Lines</option>
-                                                        <option value="both">Both (Timer &amp; Chat Lines)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <p class="help">Fire on a fixed time interval, or after a set number of chat messages.</p>
-                                        </div>
-                                        <div class="field" id="add_interval_field">
-                                            <label class="label" for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="number" name="interval" id="interval" min="5" max="60" value="5" oninput="toggleAddButton();">
-                                                <span id="intervalError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_interval_error'); ?></span>
-                                            </div>
-                                        </div>
-                                        <div class="field" id="add_chat_line_field" style="display:none;">
-                                            <label class="label" for="chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="number" name="chat_line_trigger" id="chat_line_trigger" min="5" value="5" oninput="toggleAddButton();">
-                                                <span id="chatLineTriggerError" class="help is-danger" style="display: none;"><?php echo t('timed_messages_chat_line_trigger_error'); ?></span>
-                                            </div>
-                                        </div>
-                                        <div style="flex-grow:1"></div>
-                                        <div class="control">
-                                            <button type="submit" id="addMessageButton" class="button is-primary is-fullwidth" disabled><?php echo t('timed_messages_add_btn'); ?></button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                            <!-- Edit Timed Message -->
-                            <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
-                                <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
-                                    <h4 class="title is-5"><?php echo t('timed_messages_edit_title'); ?></h4>
-                                    <?php if (!empty($timedMessagesData)): ?>
-                                    <form id="editMessageForm" method="post" action="" onsubmit="return validateEditForm()">
-                                        <div class="field">
-                                            <label class="label" for="edit_message"><?php echo t('timed_messages_select_edit_label'); ?></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="edit_message" id="edit_message" onchange="showResponse(); toggleEditButton();">
-                                                        <option value="" selected><?php echo t('timed_messages_select_edit_placeholder'); ?></option>
-                                                        <?php
-                                                        usort($timedMessagesData, function($a, $b) {
-                                                            return $a['id'] - $b['id'];
-                                                        });
-                                                        foreach ($timedMessagesData as $message): ?>
-                                                            <option value="<?php echo $message['id']; ?>">
-                                                                (<?php echo "ID: " . $message['id']; ?>) <?php echo htmlspecialchars($message['message']); ?>
-                                                            </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label">Trigger Type <span class="tag is-warning is-light ml-2" style="font-size:0.7rem; vertical-align:middle;">5.8 Beta</span></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="edit_trigger_type" id="edit_trigger_type" onchange="toggleEditTriggerType();">
-                                                        <option value="timer">Timer (minutes)</option>
-                                                        <option value="chat_lines">Chat Lines</option>
-                                                        <option value="both">Both (Timer &amp; Chat Lines)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="field" id="edit_interval_field">
-                                            <label class="label" for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" oninput="toggleEditButton();">
-                                            </div>
-                                        </div>
-                                        <div class="field" id="edit_chat_line_field" style="display:none;">
-                                            <label class="label" for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="number" name="edit_chat_line_trigger" id="edit_chat_line_trigger" min="5" oninput="toggleEditButton();">
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                                            <div class="control">
-                                                <input class="input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); toggleEditButton();">
-                                                <p id="editCharCount" class="help">0/255 <?php echo t('timed_messages_characters'); ?></p>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="edit_status"><?php echo t('timed_messages_status_label'); ?></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="edit_status" id="edit_status" onchange="toggleEditButton();">
-                                                        <option value="True"><?php echo t('timed_messages_status_enabled'); ?></option>
-                                                        <option value="False"><?php echo t('timed_messages_status_disabled'); ?></option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="control">
-                                            <button type="submit" id="editMessageButton" class="button is-primary is-fullwidth" disabled><?php echo t('timed_messages_save_btn'); ?></button>
-                                        </div>
-                                    </form>
-                                    <?php else: ?>
-                                        <p class="has-text-grey-light"><?php echo t('timed_messages_no_edit'); ?></p>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <!-- Remove Timed Message -->
-                            <div class="column is-4 is-flex is-flex-direction-column is-fullheight">
-                                <div class="box has-background-dark is-flex is-flex-direction-column is-fullheight">
-                                    <h4 class="title is-5"><?php echo t('timed_messages_remove_title'); ?></h4>
-                                    <?php if (!empty($timedMessagesData)): ?>
-                                    <form id="removeMessageForm" method="post" action="" class="is-flex is-flex-direction-column is-flex-grow-1">
-                                        <div class="field">
-                                            <label class="label" for="remove_message"><?php echo t('timed_messages_select_remove_label'); ?></label>
-                                            <div class="control">
-                                                <div class="select is-fullwidth">
-                                                    <select name="remove_message" id="remove_message" onchange="showMessage(); toggleRemoveButton();">
-                                                        <option value=""><?php echo t('timed_messages_select_remove_placeholder'); ?></option>
-                                                        <?php foreach ($timedMessagesData as $message): ?>
-                                                            <option value="<?php echo $message['id']; ?>">
-                                                                <?php echo t('timed_messages_message_id'); ?> <?php echo $message['id']; ?> - <?php echo htmlspecialchars(mb_strimwidth($message['message'], 0, 40, "")); ?>
-                                                            </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="field">
-                                            <label class="label" for="remove_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                                            <div class="control">
-                                                <textarea class="textarea" id="remove_message_content" disabled rows="7"></textarea>
-                                            </div>
-                                        </div>
-                                        <div style="flex-grow:1"></div>
-                                        <div class="control">
-                                            <button type="submit" id="removeMessageButton" class="button is-danger is-fullwidth" disabled><?php echo t('timed_messages_remove_btn'); ?></button>
-                                        </div>
-                                    </form>
-                                    <?php else: ?>
-                                        <p class="has-text-grey-light"><?php echo t('timed_messages_no_remove'); ?></p>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Current Timed Messages Table -->
-                <div class="columns is-centered mt-5">
-                    <div class="column is-fullwidth">
-                        <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-                            <header class="card-header">
-                                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                                    <span class="icon mr-2"><i class="fas fa-list"></i></span>
-                                    Current Timed Messages
-                                </span>
-                            </header>
-                            <div class="card-content">
-                                <table class="table is-fullwidth has-background-dark has-text-white">
-                                    <thead>
-                                        <tr>
-                                            <th style="width: 42px; text-align: center; vertical-align: middle;">ID</th>
-                                            <th style="vertical-align: middle;">Message</th>
-                                            <th style="width: 150px; text-align: center; vertical-align: middle;">Trigger Type <span class="tag is-warning is-light ml-1" style="font-size:0.65rem;">5.8</span></th>
-                                            <th style="width: 130px; text-align: center; vertical-align: middle;">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if (!empty($timedMessagesData)): ?>
-                                            <?php foreach ($timedMessagesData as $msg): ?>
-                                                <tr>
-                                                    <td style="text-align: center; vertical-align: middle;"><?php echo $msg['id']; ?></td>
-                                                    <td><?php echo htmlspecialchars($msg['message']); ?></td>
-                                                    <td style="text-align: center; vertical-align: middle;">
-                                                        <?php
-                                                        $triggerType = $msg['trigger_type'] ?? 'timer';
-                                                        if ($triggerType === 'chat_lines') {
-                                                            echo '<span class="tag is-info">Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
-                                                        } elseif ($triggerType === 'both') {
-                                                            echo '<span class="tag is-warning">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min &amp; Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
-                                                        } else {
-                                                            echo '<span class="tag is-primary">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min</span>';
-                                                        }
-                                                        ?>
-                                                    </td>
-                                                    <td style="text-align: center; vertical-align: middle;">
-                                                        <button type="button"
-                                                            class="button is-small toggle-status-btn <?php echo $msg['status'] == 1 ? 'is-success' : 'is-danger'; ?>"
-                                                            data-id="<?php echo $msg['id']; ?>"
-                                                            data-status="<?php echo $msg['status']; ?>"
-                                                            title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
-                                                            <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
-                                                            <span><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></span>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <tr>
-                                                <td colspan="4" class="has-text-centered">No timed messages found.</td>
-                                            </tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <span class="sp-card-title">
+            <i class="fas fa-clock" style="margin-right:0.5rem;"></i>
+            <?php echo t('timed_messages_title'); ?>
+        </span>
+    </div>
+    <div class="sp-card-body">
+        <!-- Variables Information Card -->
+        <div style="margin-bottom:1.25rem;">
+            <div class="sp-card">
+                <div class="sp-card-body">
+                    <h5 style="font-size:0.9rem; font-weight:600; margin-bottom:0.5rem;"><i class="fas fa-info-circle" style="margin-right:0.4rem;"></i><?php echo t('timed_messages_variables_title') ?: 'Available Variables'; ?></h5>
+                    <ul style="list-style:disc inside; margin-bottom:0;">
+                        <li><code>(game)</code> – <?php echo t('timed_messages_var_game') ?: 'Displays the current game being played (NEW).'; ?></li>
+                        <li><code>(command.yourcommand)</code> – <?php echo t('timed_messages_var_command') ?: 'Runs a custom command and sends its processed response as an additional chat message.'; ?></li>
+                        <!-- Add more variables here as needed -->
+                    </ul>
+                    <div style="margin-top:0.75rem;">
+                        <a href="https://help.botofthespecter.com/custom_variables.php" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
+                            <span class="icon"><i class="fas fa-code"></i></span>
+                            <span><?php echo t('custom_commands_view_variables') ?: 'View Custom Variables'; ?></span>
+                        </a>
                     </div>
                 </div>
             </div>
+        </div>
+        <!-- End Variables Information Card -->
+        <div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;">
+            <span class="icon"><i class="fas fa-info-circle"></i></span>
+            <?php echo t('timed_messages_info'); ?>
+        </div>
+        <?php if ($displayMessages): ?>
+            <div class="sp-alert sp-alert-info">
+                <?php echo $displayMessages; ?>
+            </div>
+        <?php endif; ?>
+        <div class="cc-form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+            <!-- Add Timed Message -->
+            <div class="sp-card" style="display:flex; flex-direction:column;">
+                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;">
+                    <h4 style="font-size:1.05rem; font-weight:600; margin-bottom:1rem;"><?php echo t('timed_messages_add_title'); ?></h4>
+                    <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
+                        <div class="sp-form-group">
+                            <label class="sp-label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
+                            <input class="sp-input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); toggleAddButton();">
+                            <small id="charCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
+                            <small id="messageError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></small>
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label">Trigger Type <span style="font-size:0.7rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 5px; margin-left:0.4rem; vertical-align:middle;">5.8 Beta</span></label>
+                            <select class="sp-select" name="trigger_type" id="trigger_type" onchange="toggleAddTriggerType(); toggleAddButton();">
+                                <option value="timer">Timer (minutes)</option>
+                                <option value="chat_lines">Chat Lines</option>
+                                <option value="both">Both (Timer &amp; Chat Lines)</option>
+                            </select>
+                            <small class="sp-help">Fire on a fixed time interval, or after a set number of chat messages.</small>
+                        </div>
+                        <div class="sp-form-group" id="add_interval_field">
+                            <label class="sp-label" for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
+                            <input class="sp-input" type="number" name="interval" id="interval" min="5" max="60" value="5" oninput="toggleAddButton();">
+                            <small id="intervalError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_interval_error'); ?></small>
+                        </div>
+                        <div class="sp-form-group" id="add_chat_line_field" style="display:none;">
+                            <label class="sp-label" for="chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
+                            <input class="sp-input" type="number" name="chat_line_trigger" id="chat_line_trigger" min="5" value="5" oninput="toggleAddButton();">
+                            <small id="chatLineTriggerError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_chat_line_trigger_error'); ?></small>
+                        </div>
+                        <div style="flex-grow:1"></div>
+                        <button type="submit" id="addMessageButton" class="sp-btn sp-btn-primary" style="width:100%; margin-top:auto;" disabled><?php echo t('timed_messages_add_btn'); ?></button>
+                    </form>
+                </div>
+            </div>
+            <!-- Edit Timed Message -->
+            <div class="sp-card" style="display:flex; flex-direction:column;">
+                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;">
+                    <h4 style="font-size:1.05rem; font-weight:600; margin-bottom:1rem;"><?php echo t('timed_messages_edit_title'); ?></h4>
+                    <?php if (!empty($timedMessagesData)): ?>
+                    <form id="editMessageForm" method="post" action="" onsubmit="return validateEditForm()">
+                        <div class="sp-form-group">
+                            <label class="sp-label" for="edit_message"><?php echo t('timed_messages_select_edit_label'); ?></label>
+                            <select class="sp-select" name="edit_message" id="edit_message" onchange="showResponse(); toggleEditButton();">
+                                <option value="" selected><?php echo t('timed_messages_select_edit_placeholder'); ?></option>
+                                <?php
+                                usort($timedMessagesData, function($a, $b) {
+                                    return $a['id'] - $b['id'];
+                                });
+                                foreach ($timedMessagesData as $message): ?>
+                                    <option value="<?php echo $message['id']; ?>">
+                                        (<?php echo "ID: " . $message['id']; ?>) <?php echo htmlspecialchars($message['message']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label">Trigger Type <span style="font-size:0.7rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 5px; margin-left:0.4rem; vertical-align:middle;">5.8 Beta</span></label>
+                            <select class="sp-select" name="edit_trigger_type" id="edit_trigger_type" onchange="toggleEditTriggerType();">
+                                <option value="timer">Timer (minutes)</option>
+                                <option value="chat_lines">Chat Lines</option>
+                                <option value="both">Both (Timer &amp; Chat Lines)</option>
+                            </select>
+                        </div>
+                        <div class="sp-form-group" id="edit_interval_field">
+                            <label class="sp-label" for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
+                            <input class="sp-input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" oninput="toggleEditButton();">
+                        </div>
+                        <div class="sp-form-group" id="edit_chat_line_field" style="display:none;">
+                            <label class="sp-label" for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
+                            <input class="sp-input" type="number" name="edit_chat_line_trigger" id="edit_chat_line_trigger" min="5" oninput="toggleEditButton();">
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
+                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); toggleEditButton();">
+                            <small id="editCharCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label" for="edit_status"><?php echo t('timed_messages_status_label'); ?></label>
+                            <select class="sp-select" name="edit_status" id="edit_status" onchange="toggleEditButton();">
+                                <option value="True"><?php echo t('timed_messages_status_enabled'); ?></option>
+                                <option value="False"><?php echo t('timed_messages_status_disabled'); ?></option>
+                            </select>
+                        </div>
+                        <button type="submit" id="editMessageButton" class="sp-btn sp-btn-primary" style="width:100%;" disabled><?php echo t('timed_messages_save_btn'); ?></button>
+                    </form>
+                    <?php else: ?>
+                        <p style="color:var(--text-muted);"><?php echo t('timed_messages_no_edit'); ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <!-- Remove Timed Message -->
+            <div class="sp-card" style="display:flex; flex-direction:column;">
+                <div class="sp-card-body" style="display:flex; flex-direction:column; flex:1;">
+                    <h4 style="font-size:1.05rem; font-weight:600; margin-bottom:1rem;"><?php echo t('timed_messages_remove_title'); ?></h4>
+                    <?php if (!empty($timedMessagesData)): ?>
+                    <form id="removeMessageForm" method="post" action="" style="display:flex; flex-direction:column; flex:1;">
+                        <div class="sp-form-group">
+                            <label class="sp-label" for="remove_message"><?php echo t('timed_messages_select_remove_label'); ?></label>
+                            <select class="sp-select" name="remove_message" id="remove_message" onchange="showMessage(); toggleRemoveButton();">
+                                <option value=""><?php echo t('timed_messages_select_remove_placeholder'); ?></option>
+                                <?php foreach ($timedMessagesData as $message): ?>
+                                    <option value="<?php echo $message['id']; ?>">
+                                        <?php echo t('timed_messages_message_id'); ?> <?php echo $message['id']; ?> - <?php echo htmlspecialchars(mb_strimwidth($message['message'], 0, 40, "")); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label" for="remove_message_content"><?php echo t('timed_messages_message_label'); ?></label>
+                            <textarea class="sp-input" id="remove_message_content" disabled rows="7" style="height:auto; min-height:7rem;"></textarea>
+                        </div>
+                        <div style="flex-grow:1"></div>
+                        <button type="submit" id="removeMessageButton" class="sp-btn sp-btn-danger" style="width:100%;" disabled><?php echo t('timed_messages_remove_btn'); ?></button>
+                    </form>
+                    <?php else: ?>
+                        <p style="color:var(--text-muted);"><?php echo t('timed_messages_no_remove'); ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Current Timed Messages Table -->
+<div class="sp-card" style="margin-top:1.5rem;">
+    <div class="sp-card-header">
+        <span class="sp-card-title">
+            <i class="fas fa-list" style="margin-right:0.5rem;"></i>
+            Current Timed Messages
+        </span>
+    </div>
+    <div class="sp-card-body">
+        <div class="sp-table-wrap">
+            <table class="sp-table">
+                <thead>
+                    <tr>
+                        <th style="width: 42px; text-align: center; vertical-align: middle;">ID</th>
+                        <th style="vertical-align: middle;">Message</th>
+                        <th style="width: 150px; text-align: center; vertical-align: middle;">Trigger Type <span style="font-size:0.65rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 4px; margin-left:0.3rem;">5.8</span></th>
+                        <th style="width: 130px; text-align: center; vertical-align: middle;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($timedMessagesData)): ?>
+                        <?php foreach ($timedMessagesData as $msg): ?>
+                            <tr>
+                                <td style="text-align: center; vertical-align: middle;"><?php echo $msg['id']; ?></td>
+                                <td><?php echo htmlspecialchars($msg['message']); ?></td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <?php
+                                    $triggerType = $msg['trigger_type'] ?? 'timer';
+                                    if ($triggerType === 'chat_lines') {
+                                        echo '<span class="sp-badge sp-badge-blue">Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                    } elseif ($triggerType === 'both') {
+                                        echo '<span class="sp-badge sp-badge-amber">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min &amp; Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                    } else {
+                                        echo '<span class="sp-badge sp-badge-accent">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min</span>';
+                                    }
+                                    ?>
+                                </td>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <button type="button"
+                                        class="sp-btn sp-btn-sm toggle-status-btn <?php echo $msg['status'] == 1 ? 'sp-btn-success' : 'sp-btn-danger'; ?>"
+                                        data-id="<?php echo $msg['id']; ?>"
+                                        data-status="<?php echo $msg['status']; ?>"
+                                        title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
+                                        <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
+                                        <span><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></span>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4" style="text-align:center;">No timed messages found.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 <!-- Hidden fields for YourLinks API -->
 <input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
 <!-- YourLinks URL Shortener Modal -->
-<div id="yourlinksModal" class="modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head" style="background-color: #2c3e50; border-bottom: 3px solid #3498db;">
-            <p class="modal-card-title has-text-white">
-                <span class="icon"><i class="fas fa-link"></i></span>
-                <span>Create Short Link with YourLinks.click</span>
-            </p>
-            <button id="yourlinks_close_btn" class="delete" aria-label="close"></button>
-        </header>
-        <section class="modal-card-body" style="background-color: #1e2936;">
-            <div id="yourlinks_status" class="mb-4"></div>
-            
-            <div class="field">
-                <label class="label has-text-white">Destination URL</label>
-                <div class="control has-icons-left">
-                    <input class="input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
-                    <span class="icon is-small is-left"><i class="fas fa-globe"></i></span>
+<div id="yourlinksModal" class="cc-modal-backdrop">
+    <div class="cc-modal">
+        <div class="cc-modal-head">
+            <span class="cc-modal-title">
+                <i class="fas fa-link" style="margin-right:0.4rem;"></i>
+                Create Short Link with YourLinks.click
+            </span>
+            <button id="yourlinks_close_btn" class="cc-modal-close" aria-label="close">&times;</button>
+        </div>
+        <div class="cc-modal-body">
+            <div id="yourlinks_status" style="margin-bottom:1rem;"></div>
+            <div class="sp-form-group">
+                <label class="sp-label">Destination URL</label>
+                <div class="sp-input-wrap sp-input-icon">
+                    <i class="fas fa-globe"></i>
+                    <input class="sp-input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
                 </div>
-                <p class="help has-text-grey-light">The URL you entered in the message</p>
+                <small class="sp-help">The URL you entered in the message</small>
             </div>
-            <div class="field">
-                <label class="label has-text-white">Link Name <span style="color: #f14668;">*</span></label>
-                <div class="control has-icons-left">
-                    <input class="input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
-                    <span class="icon is-small is-left"><i class="fas fa-link"></i></span>
+            <div class="sp-form-group">
+                <label class="sp-label">Link Name <span style="color:var(--red);">*</span></label>
+                <div class="sp-input-wrap sp-input-icon">
+                    <i class="fas fa-link"></i>
+                    <input class="sp-input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
                 </div>
-                <p class="help has-text-grey-light">Alphanumeric characters, hyphens, and underscores only. Will be: <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code></p>
+                <small class="sp-help">Alphanumeric characters, hyphens, and underscores only. Will be: <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code></small>
             </div>
-            <div class="field">
-                <label class="label has-text-white">Title (Optional)</label>
-                <div class="control has-icons-left">
-                    <input class="input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
-                    <span class="icon is-small is-left"><i class="fas fa-heading"></i></span>
+            <div class="sp-form-group">
+                <label class="sp-label">Title (Optional)</label>
+                <div class="sp-input-wrap sp-input-icon">
+                    <i class="fas fa-heading"></i>
+                    <input class="sp-input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
                 </div>
-                <p class="help has-text-grey-light">Display name for the link (for your reference)</p>
+                <small class="sp-help">Display name for the link (for your reference)</small>
             </div>
-        </section>
-        <footer class="modal-card-foot" style="justify-content: flex-end; gap: 10px;">
-            <button id="yourlinks_cancel_btn" class="button is-light">
+        </div>
+        <div class="cc-modal-foot">
+            <button id="yourlinks_cancel_btn" class="sp-btn" style="background:var(--bg-surface); color:var(--text-primary);">
                 <span class="icon"><i class="fas fa-times"></i></span>
                 <span>Cancel</span>
             </button>
-            <button id="yourlinks_submit_btn" class="button is-primary">
+            <button id="yourlinks_submit_btn" class="sp-btn sp-btn-primary">
                 <span class="icon"><i class="fas fa-link"></i></span>
                 <span>Create Link</span>
             </button>
-        </footer>
+        </div>
     </div>
 </div>
 <?php
@@ -593,7 +542,7 @@ function showResponse() {
         if (editStatus) editStatus.value = '';
         if (editTriggerType) editTriggerType.value = 'timer';
         document.getElementById('editCharCount').textContent = '0/255 characters';
-        document.getElementById('editCharCount').className = 'help';
+        document.getElementById('editCharCount').className = 'sp-help';
         toggleEditTriggerType();
     }
     toggleEditButton();
@@ -623,11 +572,11 @@ function updateCharCount(inputId, counterId) {
     counter.textContent = currentLength + '/' + maxLength + ' characters';
     // Update styling based on character count
     if (currentLength > maxLength) {
-        counter.className = 'help is-danger';
+        counter.className = 'sp-help sp-help-danger';
     } else if (currentLength > maxLength * 0.8) {
-        counter.className = 'help is-warning';
+        counter.className = 'sp-help sp-help-warning';
     } else {
-        counter.className = 'help is-info';
+        counter.className = 'sp-help';
     }
 }
 
@@ -835,13 +784,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 var newStatus = data.new_status;
                 btn.dataset.status = newStatus;
-                btn.className = 'button is-small toggle-status-btn ' + (newStatus == 1 ? 'is-success' : 'is-danger');
+                btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (newStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
                 btn.title = newStatus == 1 ? 'Click to disable' : 'Click to enable';
                 btn.innerHTML = '<span class="icon"><i class="fas ' + (newStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
                               + '<span>' + (newStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
             } else {
                 // Restore original state on failure
-                btn.className = 'button is-small toggle-status-btn ' + (currentStatus == 1 ? 'is-success' : 'is-danger');
+                btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (currentStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
                 btn.innerHTML = '<span class="icon"><i class="fas ' + (currentStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
                               + '<span>' + (currentStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
             }
@@ -849,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function() {
             // Restore original state on network error
-            btn.className = 'button is-small toggle-status-btn ' + (currentStatus == 1 ? 'is-success' : 'is-danger');
+            btn.className = 'sp-btn sp-btn-sm toggle-status-btn ' + (currentStatus == 1 ? 'sp-btn-success' : 'sp-btn-danger');
             btn.innerHTML = '<span class="icon"><i class="fas ' + (currentStatus == 1 ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></span>'
                           + '<span>' + (currentStatus == 1 ? 'Enabled' : 'Disabled') + '</span>';
             btn.disabled = false;
