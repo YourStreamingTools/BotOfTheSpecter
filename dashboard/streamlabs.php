@@ -255,242 +255,180 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
 
 ob_start();
 ?>
-<div class="notification is-success is-dark" style="border-radius: 8px; margin-bottom: 1.5rem;">
-    <div style="display: flex; gap: 0.75rem;">
-        <span class="icon" style="flex-shrink: 0; margin-top: 0.25rem;">
-            <i class="fas fa-bell"></i>
-        </span>
-        <div style="flex: 1;">
-            <p class="has-text-weight-bold" style="margin-bottom: 0.5rem;">StreamLabs API Enabled</p>
-            <p style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">
+<div class="sp-alert sp-alert-success" style="margin-bottom: 1.5rem;">
+    <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+        <i class="fas fa-bell" style="margin-top: 0.15rem; flex-shrink: 0;"></i>
+        <div>
+            <strong>StreamLabs API Enabled</strong>
+            <p style="margin: 0.35rem 0 0; font-size: 0.9rem;">
                 We have been approved and the API is unlocked — you may connect away and enjoy real-time notices about donations. If you have any issues while this is still under review and testing, please log a support ticket on our Discord server.
             </p>
         </div>
     </div>
 </div>
-<div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
-    <header class="card-header" style="border-bottom: 1px solid #23272f;">
-        <div class="level is-mobile" style="width: 100%;">
-            <div class="level-left">
-                <div class="level-item">
-                    <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                        <span class="icon mr-2"><i class="fas fa-gift"></i></span>
-                        StreamLabs Integration
-                    </span>
-                </div>
-            </div>
-            <div class="level-right">
-                <div class="level-item" style="display: flex; gap: 0.75rem; align-items: center;">
-                    <?php if ($isLinked): ?>
-                        <span class="tag is-success is-medium" style="border-radius: 6px; font-weight: 600;">
-                            <span class="icon is-small"><i class="fas fa-check-circle"></i></span>
-                            <span>Linked</span>
-                        </span>
-                        <button id="unlinkHeaderBtn" class="button is-danger is-medium" style="border-radius: 6px; padding: 0.375rem 0.75rem; height: auto;" title="Unlink StreamLabs Account">
-                            <span class="icon is-small">
-                                <i class="fas fa-unlink"></i>
-                            </span>
-                            <span>Unlink</span>
-                        </button>
-                    <?php else: ?>
-                        <span class="tag is-danger is-medium" style="border-radius: 6px; font-weight: 600;">
-                            <span class="icon is-small"><i class="fas fa-exclamation-circle"></i></span>
-                            <span>Not Linked</span>
-                        </span>
-                    <?php endif; ?>
-                </div>
-            </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div class="sp-card-title">
+            <i class="fas fa-gift"></i>
+            StreamLabs Integration
         </div>
-    </header>
-    <div class="card-content">
-        <?php if ($linkingMessage): ?>
-            <div class="notification <?php echo $linkingMessageType === 'is-success' ? 'is-success' : ($linkingMessageType === 'is-danger' ? 'is-danger' : 'is-warning'); ?> is-light mb-5" style="border-radius: 8px;">
-                <span class="icon">
-                    <?php if ($linkingMessageType === 'is-danger'): ?>
-                        <i class="fas fa-exclamation-triangle"></i>
-                    <?php elseif ($linkingMessageType === 'is-success'): ?>
-                        <i class="fas fa-check"></i>
-                    <?php else: ?>
-                        <i class="fas fa-info-circle"></i>
-                    <?php endif; ?>
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <?php if ($isLinked): ?>
+                <span class="sp-badge sp-badge-green">
+                    <i class="fas fa-check-circle"></i>
+                    Linked
                 </span>
+                <button id="unlinkHeaderBtn" class="sp-btn sp-btn-danger sp-btn-sm" title="Unlink StreamLabs Account">
+                    <i class="fas fa-unlink"></i>
+                    Unlink
+                </button>
+            <?php else: ?>
+                <span class="sp-badge sp-badge-red">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Not Linked
+                </span>
+            <?php endif; ?>
+        </div>
+    </div>
+    <div class="sp-card-body">
+        <?php if ($linkingMessage): ?>
+            <div class="sp-alert <?php echo $linkingMessageType === 'is-success' ? 'sp-alert-success' : ($linkingMessageType === 'is-danger' ? 'sp-alert-danger' : 'sp-alert-warning'); ?>" style="margin-bottom: 1.5rem;">
+                <?php if ($linkingMessageType === 'is-danger'): ?>
+                    <i class="fas fa-exclamation-triangle"></i>
+                <?php elseif ($linkingMessageType === 'is-success'): ?>
+                    <i class="fas fa-check"></i>
+                <?php else: ?>
+                    <i class="fas fa-info-circle"></i>
+                <?php endif; ?>
                 <?php echo $linkingMessage; ?>
             </div>
         <?php endif; ?>
         <?php if ($isLinked): ?>
             <!-- Account status text -->
-            <div class="has-text-centered mb-6">
-                <p class="subtitle is-6 has-text-grey-light">
-                    Your StreamLabs account is successfully linked to your profile and ready to track donations.
-                </p>
-            </div>
+            <p style="text-align: center; color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
+                Your StreamLabs account is successfully linked to your profile and ready to track donations.
+            </p>
             <!-- Tokens section -->
-            <div class="columns is-centered mb-6">
-                <div class="column is-full">
-                    <div class="columns is-multiline">
-                        <!-- Access Token -->
-                        <?php if ($access_token): ?>
-                            <div class="column is-half-desktop is-full-tablet">
-                                <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); height: 100%;">
-                                    <div class="card-content">
-                                        <div class="level is-mobile mb-3">
-                                            <div class="level-left">
-                                                <div class="level-item">
-                                                    <p class="subtitle is-6 has-text-white" style="margin: 0;">Access Token</p>
-                                                </div>
-                                            </div>
-                                            <div class="level-right">
-                                                <div class="level-item">
-                                                    <button class="button is-info is-small" id="copyAccessTokenBtn" title="Copy Access Token" style="border-radius: 6px; transition: all 0.2s ease; margin-right: 0.5rem;">
-                                                        <span class="icon is-small">
-                                                            <i class="fas fa-copy" id="copyAccessTokenIcon"></i>
-                                                        </span>
-                                                    </button>
-                                                    <button class="button is-warning is-small" id="showAccessTokenBtn" title="Show Access Token" style="border-radius: 6px; transition: all 0.2s ease;">
-                                                        <span class="icon is-small">
-                                                            <i class="fas fa-eye" id="accessTokenEye"></i>
-                                                        </span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <input type="text" id="accessTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #00d1b2; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
-                                    </div>
-                                </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+                <!-- Access Token -->
+                <?php if ($access_token): ?>
+                    <div class="sp-card" style="margin-bottom: 0;">
+                        <div class="sp-card-header">
+                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);">Access Token</span>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" id="copyAccessTokenBtn" title="Copy Access Token">
+                                    <i class="fas fa-copy" id="copyAccessTokenIcon"></i>
+                                </button>
+                                <button class="sp-btn sp-btn-warning sp-btn-sm" id="showAccessTokenBtn" title="Show Access Token">
+                                    <i class="fas fa-eye" id="accessTokenEye"></i>
+                                </button>
                             </div>
-                        <?php endif; ?>
-                        <!-- Socket Token -->
-                        <?php if ($socketToken): ?>
-                            <div class="column is-half-desktop is-full-tablet">
-                                <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); height: 100%;">
-                                    <div class="card-content">
-                                        <div class="level is-mobile mb-3">
-                                            <div class="level-left">
-                                                <div class="level-item">
-                                                    <p class="subtitle is-6 has-text-white" style="margin: 0;">Socket Token (Real-time Events)</p>
-                                                </div>
-                                            </div>
-                                            <div class="level-right">
-                                                <div class="level-item">
-                                                    <button class="button is-info is-small" id="copySocketTokenBtn" title="Copy Socket Token" style="border-radius: 6px; transition: all 0.2s ease; margin-right: 0.5rem;">
-                                                        <span class="icon is-small">
-                                                            <i class="fas fa-copy" id="copySocketTokenIcon"></i>
-                                                        </span>
-                                                    </button>
-                                                    <button class="button is-info is-small" id="showSocketTokenBtn" title="Show Socket Token" style="border-radius: 6px; transition: all 0.2s ease;">
-                                                        <span class="icon is-small">
-                                                            <i class="fas fa-eye" id="socketTokenEye"></i>
-                                                        </span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <input type="text" id="socketTokenDisplay" class="input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="border-radius: 6px; background-color: #1a1a1a; border-color: #363636; color: #3273dc; font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em;">
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+                        </div>
+                        <div class="sp-card-body">
+                            <input type="text" id="accessTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', strlen($access_token)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em; color: var(--green);">
+                        </div>
                     </div>
-                </div>
+                <?php endif; ?>
+                <!-- Socket Token -->
+                <?php if ($socketToken): ?>
+                    <div class="sp-card" style="margin-bottom: 0;">
+                        <div class="sp-card-header">
+                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);">Socket Token (Real-time Events)</span>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" id="copySocketTokenBtn" title="Copy Socket Token">
+                                    <i class="fas fa-copy" id="copySocketTokenIcon"></i>
+                                </button>
+                                <button class="sp-btn sp-btn-info sp-btn-sm" id="showSocketTokenBtn" title="Show Socket Token">
+                                    <i class="fas fa-eye" id="socketTokenEye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="sp-card-body">
+                            <input type="text" id="socketTokenDisplay" class="sp-input" value="<?php echo str_repeat('•', strlen($socketToken)); ?>" readonly style="font-family: 'Courier New', monospace; font-size: 0.85rem; letter-spacing: 0.05em; color: var(--blue);">
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
             <!-- Recent Donations section -->
             <?php if (!empty($recentDonations)): ?>
-                <div class="columns is-centered mb-6">
-                    <div class="column is-full">
-                        <div class="card has-background-grey-darker" style="border-radius: 12px; border: 1px solid #363636; box-shadow: 0 2px 8px rgba(0,0,0,0.3); overflow: hidden;">
-                            <div class="card-content">
-                                <p class="subtitle is-6 has-text-white mb-4">Recent Donations <span class="has-text-grey" style="font-size: 0.85rem;">(Latest <?php echo min(20, count($recentDonations)); ?>)</span></p>
-                                <div style="overflow-x: auto; border-radius: 8px; background-color: rgba(0,0,0,0.2);">
-                                    <table class="table is-fullwidth" style="background-color: transparent; border-collapse: collapse; margin: 0;">
-                                        <thead>
-                                            <tr style="border-bottom: 2px solid #363636; background-color: rgba(0,0,0,0.1);">
-                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Donor</th>
-                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: right; font-weight: 600; font-size: 0.9rem;">Amount</th>
-                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Message</th>
-                                                <th class="has-text-grey-light" style="padding: 1rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.9rem;">Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
-                                                <tr style="border-bottom: 1px solid rgba(35, 39, 47, 0.5); transition: background-color 0.2s ease;">
-                                                    <td style="color: #e2e8f0; padding: 0.95rem 0.75rem; text-align: left;">
-                                                        <strong><?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?></strong>
-                                                    </td>
-                                                    <td style="color: #00d1b2; padding: 0.95rem 0.75rem; text-align: right; font-weight: 600;">
-                                                        <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
-                                                    </td>
-                                                    <td style="color: #b5bdc4; padding: 0.95rem 0.75rem; text-align: left; max-width: 250px; word-break: break-word;">
-                                                        <?php echo htmlspecialchars($donation['message'] ?? 'No message'); ?>
-                                                    </td>
-                                                    <td style="color: #8b93a1; padding: 0.95rem 0.75rem; text-align: left; white-space: nowrap; font-size: 0.9rem;">
-                                                        <?php 
-                                                        if (isset($donation['created_at'])) {
-                                                            try {
-                                                                $timestamp = (int)$donation['created_at'];
-                                                                $dt = new DateTime();
-                                                                $dt->setTimestamp($timestamp);
-                                                                echo htmlspecialchars($dt->format('M j, Y'));
-                                                            } catch (Exception $e) {
-                                                                echo htmlspecialchars($donation['created_at']);
-                                                            }
-                                                        }
-                                                        ?>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+                <div class="sp-card" style="margin-bottom: 1.5rem;">
+                    <div class="sp-card-header">
+                        <span class="sp-card-title">Recent Donations</span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Latest <?php echo min(20, count($recentDonations)); ?></span>
+                    </div>
+                    <div class="sp-table-wrap" style="border: none; border-radius: 0;">
+                        <table class="sp-table">
+                            <thead>
+                                <tr>
+                                    <th>Donor</th>
+                                    <th style="text-align: right;">Amount</th>
+                                    <th>Message</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?></strong></td>
+                                        <td style="text-align: right; color: var(--green); font-weight: 600;">
+                                            <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
+                                        </td>
+                                        <td style="color: var(--text-secondary); max-width: 250px; word-break: break-word;">
+                                            <?php echo htmlspecialchars($donation['message'] ?? 'No message'); ?>
+                                        </td>
+                                        <td style="color: var(--text-muted); white-space: nowrap; font-size: 0.875rem;">
+                                            <?php 
+                                            if (isset($donation['created_at'])) {
+                                                try {
+                                                    $timestamp = (int)$donation['created_at'];
+                                                    $dt = new DateTime();
+                                                    $dt->setTimestamp($timestamp);
+                                                    echo htmlspecialchars($dt->format('M j, Y'));
+                                                } catch (Exception $e) {
+                                                    echo htmlspecialchars($donation['created_at']);
+                                                }
+                                            }
+                                            ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             <?php endif; ?>
             <!-- Empty donations message -->
             <?php if (empty($recentDonations) && $isLinked && isset($access_token)): ?>
-                <div class="columns is-centered">
-                    <div class="column is-two-thirds">
-                        <div class="card has-background-grey-darker has-text-centered" style="border-radius: 12px; border: 1px dashed #363636; padding: 3rem 1.5rem;">
-                            <div class="has-text-grey">
-                                <p class="icon mb-3" style="font-size: 2rem;">
-                                    <i class="fas fa-inbox"></i>
-                                </p>
-                                <p class="has-text-weight-semibold has-text-grey-light mb-2">No donations yet</p>
-                                <p class="is-size-7">When you receive donations, they will appear here.</p>
-                            </div>
-                        </div>
-                    </div>
+                <div style="text-align: center; padding: 3rem 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius-lg);">
+                    <i class="fas fa-inbox" style="font-size: 2rem; color: var(--text-muted); display: block; margin-bottom: 0.75rem;"></i>
+                    <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">No donations yet</p>
+                    <p style="font-size: 0.82rem; color: var(--text-muted);">When you receive donations, they will appear here.</p>
                 </div>
             <?php endif; ?>
         <?php else: ?>
             <!-- Not linked display -->
-            <div class="has-text-centered">
-                <div class="mb-6">
-                    <p class="is-size-5 mb-5">Connect your StreamLabs account to enable donation tracking and integration features.</p>
-                    <div class="columns is-centered mb-5">
-                        <div class="column is-half-desktop is-three-quarters-tablet">
-                            <div class="card has-background-grey-darker" style="border-radius: 8px; border: 1px solid #363636;">
-                                <div class="card-content has-text-centered">
-                                    <p class="icon mb-3" style="font-size: 2.5rem; color: #8b93a1;">
-                                        <i class="fas fa-link"></i>
-                                    </p>
-                                    <p class="subtitle is-6 has-text-grey-light">
-                                        Link your StreamLabs account to automatically track and display donations on your dashboard.
-                                    </p>
-                                </div>
-                            </div>
+            <div style="text-align: center; padding: 1rem 0;">
+                <p style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Connect your StreamLabs account to enable donation tracking and integration features.
+                </p>
+                <div style="max-width: 480px; margin: 0 auto 1.5rem;">
+                    <div class="sp-card" style="margin-bottom: 0;">
+                        <div class="sp-card-body" style="text-align: center;">
+                            <i class="fas fa-link" style="font-size: 2.5rem; color: var(--text-muted); display: block; margin-bottom: 0.75rem;"></i>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                                Link your StreamLabs account to automatically track and display donations on your dashboard.
+                            </p>
                         </div>
                     </div>
                 </div>
                 <?php if ($authURL): ?>
-                    <a href="<?php echo $authURL; ?>" class="button is-info is-large" style="border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(50, 115, 220, 0.3); transition: all 0.3s ease;">
-                        <span class="icon mr-2">
-                            <i class="fas fa-link"></i>
-                        </span>
-                        <span>Link StreamLabs Account</span>
+                    <a href="<?php echo $authURL; ?>" class="sp-btn sp-btn-info" style="font-size: 1rem; padding: 0.65rem 1.5rem;">
+                        <i class="fas fa-link"></i>
+                        Link StreamLabs Account
                     </a>
                 <?php elseif ($isActAsUser): ?>
-                    <div class="notification is-warning is-light" style="border-radius: 8px; max-width: 700px; margin: 0 auto;">
+                    <div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">
+                        <i class="fas fa-exclamation-triangle"></i>
                         Act As mode is active. Linking StreamLabs is disabled for acting users.
                     </div>
                 <?php endif; ?>
@@ -551,13 +489,13 @@ document.addEventListener('DOMContentLoaded', function() {
             navigator.clipboard.writeText(accessToken).then(() => {
                 copyAccessIcon.classList.remove('fa-copy');
                 copyAccessIcon.classList.add('fa-check');
-                copyAccessBtn.classList.add('is-success');
-                copyAccessBtn.classList.remove('is-info');
+                copyAccessBtn.classList.add('sp-btn-success');
+                copyAccessBtn.classList.remove('sp-btn-info');
                 setTimeout(() => {
                     copyAccessIcon.classList.add('fa-copy');
                     copyAccessIcon.classList.remove('fa-check');
-                    copyAccessBtn.classList.remove('is-success');
-                    copyAccessBtn.classList.add('is-info');
+                    copyAccessBtn.classList.remove('sp-btn-success');
+                    copyAccessBtn.classList.add('sp-btn-info');
                 }, 2000);
             }).catch(() => {
                 Swal.fire({
@@ -586,8 +524,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         accessEye.classList.remove('fa-eye');
                         accessEye.classList.add('fa-eye-slash');
                         accessBtn.title = "Hide Access Token";
-                        accessBtn.classList.remove('is-warning');
-                        accessBtn.classList.add('is-danger');
+                        accessBtn.classList.remove('sp-btn-warning');
+                        accessBtn.classList.add('sp-btn-danger');
                         accessTokenVisible = true;
                     }
                 });
@@ -596,8 +534,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 accessEye.classList.remove('fa-eye-slash');
                 accessEye.classList.add('fa-eye');
                 accessBtn.title = "Show Access Token";
-                accessBtn.classList.remove('is-danger');
-                accessBtn.classList.add('is-warning');
+                accessBtn.classList.remove('sp-btn-danger');
+                accessBtn.classList.add('sp-btn-warning');
                 accessTokenVisible = false;
             }
         });
@@ -613,13 +551,13 @@ document.addEventListener('DOMContentLoaded', function() {
             navigator.clipboard.writeText(socketToken).then(() => {
                 copySocketIcon.classList.remove('fa-copy');
                 copySocketIcon.classList.add('fa-check');
-                copySocketBtn.classList.add('is-success');
-                copySocketBtn.classList.remove('is-info');
+                copySocketBtn.classList.add('sp-btn-success');
+                copySocketBtn.classList.remove('sp-btn-info');
                 setTimeout(() => {
                     copySocketIcon.classList.add('fa-copy');
                     copySocketIcon.classList.remove('fa-check');
-                    copySocketBtn.classList.remove('is-success');
-                    copySocketBtn.classList.add('is-info');
+                    copySocketBtn.classList.remove('sp-btn-success');
+                    copySocketBtn.classList.add('sp-btn-info');
                 }, 2000);
             }).catch(() => {
                 Swal.fire({
@@ -648,8 +586,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         socketEye.classList.remove('fa-eye');
                         socketEye.classList.add('fa-eye-slash');
                         socketBtn.title = "Hide Socket Token";
-                        socketBtn.classList.remove('is-info');
-                        socketBtn.classList.add('is-danger');
+                        socketBtn.classList.remove('sp-btn-info');
+                        socketBtn.classList.add('sp-btn-danger');
                         socketTokenVisible = true;
                     }
                 });
@@ -658,8 +596,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 socketEye.classList.remove('fa-eye-slash');
                 socketEye.classList.add('fa-eye');
                 socketBtn.title = "Show Socket Token";
-                socketBtn.classList.remove('is-danger');
-                socketBtn.classList.add('is-info');
+                socketBtn.classList.remove('sp-btn-danger');
+                socketBtn.classList.add('sp-btn-info');
                 socketTokenVisible = false;
             }
         });
