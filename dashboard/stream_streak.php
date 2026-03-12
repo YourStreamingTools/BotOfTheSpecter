@@ -54,89 +54,80 @@ try {
 
 ob_start();
 ?>
-<div class="notification is-info is-light mb-4">
-    <span class="icon">
-        <i class="fas fa-info-circle"></i>
-    </span>
+<div class="sp-alert sp-alert-info mb-4">
+    <span class="icon"><i class="fas fa-info-circle"></i></span>
     <strong>Beta 5.8 Feature:</strong> Stream Watch Streak tracking is available in version 5.8 and above. Milestones are automatically recorded when viewers hit consecutive stream watch streaks (e.g. 3, 7, 10, 50 streams in a row).
 </div>
-<div class="columns is-centered">
-    <div class="column is-fullwidth">
-        <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-            <header class="card-header is-flex is-align-items-center is-justify-content-space-between" style="border-bottom: 1px solid #23272f; padding: 1rem 1.5rem;">
-                <div class="card-header-title is-size-4 has-text-white" style="font-weight:700; padding: 0;">
-                    <span class="icon mr-2"><i class="fas fa-fire"></i></span>
-                    Stream Watch Streaks
-                </div>
-            </header>
-            <div class="card-content">
-                <div class="content">
-                    <div class="columns">
-                        <div class="column is-two-thirds">
-                            <h3 class="title is-5 has-text-white">Recent Milestones</h3>
-                            <?php if (empty($recentStreaks)): ?>
-                                <div class="has-text-centered py-6">
-                                    <p class="has-text-grey-light is-size-5">No stream watch streak data available yet.</p>
-                                </div>
-                            <?php else: ?>
-                                <div class="table-container">
-                                    <table class="table is-fullwidth has-background-dark has-text-white">
-                                        <thead class="has-background-grey-darker">
-                                            <tr>
-                                                <th class="has-text-white">Viewer</th>
-                                                <th class="has-text-white">Streak</th>
-                                                <th class="has-text-white">Last Milestone</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($recentStreaks as $row): ?>
-                                                <tr>
-                                                    <td class="has-text-white"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                                                    <td class="has-text-white"><?php echo htmlspecialchars($row['streak_value']); ?> streams</td>
-                                                    <td class="has-text-white"><?php echo htmlspecialchars($row['updated_at']); ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="column">
-                            <h3 class="title is-5 has-text-white">Highest Current Streaks</h3>
-                            <?php if (empty($topStreakers)): ?>
-                                <p class="has-text-grey-light">No data yet.</p>
-                            <?php else: ?>
-                                <ul>
-                                    <?php foreach ($topStreakers as $t): ?>
-                                        <li class="mb-2">
-                                            <strong><?php echo htmlspecialchars($t['user_name']); ?></strong>
-                                            — <?php echo htmlspecialchars($t['highest_streak']); ?> streams
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php endif; ?>
-                            <hr>
-                            <h3 class="title is-5 has-text-white">Milestone Breakdown</h3>
-                            <?php if (empty($milestoneBreakdown)): ?>
-                                <p class="has-text-grey-light">No data yet.</p>
-                            <?php else: ?>
-                                <ul>
-                                    <?php foreach ($milestoneBreakdown as $m): ?>
-                                        <li class="mb-1">
-                                            <strong><?php echo htmlspecialchars($m['streak_value']); ?> streams</strong>
-                                            — <?php echo htmlspecialchars($m['user_count']); ?> viewer<?php echo $m['user_count'] != 1 ? 's' : ''; ?>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php endif; ?>
-                        </div>
+<div class="sp-card mb-5">
+    <header class="sp-card-header">
+        <div class="sp-card-title">
+            <span class="icon mr-2"><i class="fas fa-fire"></i></span>
+            Stream Watch Streaks
+        </div>
+    </header>
+    <div class="sp-card-body">
+        <div class="raids-layout">
+            <div>
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;">Recent Milestones</h3>
+                <?php if (empty($recentStreaks)): ?>
+                    <div style="text-align:center;padding:3rem 0;">
+                        <p class="sp-text-muted" style="font-size:1.1rem;">No stream watch streak data available yet.</p>
                     </div>
-                </div>
+                <?php else: ?>
+                    <div class="sp-table-wrap">
+                        <table class="sp-table">
+                            <thead>
+                                <tr>
+                                    <th>Viewer</th>
+                                    <th>Streak</th>
+                                    <th>Last Milestone</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($recentStreaks as $row): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['user_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['streak_value']); ?> streams</td>
+                                        <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div>
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">Highest Current Streaks</h3>
+                <?php if (empty($topStreakers)): ?>
+                    <p class="sp-text-muted">No data yet.</p>
+                <?php else: ?>
+                    <ul style="padding-left:1.25rem;margin:0 0 1rem;">
+                        <?php foreach ($topStreakers as $t): ?>
+                            <li style="margin-bottom:0.5rem;">
+                                <strong><?php echo htmlspecialchars($t['user_name']); ?></strong>
+                                — <?php echo htmlspecialchars($t['highest_streak']); ?> streams
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+                <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">Milestone Breakdown</h3>
+                <?php if (empty($milestoneBreakdown)): ?>
+                    <p class="sp-text-muted">No data yet.</p>
+                <?php else: ?>
+                    <ul style="padding-left:1.25rem;margin:0;">
+                        <?php foreach ($milestoneBreakdown as $m): ?>
+                            <li style="margin-bottom:0.4rem;">
+                                <strong><?php echo htmlspecialchars($m['streak_value']); ?> streams</strong>
+                                — <?php echo htmlspecialchars($m['user_count']); ?> viewer<?php echo $m['user_count'] != 1 ? 's' : ''; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
-
 <?php
 $content = ob_get_clean();
 include 'layout.php';
