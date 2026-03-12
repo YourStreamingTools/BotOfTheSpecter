@@ -181,152 +181,97 @@ $totalConnections = $totalClients + $totalGlobalListeners;
 
 ob_start();
 ?>
-<div class="box">
-    <div class="level">
-        <div class="level-left">
-            <div class="level-item">
-                <div>
-                    <h1 class="title is-4"><span class="icon"><i class="fas fa-plug"></i></span> Websocket Clients Overview</h1>
-                    <p class="mb-4">Monitor active websocket connections, registered clients, and global listeners in real-time.</p>
-                </div>
-            </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <div>
+            <h1 class="sp-card-title"><span class="icon"><i class="fas fa-plug"></i></span> Websocket Clients Overview</h1>
+            <p class="mb-4">Monitor active websocket connections, registered clients, and global listeners in real-time.</p>
         </div>
-        <div class="level-right">
-            <div class="level-item">
-                <button class="button is-primary" onclick="refreshData()">
-                    <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                    <span>Refresh</span>
-                </button>
-            </div>
-        </div>
+        <button class="sp-btn sp-btn-primary" onclick="refreshData()">
+            <span class="icon"><i class="fas fa-sync-alt"></i></span>
+            <span>Refresh</span>
+        </button>
     </div>
+    <div class="sp-card-body">
     <?php if ($apiError): ?>
-        <div class="notification is-warning">
+        <div class="sp-alert sp-alert-warning">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
             Warning: Unable to connect to the websocket server API. Displaying cached or empty data.
         </div>
     <?php else: ?>
-        <div class="notification is-info is-light" id="last-updated" data-last-updated="<?php echo htmlspecialchars($lastUpdatedIso); ?>">
+        <div class="sp-alert sp-alert-info" id="last-updated" data-last-updated="<?php echo htmlspecialchars($lastUpdatedIso); ?>">
             <small>Last Updated: <?php echo htmlspecialchars($lastUpdated); ?></small>
         </div>
     <?php endif; ?>
     <!-- Statistics Cards -->
-    <div class="columns mb-4">
-        <div class="column">
-            <div class="box has-background-info has-text-white">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <div>
-                                <p class="title is-4 has-text-white" id="stat-total"><?php echo $totalConnections; ?></p>
-                                <p class="subtitle is-6 has-text-white">Total Connections</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="icon is-large has-text-white">
-                                <i class="fas fa-network-wired fa-2x"></i>
-                            </span>
-                        </div>
-                    </div>
+    <div class="ws-stat-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;">
+        <div class="sp-card" style="background:var(--blue-bg);border-color:var(--blue);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <p style="font-size:1.5rem;font-weight:700;color:var(--blue);" id="stat-total"><?php echo $totalConnections; ?></p>
+                    <p style="color:var(--text-muted);font-size:0.85rem;">Total Connections</p>
                 </div>
+                <i class="fas fa-network-wired fa-2x sp-text-info"></i>
             </div>
         </div>
-        <div class="column">
-            <div class="box has-background-primary has-text-white">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <div>
-                                <p class="title is-4 has-text-white" id="stat-clients"><?php echo $totalClients; ?></p>
-                                <p class="subtitle is-6 has-text-white">Registered Clients</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="icon is-large has-text-white">
-                                <i class="fas fa-users fa-2x"></i>
-                            </span>
-                        </div>
-                    </div>
+        <div class="sp-card" style="background:var(--accent-light);border-color:var(--accent);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <p style="font-size:1.5rem;font-weight:700;color:var(--accent);" id="stat-clients"><?php echo $totalClients; ?></p>
+                    <p style="color:var(--text-muted);font-size:0.85rem;">Registered Clients</p>
                 </div>
+                <i class="fas fa-users fa-2x sp-text-accent"></i>
             </div>
         </div>
-        <div class="column">
-            <div class="box has-background-warning has-text-black">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <div>
-                                <p class="title is-4 has-text-black" id="stat-codes"><?php echo $totalCodes; ?></p>
-                                <p class="subtitle is-6 has-text-black">Active Codes</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="icon is-large has-text-black">
-                                <i class="fas fa-key fa-2x"></i>
-                            </span>
-                        </div>
-                    </div>
+        <div class="sp-card" style="background:var(--amber-bg);border-color:var(--amber);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <p style="font-size:1.5rem;font-weight:700;color:var(--amber);" id="stat-codes"><?php echo $totalCodes; ?></p>
+                    <p style="color:var(--text-muted);font-size:0.85rem;">Active Codes</p>
                 </div>
+                <i class="fas fa-key fa-2x sp-text-warning"></i>
             </div>
         </div>
-        <div class="column">
-            <div class="box has-background-success has-text-white">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <div>
-                                <p class="title is-4 has-text-white" id="stat-global"><?php echo $totalGlobalListeners; ?></p>
-                                <p class="subtitle is-6 has-text-white">Listeners</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="level-right">
-                        <div class="level-item">
-                            <span class="icon is-large has-text-white">
-                                <i class="fas fa-globe fa-2x"></i>
-                            </span>
-                        </div>
-                    </div>
+        <div class="sp-card" style="background:var(--green-bg);border-color:var(--green);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <p style="font-size:1.5rem;font-weight:700;color:var(--green);" id="stat-global"><?php echo $totalGlobalListeners; ?></p>
+                    <p style="color:var(--text-muted);font-size:0.85rem;">Listeners</p>
                 </div>
+                <i class="fas fa-globe fa-2x sp-text-success"></i>
             </div>
         </div>
+    </div>
     </div>
 </div>
 <!-- Registered Clients Section -->
-<div class="box">
-    <h2 class="title is-5"><span class="icon"><i class="fas fa-users"></i></span> Registered Users</h2>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-users"></i></span> Registered Users</h2>
     <p class="mb-4">Users with active websocket connections grouped by their API keys.</p>
-    <div class="field mb-4">
-        <div class="control">
-            <div class="search-wrapper">
-                <span class="search-icon"><i class="fas fa-search"></i></span>
-                <input type="text" id="client-search" placeholder="Search by display name or API key..." class="search-input" aria-label="Search clients">
-                <button type="button" id="client-search-clear" class="button is-white is-small search-clear" aria-label="Clear search" title="Clear search" style="display:none;">
-                    <span class="icon"><i class="fas fa-times"></i></span>
-                </button>
-                <span id="client-search-count" class="search-count" aria-live="polite">0 results</span>
-            </div>
+    <div style="margin-bottom:1rem;">
+        <div class="search-wrapper">
+            <span class="search-icon"><i class="fas fa-search"></i></span>
+            <input type="text" id="client-search" placeholder="Search by display name or API key..." class="search-input" aria-label="Search clients">
+            <button type="button" id="client-search-clear" class="sp-btn sp-btn-sm search-clear" aria-label="Clear search" title="Clear search" style="display:none;">
+                <span class="icon"><i class="fas fa-times"></i></span>
+            </button>
+            <span id="client-search-count" class="search-count" aria-live="polite">0 results</span>
         </div>
     </div>
     <?php if (empty($websocketData['registered_clients'])): ?>
-        <div class="notification is-info">
+        <div class="sp-alert sp-alert-info">
             <p>No registered clients are currently connected.</p>
         </div>
     <?php else: ?>
-        <div class="table-container">
-            <table class="table is-fullwidth is-striped" id="clients-table">
-                <thead class="has-background-dark has-text-white">
+        <div class="sp-table-wrap">
+            <table class="sp-table" id="clients-table">
+                <thead>
                     <tr>
-                        <th class="has-text-white">Display Name</th>
-                        <th class="has-text-white">API Key</th>
-                        <th class="has-text-white">Connected Clients</th>
-                        <th class="has-text-white">Actions</th>
+                        <th>Display Name</th>
+                        <th>API Key</th>
+                        <th>Connected Clients</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -340,17 +285,17 @@ ob_start();
                                     <?php $maskLen = min(strlen($apiKey), 32); $masked = str_repeat('•', $maskLen); ?>
                                     <code class="masked-api-key"><?php echo htmlspecialchars($masked); ?></code>
                                     <code class="full-api-key" style="display:none;"><?php echo htmlspecialchars($apiKey); ?></code>
-                                    <button class="button is-small" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                                    <button class="sp-btn sp-btn-sm" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
                                         <span class="icon"><i class="fas fa-eye"></i></span>
                                     </button>
                                 </div>
                             </td>
                             <td>
-                                <span class="tag is-info"><?php echo $userData['client_count']; ?> clients</span>
+                                <span class="sp-badge sp-badge-blue"><?php echo $userData['client_count']; ?> clients</span>
                             </td>
                             <td>
-                                <div class="buttons are-small">
-                                    <button class="button is-info is-small" onclick="showUserClients('<?php echo htmlspecialchars($apiKey); ?>', '<?php echo htmlspecialchars($userData['twitch_display_name']); ?>')">
+                                <div class="sp-btn-group">
+                                    <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showUserClients('<?php echo htmlspecialchars($apiKey); ?>', '<?php echo htmlspecialchars($userData['twitch_display_name']); ?>')">
                                         <span class="icon"><i class="fas fa-eye"></i></span>
                                         <span>View Clients</span>
                                     </button>
@@ -362,52 +307,50 @@ ob_start();
             </table>
         </div>
     <?php endif; ?>
+    </div>
 </div>
 
 <!-- Listeners Section -->
 <?php if (!empty($websocketData['global_listeners'])): ?>
-<div class="box">
-    <h2 class="title is-5"><span class="icon"><i class="fas fa-globe"></i></span> Global Listeners</h2>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fas fa-globe"></i></span> Global Listeners</h2>
     <p class="mb-4">Global Listeners are admin-authenticated websocket connections that receive real-time events from all channels simultaneously. These connections are typically used for system monitoring, administrative dashboards, and global event tracking. Unlike regular clients which are tied to specific user API keys, Global Listeners have elevated permissions to observe activity across the entire platform.</p>
-    <div class="table-container">
-        <table class="table is-fullwidth is-striped" id="global-listeners-table">
-            <thead class="has-text-white">
+    <div class="sp-table-wrap">
+        <table class="sp-table" id="global-listeners-table">
+            <thead>
                 <tr>
-                    <th class="has-text-white">Listener</th>
-                    <th class="has-text-white">Status</th>
-                    <th class="has-text-white">Socket ID</th>
-                    <th class="has-text-white">Actions</th>
+                    <th>Listener</th>
+                    <th>Status</th>
+                    <th>Socket ID</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($websocketData['global_listeners'] as $listener): ?>
                     <tr>
                         <td>
-                            <span class="icon-text">
-                                <span class="icon has-text-success">
-                                    <i class="fas fa-broadcast-tower"></i>
-                                </span>
-                                <span class="has-text-weight-semibold"><?php echo htmlspecialchars(cleanListenerName($listener['name'])); ?></span>
+                            <span style="display:inline-flex;align-items:center;gap:0.4rem;">
+                                <span class="icon sp-text-success"><i class="fas fa-broadcast-tower"></i></span>
+                                <span style="font-weight:600;"><?php echo htmlspecialchars(cleanListenerName($listener['name'])); ?></span>
                             </span>
                         </td>
                         <td>
-                            <span class="tag is-success is-light">
-                                <span class="icon">
-                                    <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
-                                </span>
+                            <span class="sp-badge sp-badge-green">
+                                <span class="icon"><i class="fas fa-circle" style="font-size: 0.5rem;"></i></span>
                                 <span>Active</span>
                             </span>
                         </td>
                         <td>
-                            <code class="is-size-7"><?php echo htmlspecialchars($listener['sid']); ?></code>
+                            <code style="font-size:0.75rem;"><?php echo htmlspecialchars($listener['sid']); ?></code>
                         </td>
                         <td>
-                            <div class="buttons are-small">
-                                <button class="button is-info is-small" onclick="showListenerDetails('<?php echo htmlspecialchars($listener['sid']); ?>', '<?php echo htmlspecialchars($listener['name']); ?>')">
+                            <div class="sp-btn-group">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showListenerDetails('<?php echo htmlspecialchars($listener['sid']); ?>', '<?php echo htmlspecialchars($listener['name']); ?>')">
                                     <span class="icon"><i class="fas fa-info"></i></span>
                                     <span>Details</span>
                                 </button>
-                                <button class="button is-danger is-small" onclick="disconnectClient('<?php echo htmlspecialchars($listener['sid']); ?>')">
+                                <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="disconnectClient('<?php echo htmlspecialchars($listener['sid']); ?>')">
                                     <span class="icon"><i class="fas fa-times"></i></span>
                                     <span>Disconnect</span>
                                 </button>
@@ -418,25 +361,25 @@ ob_start();
             </tbody>
         </table>
     </div>
+    </div>
 </div>
 <?php endif; ?>
 <!-- User Clients Modal -->
-<div class="modal" id="user-clients-modal">
-    <div class="modal-background" onclick="closeUserClientsModal()"></div>
-    <div class="modal-card" style="max-width: 1400px; width: 90vw;">
-        <header class="modal-card-head">
-            <p class="modal-card-title">
+<div class="sp-modal-backdrop" id="user-clients-modal" style="display:none;" onclick="closeUserClientsModal()">
+    <div class="sp-modal" style="max-width:1400px;width:90vw;" onclick="event.stopPropagation()">
+        <div class="sp-modal-head">
+            <span class="sp-modal-title">
                 <span class="icon"><i class="fas fa-users"></i></span>
                 User Clients: <span id="modal-user-name"></span>
-            </p>
-            <button class="delete" aria-label="close" onclick="closeUserClientsModal()"></button>
-        </header>
-        <section class="modal-card-body" id="user-clients-content">
+            </span>
+            <button class="sp-modal-close" aria-label="close" onclick="closeUserClientsModal()">&#x2715;</button>
+        </div>
+        <div class="sp-modal-body" id="user-clients-content">
             <!-- Content will be loaded dynamically -->
-        </section>
-        <footer class="modal-card-foot">
-            <button class="button" onclick="closeUserClientsModal()">Close</button>
-        </footer>
+        </div>
+        <div style="padding:1rem;display:flex;justify-content:flex-end;border-top:1px solid var(--border);">
+            <button class="sp-btn" onclick="closeUserClientsModal()">Close</button>
+        </div>
     </div>
 </div>
 <?php
