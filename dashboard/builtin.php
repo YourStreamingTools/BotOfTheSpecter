@@ -219,58 +219,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Start output buffering for layout
 ob_start();
 ?>
-<div class="card" style="box-shadow: 0 2px 16px #0001;">
-    <header class="card-header">
-        <p class="card-header-title is-size-4">
-            <span class="icon has-text-info mr-2"><i class="fas fa-terminal"></i></span>
-            <?php echo t('builtin_commands_header'); ?>
-        </p>
-    </header>
-    <div class="card-content">
-        <!--<div class="notification is-info is-light mb-4">
-            <span class="icon">
-                <i class="fas fa-info-circle"></i>
-            </span>
-            <strong>New in Version 5.5:</strong> You can now use the "Broadcaster" permission level to restrict commands so that only you (the broadcaster) can use them. This is perfect for commands you want to keep exclusive to yourself.
-        </div>-->
-        <div class="columns is-vcentered is-mobile mb-3">
-            <div class="column is-narrow">
-                <label class="checkbox mr-3">
-                    <input type="checkbox" id="showEnabled" <?php echo $showEnabled ? 'checked' : ''; ?>>
-                    <span class="ml-1"><?php echo t('builtin_commands_show_enabled'); ?></span>
-                </label>
-                <label class="checkbox">
-                    <input type="checkbox" id="showDisabled" <?php echo $showDisabled ? 'checked' : ''; ?>>
-                    <span class="ml-1"><?php echo t('builtin_commands_show_disabled'); ?></span>
-                </label>
-            </div>
-            <div class="column">
-                <div class="field is-pulled-right" style="max-width: 340px;">
-                    <div class="control has-icons-left">
-                        <input class="input is-rounded" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="box-shadow: 0 1px 6px #0001;">
-                        <span class="icon is-left has-text-grey-light">
-                            <i class="fas fa-search"></i>
-                        </span>
-                    </div>
-                </div>
-            </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <i class="fas fa-terminal" style="color:var(--blue); margin-right:0.5rem;"></i>
+        <div class="sp-card-title"><?php echo t('builtin_commands_header'); ?></div>
+        <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="<?php echo t('builtin_commands_search_placeholder'); ?>" style="max-width:300px; margin-left:auto;">
+    </div>
+    <div class="sp-card-body">
+        <div style="display:flex; align-items:center; gap:1.5rem; margin-bottom:1rem;">
+            <label style="display:flex; align-items:center; gap:0.4rem; color:var(--text-primary); cursor:pointer;">
+                <input type="checkbox" id="showEnabled" <?php echo $showEnabled ? 'checked' : ''; ?>>
+                <?php echo t('builtin_commands_show_enabled'); ?>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.4rem; color:var(--text-primary); cursor:pointer;">
+                <input type="checkbox" id="showDisabled" <?php echo $showDisabled ? 'checked' : ''; ?>>
+                <?php echo t('builtin_commands_show_disabled'); ?>
+            </label>
         </div>
-        <div class="table-container">
-            <table class="table is-fullwidth" id="commandsTable">
+        <div class="sp-table-wrap">
+            <table class="sp-table" id="commandsTable">
                 <thead>
                     <tr>
-                        <th class="has-text-centered has-text-middle" style="min-width: 155px;"><?php echo t('builtin_commands_table_command'); ?></th>
-                        <th class="has-text-centered has-text-middle"><?php echo t('builtin_commands_table_description'); ?></th>
-                        <th class="has-text-centered"><?php echo t('builtin_commands_table_usage_level'); ?></th>
-                        <th class="has-text-centered is-narrow has-text-middle"><?php echo t('builtin_commands_table_status'); ?></th>
-                        <th class="has-text-centered is-narrow has-text-middle"><?php echo t('builtin_commands_table_action'); ?></th>
-                        <th class="has-text-centered is-narrow has-text-middle">Options</th>
+                        <th style="text-align:center; min-width:155px;"><?php echo t('builtin_commands_table_command'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_description'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
+                        <th style="text-align:center;">Options</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($builtinCommands)): ?>
                         <tr>
-                            <td colspan="6" class="has-text-centered has-text-danger"><?php echo t('builtin_commands_no_commands'); ?></td>
+                            <td colspan="6" style="text-align:center; color:var(--red);"><?php echo t('builtin_commands_no_commands'); ?></td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($builtinCommands as $command): 
@@ -282,7 +263,7 @@ ob_start();
                             $tooltipText = !empty($aliases) ? 'Aliases: !' . implode(', !', $aliases) : '';
                         ?>
                         <tr class="commandRow" data-status="<?php echo htmlspecialchars($command['status']); ?>">
-                            <td class="has-text-centered has-text-weight-semibold has-text-info" style="vertical-align: middle;">
+                            <td style="text-align:center; font-weight:600; color:var(--blue); vertical-align:middle;">
                                 <span <?php echo !empty($tooltipText) ? 'title="' . htmlspecialchars($tooltipText) . '" style="cursor: help; position: relative;"' : ''; ?>>
                                     !<?php echo htmlspecialchars($command['command']); ?>
                                 </span>
@@ -290,52 +271,40 @@ ob_start();
                             <td style="vertical-align: middle;"><?php echo htmlspecialchars($desc); ?></td>
                             <td>
                                 <?php if ($hasForceLevel): ?>
-                                    <div class="field">
-                                        <div class="control">
-                                            <span class="tag is-medium is-warning">
-                                                <span class="icon is-small">
-                                                    <i class="fas fa-lock"></i>
-                                                </span>
-                                                <span><?php echo t('builtin_commands_permission_' . $forceLevel); ?></span>
-                                            </span>
-                                        </div>
-                                        <p class="help is-size-7 has-text-grey">
-                                            <?php echo t('builtin_commands_locked_permission'); ?>
-                                        </p>
-                                    </div>
+                                    <span class="sp-badge" style="background:rgba(251,191,36,0.15); color:var(--amber); border:1px solid var(--amber);">
+                                        <i class="fas fa-lock"></i>
+                                        <?php echo t('builtin_commands_permission_' . $forceLevel); ?>
+                                    </span>
+                                    <small class="sp-help" style="display:block; margin-top:0.3rem;"><?php echo t('builtin_commands_locked_permission'); ?></small>
                                 <?php else: ?>
                                     <form method="post">
                                         <input type="hidden" name="command_name" value="<?php echo htmlspecialchars($command['command']); ?>">
-                                        <div class="select is-fullwidth">
-                                            <select name="usage_level" class="permission-select" onchange="this.form.submit()">
-                                                <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
-                                                    <option value="<?php echo $displayValue; ?>" class="permission-<?php echo $dbValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
-                                                        <?php echo t('builtin_commands_permission_' . $dbValue); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </div>
+                                        <select class="sp-select" name="usage_level" onchange="this.form.submit()">
+                                            <?php $currentPermission = htmlspecialchars($command['permission']); foreach ($permissionsMap as $displayValue => $dbValue): ?>
+                                                <option value="<?php echo $displayValue; ?>" <?php echo ($currentPermission == $dbValue) ? 'selected' : ''; ?>>
+                                                    <?php echo t('builtin_commands_permission_' . $dbValue); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
                                     </form>
                                 <?php endif; ?>
                             </td>
-                            <td class="has-text-centered" style="vertical-align: middle;">
-                                <span class="tag is-medium <?php echo ($command['status'] == 'Enabled') ? 'is-success' : 'is-danger'; ?>">
+                            <td style="text-align:center; vertical-align:middle;">
+                                <span class="sp-badge <?php echo ($command['status'] == 'Enabled') ? 'sp-badge-green' : 'sp-badge-red'; ?>">
                                     <?php echo t('builtin_commands_status_' . strtolower($command['status'])); ?>
                                 </span>
                             </td>
-                            <td class="has-text-centered" style="vertical-align: middle;">
-                                <label class="switch" style="cursor:pointer;">
+                            <td style="text-align:center; vertical-align:middle;">
+                                <label style="cursor:pointer;">
                                     <input type="checkbox" class="toggle-checkbox" style="position:absolute; opacity:0; width:0; height:0;"
                                         <?php echo ($command['status'] == 'Enabled') ? 'checked' : ''; ?>
                                         onchange="toggleStatus('<?php echo htmlspecialchars($command['command']); ?>', this.checked, this)">
-                                    <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?> ml-2" style="font-size:1.5em;"></i>
+                                    <i class="fa-solid <?php echo $command['status'] == 'Enabled' ? 'fa-toggle-on' : 'fa-toggle-off'; ?>" style="font-size:1.5em; <?php echo $command['status'] == 'Enabled' ? 'color:var(--green);' : 'color:var(--text-muted);'; ?>"></i>
                                 </label>
                             </td>
-                            <td class="has-text-centered" style="vertical-align: middle;">
-                                <button class="button is-small is-info is-outlined" onclick="openCommandModal('<?php echo htmlspecialchars($command['command']); ?>')">
-                                    <span class="icon is-small">
-                                        <i class="fas fa-edit"></i>
-                                    </span>
+                            <td style="text-align:center; vertical-align:middle;">
+                                <button class="sp-btn sp-btn-sm" style="background:transparent; border:1px solid var(--blue); color:var(--blue);" onclick="openCommandModal('<?php echo htmlspecialchars($command['command']); ?>')">
+                                    <i class="fas fa-edit"></i>
                                 </button>
                             </td>
                         </tr>
@@ -346,30 +315,25 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- Command Options Modal -->
-<div class="modal" id="commandModal">
-    <div class="modal-background" onclick="closeCommandModal()"></div>
-    <div class="modal-card" style="max-width: 600px;">
-        <header class="modal-card-head">
-            <p class="modal-card-title">Command Options: <span id="modalCommandName"></span></p>
-            <button class="delete" aria-label="close" onclick="closeCommandModal()"></button>
-        </header>
-        <section class="modal-card-body" style="max-height: 70vh; overflow-y: auto;">
-            <div class="notification is-info is-light mb-4">
-                <span class="icon">
-                    <i class="fas fa-info-circle"></i>
-                </span>
+<div class="cc-modal-backdrop" id="commandModal">
+    <div class="cc-modal" style="max-width: 600px;">
+        <div class="cc-modal-head">
+            <span class="cc-modal-title">Command Options: <span id="modalCommandName"></span></span>
+            <button class="sp-btn sp-btn-ghost sp-btn-sm" onclick="closeCommandModal()">×</button>
+        </div>
+        <div class="cc-modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+                <i class="fas fa-info-circle"></i>
                 <strong>Cooldown Options:</strong> These settings are available in version 5.5 and above. Configure how often commands can be used.
             </div>
             <div id="modalContent">
                 <!-- Content will be dynamically loaded here -->
             </div>
-        </section>
-        <footer class="modal-card-foot">
-            <button class="button is-success" onclick="saveCommandOptions()">Save Changes</button>
-            <button class="button" onclick="closeCommandModal()">Cancel</button>
-        </footer>
+        </div>
+        <div class="cc-modal-foot">
+            <button class="sp-btn sp-btn-primary" id="saveOptionsBtn" onclick="saveCommandOptions()">Save Changes</button>
+            <button class="sp-btn sp-btn-secondary" onclick="closeCommandModal()">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -438,7 +402,6 @@ function applyTableFilters() {
     const table = document.getElementById('commandsTable');
     if (!table) return;
     const rows = table.getElementsByTagName('tr');
-
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (row.classList.contains('commandRow')) {
@@ -446,7 +409,6 @@ function applyTableFilters() {
             const statusAllowed = (showEnabled && status === 'Enabled') || (showDisabled && status === 'Disabled');
             const cells = row.getElementsByTagName('td');
             let matchesSearch = false;
-
             if (!filter) {
                 matchesSearch = true;
             } else {
@@ -458,7 +420,6 @@ function applyTableFilters() {
                     }
                 }
             }
-
             if (statusAllowed && matchesSearch) {
                 row.style.display = '';
             } else {
@@ -508,7 +469,7 @@ function closeCommandModal() {
 function loadCommandOptions(commandName) {
     const modalContent = document.getElementById('modalContent');
     // Show loading state
-    modalContent.innerHTML = '<div class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    modalContent.innerHTML = '<div style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
     // Fetch command options
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '', true);
@@ -521,13 +482,13 @@ function loadCommandOptions(commandName) {
                     if (response.success) {
                         renderCommandOptions(commandName, response.options);
                     } else {
-                        modalContent.innerHTML = '<div class="notification is-danger">' + response.message + '</div>';
+                        modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">' + response.message + '</div>';
                     }
                 } catch (e) {
-                    modalContent.innerHTML = '<div class="notification is-danger">Error parsing response</div>';
+                    modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error parsing response</div>';
                 }
             } else {
-                modalContent.innerHTML = '<div class="notification is-danger">Error loading command options</div>';
+                modalContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading command options</div>';
             }
         }
     };
@@ -542,63 +503,51 @@ function renderCommandOptions(commandName, options) {
     const cooldownBucket = options && options.cooldown_bucket !== undefined ? options.cooldown_bucket : 'default';
     // Build cooldown options HTML
     let html = `
-        <div class="field">
-            <label class="label">Cooldown Rate</label>
-            <div class="control">
-                <input class="input" type="number" id="cooldownRate" value="${cooldownRate}" min="1">
-            </div>
-            <p class="help">Number of times the command can be used before triggering cooldown. 1 means once used, you must wait the cooldown time before using it again.</p>
+        <div class="sp-form-group">
+            <label class="sp-label">Cooldown Rate</label>
+            <input class="sp-input" type="number" id="cooldownRate" value="${cooldownRate}" min="1">
+            <small class="sp-help">Number of times the command can be used before triggering cooldown. 1 means once used, you must wait the cooldown time before using it again.</small>
         </div>
-        <div class="field">
-            <label class="label">Cooldown Time (seconds)</label>
-            <div class="control">
-                <input class="input" type="number" id="cooldownTime" value="${cooldownTime}" min="0">
-            </div>
-            <p class="help">Time in seconds before the command can be used again after reaching the rate limit.</p>
+        <div class="sp-form-group">
+            <label class="sp-label">Cooldown Time (seconds)</label>
+            <input class="sp-input" type="number" id="cooldownTime" value="${cooldownTime}" min="0">
+            <small class="sp-help">Time in seconds before the command can be used again after reaching the rate limit.</small>
         </div>
-        <div class="field">
-            <label class="label">Cooldown Bucket</label>
-            <div class="control">
-                <div class="select is-fullwidth">
-                    <select id="cooldownBucket">
-                        <option value="default" ${cooldownBucket === 'default' ? 'selected' : ''}>Default (all users)</option>
-                        <option value="user" ${cooldownBucket === 'user' ? 'selected' : ''}>User (per-user cooldown)</option>
-                        <option value="mod" ${cooldownBucket === 'mod' ? 'selected' : ''}>Mod (only cooldown for mods)</option>
-                    </select>
-                </div>
-            </div>
-            <p class="help">Bucket name for grouping cooldowns.</p>
+        <div class="sp-form-group">
+            <label class="sp-label">Cooldown Bucket</label>
+            <select class="sp-select" id="cooldownBucket">
+                <option value="default" ${cooldownBucket === 'default' ? 'selected' : ''}>Default (all users)</option>
+                <option value="user" ${cooldownBucket === 'user' ? 'selected' : ''}>User (per-user cooldown)</option>
+                <option value="mod" ${cooldownBucket === 'mod' ? 'selected' : ''}>Mod (only cooldown for mods)</option>
+            </select>
+            <small class="sp-help">Bucket name for grouping cooldowns.</small>
         </div>
     `;
     // Add command-specific options
     if (commandName === 'lurk') {
         const timerEnabled = options && options.timer ? options.timer : false;
         html += `
-            <hr class="mt-4 mb-4">
-            <div class="field">
-                <label class="label">Lurk Timer</label>
-                <div class="control">
-                    <label class="checkbox">
-                        <input type="checkbox" id="lurkTimer" ${timerEnabled ? 'checked' : ''}>
-                        Enable lurk timer (shows how long user has been lurking when they use !lurk again)
-                    </label>
-                </div>
-                <p class="help">When enabled, the bot will track how long users have been lurking and display the duration when they use the !lurk command again.</p>
+            <hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">
+            <div class="sp-form-group">
+                <label class="sp-label">Lurk Timer</label>
+                <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-primary); cursor:pointer;">
+                    <input type="checkbox" id="lurkTimer" ${timerEnabled ? 'checked' : ''}>
+                    Enable lurk timer (shows how long user has been lurking when they use !lurk again)
+                </label>
+                <small class="sp-help">When enabled, the bot will track how long users have been lurking and display the duration when they use the !lurk command again.</small>
             </div>
         `;
     } else if (commandName === 'unlurk') {
         const timerEnabled = options && options.timer ? options.timer : false;
         html += `
-            <hr class="mt-4 mb-4">
-            <div class="field">
-                <label class="label">Unlurk Timer</label>
-                <div class="control">
-                    <label class="checkbox">
-                        <input type="checkbox" id="unlurkTimer" ${timerEnabled ? 'checked' : ''}>
-                        Enable unlurk timer (resets lurk timer when user returns from lurking)
-                    </label>
-                </div>
-                <p class="help">When enabled, the bot will reset the user's lurk timer instead of removing them from lurk tracking when they use !unlurk. This allows continuous lurk time tracking.</p>
+            <hr style="border:none; border-top:1px solid var(--bg-surface); margin:1rem 0;">
+            <div class="sp-form-group">
+                <label class="sp-label">Unlurk Timer</label>
+                <label style="display:flex; align-items:center; gap:0.5rem; color:var(--text-primary); cursor:pointer;">
+                    <input type="checkbox" id="unlurkTimer" ${timerEnabled ? 'checked' : ''}>
+                    Enable unlurk timer (resets lurk timer when user returns from lurking)
+                </label>
+                <small class="sp-help">When enabled, the bot will reset the user's lurk timer instead of removing them from lurk tracking when they use !unlurk. This allows continuous lurk time tracking.</small>
             </div>
         `;
     }
@@ -628,7 +577,7 @@ function saveCommandOptions() {
         }
     }
     // Show saving state
-    const saveButton = document.querySelector('.modal-card-foot .is-success');
+    const saveButton = document.getElementById('saveOptionsBtn');
     const originalText = saveButton.textContent;
     saveButton.textContent = 'Saving...';
     saveButton.disabled = true;
@@ -647,15 +596,15 @@ function saveCommandOptions() {
                     if (response.success) {
                         closeCommandModal();
                         // Show success message
-                        showNotification('Command options saved successfully!', 'is-success');
+                        showNotification('Command options saved successfully!', 'sp-alert-success');
                     } else {
-                        showNotification('Error saving options: ' + response.message, 'is-danger');
+                        showNotification('Error saving options: ' + response.message, 'sp-alert-danger');
                     }
                 } catch (e) {
-                    showNotification('Error parsing response', 'is-danger');
+                    showNotification('Error parsing response', 'sp-alert-danger');
                 }
             } else {
-                showNotification('Error saving command options', 'is-danger');
+                showNotification('Error saving command options', 'sp-alert-danger');
             }
         }
     };
@@ -665,14 +614,14 @@ function saveCommandOptions() {
 function showNotification(message, type) {
     // Create notification element
     const notification = document.createElement('div');
-    notification.className = `notification ${type} is-light`;
+    notification.className = `sp-alert ${type}`;
     notification.style.position = 'fixed';
     notification.style.top = '20px';
     notification.style.right = '20px';
     notification.style.zIndex = '9999';
     notification.style.maxWidth = '400px';
     notification.innerHTML = `
-        <button class="delete" onclick="this.parentElement.remove()"></button>
+        <button class="sp-btn sp-btn-ghost sp-btn-sm" onclick="this.parentElement.remove()" style="float:right; padding:0 0.3rem;">×</button>
         ${message}
     `;
     document.body.appendChild(notification);
