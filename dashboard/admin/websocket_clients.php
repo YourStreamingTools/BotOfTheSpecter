@@ -456,7 +456,7 @@ async function refreshData(silent = false) {
             // Show loading state on manual refresh
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
-                refreshBtn.classList.add('is-loading');
+                refreshBtn.classList.add('sp-btn-loading');
             }
         }
         const response = await fetch('?refresh_data=1');
@@ -475,7 +475,7 @@ async function refreshData(silent = false) {
         if (!silent) {
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
-                refreshBtn.classList.remove('is-loading');
+                refreshBtn.classList.remove('sp-btn-loading');
             }
         }
     } catch (error) {
@@ -488,7 +488,7 @@ async function refreshData(silent = false) {
             });
             const refreshBtn = document.querySelector('button[onclick="refreshData()"]');
             if (refreshBtn) {
-                refreshBtn.classList.remove('is-loading');
+                refreshBtn.classList.remove('sp-btn-loading');
             }
         }
     }
@@ -515,7 +515,7 @@ function updateClientsTable(registeredClients) {
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
     if (Object.keys(registeredClients).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">No registered clients are currently connected.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No registered clients are currently connected.</td></tr>';
         return;
     }
     // Sort clients by client count (descending)
@@ -530,15 +530,15 @@ function updateClientsTable(registeredClients) {
                 <div style="display:flex;align-items:center;gap:0.5rem;">
                     <code class="masked-api-key">${'•'.repeat(Math.min(apiKey.length, 32))}</code>
                     <code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
-                    <button class="button is-small" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                    <button class="sp-btn sp-btn-sm" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
                         <span class="icon"><i class="fas fa-eye"></i></span>
                     </button>
                 </div>
             </td>
-            <td><span class="tag is-info">${userData.client_count} clients</span></td>
+            <td><span class="sp-badge sp-badge-blue">${userData.client_count} clients</span></td>
             <td>
-                <div class="buttons are-small">
-                    <button class="button is-info is-small" onclick="showUserClients('${escapeHtml(apiKey)}', '${escapeHtml(userData.twitch_display_name)}')">
+                <div class="sp-btn-group">
+                    <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showUserClients('${escapeHtml(apiKey)}', '${escapeHtml(userData.twitch_display_name)}')">
                         <span class="icon"><i class="fas fa-eye"></i></span>
                         <span>View Clients</span>
                     </button>
@@ -547,6 +547,7 @@ function updateClientsTable(registeredClients) {
         `;
         tbody.appendChild(row);
     }
+}
     // Re-run the filter to update the visible count and clear button state
     try {
         if (typeof filterClients === 'function') filterClients();
@@ -557,14 +558,9 @@ function updateClientsTable(registeredClients) {
 
 function updateGlobalListenersTable(globalListeners) {
     // Find the listeners section by looking for the specific heading text
-    const headings = document.querySelectorAll('h2.title');
-    let globalSection = null;
-    for (const heading of headings) {
-        if (heading.textContent.includes('Listeners') && !heading.textContent.includes('Global Listeners')) {
-            globalSection = heading.closest('.box');
-            break;
-        }
-    }
+    // Find the global listeners section by ID
+    const globalSectionCard = document.querySelector('.sp-card:has(#global-listeners-table)');
+    let globalSection = globalSectionCard || null;
     if (!globalSection && globalListeners.length > 0) {
         // Create listeners section if it doesn't exist but we have data
         location.reload(); // For now, just reload the page
@@ -572,15 +568,10 @@ function updateGlobalListenersTable(globalListeners) {
     }
     if (globalListeners.length === 0) {
         // Hide listeners section if no data
-        if (globalSection) {
-            globalSection.style.display = 'none';
-        }
+        if (globalSection) globalSection.style.display = 'none';
         return;
     }
-    // Show the section if it was hidden
-    if (globalSection) {
-        globalSection.style.display = '';
-    }
+    if (globalSection) globalSection.style.display = '';
     const table = globalSection?.querySelector('table tbody');
     if (!table) return;
     table.innerHTML = '';
@@ -590,14 +581,14 @@ function updateGlobalListenersTable(globalListeners) {
         row.innerHTML = `
             <td>
                 <span class="icon-text">
-                    <span class="icon has-text-success">
+                    <span class="icon sp-text-success">
                         <i class="fas fa-broadcast-tower"></i>
                     </span>
-                    <span class="has-text-weight-semibold">${escapeHtml(cleanedName)}</span>
+                    <span style="font-weight:600;">${escapeHtml(cleanedName)}</span>
                 </span>
             </td>
             <td>
-                <span class="tag is-success is-light">
+                <span class="sp-badge sp-badge-green">
                     <span class="icon">
                         <i class="fas fa-circle" style="font-size: 0.5rem;"></i>
                     </span>
@@ -605,15 +596,15 @@ function updateGlobalListenersTable(globalListeners) {
                 </span>
             </td>
             <td>
-                <code class="is-size-7">${escapeHtml(listener.sid)}</code>
+                <code style="font-size:0.75rem;">${escapeHtml(listener.sid)}</code>
             </td>
             <td>
-                <div class="buttons are-small">
-                    <button class="button is-info is-small" onclick="showListenerDetails('${escapeHtml(listener.sid)}', '${escapeHtml(listener.name)}')">
+                <div class="sp-btn-group">
+                    <button class="sp-btn sp-btn-info sp-btn-sm" onclick="showListenerDetails('${escapeHtml(listener.sid)}', '${escapeHtml(listener.name)}')">
                         <span class="icon"><i class="fas fa-info"></i></span>
                         <span>Details</span>
                     </button>
-                    <button class="button is-danger is-small" onclick="disconnectClient('${escapeHtml(listener.sid)}')">
+                    <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="disconnectClient('${escapeHtml(listener.sid)}')">
                         <span class="icon"><i class="fas fa-times"></i></span>
                         <span>Disconnect</span>
                     </button>
@@ -711,32 +702,28 @@ async function showUserClients(apiKey, displayName) {
         document.getElementById('modal-user-name').textContent = displayName;
         const maskedKey = '•'.repeat(Math.min(apiKey.length, 32));
         let content = `
-            <div class="box">
-                <div class="level">
-                    <div class="level-left">
-                        <div class="level-item">
-                            <div>
-                                <p class="title is-6">API Key: <code class="masked-api-key">${maskedKey}</code><code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
-                                    <button class="button is-small" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
-                                        <span class="icon"><i class="fas fa-eye"></i></span>
-                                    </button>
-                                </p>
-                                <p class="subtitle is-6">${data.client_count} connected clients</p>
-                            </div>
-                        </div>
+            <div class="sp-card" style="margin-bottom:1rem;">
+                <div style="display:flex;align-items:center;gap:1rem;">
+                    <div>
+                        <p style="font-size:1rem;font-weight:700;margin:0 0 0.25rem;">API Key: <code class="masked-api-key">${maskedKey}</code><code class="full-api-key" style="display:none;">${escapeHtml(apiKey)}</code>
+                            <button class="sp-btn sp-btn-sm" aria-label="Toggle API Key" onclick="toggleApiKey(this)">
+                                <span class="icon"><i class="fas fa-eye"></i></span>
+                            </button>
+                        </p>
+                        <p style="color:var(--text-muted);font-size:0.85rem;">${data.client_count} connected clients</p>
                     </div>
                 </div>
             </div>
-            <div class="table-container">
-                <table class="table is-fullwidth is-striped">
-                    <thead class="has-background-dark has-text-white">
+            <div class="sp-table-wrap">
+                <table class="sp-table">
+                    <thead>
                         <tr>
-                            <th class="has-text-white has-text-weight-bold">Client Name</th>
-                            <th class="has-text-white has-text-weight-bold">Socket ID</th>
-                            <th class="has-text-white has-text-weight-bold">Admin</th>
-                            <th class="has-text-white has-text-weight-bold">Connected At</th>
-                            <th class="has-text-white has-text-weight-bold">Last Activity</th>
-                            <th class="has-text-white has-text-weight-bold">Actions</th>
+                            <th>Client Name</th>
+                            <th>Socket ID</th>
+                            <th>Admin</th>
+                            <th>Connected At</th>
+                            <th>Last Activity</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -747,12 +734,12 @@ async function showUserClients(apiKey, displayName) {
                     <td>${escapeHtml(client.name)}</td>
                     <td><code>${escapeHtml(client.sid)}</code></td>
                     <td>
-                        ${client.is_admin ? '<span class="tag is-danger">Admin</span>' : '<span class="tag is-info">User</span>'}
+                        ${client.is_admin ? '<span class="sp-badge sp-badge-red">Admin</span>' : '<span class="sp-badge sp-badge-blue">User</span>'}
                     </td>
                     <td>${client.connected_at || 'N/A'}</td>
                     <td>${client.last_activity || 'N/A'}</td>
                     <td>
-                        <button class="button is-danger is-small" onclick="disconnectClient('${escapeHtml(client.sid)}')">
+                        <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="disconnectClient('${escapeHtml(client.sid)}')">
                             <span class="icon"><i class="fas fa-times"></i></span>
                             <span>Disconnect</span>
                         </button>
@@ -766,7 +753,8 @@ async function showUserClients(apiKey, displayName) {
             </div>
         `;
         document.getElementById('user-clients-content').innerHTML = content;
-        document.getElementById('user-clients-modal').classList.add('is-active');
+        const modal = document.getElementById('user-clients-modal');
+        modal.style.display = 'flex';
     } catch (error) {
         console.error('Failed to load user clients:', error);
         Swal.fire({
@@ -778,7 +766,8 @@ async function showUserClients(apiKey, displayName) {
 }
 
 function closeUserClientsModal() {
-    document.getElementById('user-clients-modal').classList.remove('is-active');
+    const modal = document.getElementById('user-clients-modal');
+    modal.style.display = 'none';
 }
 
 function showListenerDetails(sid, name) {
