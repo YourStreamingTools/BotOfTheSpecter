@@ -313,510 +313,470 @@ if (!empty($syncErrors)) {
 // Start output buffering for layout template
 ob_start();
 ?>
-<div class="columns is-centered">
-    <div class="column is-12">
-        <div class="card has-background-dark has-text-white" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-            <header class="card-header" style="border-bottom: 1px solid #23272f;">
-                <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-                    <span class="icon mr-2"><i class="fas fa-gift"></i></span>
-                    <?php echo t('channel_rewards_title'); ?>
-                </span>
-            </header>
-            <div class="card-content">
-                <div class="notification is-info mb-4" id="sync-result" style="display: none;">
-                    <strong>Sync Result:</strong><br>
-                    <pre id="sync-output" class="mb-0"
-                        style="white-space: pre-wrap; max-height: 220px; overflow:auto; font-family: monospace;"></pre>
-                </div>
-                <?php if ($showNoChannelPoints) : ?>
-                    <div class="notification is-info mb-4" style="background:#1f2a36;border-radius:10px;">
-                        <div class="message-body has-text-white">
-                            <?php if (!empty($isOwner)) : ?>
-                                <?php echo t('channel_rewards_no_channel_points_owner'); ?>
-                            <?php else : ?>
-                                <?php echo t('channel_rewards_no_channel_points_other', ['channel' => htmlspecialchars($channelDisplayName)]); ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-                <div class="notification is-info mb-4">
-                    <form method="POST" id="sync-form"
-                        style="display: flex; align-items: flex-start; justify-content: space-between;">
-                        <div style="flex: 1;">
-                            <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                            <strong><?php echo t('channel_rewards_sync_title'); ?></strong><br>
-                            <?php echo t('channel_rewards_sync_desc'); ?><br />
-                            <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                            <strong><?php echo t('channel_rewards_sync_important'); ?></strong>
-                            <?php echo t('channel_rewards_sync_important_desc'); ?>
-                        </div>
-                        <div style="margin-left: 24px;">
-                            <button class="button is-primary" id="sync-btn" style="margin-top: 0;"
-                                <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_sync_disabled') . '"' : 'onclick="syncRewards()"'; ?>>
-                                <span id="sync-btn-spinner" class="icon is-small" style="display:none;">
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                </span>
-                                <span id="sync-btn-text"><i class="fas fa-sync-alt"></i>
-                                    <?php echo t('channel_rewards_sync_btn'); ?></span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                <div class="notification is-warning mb-4">
-                    <p class="has-text-weight-bold">
-                        <span class="icon"><i class="fas fa-exclamation-circle"></i></span>
-                        Important Change: Fortune, Lotto, and TTS Variables
-                    </p>
-                    <p>
-                        The <span class="has-text-weight-bold">(fortune)</span>, <span
-                            class="has-text-weight-bold">(lotto)</span>, and <span
-                            class="has-text-weight-bold">(tts)</span> are now text variables that can be used anywhere
-                        in your custom message instead of reward name-based triggers. This allows you to use any reward
-                        name you want without conflicts with other rewards.
-                    </p>
-                </div>
-                <div class="notification is-info mb-5">
-                    <div class="columns is-multiline">
-                        <div class="column is-12">
-                            <p class="has-text-weight-bold">
-                                <span class="icon"><i class="fas fa-code"></i></span>
-                                <?php echo t('channel_rewards_custom_vars_title'); ?>
-                            </p>
-                            <p><?php echo t('channel_rewards_custom_vars_desc'); ?></p>
-                            <ul>
-                                <li><span class="has-text-weight-bold">(user)</span>:
-                                    <?php echo t('channel_rewards_var_user'); ?>
-                                </li>
-                                <li><span class="has-text-weight-bold">(usercount)</span>:
-                                    <?php echo t('channel_rewards_var_usercount'); ?>
-                                </li>
-                                <li><span class="has-text-weight-bold">(userstreak)</span>:
-                                    <?php echo t('channel_rewards_var_userstreak'); ?>
-                                </li>
-                                <li><span class="has-text-weight-bold">(track)</span>: Tracks the internal usage count
-                                    of the reward.</li>
-                                <li><span class="has-text-weight-bold">(fortune)</span>: Replaces with a random fortune
-                                    message.</li>
-                                <li><span class="has-text-weight-bold">(lotto)</span>: Replaces with randomly generated
-                                    lotto numbers.</li>
-                                <li><span class="has-text-weight-bold">(tts)</span>: Sends the user input to
-                                    text-to-speech (removes from message).</li>
-                                <li><span class="has-text-weight-bold">(tts.message)</span>: Sends the final complete
-                                    message to both chat and text-to-speech.</li>
-                                <li><span class="has-text-weight-bold">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
-                            </ul>
-                        </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <span class="sp-card-title">
+            <i class="fas fa-gift" style="margin-right:0.5rem;"></i>
+            <?php echo t('channel_rewards_title'); ?>
+        </span>
+    </div>
+    <div class="sp-card-body">
+        <div class="sp-alert sp-alert-info" id="sync-result" style="display: none;">
+            <strong>Sync Result:</strong><br>
+            <pre id="sync-output"
+                style="white-space: pre-wrap; max-height: 220px; overflow:auto; font-family: monospace; margin:0;"></pre>
+        </div>
+            <?php if ($showNoChannelPoints) : ?>
+                <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+                    <div>
+                        <?php if (!empty($isOwner)) : ?>
+                            <?php echo t('channel_rewards_no_channel_points_owner'); ?>
+                        <?php else : ?>
+                            <?php echo t('channel_rewards_no_channel_points_other', ['channel' => htmlspecialchars($channelDisplayName)]); ?>
+                        <?php endif; ?>
                     </div>
                 </div>
-                <!-- Tabs -->
-                <div class="tabs is-toggle is-fullwidth is-medium has-background-dark"
-                    style="border-radius: 6px; margin-bottom: 20px;">
-                    <ul>
-                        <li class="is-active" data-tab="tab-rewards">
-                            <a>
-                                <span class="icon is-small"><i class="fas fa-list"></i></span>
-                                <span><?php echo t('channel_rewards_tab_rewards'); ?></span>
-                            </a>
-                        </li>
-                        <li data-tab="tab-redemptions">
-                            <a>
-                                <span class="icon is-small"><i class="fas fa-history"></i></span>
-                                <span><?php echo t('channel_rewards_tab_redemptions'); ?></span>
-                            </a>
-                        </li>
-                        <li data-tab="tab-create">
-                            <a>
-                                <span class="icon is-small"><i class="fas fa-plus-circle"></i></span>
-                                <span><?php echo t('channel_rewards_tab_create'); ?></span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <!-- Tab Content: Rewards -->
-                <div id="tab-content-rewards" class="tab-content" style="display: block;">
-                    <div class="table-container">
-                        <table class="table is-fullwidth has-background-dark" style="border-radius: 8px;">
-                            <thead>
-                                <tr>
-                                    <th style="width: 80px;">Image</th>
-                                    <th><?php echo t('channel_rewards_reward_name'); ?></th>
-                                    <th><?php echo t('channel_rewards_custom_message'); ?></th>
-                                    <th style="width: 150px;" class="has-text-centered">
-                                        <?php echo t('channel_rewards_reward_cost'); ?>
-                                    </th>
-                                    <th style="width: 100px;" class="has-text-centered">
-                                        <?php echo t('channel_rewards_managed'); ?>
-                                    </th>
-                                    <th style="width: 100px;" class="has-text-centered">
-                                        <?php echo t('channel_rewards_editing'); ?>
-                                    </th>
-                                    <th style="width: 100px;" class="has-text-centered">
-                                        <?php echo t('channel_rewards_deleting'); ?>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                // 1. Fetch DB Rewards
-                                $rewardsQuery = $db->prepare("SELECT reward_id, reward_title, custom_message, reward_cost, managed_by FROM channel_point_rewards");
-                                $rewardsQuery->execute();
-                                $result = $rewardsQuery->get_result();
-                                $dbRewardsList = $result->fetch_all(MYSQLI_ASSOC);
-                                $rewardsQuery->close();
-                                $dbRewardsMap = [];
-                                foreach ($dbRewardsList as $r) {
-                                    $dbRewardsMap[$r['reward_id']] = $r;
-                                }
-                                // 2. Fetch Twitch Rewards (skip for normal broadcasters)
-                                $twitchRewards = [];
-                                $twitchError = false;
-                                if (!$showNoChannelPoints) {
-                                    $tToken = $_SESSION['access_token'];
-                                    $tBroadcasterId = $_SESSION['twitchUserId'];
-                                    // Get Client ID from config/twitch.php
-                                    $tClientId = '';
-                                    include '/var/www/config/twitch.php';
-                                    if (isset($clientID))
-                                        $tClientId = $clientID;
-                                    if (!empty($tToken) && !empty($tBroadcasterId)) {
-                                        $ch = curl_init();
-                                        curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=" . $tBroadcasterId);
-                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                            "Authorization: Bearer $tToken",
-                                            "Client-Id: $tClientId"
-                                        ]);
-                                        $resp = curl_exec($ch);
-                                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                        curl_close($ch);
-                                        if ($httpCode == 200) {
-                                            $json = json_decode($resp, true);
-                                            $twitchRewards = $json['data'] ?? [];
-                                        } else {
-                                            $twitchError = true;
-                                            foreach ($dbRewardsList as $dbItem) {
-                                                $twitchRewards[] = [
-                                                    'id' => $dbItem['reward_id'],
-                                                    'title' => $dbItem['reward_title'],
-                                                    'cost' => $dbItem['reward_cost'],
-                                                    'managed_by' => $dbItem['managed_by'] ?? 'twitch',
-                                                ];
-                                            }
-                                        }
-                                    }
-                                }
-                                // 3. Display Loop
-                                if ($showNoChannelPoints) {
-                                    echo '<tr><td colspan="7" class="has-text-centered">' . t('channel_rewards_no_channel_points') . '</td></tr>';
-                                } elseif (empty($twitchRewards)) {
-                                    echo '<tr><td colspan="7" class="has-text-centered">' . t('channel_rewards_no_rewards') . '</td></tr>';
-                                } else {
-                                    // Sort by cost
-                                    usort($twitchRewards, function ($a, $b) {
-                                        return $a['cost'] - $b['cost'];
-                                    });
-                                    foreach ($twitchRewards as $reward):
-                                        $rId = $reward['id'];
-                                        $rTitle = $reward['title'];
-                                        $rCost = $reward['cost'];
-                                        $isSynced = isset($dbRewardsMap[$rId]);
-                                        $customMessage = $isSynced ? $dbRewardsMap[$rId]['custom_message'] : '';
-                                        // Visuals
-                                        $rowClass = $isSynced ? '' : 'has-background-grey-darker'; // slight dim for unsynced?
-                                        $syncIcon = $isSynced
-                                            ? '<span class="icon has-text-success" title="Synced"><i class="fas fa-check-circle"></i></span>'
-                                            : '<span class="icon has-text-grey" title="Not Synced"><i class="far fa-circle"></i></span>';
-                                        ?>
-                                        <tr class="<?php echo $rowClass; ?>">
-                                            <td class="has-text-centered" style="vertical-align: middle;">
-                                                <?php
-                                                // Try to get image URL - check multiple possible fields
-                                                $imageUrl = '';
-                                                if (isset($reward['image']['url_4x'])) {
-                                                    $imageUrl = $reward['image']['url_4x'];
-                                                } elseif (isset($reward['default_image']['url_4x'])) {
-                                                    $imageUrl = $reward['default_image']['url_4x'];
-                                                } elseif (isset($reward['image']['url_2x'])) {
-                                                    $imageUrl = $reward['image']['url_2x'];
-                                                } elseif (isset($reward['default_image']['url_2x'])) {
-                                                    $imageUrl = $reward['default_image']['url_2x'];
-                                                }
-                                                if (!empty($imageUrl)): ?>
-                                                    <img src="<?php echo htmlspecialchars($imageUrl ?? '', ENT_QUOTES, 'UTF-8'); ?>" alt="Reward Icon"
-                                                        style="width: 56px; height: 56px; border-radius: 4px;">
-                                                <?php else: ?>
-                                                    <span class="icon has-text-grey">
-                                                        <i class="fas fa-image fa-2x"></i>
-                                                    </span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?php echo htmlspecialchars($rTitle ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
-                                            <td>
-                                                <?php if ($isSynced): ?>
-                                                    <div id="<?php echo $rId; ?>">
-                                                        <?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?>
-                                                    </div>
-                                                    <div class="edit-box" id="edit-box-<?php echo $rId; ?>" style="display: none;">
-                                                        <textarea class="textarea custom-message"
-                                                            data-reward-id="<?php echo $rId; ?>"
-                                                            maxlength="255"><?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
-                                                        <div class="character-count" id="count-<?php echo $rId; ?>"
-                                                            style="margin-top: 5px; font-size: 0.8em;">0 / 255 characters
-                                                        </div>
-                                                    </div>
-                                                <?php else: ?>
-                                                    <span class="is-italic has-text-grey-light">Not Synced</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="has-text-centered" style="vertical-align: middle;">
-                                                <?php echo htmlspecialchars((string)($rCost ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                            </td>
-                                            <td class="has-text-centered" style="vertical-align: middle;">
-                                                <?php
-                                                $managedBy = $dbRewardsMap[$rId]['managed_by'] ?? 'twitch';
-                                                if ($isSynced && $managedBy === 'specter'): ?>
-                                                    <span class="icon has-text-success" title="Managed by Specter">
-                                                        <i class="fas fa-check-circle fa-lg"></i>
-                                                    </span>
-                                                <?php elseif ($isSynced): ?>
-                                                    <button class="button is-small is-warning manage-btn"
-                                                        data-reward-id="<?php echo $rId; ?>"
-                                                        title="Convert to Specter-managed reward">
-                                                        <i class="fas fa-cog"></i>
-                                                    </button>
-                                                <?php else: ?>
-                                                    <button class="button is-small is-dark" disabled
-                                                        title="Sync to enable managing">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="has-text-centered" style="vertical-align: middle;">
-                                                <?php if ($isSynced): ?>
-                                                    <div class="edit-controls" id="controls-<?php echo $rId; ?>"
-                                                        style="display: flex; justify-content: center; align-items: center;">
-                                                        <button class="button is-small is-info edit-btn"
-                                                            data-reward-id="<?php echo $rId; ?>"><i
-                                                                class="fas fa-pencil-alt"></i></button>
-                                                        <div class="save-cancel" id="save-cancel-<?php echo $rId; ?>"
-                                                            style="display: none;">
-                                                            <button class="button is-small is-success save-btn"
-                                                                data-reward-id="<?php echo $rId; ?>"><i
-                                                                    class="fas fa-check"></i></button>
-                                                            <button class="button is-small is-danger cancel-btn"
-                                                                data-reward-id="<?php echo $rId; ?>"><i
-                                                                    class="fas fa-times"></i></button>
-                                                        </div>
-                                                    </div>
-                                                <?php else: ?>
-                                                    <button class="button is-small is-dark" disabled title="Sync to enable editing">
-                                                        <i class="fas fa-pencil-alt"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="has-text-centered" style="vertical-align: middle;">
-                                                <?php if ($isSynced): ?>
-                                                    <button class="button is-small is-danger delete-btn"
-                                                        data-reward-id="<?php echo $rId; ?>"
-                                                        data-managed-by="<?php echo htmlspecialchars($managedBy ?? 'twitch', ENT_QUOTES, 'UTF-8'); ?>"><i
-                                                            class="fas fa-trash-alt"></i></button>
-                                                <?php else: ?>
-                                                    <button class="button is-small is-dark" disabled>
-                                                        <i class="fas fa-trash-alt"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php } ?>
-                            </tbody>
-                        </table>
+            <?php endif; ?>
+            <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+                <form method="POST" id="sync-form"
+                    style="display: flex; align-items: flex-start; justify-content: space-between;">
+                    <div style="flex: 1;">
+                        <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                        <strong><?php echo t('channel_rewards_sync_title'); ?></strong><br>
+                        <?php echo t('channel_rewards_sync_desc'); ?><br />
+                        <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                        <strong><?php echo t('channel_rewards_sync_important'); ?></strong>
+                        <?php echo t('channel_rewards_sync_important_desc'); ?>
                     </div>
-                    <!-- End Table Container -->
-                </div> <!-- End Level -->
-            </div> <!-- End Tab Content Rewards -->
-            <!-- Tab Content: Redemptions -->
-            <div id="tab-content-redemptions" class="tab-content" style="display: none;">
-                <div class="notification is-info mb-5">
-                    <p class="has-text-weight-bold">
-                        <span class="icon"><i class="fas fa-history"></i></span>
-                        <?php echo t('channel_rewards_recent_redemptions'); ?>
-                    </p>
-                    <p>
-                        <?php echo t('channel_rewards_recent_redemptions_desc'); ?>
-                    </p>
-                    <p class="mt-2 has-text-info-dark">
-                        <span class="icon"><i class="fas fa-info-circle"></i></span>
-                        <em>Note: Redemption history is only available for rewards managed by the
-                            Specter system. You can convert any reward to be managed by our system using the
-                            Manage
-                            button in the Rewards tab.</em>
-                    </p>
-                </div>
-                <div class="table-container">
-                    <table class="table is-fullwidth has-background-dark" style="border-radius: 8px;">
+                    <div style="margin-left: 24px;">
+                        <button class="sp-btn sp-btn-primary" id="sync-btn" style="margin-top: 0;"
+                            <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_sync_disabled') . '"' : 'onclick="syncRewards()"'; ?>>
+                            <span id="sync-btn-spinner" style="display:none;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                            <span id="sync-btn-text"><i class="fas fa-sync-alt"></i>
+                                <?php echo t('channel_rewards_sync_btn'); ?></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
+                <p style="font-weight:700; margin-bottom:0.25rem;">
+                    <span class="icon"><i class="fas fa-exclamation-circle"></i></span>
+                    Important Change: Fortune, Lotto, and TTS Variables
+                </p>
+                <p>
+                    The <span style="font-weight:700;">(fortune)</span>, <span
+                        style="font-weight:700;">(lotto)</span>, and <span
+                        style="font-weight:700;">(tts)</span> are now text variables that can be used anywhere
+                    in your custom message instead of reward name-based triggers. This allows you to use any reward
+                    name you want without conflicts with other rewards.
+                </p>
+            </div>
+            <div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;">
+                <p style="font-weight:700; margin-bottom:0.25rem;">
+                    <span class="icon"><i class="fas fa-code"></i></span>
+                    <?php echo t('channel_rewards_custom_vars_title'); ?>
+                </p>
+                <p><?php echo t('channel_rewards_custom_vars_desc'); ?></p>
+                <ul>
+                    <li><span style="font-weight:700;">(user)</span>:
+                        <?php echo t('channel_rewards_var_user'); ?>
+                    </li>
+                    <li><span style="font-weight:700;">(usercount)</span>:
+                        <?php echo t('channel_rewards_var_usercount'); ?>
+                    </li>
+                    <li><span style="font-weight:700;">(userstreak)</span>:
+                        <?php echo t('channel_rewards_var_userstreak'); ?>
+                    </li>
+                    <li><span style="font-weight:700;">(track)</span>: Tracks the internal usage count
+                        of the reward.</li>
+                    <li><span style="font-weight:700;">(fortune)</span>: Replaces with a random fortune
+                        message.</li>
+                    <li><span style="font-weight:700;">(lotto)</span>: Replaces with randomly generated
+                        lotto numbers.</li>
+                    <li><span style="font-weight:700;">(tts)</span>: Sends the user input to
+                        text-to-speech (removes from message).</li>
+                    <li><span style="font-weight:700;">(tts.message)</span>: Sends the final complete
+                        message to both chat and text-to-speech.</li>
+                    <li><span style="font-weight:700;">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
+                </ul>
+            </div>
+            <!-- Tabs -->
+            <ul class="sp-tabs-nav" style="margin-bottom:1.25rem;">
+                <li class="is-active" data-tab="tab-rewards">
+                    <a>
+                        <i class="fas fa-list"></i>
+                        <span><?php echo t('channel_rewards_tab_rewards'); ?></span>
+                    </a>
+                </li>
+                <li data-tab="tab-redemptions">
+                    <a>
+                        <i class="fas fa-history"></i>
+                        <span><?php echo t('channel_rewards_tab_redemptions'); ?></span>
+                    </a>
+                </li>
+                <li data-tab="tab-create">
+                    <a>
+                        <i class="fas fa-plus-circle"></i>
+                        <span><?php echo t('channel_rewards_tab_create'); ?></span>
+                    </a>
+                </li>
+            </ul>
+            <!-- Tab Content: Rewards -->
+            <div id="tab-content-rewards" class="tab-content" style="display: block;">
+                <div class="sp-table-wrap">
+                    <table class="sp-table" id="commandsTable">
                         <thead>
                             <tr>
-                                <th>
-                                    <?php echo t('channel_rewards_user'); ?>
+                                <th style="width: 80px;">Image</th>
+                                <th><?php echo t('channel_rewards_reward_name'); ?></th>
+                                <th><?php echo t('channel_rewards_custom_message'); ?></th>
+                                <th style="width: 150px; text-align:center;">
+                                    <?php echo t('channel_rewards_reward_cost'); ?>
                                 </th>
-                                <th>
-                                    <?php echo t('channel_rewards_reward'); ?>
+                                <th style="width: 100px; text-align:center;">
+                                    <?php echo t('channel_rewards_managed'); ?>
                                 </th>
-                                <th>
-                                    <?php echo t('channel_rewards_input'); ?>
+                                <th style="width: 100px; text-align:center;">
+                                    <?php echo t('channel_rewards_editing'); ?>
                                 </th>
-                                <th class="has-text-centered">
-                                    <?php echo t('channel_rewards_cost'); ?>
-                                </th>
-                                <th class="has-text-centered">
-                                    <?php echo t('channel_rewards_status'); ?>
-                                </th>
-                                <th class="has-text-centered">
-                                    Actions
-                                </th>
-                                <th class="has-text-centered">
-                                    <?php echo t('channel_rewards_time'); ?>
+                                <th style="width: 100px; text-align:center;">
+                                    <?php echo t('channel_rewards_deleting'); ?>
                                 </th>
                             </tr>
                         </thead>
-                        <tbody id="redemptions-table-body">
-                            <tr>
-                                <td colspan="6" class="has-text-centered"><i class="fas fa-spinner fa-spin"></i>
-                                    Loading...</td>
-                            </tr>
+                        <tbody>
+                            <?php
+                            // 1. Fetch DB Rewards
+                            $rewardsQuery = $db->prepare("SELECT reward_id, reward_title, custom_message, reward_cost, managed_by FROM channel_point_rewards");
+                            $rewardsQuery->execute();
+                            $result = $rewardsQuery->get_result();
+                            $dbRewardsList = $result->fetch_all(MYSQLI_ASSOC);
+                            $rewardsQuery->close();
+                            $dbRewardsMap = [];
+                            foreach ($dbRewardsList as $r) {
+                                $dbRewardsMap[$r['reward_id']] = $r;
+                            }
+                            // 2. Fetch Twitch Rewards (skip for normal broadcasters)
+                            $twitchRewards = [];
+                            $twitchError = false;
+                            if (!$showNoChannelPoints) {
+                                $tToken = $_SESSION['access_token'];
+                                $tBroadcasterId = $_SESSION['twitchUserId'];
+                                // Get Client ID from config/twitch.php
+                                $tClientId = '';
+                                include '/var/www/config/twitch.php';
+                                if (isset($clientID))
+                                    $tClientId = $clientID;
+                                if (!empty($tToken) && !empty($tBroadcasterId)) {
+                                    $ch = curl_init();
+                                    curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=" . $tBroadcasterId);
+                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                        "Authorization: Bearer $tToken",
+                                        "Client-Id: $tClientId"
+                                    ]);
+                                    $resp = curl_exec($ch);
+                                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                                    curl_close($ch);
+                                    if ($httpCode == 200) {
+                                        $json = json_decode($resp, true);
+                                        $twitchRewards = $json['data'] ?? [];
+                                    } else {
+                                        $twitchError = true;
+                                        foreach ($dbRewardsList as $dbItem) {
+                                            $twitchRewards[] = [
+                                                'id' => $dbItem['reward_id'],
+                                                'title' => $dbItem['reward_title'],
+                                                'cost' => $dbItem['reward_cost'],
+                                                'managed_by' => $dbItem['managed_by'] ?? 'twitch',
+                                            ];
+                                        }
+                                    }
+                                }
+                            }
+                            // 3. Display Loop
+                            if ($showNoChannelPoints) {
+                                echo '<tr><td colspan="7" style="text-align:center;">' . t('channel_rewards_no_channel_points') . '</td></tr>';
+                            } elseif (empty($twitchRewards)) {
+                                echo '<tr><td colspan="7" style="text-align:center;">' . t('channel_rewards_no_rewards') . '</td></tr>';
+                            } else {
+                                // Sort by cost
+                                usort($twitchRewards, function ($a, $b) {
+                                    return $a['cost'] - $b['cost'];
+                                });
+                                foreach ($twitchRewards as $reward):
+                                    $rId = $reward['id'];
+                                    $rTitle = $reward['title'];
+                                    $rCost = $reward['cost'];
+                                    $isSynced = isset($dbRewardsMap[$rId]);
+                                    $customMessage = $isSynced ? $dbRewardsMap[$rId]['custom_message'] : '';
+                                    // Visuals
+                                    $syncIcon = $isSynced
+                                        ? '<span style="color:var(--green);" title="Synced"><i class="fas fa-check-circle"></i></span>'
+                                        : '<span style="color:var(--grey);" title="Not Synced"><i class="far fa-circle"></i></span>';
+                                    ?>
+                                    <tr <?php echo !$isSynced ? 'style="opacity:0.6;"' : ''; ?>>
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <?php
+                                            // Try to get image URL - check multiple possible fields
+                                            $imageUrl = '';
+                                            if (isset($reward['image']['url_4x'])) {
+                                                $imageUrl = $reward['image']['url_4x'];
+                                            } elseif (isset($reward['default_image']['url_4x'])) {
+                                                $imageUrl = $reward['default_image']['url_4x'];
+                                            } elseif (isset($reward['image']['url_2x'])) {
+                                                $imageUrl = $reward['image']['url_2x'];
+                                            } elseif (isset($reward['default_image']['url_2x'])) {
+                                                $imageUrl = $reward['default_image']['url_2x'];
+                                            }
+                                            if (!empty($imageUrl)): ?>
+                                                <img src="<?php echo htmlspecialchars($imageUrl ?? '', ENT_QUOTES, 'UTF-8'); ?>" alt="Reward Icon"
+                                                    style="width: 56px; height: 56px; border-radius: 4px;">
+                                            <?php else: ?>
+                                                <span style="color:var(--grey);">
+                                                    <i class="fas fa-image fa-2x"></i>
+                                                </span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($rTitle ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <?php if ($isSynced): ?>
+                                                <div id="<?php echo $rId; ?>">
+                                                    <?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                                </div>
+                                                <div class="edit-box" id="edit-box-<?php echo $rId; ?>" style="display: none;">
+                                                    <textarea class="sp-input custom-message"
+                                                        data-reward-id="<?php echo $rId; ?>"
+                                                        maxlength="255" style="height:auto; min-height:4rem;"><?php echo htmlspecialchars($customMessage ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                                    <div class="character-count" id="count-<?php echo $rId; ?>"
+                                                        style="margin-top: 5px; font-size: 0.8em;">0 / 255 characters
+                                                    </div>
+                                                </div>
+                                            <?php else: ?>
+                                                <span style="font-style:italic; color:var(--text-muted);">Not Synced</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <?php echo htmlspecialchars((string)($rCost ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                        </td>
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <?php
+                                            $managedBy = $dbRewardsMap[$rId]['managed_by'] ?? 'twitch';
+                                            if ($isSynced && $managedBy === 'specter'): ?>
+                                                <span style="color:var(--green);" title="Managed by Specter">
+                                                    <i class="fas fa-check-circle fa-lg"></i>
+                                                </span>
+                                            <?php elseif ($isSynced): ?>
+                                                <button class="sp-btn sp-btn-warning sp-btn-sm manage-btn"
+                                                    data-reward-id="<?php echo $rId; ?>"
+                                                    title="Convert to Specter-managed reward">
+                                                    <i class="fas fa-cog"></i>
+                                                </button>
+                                            <?php else: ?>
+                                                <button class="sp-btn sp-btn-sm" disabled
+                                                    title="Sync to enable managing" style="opacity:0.45;">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <?php if ($isSynced): ?>
+                                                <div class="edit-controls" id="controls-<?php echo $rId; ?>"
+                                                    style="display: flex; justify-content: center; align-items: center;">
+                                                    <button class="sp-btn sp-btn-info sp-btn-sm edit-btn"
+                                                        data-reward-id="<?php echo $rId; ?>"><i
+                                                            class="fas fa-pencil-alt"></i></button>
+                                                    <div class="save-cancel" id="save-cancel-<?php echo $rId; ?>"
+                                                        style="display: none;">
+                                                        <button class="sp-btn sp-btn-success sp-btn-sm save-btn"
+                                                            data-reward-id="<?php echo $rId; ?>"><i
+                                                                class="fas fa-check"></i></button>
+                                                        <button class="sp-btn sp-btn-danger sp-btn-sm cancel-btn"
+                                                            data-reward-id="<?php echo $rId; ?>"><i
+                                                                class="fas fa-times"></i></button>
+                                                    </div>
+                                                </div>
+                                            <?php else: ?>
+                                                <button class="sp-btn sp-btn-sm" disabled title="Sync to enable editing" style="opacity:0.45;">
+                                                    <i class="fas fa-pencil-alt"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <?php if ($isSynced): ?>
+                                                <button class="sp-btn sp-btn-danger sp-btn-sm delete-btn"
+                                                    data-reward-id="<?php echo $rId; ?>"
+                                                    data-managed-by="<?php echo htmlspecialchars($managedBy ?? 'twitch', ENT_QUOTES, 'UTF-8'); ?>"><i
+                                                        class="fas fa-trash-alt"></i></button>
+                                            <?php else: ?>
+                                                <button class="sp-btn sp-btn-sm" disabled style="opacity:0.45;">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php } ?>
                         </tbody>
                     </table>
                 </div>
+                <!-- End Table Container -->
             </div>
-            <!-- Tab Content: Create -->
-            <div id="tab-content-create" class="tab-content" style="display: none;">
-                <div class="box has-background-dark">
-                    <h2 class="subtitle is-4 has-text-light mb-4">
-                        <?php echo t('channel_rewards_create_title'); ?>
-                    </h2>
-                    <form id="create-reward-form" enctype="multipart/form-data">
-                        <div class="columns">
-                            <div class="column is-half">
-                                <div class="field">
-                                    <label class="label has-text-light"><?php echo t('channel_rewards_reward_name'); ?>
-                                        *</label>
-                                    <div class="control">
-                                        <input class="input has-background-dark has-text-light" type="text" name="title"
-                                            required placeholder="e.g. Hydrate!">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="column is-half">
-                                <div class="field">
-                                    <label class="label has-text-light"><?php echo t('channel_rewards_reward_cost'); ?>
-                                        *</label>
-                                    <div class="control">
-                                        <input class="input has-background-dark has-text-light" type="number"
-                                            name="cost" required min="1" value="100">
-                                    </div>
-                                </div>
-                            </div>
+        <!-- Tab Content: Redemptions -->
+        <div id="tab-content-redemptions" class="tab-content" style="display: none;">
+            <div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;">
+                <p style="font-weight:700; margin-bottom:0.25rem;">
+                    <span class="icon"><i class="fas fa-history"></i></span>
+                    <?php echo t('channel_rewards_recent_redemptions'); ?>
+                </p>
+                <p>
+                    <?php echo t('channel_rewards_recent_redemptions_desc'); ?>
+                </p>
+                <p style="margin-top:0.5rem;">
+                    <span class="icon"><i class="fas fa-info-circle"></i></span>
+                    <em>Note: Redemption history is only available for rewards managed by the
+                        Specter system. You can convert any reward to be managed by our system using the
+                        Manage
+                        button in the Rewards tab.</em>
+                </p>
+            </div>
+            <div class="sp-table-wrap">
+                <table class="sp-table">
+                    <thead>
+                        <tr>
+                            <th>
+                                <?php echo t('channel_rewards_user'); ?>
+                            </th>
+                            <th>
+                                <?php echo t('channel_rewards_reward'); ?>
+                            </th>
+                            <th>
+                                <?php echo t('channel_rewards_input'); ?>
+                            </th>
+                            <th style="text-align:center;">
+                                <?php echo t('channel_rewards_cost'); ?>
+                            </th>
+                            <th style="text-align:center;">
+                                <?php echo t('channel_rewards_status'); ?>
+                            </th>
+                            <th style="text-align:center;">
+                                Actions
+                            </th>
+                            <th style="text-align:center;">
+                                <?php echo t('channel_rewards_time'); ?>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="redemptions-table-body">
+                        <tr>
+                            <td colspan="6" style="text-align:center;"><i class="fas fa-spinner fa-spin"></i>
+                                Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Tab Content: Create -->
+        <div id="tab-content-create" class="tab-content" style="display: none;">
+            <div class="sp-card" style="margin-bottom:0;">
+                <div class="sp-card-body">
+                <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
+                    <?php echo t('channel_rewards_create_title'); ?>
+                </h2>
+                <form id="create-reward-form" enctype="multipart/form-data">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                        <div class="sp-form-group">
+                            <label class="sp-label"><?php echo t('channel_rewards_reward_name'); ?> *</label>
+                            <input class="sp-input" type="text" name="title"
+                                required placeholder="e.g. Hydrate!">
                         </div>
-                        <div class="field">
-                            <label class="label has-text-light"><?php echo t('channel_rewards_prompt'); ?></label>
-                            <div class="control">
-                                <textarea class="textarea has-background-dark has-text-light" name="prompt" rows="2"
-                                    placeholder="Describe the reward..."></textarea>
-                            </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label"><?php echo t('channel_rewards_reward_cost'); ?> *</label>
+                            <input class="sp-input" type="number"
+                                name="cost" required min="1" value="100">
                         </div>
-                        <div class="field">
-                            <label class="label has-text-light"><?php echo t('channel_rewards_bg_color'); ?></label>
-                            <div class="control">
-                                <input class="input has-background-dark has-text-light" type="color"
-                                    name="background_color" value="#00E5CB" style="height: 40px; padding: 2px;">
-                            </div>
-                        </div>
-                        <hr class="has-background-grey-dark">
-                        <h4 class="title is-6 has-text-light mb-3">
-                            <?php echo t('channel_rewards_limits_header'); ?>
-                        </h4>
-                        <div class="columns">
-                            <div class="column">
-                                <div class="field">
-                                    <label class="checkbox has-text-light">
-                                        <input type="checkbox" name="is_max_per_stream_enabled" id="toggle-max-stream">
-                                        <?php echo t('channel_rewards_max_per_stream'); ?>
-                                    </label>
-                                </div>
-                                <div class="field" id="field-max-stream" style="display:none;">
-                                    <div class="control">
-                                        <input class="input has-background-dark has-text-light" type="number"
-                                            name="max_per_stream" min="1" placeholder="Max">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="column">
-                                <div class="field">
-                                    <label class="checkbox has-text-light">
-                                        <input type="checkbox" name="is_max_per_user_per_stream_enabled"
-                                            id="toggle-max-user">
-                                        <?php echo t('channel_rewards_max_per_user'); ?>
-                                    </label>
-                                </div>
-                                <div class="field" id="field-max-user" style="display:none;">
-                                    <div class="control">
-                                        <input class="input has-background-dark has-text-light" type="number"
-                                            name="max_per_user_per_stream" min="1" placeholder="Max">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="column">
-                                <div class="field">
-                                    <label class="checkbox has-text-light">
-                                        <input type="checkbox" name="is_global_cooldown_enabled" id="toggle-cooldown">
-                                        <?php echo t('channel_rewards_cooldown'); ?>
-                                    </label>
-                                </div>
-                                <div class="field" id="field-cooldown" style="display:none;">
-                                    <div class="control">
-                                        <input class="input has-background-dark has-text-light" type="number"
-                                            name="global_cooldown_seconds" min="1" placeholder="Seconds">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="field">
-                            <label class="checkbox has-text-light">
-                                <input type="checkbox" name="should_redemptions_skip_request_queue">
-                                <?php echo t('channel_rewards_skip_queue'); ?>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label"><?php echo t('channel_rewards_prompt'); ?></label>
+                        <textarea class="sp-input" name="prompt" rows="2"
+                            placeholder="Describe the reward..." style="height:auto; min-height:4rem;"></textarea>
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label"><?php echo t('channel_rewards_bg_color'); ?></label>
+                        <input class="sp-input" type="color"
+                            name="background_color" value="#00E5CB" style="height: 40px; padding: 2px;">
+                    </div>
+                    <hr style="border-color:var(--border); margin:1rem 0;">
+                    <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
+                        <?php echo t('channel_rewards_limits_header'); ?>
+                    </h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+                        <div class="sp-form-group">
+                            <label style="cursor:pointer; color:var(--text-secondary);">
+                                <input type="checkbox" name="is_max_per_stream_enabled" id="toggle-max-stream">
+                                <?php echo t('channel_rewards_max_per_stream'); ?>
                             </label>
+                            <div class="sp-form-group" id="field-max-stream" style="display:none; margin-top:0.5rem;">
+                                <input class="sp-input" type="number"
+                                    name="max_per_stream" min="1" placeholder="Max">
+                            </div>
                         </div>
-                        <div class="field">
-                            <label class="checkbox has-text-light">
-                                <input type="checkbox" name="is_user_input_required">
-                                <?php echo t('channel_rewards_req_user_input'); ?>
+                        <div class="sp-form-group">
+                            <label style="cursor:pointer; color:var(--text-secondary);">
+                                <input type="checkbox" name="is_max_per_user_per_stream_enabled"
+                                    id="toggle-max-user">
+                                <?php echo t('channel_rewards_max_per_user'); ?>
                             </label>
+                            <div class="sp-form-group" id="field-max-user" style="display:none; margin-top:0.5rem;">
+                                <input class="sp-input" type="number"
+                                    name="max_per_user_per_stream" min="1" placeholder="Max">
+                            </div>
                         </div>
-                        <hr class="has-background-grey-dark">
-                        <h4 class="title is-6 has-text-light mb-3">Images</h4>
-                        <div class="notification is-warning is-light">
-                            <span class="icon"><i class="fas fa-info-circle"></i></span>
-                            <strong>Note:</strong> Twitch does not allow uploading images during reward creation via
-                            API.
-                            Please create the reward first, then go to your <a
-                                href="https://dashboard.twitch.tv/viewer-rewards/channel-points/rewards"
-                                target="_blank">Twitch Dashboard</a> to upload custom icons.
+                        <div class="sp-form-group">
+                            <label style="cursor:pointer; color:var(--text-secondary);">
+                                <input type="checkbox" name="is_global_cooldown_enabled" id="toggle-cooldown">
+                                <?php echo t('channel_rewards_cooldown'); ?>
+                            </label>
+                            <div class="sp-form-group" id="field-cooldown" style="display:none; margin-top:0.5rem;">
+                                <input class="sp-input" type="number"
+                                    name="global_cooldown_seconds" min="1" placeholder="Seconds">
+                            </div>
                         </div>
-                        <div class="field is-grouped is-grouped-right mt-5">
-                            <p class="control">
-                                <button class="button is-primary" id="create_reward_submit" <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_create_disabled') . '"' : ''; ?>>
-                                    <?php echo t('channel_rewards_create_btn'); ?>
-                                </button>
-                            </p>
-                        </div>
-                    </form>
+                    </div>
+                    <div style="margin-bottom:0.75rem;">
+                        <label style="cursor:pointer; color:var(--text-secondary);">
+                            <input type="checkbox" name="should_redemptions_skip_request_queue">
+                            <?php echo t('channel_rewards_skip_queue'); ?>
+                        </label>
+                    </div>
+                    <div style="margin-bottom:0.75rem;">
+                        <label style="cursor:pointer; color:var(--text-secondary);">
+                            <input type="checkbox" name="is_user_input_required">
+                            <?php echo t('channel_rewards_req_user_input'); ?>
+                        </label>
+                    </div>
+                    <hr style="border-color:var(--border); margin:1rem 0;">
+                    <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">Images</h4>
+                    <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
+                        <span class="icon"><i class="fas fa-info-circle"></i></span>
+                        <strong>Note:</strong> Twitch does not allow uploading images during reward creation via
+                        API.
+                        Please create the reward first, then go to your <a
+                            href="https://dashboard.twitch.tv/viewer-rewards/channel-points/rewards"
+                            target="_blank">Twitch Dashboard</a> to upload custom icons.
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
+                        <button class="sp-btn sp-btn-primary" id="create_reward_submit" <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_create_disabled') . '"' : ''; ?>>
+                            <?php echo t('channel_rewards_create_btn'); ?>
+                        </button>
+                    </div>
+                </form>
                 </div>
             </div>
         </div>
     </div>
-</div>
-</div>
 </div>
 <?php
 // Prepare reward IDs for JS
@@ -863,37 +823,37 @@ if (!empty($channelPointRewards)) {
             allRedemptions = allRedemptions.slice(0, 50);
             renderRedemptions(allRedemptions);
         } catch (error) {
-            document.getElementById('redemptions-table-body').innerHTML = '<tr><td colspan="6" class="has-text-centered has-text-danger">Failed to load redemptions.</td></tr>';
+            document.getElementById('redemptions-table-body').innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--red);">Failed to load redemptions.</td></tr>';
         }
     }
     function renderRedemptions(redemptions) {
         const tbody = document.getElementById('redemptions-table-body');
         tbody.innerHTML = '';
         if (redemptions.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="has-text-centered"><?php echo t('channel_rewards_no_redemptions'); ?></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;"><?php echo t('channel_rewards_no_redemptions'); ?></td></tr>`;
             return;
         }
         redemptions.forEach(r => {
             const rewardName = r.reward.title || rewardMap[r.reward.id] || r.reward.id;
-            const input = r.user_input || '<span class="has-text-grey-light is-italic">No input</span>';
+            const input = r.user_input || '<span style="color:var(--text-muted); font-style:italic;">No input</span>';
             const cost = r.reward.cost;
-            let statusColor = 'is-warning';
+            let statusColor = 'sp-badge sp-badge-amber';
             let actions = '';
             if (r.status === 'FULFILLED') {
-                statusColor = 'is-success';
-                actions = '<span class="icon has-text-success"><i class="fas fa-check"></i></span>';
+                statusColor = 'sp-badge sp-badge-green';
+                actions = '<span style="color:var(--green);"><i class="fas fa-check"></i></span>';
             } else if (r.status === 'CANCELED') {
-                statusColor = 'is-danger';
-                actions = '<span class="icon has-text-danger"><i class="fas fa-times"></i></span>';
+                statusColor = 'sp-badge sp-badge-red';
+                actions = '<span style="color:var(--red);"><i class="fas fa-times"></i></span>';
             } else {
                 // UNFULFILLED
                 actions = `
-                    <div class="buttons are-small is-centered">
-                        <button class="button is-success" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'FULFILLED', this)" title="Approve Redemption">
-                            <span class="icon is-small"><i class="fas fa-check"></i></span>
+                    <div style="display:flex; gap:0.25rem; justify-content:center;">
+                        <button class="sp-btn sp-btn-success sp-btn-sm" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'FULFILLED', this)" title="Approve Redemption">
+                            <i class="fas fa-check"></i>
                         </button>
-                        <button class="button is-danger" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'CANCELED', this)" title="Reject (Refund)">
-                            <span class="icon is-small"><i class="fas fa-times"></i></span>
+                        <button class="sp-btn sp-btn-danger sp-btn-sm" onclick="updateRedemptionStatus('${r.id}', '${r.reward.id}', 'CANCELED', this)" title="Reject (Refund)">
+                            <i class="fas fa-times"></i>
                         </button>
                     </div>
                 `;
@@ -904,29 +864,26 @@ if (!empty($channelPointRewards)) {
         <td>${escapeHtml(r.user_name)}</td>
         <td>${escapeHtml(rewardName)}</td>
         <td>${r.user_input ? escapeHtml(r.user_input) : input}</td>
-        <td class="has-text-centered">${cost}</td>
-        <td class="has-text-centered"><span class="tag ${statusColor}">${escapeHtml(r.status)}</span></td>
-        <td class="has-text-centered">${actions}</td>
-        <td class="has-text-centered">${date}</td>
+        <td style="text-align:center;">${cost}</td>
+        <td style="text-align:center;"><span class="${statusColor}">${escapeHtml(r.status)}</span></td>
+        <td style="text-align:center;">${actions}</td>
+        <td style="text-align:center;">${date}</td>
     </tr>
 `;
             tbody.innerHTML += row;
         });
     }
-
     function updateRedemptionStatus(redemptionId, rewardId, status, btn) {
         // Disable buttons in the group
-        const parentDiv = btn.closest('.buttons');
+        const parentDiv = btn.closest('div');
         const buttons = parentDiv.querySelectorAll('button');
         buttons.forEach(b => b.disabled = true);
         const originalContent = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
         const formData = new FormData();
         formData.append('redemption_id', redemptionId);
         formData.append('reward_id', rewardId);
         formData.append('status', status);
-
         fetch('manage_redemption.php', {
             method: 'POST',
             body: formData
@@ -937,17 +894,17 @@ if (!empty($channelPointRewards)) {
                     // Determine new visual state
                     let newHtml = '';
                     if (status === 'FULFILLED') {
-                        newHtml = '<span class="icon has-text-success"><i class="fas fa-check"></i></span>';
+                        newHtml = '<span style="color:var(--green);"><i class="fas fa-check"></i></span>';
                         // Update tag status locally for instant feedback
                         const row = btn.closest('tr');
-                        const statusTag = row.querySelector('.tag');
-                        statusTag.className = 'tag is-success';
+                        const statusTag = row.querySelector('.sp-badge');
+                        statusTag.className = 'sp-badge sp-badge-green';
                         statusTag.textContent = 'FULFILLED';
                     } else {
-                        newHtml = '<span class="icon has-text-danger"><i class="fas fa-times"></i></span>';
+                        newHtml = '<span style="color:var(--red);"><i class="fas fa-times"></i></span>';
                         const row = btn.closest('tr');
-                        const statusTag = row.querySelector('.tag');
-                        statusTag.className = 'tag is-danger';
+                        const statusTag = row.querySelector('.sp-badge');
+                        statusTag.className = 'sp-badge sp-badge-red';
                         statusTag.textContent = 'CANCELED';
                     }
                     // Replace the button group with the icon
@@ -1006,7 +963,6 @@ if (!empty($channelPointRewards)) {
             updateCharCount(rewardid);
         });
     });
-
     function updateCustomMessage(rewardid, newCustomMessage, button, originalIcon) {
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "", true);
@@ -1114,8 +1070,8 @@ if (!empty($channelPointRewards)) {
     }
     function setSyncResultVariant(variant) {
         if (!syncResultContainer) return;
-        syncResultContainer.classList.remove('is-info', 'is-success', 'is-danger');
-        syncResultContainer.classList.add('is-' + variant);
+        syncResultContainer.classList.remove('sp-alert-info', 'sp-alert-success', 'sp-alert-danger');
+        syncResultContainer.classList.add('sp-alert-' + (variant === 'info' ? 'info' : variant === 'success' ? 'success' : 'danger'));
     }
     function showSyncResult() {
         if (!syncResultContainer) return;
@@ -1378,7 +1334,7 @@ if (!empty($channelPointRewards)) {
     // Tabs Logic and Form Handling
     document.addEventListener('DOMContentLoaded', () => {
         // Tab Switching
-        const tabs = document.querySelectorAll('.tabs li');
+        const tabs = document.querySelectorAll('.sp-tabs-nav li');
         const contents = document.querySelectorAll('.tab-content');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -1392,8 +1348,6 @@ if (!empty($channelPointRewards)) {
                 if (targetContent) {
                     targetContent.style.display = 'block';
                 }
-                // If switching to redemptions, maybe we want to refresh?
-                // fetchAllRedemptions() is triggered on load, so it's fine.
             });
         });
         const form = document.getElementById('create-reward-form');
@@ -1437,7 +1391,8 @@ if (!empty($channelPointRewards)) {
                     return;
                 }
                 submitBtn.disabled = true;
-                submitBtn.classList.add('is-loading');
+                submitBtn.style.opacity = '0.7';
+                submitBtn.textContent = 'Creating...';
                 const formData = new FormData(form);
                 fetch('create_reward.php', {
                     method: 'POST',
@@ -1446,7 +1401,8 @@ if (!empty($channelPointRewards)) {
                     .then(res => res.json())
                     .then(data => {
                         submitBtn.disabled = false;
-                        submitBtn.classList.remove('is-loading');
+                        submitBtn.style.opacity = '';
+                        submitBtn.textContent = <?php echo json_encode(t('channel_rewards_create_btn')); ?>;
                         if (data.success) {
                             Swal.fire({
                                 title: 'Success!',
@@ -1470,7 +1426,8 @@ if (!empty($channelPointRewards)) {
                     .catch(err => {
                         console.error(err);
                         submitBtn.disabled = false;
-                        submitBtn.classList.remove('is-loading');
+                        submitBtn.style.opacity = '';
+                        submitBtn.textContent = <?php echo json_encode(t('channel_rewards_create_btn')); ?>;
                         Swal.fire({
                             title: 'Error!',
                             text: 'A network error occurred.',
