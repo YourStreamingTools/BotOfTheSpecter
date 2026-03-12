@@ -63,68 +63,54 @@ $showSearch = count($modChannels) > 9;
 // Start building the HTML content
 ob_start();
 ?>
-<div class="container">
-    <h1 class="title is-2">Mod Channels</h1>
-    <p class="subtitle">Channels you can moderate for</p>
-    <?php if (isset($_GET['act_as']) && $_GET['act_as'] === 'stopped'): ?>
-        <div class="notification is-info is-light">
-            Moderator Act As mode has been stopped.
-        </div>
-    <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'denied'): ?>
-        <div class="notification is-danger is-light">
-            You do not have permission to Act As that channel.
-        </div>
-    <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'not_found'): ?>
-        <div class="notification is-warning is-light">
-            The selected channel could not be found.
-        </div>
-    <?php endif; ?>
-    <?php if ($showSearch): ?>
-        <div class="field">
-            <label class="label">Search channels</label>
-            <div class="control">
-                <input id="mod-channel-search" class="input" type="text" placeholder="Type streamer name or username" autocomplete="off">
-            </div>
-        </div>
-    <?php endif; ?>
-    <?php if (empty($modChannels)): ?>
-        <div class="notification is-info">
-            <p><i class="fas fa-info-circle"></i> No channels to mod, if you believe this is incorrect please ask your broadcaster to add you to the allow list.</p>
-        </div>
-    <?php else: ?>
-        <div class="mod-channels-grid">
-            <div class="columns is-multiline">
-            <?php foreach ($modChannels as $channel): ?>
-                <div class="column is-one-third-desktop is-half-tablet is-full-mobile mod-channel-card" data-search="<?php echo htmlspecialchars(strtolower($channel['twitch_display_name'] . ' ' . $channel['username']), ENT_QUOTES); ?>">
-                    <div class="card">
-                        <div class="card-content">
-                            <div class="media">
-                                <div class="media-left">
-                                    <figure class="image is-64x64">
-                                        <img src="<?php echo htmlspecialchars($channel['profile_image']); ?>" alt="<?php echo htmlspecialchars($channel['twitch_display_name']); ?>" style="border-radius: 50%;">
-                                    </figure>
-                                </div>
-                                <div class="media-content">
-                                    <p class="title is-4"><?php echo htmlspecialchars($channel['twitch_display_name']); ?></p>
-                                    <p class="subtitle is-6 has-text-grey">@<?php echo htmlspecialchars($channel['username']); ?></p>
-                                </div>
-                            </div>
-                            <div class="content">
-                                <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="button is-primary is-fullwidth">
-                                    <span class="icon">
-                                        <i class="fas fa-user-secret"></i>
-                                    </span>
-                                    <span>Act As This Channel</span>
-                                </a>
-                            </div>
+<div style="margin-bottom:1.5rem;">
+    <h1 style="font-size:1.9rem; font-weight:800; color:var(--text-primary); margin:0 0 0.25rem;">Mod Channels</h1>
+    <p style="color:var(--text-secondary); margin:0;">Channels you can moderate for</p>
+</div>
+<?php if (isset($_GET['act_as']) && $_GET['act_as'] === 'stopped'): ?>
+    <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+        Moderator Act As mode has been stopped.
+    </div>
+<?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'denied'): ?>
+    <div class="sp-alert sp-alert-danger" style="margin-bottom:1rem;">
+        You do not have permission to Act As that channel.
+    </div>
+<?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'not_found'): ?>
+    <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
+        The selected channel could not be found.
+    </div>
+<?php endif; ?>
+<?php if ($showSearch): ?>
+    <div class="sp-form-group">
+        <label class="sp-label" for="mod-channel-search">Search channels</label>
+        <input id="mod-channel-search" class="sp-input" type="text" placeholder="Type streamer name or username" autocomplete="off">
+    </div>
+<?php endif; ?>
+<?php if (empty($modChannels)): ?>
+    <div class="sp-alert sp-alert-info">
+        <i class="fas fa-info-circle"></i> No channels to mod, if you believe this is incorrect please ask your broadcaster to add you to the allow list.
+    </div>
+<?php else: ?>
+    <div class="mod-channels-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">
+        <?php foreach ($modChannels as $channel): ?>
+            <div class="sp-card mod-channel-card" data-search="<?php echo htmlspecialchars(strtolower($channel['twitch_display_name'] . ' ' . $channel['username']), ENT_QUOTES); ?>">
+                <div class="sp-card-body">
+                    <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+                        <img src="<?php echo htmlspecialchars($channel['profile_image']); ?>" alt="<?php echo htmlspecialchars($channel['twitch_display_name']); ?>" style="width:64px; height:64px; border-radius:50%; flex-shrink:0; object-fit:cover;">
+                        <div style="min-width:0;">
+                            <p style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin:0 0 0.15rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><?php echo htmlspecialchars($channel['twitch_display_name']); ?></p>
+                            <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">@<?php echo htmlspecialchars($channel['username']); ?></p>
                         </div>
                     </div>
+                    <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="sp-btn sp-btn-primary" style="width:100%; justify-content:center;">
+                        <i class="fas fa-user-secret"></i>
+                        <span>Act As This Channel</span>
+                    </a>
                 </div>
-            <?php endforeach; ?>
             </div>
-        </div>
-    <?php endif; ?>
-</div>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
 <?php
 $content = ob_get_clean();
 
