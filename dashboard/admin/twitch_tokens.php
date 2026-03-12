@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -785,63 +785,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_custom'])) {
 
 ob_start();
 ?>
-<div class="box">
-    <h1 class="title is-4"><span class="icon"><i class="fab fa-twitch"></i></span> Twitch App Access Tokens</h1>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h1 style="font-size:1.25rem;font-weight:700;margin-bottom:0.75rem;"><span class="icon"><i class="fab fa-twitch"></i></span> Twitch App Access Tokens</h1>
     <p class="mb-4">Generate App Access Tokens for Twitch API usage, such as for chatbot badge display.</p>
-    <div class="field">
-        <div class="control">
-            <button class="button is-info is-light" id="learn-more-btn">
-                <span class="icon"><i class="fas fa-info-circle"></i></span>
-                <span>What is an App Access Token?</span>
+    <div style="margin-bottom:1rem;">
+        <button class="sp-btn sp-btn-info" id="learn-more-btn">
+            <span class="icon"><i class="fas fa-info-circle"></i></span>
+            <span>What is an App Access Token?</span>
+        </button>
+    </div>
+    <div class="sp-card">
+        <div class="sp-card-body">
+        <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Enter Twitch Application Credentials</h3>
+        <p class="mb-4">Fields are pre-populated with your configured credentials. You can modify them if needed.</p>
+        <div class="sp-form-group">
+            <label class="sp-label">Client ID</label>
+            <input class="sp-input" type="text" id="client-id" placeholder="Enter your Twitch Client ID" value="<?php echo htmlspecialchars($clientID ?? ''); ?>" required>
+            <small class="sp-text-muted">Found in your Twitch Developer Console application settings</small>
+        </div>
+        <div class="sp-form-group">
+            <label class="sp-label">Client Secret</label>
+            <input class="sp-input" type="password" id="client-secret" placeholder="Enter your Twitch Client Secret" value="<?php echo htmlspecialchars($clientSecret ?? ''); ?>" required>
+            <small class="sp-text-muted">Keep this secret! Found in your Twitch Developer Console application settings</small>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <button class="sp-btn sp-btn-primary" id="generate-token-btn">
+                <span class="icon"><i class="fas fa-key"></i></span>
+                <span>Generate App Access Token</span>
             </button>
         </div>
-    </div>
-    <div class="box">
-        <h3 class="title is-5">Enter Twitch Application Credentials</h3>
-        <p class="mb-4">Fields are pre-populated with your configured credentials. You can modify them if needed.</p>
-        <div class="field">
-            <label class="label">Client ID</label>
-            <div class="control">
-                <input class="input" type="text" id="client-id" placeholder="Enter your Twitch Client ID" value="<?php echo htmlspecialchars($clientID ?? ''); ?>" required>
-            </div>
-            <p class="help">Found in your Twitch Developer Console application settings</p>
-        </div>
-        <div class="field">
-            <label class="label">Client Secret</label>
-            <div class="control">
-                <input class="input" type="password" id="client-secret" placeholder="Enter your Twitch Client Secret" value="<?php echo htmlspecialchars($clientSecret ?? ''); ?>" required>
-            </div>
-            <p class="help">Keep this secret! Found in your Twitch Developer Console application settings</p>
-        </div>
-        <div class="field">
-            <div class="control">
-                <button class="button is-primary" id="generate-token-btn">
-                    <span class="icon"><i class="fas fa-key"></i></span>
-                    <span>Generate App Access Token</span>
-                </button>
-            </div>
-        </div>
-        <div class="notification is-info is-light">
-            <h4 class="title is-6">ℹ️ Redirect URI Setup</h4>
+        <div class="sp-alert sp-alert-info">
+            <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;">&#x2139;&#xFE0F; Redirect URI Setup</h4>
             <p><strong>Current Status:</strong> Your system has redirect URIs configured for user authentication flows.</p>
             <p><strong>For App Access Tokens:</strong> No additional redirect setup needed - you're good to go!</p>
             <p><strong>For User Authentication:</strong> Make sure these URIs are added to your Twitch Developer Console application settings.</p>
         </div>
+        </div>
     </div>
-    <div id="token-result" class="notification is-hidden">
+    <div id="token-result" class="sp-alert" style="display:none;margin-top:1rem;">
         <div id="token-content"></div>
+    </div>
     </div>
 </div>
 <!-- Modal for App Access Token Information -->
-<div class="modal" id="info-modal">
-    <div class="modal-background"></div>
-    <div class="modal-card">
-        <header class="modal-card-head">
-            <p class="modal-card-title">What is an App Access Token?</p>
-            <button class="delete" aria-label="close" id="close-modal"></button>
-        </header>
-        <section class="modal-card-body">
-            <div class="content">
+<div class="sp-modal-backdrop" id="info-modal" style="display:none;">
+    <div class="sp-modal">
+        <div class="sp-modal-head">
+            <span class="sp-modal-title">What is an App Access Token?</span>
+            <button class="sp-modal-close" aria-label="close" id="close-modal">&#x2715;</button>
+        </div>
+        <div class="sp-modal-body">
                 <h2>How to Get a Twitch App Access Token</h2>
                 <p>To obtain an App Access Token, you need:</p>
                 <ol>
@@ -866,61 +860,59 @@ ob_start();
                     <li>Have the <code>channel:bot</code> scope authorized by the broadcaster or moderator status</li>
                     <li>The chatbot's user account is not the channel's broadcaster</li>
                 </ul>
-            </div>
-        </section>
-        <footer class="modal-card-foot">
-            <button class="button is-success" id="close-modal-footer">Got it!</button>
-        </footer>
+        </div>
+        <div style="padding:1rem;display:flex;justify-content:flex-end;border-top:1px solid var(--border);">
+            <button class="sp-btn sp-btn-success" id="close-modal-footer">Got it!</button>
+        </div>
     </div>
 </div>
-<div class="box">
-    <h3 class="title is-5">Validate Access Token</h3>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Validate Access Token</h3>
     <p class="mb-4">Enter an access token to validate its status and details.</p>
-    <div class="field">
-        <label class="label">Access Token</label>
-        <div class="control">
-            <input class="input" type="password" id="validate-token" placeholder="Enter access token to validate" required>
-        </div>
-        <p class="help">The token will be validated against Twitch's API</p>
+    <div class="sp-form-group">
+        <label class="sp-label">Access Token</label>
+        <input class="sp-input" type="password" id="validate-token" placeholder="Enter access token to validate" required>
+        <small class="sp-text-muted">The token will be validated against Twitch's API</small>
     </div>
-    <div class="field">
-        <div class="control">
-            <button class="button is-info" id="validate-token-btn">
-                <span class="icon"><i class="fas fa-check"></i></span>
-                <span>Validate Token</span>
-            </button>
-        </div>
+    <div style="margin-bottom:1rem;">
+        <button class="sp-btn sp-btn-info" id="validate-token-btn">
+            <span class="icon"><i class="fas fa-check"></i></span>
+            <span>Validate Token</span>
+        </button>
+    </div>
     </div>
 </div>
-<div id="validation-result" class="notification is-hidden">
+<div id="validation-result" class="sp-alert" style="display:none;margin-top:0.5rem;">
     <div id="validation-content"></div>
 </div>
-<div class="box">
-    <h3 class="title is-5">Twitch Chat Token</h3>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Twitch Chat Token</h3>
     <p class="mb-4">Status of the configured Twitch Chat OAuth token.</p>
     <p><strong>Status:</strong> <span id="chat-status">Checking...</span></p>
     <p><strong>Expires In:</strong> <span id="chat-expiry">-</span></p>
-    <div class="field">
-        <div class="control">
-            <button class="button is-info" id="validate-chat-btn">
-                <span class="icon"><i class="fas fa-check"></i></span>
-                <span>Validate Chat Token</span>
-            </button>
-            <button class="button is-warning" id="renew-chat-btn" style="margin-left:10px;">
-                <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                <span>Renew Chat Token</span>
-            </button>
-        </div>
+    <div style="margin-bottom:1rem;">
+        <button class="sp-btn sp-btn-info" id="validate-chat-btn">
+            <span class="icon"><i class="fas fa-check"></i></span>
+            <span>Validate Chat Token</span>
+        </button>
+        <button class="sp-btn sp-btn-warning" id="renew-chat-btn" style="margin-left:10px;">
+            <span class="icon"><i class="fas fa-sync-alt"></i></span>
+            <span>Renew Chat Token</span>
+        </button>
+    </div>
     </div>
 </div>
-<div id="chat-token-result" class="notification is-hidden" style="margin-top:10px;">
+<div id="chat-token-result" class="sp-alert" style="display:none;margin-top:0.5rem;">
     <div id="chat-token-content"></div>
 </div>
-<div class="box">
-    <h3 class="title is-5">View Existing User Tokens</h3>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">View Existing User Tokens</h3>
     <p class="mb-4">List of all stored Twitch User Tokens with their associated users. These are OAuth tokens with the scopes required for the system to operate (chat, moderation, channel management, analytics, etc.). When renewed, they use the refresh token to maintain authorization with the same scopes.</p>
-    <div class="notification is-info is-light">
-        <p><strong>ℹ️ User Token Information:</strong></p>
+    <div class="sp-alert sp-alert-info">
+        <p><strong>&#x2139;&#xFE0F; User Token Information:</strong></p>
         <ul>
             <li>These are authenticated user tokens, not app-level tokens</li>
             <li>They maintain all required scopes for bot and dashboard functionality</li>
@@ -928,28 +920,27 @@ ob_start();
             <li>If a token shows as "Invalid" repeatedly, the user may need to re-authenticate</li>
         </ul>
     </div>
-    <div class="field">
-        <div class="control">
-            <button class="button is-info" id="validate-all-btn">
-                <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>Validate All Tokens</span>
-            </button>
-            <button class="button is-danger is-disabled" id="renew-invalid-btn" disabled style="margin-left: 10px;">
-                <span class="icon"><i class="fas fa-refresh"></i></span>
-                <span>Renew Invalid Tokens</span>
-            </button>
-        </div>
+    <div style="margin-bottom:1rem;">
+        <button class="sp-btn sp-btn-info" id="validate-all-btn">
+            <span class="icon"><i class="fas fa-check-circle"></i></span>
+            <span>Validate All Tokens</span>
+        </button>
+        <button class="sp-btn sp-btn-danger" id="renew-invalid-btn" disabled style="margin-left: 10px;">
+            <span class="icon"><i class="fas fa-refresh"></i></span>
+            <span>Renew Invalid Tokens</span>
+        </button>
     </div>
-    <table class="table is-fullwidth">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Status</th>
-                <th>Expires In</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="tokens-table-body">
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Expires In</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tokens-table-body">
             <?php
             $sql = "SELECT u.twitch_user_id, tba.twitch_access_token, u.username 
                     FROM users u 
@@ -967,7 +958,7 @@ ob_start();
                     echo "<td>$username</td>";
                     echo "<td id='status-$tokenId'>Not Validated</td>";
                     echo "<td id='expiry-$tokenId'>-</td>";
-                    echo "<td><button class='button is-small is-info' onclick='validateToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewToken(\"$userId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateToken(null, \"$tokenId\")'>Validate</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewToken(\"$userId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
             } else {
@@ -976,21 +967,25 @@ ob_start();
             ?>
         </tbody>
     </table>
+    </div>
+    </div>
 </div>
-<div class="box">
-    <h3 class="title is-5">Custom Bot Tokens</h3>
+<div class="sp-card">
+    <div class="sp-card-body">
+    <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Custom Bot Tokens</h3>
     <p class="mb-4">List of stored custom bot tokens with their associated bot accounts.</p>
-    <table class="table is-fullwidth">
-        <thead>
-            <tr>
-                <th>Bot Username</th>
-                <th>Bot Channel ID</th>
-                <th>Status</th>
-                <th>Expires At</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="custom-tokens-table-body">
+    <div class="sp-table-wrap">
+        <table class="sp-table">
+            <thead>
+                <tr>
+                    <th>Bot Username</th>
+                    <th>Bot Channel ID</th>
+                    <th>Status</th>
+                    <th>Expires At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="custom-tokens-table-body">
             <?php
             $displayedBotIds = [];
             $displayedBotUsernames = [];
@@ -1015,7 +1010,7 @@ ob_start();
                     echo "<td>$botChannelId</td>";
                     echo "<td id='status-custom-$tokenId'>Not Validated</td>";
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
-                    echo "<td><button class='button is-small is-info' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$botChannelId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
             }
@@ -1053,9 +1048,9 @@ ob_start();
                     echo "<tr id='custom-row-$tokenId' data-token='" . htmlspecialchars($accessToken) . "' data-bot-channel-id='" . htmlspecialchars($mbChannelId) . "' data-bot-username='" . htmlspecialchars($mbUsername) . "'>";
                     echo "<td>$mbUsername <small style='color:#666'> (module)</small></td>";
                     echo "<td>$mbChannelId</td>";
-                    echo "<td id='status-custom-$tokenId'>Not Validated" . ($isVerified ? " (<span class='has-text-success'>Verified</span>)" : "") . "</td>";
+                    echo "<td id='status-custom-$tokenId'>Not Validated" . ($isVerified ? " (<span class='sp-text-success'>Verified</span>)" : "") . "</td>";
                     echo "<td id='expiry-custom-$tokenId'>" . htmlspecialchars($expiresAt) . "</td>";
-                    echo "<td><button class='button is-small is-info' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='button is-small is-warning' onclick='renewCustomToken(\"$mbChannelId\", \"$tokenId\")'>Renew</button></td>";
+                    echo "<td><button class='sp-btn sp-btn-info sp-btn-sm' onclick='validateCustomToken(null, \"$tokenId\")'>Validate</button> <button class='sp-btn sp-btn-warning sp-btn-sm' onclick='renewCustomToken(\"$mbChannelId\", \"$tokenId\")'>Renew</button></td>";
                     echo "</tr>";
                 }
             }
@@ -1066,6 +1061,8 @@ ob_start();
             ?>
         </tbody>
     </table>
+    </div>
+    </div>
 </div>
 <?php
 $content = ob_get_clean();
@@ -1116,10 +1113,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const expiryCell = document.getElementById(`expiry-${tokenId}`);
                 if (cached.is_valid) {
                     statusCell.textContent = 'Valid';
-                    statusCell.className = 'has-text-success';
+                    statusCell.className = 'sp-text-success';
                 } else {
                     statusCell.textContent = 'Invalid';
-                    statusCell.className = 'has-text-danger';
+                    statusCell.className = 'sp-text-danger';
                 }
                 if (cached.expires_in && cached.timestamp) {
                     // Recalculate remaining time based on cache timestamp + original expires_in
@@ -1131,7 +1128,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         expiryCell.textContent = formatTimeRemaining(remaining);
                     } else {
                         expiryCell.textContent = 'Expired';
-                        expiryCell.className = 'has-text-danger';
+                        expiryCell.className = 'sp-text-danger';
                     }
                 }
             }
@@ -1146,10 +1143,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
                 if (cached.is_valid) {
                     statusCell.textContent = 'Valid';
-                    statusCell.className = 'has-text-success';
+                    statusCell.className = 'sp-text-success';
                 } else {
                     statusCell.textContent = 'Invalid';
-                    statusCell.className = 'has-text-danger';
+                    statusCell.className = 'sp-text-danger';
                 }
                 if (cached.expires_in && cached.timestamp) {
                     // Recalculate remaining time based on cache timestamp + original expires_in
@@ -1161,7 +1158,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         expiryCell.textContent = formatTimeRemaining(remaining);
                     } else {
                         expiryCell.textContent = 'Expired';
-                        expiryCell.className = 'has-text-danger';
+                        expiryCell.className = 'sp-text-danger';
                     }
                 }
             }
@@ -1190,18 +1187,18 @@ document.addEventListener('DOMContentLoaded', function() {
     loadTokenCache();
     // Modal functionality
     learnMoreBtn.addEventListener('click', function() {
-        infoModal.classList.add('is-active');
+        infoModal.style.display = 'flex';
     });
     closeModal.addEventListener('click', function() {
-        infoModal.classList.remove('is-active');
+        infoModal.style.display = 'none';
     });
     closeModalFooter.addEventListener('click', function() {
-        infoModal.classList.remove('is-active');
+        infoModal.style.display = 'none';
     });
     // Close modal when clicking background
     infoModal.addEventListener('click', function(event) {
         if (event.target === infoModal) {
-            infoModal.classList.remove('is-active');
+            infoModal.style.display = 'none';
         }
     });
     // Validate all tokens
@@ -1209,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const rows = document.querySelectorAll('#tokens-table-body tr[data-user-id]');
         invalidTokens = [];
         renewInvalidBtn.disabled = true;
-        renewInvalidBtn.classList.add('is-disabled');
+        renewInvalidBtn.classList.add('is-disabled-inactive');
         const promises = Array.from(rows).map(row => {
             const tokenId = row.id.replace('row-', '');
             return validateToken(null, tokenId);
@@ -1224,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (invalidTokens.length > 0) {
                 renewInvalidBtn.disabled = false;
-                renewInvalidBtn.classList.remove('is-disabled');
+                renewInvalidBtn.classList.remove('is-disabled-inactive');
             }
         });
     });
@@ -1237,7 +1234,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         invalidTokens = [];
         renewInvalidBtn.disabled = true;
-        renewInvalidBtn.classList.add('is-disabled');
+        renewInvalidBtn.classList.add('is-disabled-inactive');
     });
     // Validate chat token
     validateChatBtn.addEventListener('click', function() {
@@ -1275,7 +1272,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             return;
         }
-        generateBtn.classList.add('is-loading');
+        generateBtn.classList.add('sp-btn-loading');
         generateBtn.disabled = true;
         try {
             const formData = new FormData();
@@ -1289,47 +1286,39 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             if (data.success) {
                 tokenContent.innerHTML = `
-                    <h4 class="title is-5">Token Generated Successfully</h4>
-                    <div class="field">
-                        <label class="label">Access Token</label>
-                        <div class="control">
-                            <input class="input" type="text" value="${data.access_token}" readonly id="token-input">
-                        </div>
-                        <p class="help">Expires in: ${data.expires_in} seconds (${Math.floor(data.expires_in / 3600)} hours)</p>
+                    <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">Token Generated Successfully</h4>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Access Token</label>
+                        <input class="sp-input" type="text" value="${data.access_token}" readonly id="token-input">
+                        <small class="sp-text-muted">Expires in: ${data.expires_in} seconds (${Math.floor(data.expires_in / 3600)} hours)</small>
                     </div>
-                    <div class="field">
-                        <div class="control">
-                            <button class="button is-small" onclick="copyToken()">
-                                <span class="icon"><i class="fas fa-copy"></i></span>
-                                <span>Copy Token</span>
-                            </button>
-                        </div>
+                    <div style="margin-bottom:0.5rem;">
+                        <button class="sp-btn sp-btn-sm" onclick="copyToken()">
+                            <span class="icon"><i class="fas fa-copy"></i></span>
+                            <span>Copy Token</span>
+                        </button>
                     </div>
-                    <div class="field">
-                        <div class="control">
-                            <button class="button is-small is-info" onclick="generateAuthLink()">
-                                <span class="icon"><i class="fas fa-link"></i></span>
-                                <span>Generate Auth Link</span>
-                            </button>
+                    <div style="margin-top:0.5rem;">
+                        <button class="sp-btn sp-btn-info sp-btn-sm" onclick="generateAuthLink()">
+                            <span class="icon"><i class="fas fa-link"></i></span>
+                            <span>Generate Auth Link</span>
+                        </button>
                         </div>
                     </div>
                 `;
-                tokenResult.classList.remove('is-hidden');
-                tokenResult.classList.add('is-success');
-                tokenResult.classList.remove('is-danger');
+                tokenResult.style.display = '';
+                tokenResult.className = 'sp-alert sp-alert-success';
             } else {
-                tokenContent.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
-                tokenResult.classList.remove('is-hidden');
-                tokenResult.classList.remove('is-success');
-                tokenResult.classList.add('is-danger');
+                tokenContent.innerHTML = `<p class="sp-text-danger">${data.error}</p>`;
+                tokenResult.style.display = '';
+                tokenResult.className = 'sp-alert sp-alert-danger';
             }
         } catch (error) {
-            tokenContent.innerHTML = '<p class="has-text-danger">An error occurred while generating the token.</p>';
-            tokenResult.classList.remove('is-hidden');
-            tokenResult.classList.remove('is-success');
-            tokenResult.classList.add('is-danger');
+            tokenContent.innerHTML = '<p class="sp-text-danger">An error occurred while generating the token.</p>';
+            tokenResult.style.display = '';
+            tokenResult.className = 'sp-alert sp-alert-danger';
         }
-        generateBtn.classList.remove('is-loading');
+        generateBtn.classList.remove('sp-btn-loading');
         generateBtn.disabled = false;
     });
     validateBtn.addEventListener('click', async function() {
@@ -1342,7 +1331,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             return;
         }
-        validateBtn.classList.add('is-loading');
+        validateBtn.classList.add('sp-btn-loading');
         validateBtn.disabled = true;
         try {
             const formData = new FormData();
@@ -1378,26 +1367,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 const timeString = timeParts.join(', ') || '0 seconds';
                 const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
                 validationContent.innerHTML = `
-                    <h4 class="title is-5">Token Validated Successfully</h4>
+                    <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.5rem;">Token Validated Successfully</h4>
                     <p><strong>Expires In:</strong> ${timeString}</p>
                     <p><strong>Expiration Date:</strong> ${expiryDate.toLocaleString('en-AU', dateOptions)}</p>
                 `;
-                validationResult.classList.remove('is-hidden');
-                validationResult.classList.add('is-success');
-                validationResult.classList.remove('is-danger');
+                validationResult.style.display = '';
+                validationResult.className = 'sp-alert sp-alert-success';
+                ;
             } else {
-                validationContent.innerHTML = `<p class="has-text-danger">${data.error}</p>`;
-                validationResult.classList.remove('is-hidden');
-                validationResult.classList.remove('is-success');
-                validationResult.classList.add('is-danger');
+                validationContent.innerHTML = `<p class="sp-text-danger">${data.error}</p>`;
+                validationResult.style.display = '';
+                ;
+                validationResult.className = 'sp-alert sp-alert-danger';
             }
         } catch (error) {
-            validationContent.innerHTML = '<p class="has-text-danger">An error occurred while validating the token.</p>';
-            validationResult.classList.remove('is-hidden');
-            validationResult.classList.remove('is-success');
-            validationResult.classList.add('is-danger');
+            validationContent.innerHTML = '<p class="sp-text-danger">An error occurred while validating the token.</p>';
+            validationResult.style.display = '';
+            ;
+            validationResult.className = 'sp-alert sp-alert-danger';
         }
-        validateBtn.classList.remove('is-loading');
+        validateBtn.classList.remove('sp-btn-loading');
         validateBtn.disabled = false;
     });
 });
@@ -1408,7 +1397,7 @@ function validateChatToken(token) {
     const button = document.getElementById('validate-chat-btn');
     statusCell.textContent = 'Validating...';
     button.disabled = true;
-    button.classList.add('is-loading');
+    button.classList.add('sp-btn-loading');
     const formData = new FormData();
     formData.append('validate_token', '1');
     formData.append('access_token', token);
@@ -1424,7 +1413,7 @@ function validateChatToken(token) {
             if (data.auto_renewed && data.renewed_token) {
                 chatToken = data.renewed_token;
                 statusCell.textContent = 'Auto-Renewed';
-                statusCell.className = 'has-text-warning';
+                statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = 'Refreshing...';
                 setTimeout(() => validateChatToken(chatToken), 500);
                 return;
@@ -1452,22 +1441,22 @@ function validateChatToken(token) {
             if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
             const timeString = timeParts.join(', ') || '0 seconds';
             statusCell.textContent = 'Valid';
-            statusCell.className = 'has-text-success';
+            statusCell.className = 'sp-text-success';
             expiryCell.textContent = timeString;
         } else {
             statusCell.textContent = 'Invalid';
-            statusCell.className = 'has-text-danger';
+            statusCell.className = 'sp-text-danger';
             expiryCell.textContent = '-';
         }
     })
     .catch(error => {
         statusCell.textContent = 'Error';
-        statusCell.className = 'has-text-danger';
+        statusCell.className = 'sp-text-danger';
         expiryCell.textContent = '-';
     })
     .finally(() => {
         button.disabled = false;
-        button.classList.remove('is-loading');
+        button.classList.remove('sp-btn-loading');
     });
 }
 
@@ -1479,7 +1468,7 @@ function validateToken(token, tokenId) {
     const button = document.querySelector(`#row-${tokenId} button:first-child`);
     statusCell.textContent = 'Fetching current token...';
     button.disabled = true;
-    button.classList.add('is-loading');
+    button.classList.add('sp-btn-loading');
     // First fetch the current token from database
     const fetchFormData = new FormData();
     fetchFormData.append('fetch_user_token', '1');
@@ -1489,13 +1478,13 @@ function validateToken(token, tokenId) {
         .then(fetchData => {
             if (!fetchData.success) {
                 statusCell.textContent = 'No Token';
-                statusCell.className = 'has-text-warning';
+                statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 if (fetchData.error) {
                     Swal.fire({ title: 'Token Fetch Failed', text: fetchData.error, icon: 'error' });
                 }
                 button.disabled = false;
-                button.classList.remove('is-loading');
+                button.classList.remove('sp-btn-loading');
                 return Promise.reject(new Error(fetchData.error || 'No token'));
             }
             // Now validate the freshly fetched token
@@ -1532,14 +1521,14 @@ function validateToken(token, tokenId) {
             if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
             const timeString = timeParts.join(', ') || '0 seconds';
             statusCell.textContent = 'Valid';
-            statusCell.className = 'has-text-success';
+            statusCell.className = 'sp-text-success';
             expiryCell.textContent = timeString;
             // Save to cache
             saveTokenToCache(tokenId, 'regular', expiresIn, true);
         } else {
             const errMsg = data.error || 'Invalid token';
             statusCell.textContent = 'Invalid';
-            statusCell.className = 'has-text-danger';
+            statusCell.className = 'sp-text-danger';
             expiryCell.textContent = errMsg;
             // Save to cache
             saveTokenToCache(tokenId, 'regular', 0, false);
@@ -1550,14 +1539,14 @@ function validateToken(token, tokenId) {
     .catch(error => {
         const msg = (error && error.message) ? error.message : 'Network error';
         statusCell.textContent = 'Error';
-        statusCell.className = 'has-text-danger';
+        statusCell.className = 'sp-text-danger';
         expiryCell.textContent = msg;
         Swal.fire({ title: 'Validation Error', text: msg, icon: 'error' });
         return { success: false };
     })
     .finally(() => {
         button.disabled = false;
-        button.classList.remove('is-loading');
+        button.classList.remove('sp-btn-loading');
     });
 }
 
@@ -1568,7 +1557,7 @@ function renewToken(userId, tokenId) {
     const buttons = row.querySelectorAll('button');
     buttons.forEach(btn => {
         btn.disabled = true;
-        btn.classList.add('is-loading');
+        btn.classList.add('sp-btn-loading');
     });
     statusCell.textContent = 'Renewing...';
     const formData = new FormData();
@@ -1584,23 +1573,23 @@ function renewToken(userId, tokenId) {
             // Update the row's data-token
             row.setAttribute('data-token', data.new_token);
             statusCell.textContent = 'Renewed';
-            statusCell.className = 'has-text-warning';
+            statusCell.className = 'sp-text-warning';
             expiryCell.textContent = '-';
             // Optionally, auto-validate
             setTimeout(() => validateToken(data.new_token, tokenId), 500);
         } else {
             statusCell.textContent = 'Renew Failed';
-            statusCell.className = 'has-text-danger';
+            statusCell.className = 'sp-text-danger';
         }
     })
     .catch(error => {
         statusCell.textContent = 'Error';
-        statusCell.className = 'has-text-danger';
+        statusCell.className = 'sp-text-danger';
     })
     .finally(() => {
         buttons.forEach(btn => {
             btn.disabled = false;
-            btn.classList.remove('is-loading');
+            btn.classList.remove('sp-btn-loading');
         });
     });
 }
@@ -1610,10 +1599,10 @@ function renewChatToken(clientId, clientSecret) {
     const resultContent = document.getElementById('chat-token-content');
     const validateBtn = document.getElementById('validate-chat-btn');
     const renewBtn = document.getElementById('renew-chat-btn');
-    if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.add('is-loading'); }
+    if (renewBtn) { renewBtn.disabled = true; renewBtn.classList.add('sp-btn-loading'); }
     if (validateBtn) { validateBtn.disabled = true; }
     resultContent.innerHTML = '<p>Generating new chat token...</p>';
-    resultBox.classList.remove('is-hidden');
+    resultBox.style.display = '';
     const formData = new FormData();
     formData.append('renew_chat_token', '1');
     formData.append('client_id', clientId);
@@ -1629,22 +1618,16 @@ function renewChatToken(clientId, clientSecret) {
                 const expiryDate = new Date(Date.now() + expiresIn * 1000).toLocaleString('en-AU', dateOptions);
                 // Show masked input with eye toggle and copy
                 resultContent.innerHTML = `
-                    <div class="notification is-success is-light">
+                    <div class="sp-alert sp-alert-success">
                         <p><strong>✓ New Chat Token Generated Successfully</strong></p>
-                        <p class="mt-3"><strong>Token:</strong></p>
-                        <div class="field has-addons">
-                            <div class="control is-expanded">
-                                <input class="input" type="password" id="chat-token-input" value="${newToken}" readonly>
-                            </div>
-                            <div class="control">
-                                <button class="button" id="toggle-chat-eye" title="Show/Hide Token"><span class="icon"><i class="fas fa-eye"></i></span></button>
-                            </div>
-                            <div class="control">
-                                <button class="button" id="copy-chat-token"><span class="icon"><i class="fas fa-copy"></i></span></button>
-                            </div>
+                        <p style="margin-top:0.75rem;"><strong>Token:</strong></p>
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <input class="sp-input" type="password" id="chat-token-input" value="${newToken}" readonly style="flex:1;">
+                            <button class="sp-btn sp-btn-sm" id="toggle-chat-eye" title="Show/Hide Token"><span class="icon"><i class="fas fa-eye"></i></span></button>
+                            <button class="sp-btn sp-btn-sm" id="copy-chat-token"><span class="icon"><i class="fas fa-copy"></i></span></button>
                         </div>
-                        <p class="help">Token expires at: ${expiryDate}</p>
-                        <p class="help mt-2"><strong>ℹ️ Saved:</strong> This token was stored in the website database.</p>
+                        <small class="sp-text-muted">Token expires at: ${expiryDate}</small><br>
+                        <small class="sp-text-muted"><strong>&#x2139;&#xFE0F; Saved:</strong> This token was stored in the website database.</small>
                     </div>
                 `;
                 // attach handlers
@@ -1657,14 +1640,14 @@ function renewChatToken(clientId, clientSecret) {
                 setTimeout(() => validateChatToken(chatToken), 400);
             } else {
                 const err = data.error || 'Failed to generate new chat token.';
-                resultContent.innerHTML = `<p class="has-text-danger">${err}</p>`;
+                resultContent.innerHTML = `<p class="sp-text-danger">${err}</p>`;
             }
         })
         .catch(() => {
-            resultContent.innerHTML = '<p class="has-text-danger">An error occurred while generating the chat token.</p>';
+            resultContent.innerHTML = '<p class="sp-text-danger">An error occurred while generating the chat token.</p>';
         })
         .finally(() => {
-            if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('is-loading'); }
+            if (renewBtn) { renewBtn.disabled = false; renewBtn.classList.remove('sp-btn-loading'); }
             if (validateBtn) { validateBtn.disabled = false; }
         });
 }
@@ -1677,7 +1660,7 @@ function validateCustomToken(token, tokenId) {
     statusCell.textContent = 'Fetching current token...';
     // Disable the validate button in this row
     const btn = row.querySelector('button');
-    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+    if (btn) { btn.disabled = true; btn.classList.add('sp-btn-loading'); }
     // First fetch the current token from database
     const fetchFormData = new FormData();
     fetchFormData.append('fetch_custom_token', '1');
@@ -1691,12 +1674,12 @@ function validateCustomToken(token, tokenId) {
         .then(fetchData => {
             if (!fetchData.success) {
                 statusCell.textContent = 'No Token';
-                statusCell.className = 'has-text-warning';
+                statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
                 if (fetchData.error) {
                     Swal.fire({ title: 'Token Fetch Failed', text: fetchData.error, icon: 'error' });
                 }
-                if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+                if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
                 return Promise.reject(new Error(fetchData.error || 'No token'));
             }
             // Now validate the freshly fetched token
@@ -1729,14 +1712,14 @@ function validateCustomToken(token, tokenId) {
                 if (seconds > 0) timeParts.push(`${seconds} second${seconds > 1 ? 's' : ''}`);
                 const timeString = timeParts.join(', ') || '0 seconds';
                 statusCell.textContent = 'Valid';
-                statusCell.className = 'has-text-success';
+                statusCell.className = 'sp-text-success';
                 expiryCell.textContent = timeString;
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', expiresIn, true);
             } else {
                 const errMsg = data.error || 'Invalid token';
                 statusCell.textContent = 'Invalid';
-                statusCell.className = 'has-text-danger';
+                statusCell.className = 'sp-text-danger';
                 expiryCell.textContent = errMsg;
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', 0, false);
@@ -1746,19 +1729,19 @@ function validateCustomToken(token, tokenId) {
         .catch((err) => {
             const msg = (err && err.message) ? err.message : 'Network error';
             statusCell.textContent = 'Error';
-            statusCell.className = 'has-text-danger';
+            statusCell.className = 'sp-text-danger';
             expiryCell.textContent = msg;
             Swal.fire({ title: 'Validation Error', text: msg, icon: 'error' });
         })
         .finally(() => {
-            if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+            if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
         });
 }
 
 function renewCustomToken(botChannelId, tokenId) {
     const row = document.getElementById(`custom-row-${tokenId}`);
     const buttons = row.querySelectorAll('button');
-    buttons.forEach(btn => { btn.disabled = true; btn.classList.add('is-loading'); });
+    buttons.forEach(btn => { btn.disabled = true; btn.classList.add('sp-btn-loading'); });
     const statusCell = document.getElementById(`status-custom-${tokenId}`);
     const expiryCell = document.getElementById(`expiry-custom-${tokenId}`);
     statusCell.textContent = 'Renewing...';
@@ -1780,12 +1763,12 @@ function renewCustomToken(botChannelId, tokenId) {
                 row.setAttribute('data-token', newToken);
                 expiryCell.textContent = expiresAt || '-';
                 statusCell.textContent = 'Renewed';
-                statusCell.className = 'has-text-warning';
+                statusCell.className = 'sp-text-warning';
                 // Optionally auto-validate
                 setTimeout(() => validateCustomToken(newToken, tokenId), 500);
             } else {
                 statusCell.textContent = 'Renew Failed';
-                statusCell.className = 'has-text-danger';
+                statusCell.className = 'sp-text-danger';
                 console.error('Renew failed:', data.error);
                 Swal.fire({
                     title: 'Renewal Failed',
@@ -1796,7 +1779,7 @@ function renewCustomToken(botChannelId, tokenId) {
         })
         .catch(err => {
             statusCell.textContent = 'Error';
-            statusCell.className = 'has-text-danger';
+            statusCell.className = 'sp-text-danger';
             console.error('Fetch error:', err);
             Swal.fire({
                 title: 'Error',
@@ -1805,7 +1788,7 @@ function renewCustomToken(botChannelId, tokenId) {
             });
         })
         .finally(() => {
-            buttons.forEach(btn => { btn.disabled = false; btn.classList.remove('is-loading'); });
+            buttons.forEach(btn => { btn.disabled = false; btn.classList.remove('sp-btn-loading'); });
         });
 }
 
