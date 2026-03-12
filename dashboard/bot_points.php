@@ -113,45 +113,43 @@ $connectedDb = $db->query('select database()')->fetch_row()[0];
 // Start output buffering for layout template
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column is-fullwidth">
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-      <header class="card-header" style="border-bottom: 1px solid #23272f;">
-        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-          <span class="icon mr-2"><i class="fas fa-coins"></i></span>
-          <?php echo t('bot_points_title'); ?>
-        </span>
-        <button class="button is-primary ml-auto" id="settingsButton">
-          <span class="icon"><i class="fas fa-cog"></i></span>
-          <span><?php echo t('bot_points_settings_btn'); ?></span>
-        </button>
-      </header>
-      <div class="card-content">
+<div class="sp-card">
+  <div class="sp-card-header">
+    <span class="sp-card-title">
+      <i class="fas fa-coins" style="margin-right:0.5rem;"></i>
+      <?php echo t('bot_points_title'); ?>
+    </span>
+    <button class="sp-btn sp-btn-primary" style="margin-left:auto;" id="settingsButton">
+      <span class="icon"><i class="fas fa-cog"></i></span>
+      <span><?php echo t('bot_points_settings_btn'); ?></span>
+    </button>
+  </div>
+  <div class="sp-card-body">
         <?php if ($status): ?>
-          <div class="notification is-success"><?php echo $status; ?></div>
+          <div class="sp-alert sp-alert-success"><?php echo $status; ?></div>
         <?php endif; ?>
         <p id="updateInfo" class="mb-3"><?php echo t('bot_points_data_last_updated'); ?> <span id="secondsAgo">0</span> <?php echo t('bot_points_seconds_ago'); ?></p>
-        <div class="table-container">
-          <table class="table is-fullwidth has-background-dark" id="pointsTable">
+        <div class="sp-table-wrap">
+          <table class="sp-table" id="pointsTable">
             <thead>
               <tr>
-                <th class="has-text-centered"><?php echo t('bot_points_username'); ?></th>
-                <th class="has-text-centered"><?php echo $pointsName !== 'Points' ? $pointsName . ' ' . t('bot_points_points') : t('bot_points_points'); ?></th>
-                <th class="has-text-centered"><?php echo t('bot_points_actions'); ?></th>
+                <th style="text-align:center;"><?php echo t('bot_points_username'); ?></th>
+                <th style="text-align:center;"><?php echo $pointsName !== 'Points' ? $pointsName . ' ' . t('bot_points_points') : t('bot_points_points'); ?></th>
+                <th style="text-align:center;"><?php echo t('bot_points_actions'); ?></th>
               </tr>
             </thead>
             <tbody id="pointsTableBody">
               <?php foreach ($pointsData as $row): ?>
                 <tr>
-                  <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
-                  <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;"><?php echo htmlspecialchars($row['points']); ?></td>
-                  <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center" style="white-space: nowrap; vertical-align: middle;">
+                  <td style="text-align:center; white-space:nowrap; vertical-align:middle;"><?php echo htmlspecialchars($row['user_name']); ?></td>
+                  <td style="text-align:center; white-space:nowrap; vertical-align:middle;"><?php echo htmlspecialchars($row['points']); ?></td>
+                  <td style="text-align:center; vertical-align:middle;">
                     <form method="POST" action="" style="display:inline;">
                       <input type="hidden" name="user_name" value="<?php echo htmlspecialchars($row['user_name']); ?>">
-                      <div class="field has-addons is-flex is-justify-content-center is-align-items-center">
-                        <div class="control"><input class="input" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width: 100px;"></div>
-                        <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points"><?php echo t('bot_points_update_btn'); ?></button></div>
-                        <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user"><?php echo t('bot_points_remove_btn'); ?></button></div>
+                      <div style="display:flex; gap:0.4rem; justify-content:center; align-items:center;">
+                        <input class="sp-input" type="number" name="points" value="<?php echo htmlspecialchars($row['points']); ?>" required style="width:100px;">
+                        <button class="sp-btn sp-btn-primary" type="submit" name="update_points"><?php echo t('bot_points_update_btn'); ?></button>
+                        <button class="sp-btn sp-btn-danger" type="submit" name="remove_user"><?php echo t('bot_points_remove_btn'); ?></button>
                       </div>
                     </form>
                   </td>
@@ -160,83 +158,58 @@ ob_start();
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
   </div>
 </div>
 <!-- Settings Modal -->
-<div class="modal" id="settingsModal">
-  <div class="modal-background"></div>
-  <div class="modal-card" style="background-color: #23272f; color: #fff;">
-    <header class="modal-card-head" style="background-color: #1a1a1a;">
-      <p class="modal-card-title"><?php echo t('bot_points_settings_title'); ?></p>
-      <button class="delete" aria-label="close" id="closeModal"></button>
-    </header>
-    <section class="modal-card-body">
+<div class="cc-modal-backdrop" id="settingsModal">
+  <div class="cc-modal">
+    <div class="cc-modal-head">
+      <span class="cc-modal-title"><?php echo t('bot_points_settings_title'); ?></span>
+      <button class="cc-modal-close" aria-label="close" id="closeModal">&times;</button>
+    </div>
+    <div class="cc-modal-body">
       <form method="POST" action="">
-        <div class="field">
-          <label class="label"><?php echo t('bot_points_points_name'); ?></label>
-          <div class="control">
-            <input class="input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo t('bot_points_points_name'); ?></label>
+          <input class="sp-input" type="text" name="point_name" value="<?php echo $pointsName; ?>" required>
         </div>
-        <div class="field">
-          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_chat'); ?></label>
-          <div class="control">
-            <input class="input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_chat'); ?></label>
+          <input class="sp-input" type="number" name="point_amount_chat" value="<?php echo htmlspecialchars($settings['point_amount_chat']); ?>" required>
         </div>
-        <div class="field">
-          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_following'); ?></label>
-          <div class="control">
-            <input class="input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_amount_follower']); ?>" required>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_following'); ?></label>
+          <input class="sp-input" type="number" name="point_amount_follower" value="<?php echo htmlspecialchars($settings['point_amount_follower']); ?>" required>
         </div>
-        <div class="field">
-          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_subscribing'); ?></label>
-          <div class="control">
-            <input class="input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_for_subscribing'); ?></label>
+          <input class="sp-input" type="number" name="point_amount_subscriber" value="<?php echo htmlspecialchars($settings['point_amount_subscriber']); ?>" required>
         </div>
-        <div class="field">
-          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_cheer'); ?></label>
-          <div class="control">
-            <input class="input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_cheer'); ?></label>
+          <input class="sp-input" type="number" name="point_amount_cheer" value="<?php echo htmlspecialchars($settings['point_amount_cheer']); ?>" required>
         </div>
-        <div class="field">
-          <label class="label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_raid'); ?></label>
-          <div class="control">
-            <input class="input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo $pointsName; ?> <?php echo t('bot_points_earned_per_raid'); ?></label>
+          <input class="sp-input" type="number" name="point_amount_raid" value="<?php echo htmlspecialchars($settings['point_amount_raid']); ?>" required>
         </div>
-        <div class="field">
-          <label class="label"><?php echo t('bot_points_subscriber_multiplier'); ?></label>
-          <div class="control">
-            <div class="select is-fullwidth">
-              <select name="subscriber_multiplier">
-                <option value="0" <?php echo $settings['subscriber_multiplier'] == 0 ? 'selected' : ''; ?>><?php echo t('bot_points_none'); ?></option>
-                <?php for ($i = 2; $i <= 10; $i++): ?>
-                  <option value="<?php echo $i; ?>" <?php echo $settings['subscriber_multiplier'] == $i ? 'selected' : ''; ?>><?php echo $i; ?>x</option>
-                <?php endfor; ?>
-              </select>
-            </div>
-          </div>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo t('bot_points_subscriber_multiplier'); ?></label>
+          <select class="sp-select" name="subscriber_multiplier">
+            <option value="0" <?php echo $settings['subscriber_multiplier'] == 0 ? 'selected' : ''; ?>><?php echo t('bot_points_none'); ?></option>
+            <?php for ($i = 2; $i <= 10; $i++): ?>
+              <option value="<?php echo $i; ?>" <?php echo $settings['subscriber_multiplier'] == $i ? 'selected' : ''; ?>><?php echo $i; ?>x</option>
+            <?php endfor; ?>
+          </select>
         </div>
-        <div class="field">
-          <label class="label"><?php echo t('bot_points_excluded_users'); ?></label>
-          <div class="control">
-            <input class="input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required>
-          </div>
-          <p class="help"><?php echo t('bot_points_excluded_users_help'); ?></p>
+        <div class="sp-form-group">
+          <label class="sp-label"><?php echo t('bot_points_excluded_users'); ?></label>
+          <input class="sp-input" type="text" name="excluded_users" value="<?php echo $excludedUsers; ?>" required>
+          <small class="sp-help"><?php echo t('bot_points_excluded_users_help'); ?></small>
         </div>
-        <div class="field">
-          <div class="control">
-            <button class="button is-primary" type="submit"><?php echo t('bot_points_update_settings_btn'); ?></button>
-          </div>
-        </div>
+        <button class="sp-btn sp-btn-primary" type="submit"><?php echo t('bot_points_update_settings_btn'); ?></button>
       </form>
-    </section>
+    </div>
   </div>
 </div>
 <?php
@@ -257,15 +230,15 @@ function updatePointsTable() {
       const removeLabel = <?php echo json_encode(t('bot_points_remove_btn')); ?>;
       pointsData.forEach(function(row) {
         tableBody += `<tr>
-          <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">${row.user_name}</td>
-          <td class="has-text-centered" style="white-space: nowrap; vertical-align: middle;">${row.points}</td>
-          <td class="has-text-centered is-centered is-flex is-justify-content-center is-align-items-center" style="white-space: nowrap; vertical-align: middle;">
+          <td style="text-align:center; white-space:nowrap; vertical-align:middle;">${row.user_name}</td>
+          <td style="text-align:center; white-space:nowrap; vertical-align:middle;">${row.points}</td>
+          <td style="text-align:center; vertical-align:middle;">
             <form method="POST" action="" style="display:inline;">
               <input type="hidden" name="user_name" value="${row.user_name}">
-              <div class="field has-addons is-flex is-justify-content-center is-align-items-center">
-                <div class="control"><input class="input" type="number" name="points" value="${row.points}" required style="width: 100px;"></div>
-                <div class="control" style="margin-left: 5px;"><button class="button is-primary" type="submit" name="update_points">${updateLabel}</button></div>
-                <div class="control" style="margin-left: 5px;"><button class="button is-danger" type="submit" name="remove_user">${removeLabel}</button></div>
+              <div style="display:flex; gap:0.4rem; justify-content:center; align-items:center;">
+                <input class="sp-input" type="number" name="points" value="${row.points}" required style="width:100px;">
+                <button class="sp-btn sp-btn-primary" type="submit" name="update_points">${updateLabel}</button>
+                <button class="sp-btn sp-btn-danger" type="submit" name="remove_user">${removeLabel}</button>
               </div>
             </form>
           </td>
@@ -293,8 +266,8 @@ document.getElementById('settingsButton').addEventListener('click', function() {
 document.getElementById('closeModal').addEventListener('click', function() {
   document.getElementById('settingsModal').classList.remove('is-active');
 });
-document.querySelector('.modal-background').addEventListener('click', function() {
-  document.getElementById('settingsModal').classList.remove('is-active');
+document.getElementById('settingsModal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('is-active');
 });
 </script>
 <?php
