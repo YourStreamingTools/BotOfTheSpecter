@@ -1696,7 +1696,119 @@ input[type="checkbox"].switch:disabled + label {
 }
 
 /* ----------------------------------------------------------
-   21. Responsive / Mobile
+   21. Custom Commands page
+   ---------------------------------------------------------- */
+.cc-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    align-items: start;
+}
+
+/* Input with left icon */
+.sp-input-wrap {
+    position: relative;
+}
+.sp-input-wrap .sp-input,
+.sp-input-wrap .sp-select {
+    padding-left: 2.4rem;
+}
+.sp-input-icon {
+    position: absolute;
+    left: 0.8rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+    font-size: 0.85rem;
+    z-index: 1;
+}
+
+.sp-help {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+    display: block;
+}
+.sp-help-danger  { color: var(--red); }
+.sp-help-warning { color: var(--amber); }
+
+.sp-input-error {
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15) !important;
+}
+/* Compat: yourlinks-shortener.js adds is-danger to sp-input elements */
+.sp-input.is-danger { border-color: var(--red); box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15); }
+
+/* YourLinks short-link modal */
+.cc-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.cc-modal-backdrop.is-active { display: flex; }
+
+.cc-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 620px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+.cc-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+}
+.cc-modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.cc-modal-body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    background: var(--bg-card);
+}
+/* Compat: yourlinks-shortener.js injects .notification.is-* for status messages */
+.cc-modal-body .notification { padding: 0.75rem 1rem; border-radius: var(--radius); margin-bottom: 0.5rem; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem; }
+.cc-modal-body .notification.is-success { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+.cc-modal-body .notification.is-danger  { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red); }
+.cc-modal-body .notification.is-warning { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber); }
+.cc-modal-body .notification.is-info    { background: var(--blue-bg);  color: var(--blue);  border: 1px solid var(--blue); }
+.cc-modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-surface);
+}
+
+@media (max-width: 768px) {
+    .cc-form-grid { grid-template-columns: 1fr; }
+}
+
+/* ----------------------------------------------------------
+   22. Responsive / Mobile
    ---------------------------------------------------------- */
 @media (max-width: 900px) {
     .db-two-col { grid-template-columns: 1fr; }
