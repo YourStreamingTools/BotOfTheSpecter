@@ -211,236 +211,168 @@ $visibleIndex = 0;
 
 ob_start();
 ?>
-<div class="has-text-centered mb-6 has-text-white">
-    <h1 class="title is-2 has-text-primary has-text-white">
-        <span class="icon-text" style="display: inline-flex; align-items: center; justify-content: center;">
-            <span class="icon is-large" style="display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-music"></i>
-            </span>
-            <span style="display: flex; align-items: center; margin-left: 0.5em;"><?php echo t('music_dashboard_title'); ?></span>
-        </span>
+<!-- Page Header -->
+<div style="text-align:center;margin-bottom:2rem;">
+    <h1 style="font-size:2rem;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:0.5rem;">
+        <i class="fas fa-music"></i>
+        <?php echo t('music_dashboard_title'); ?>
     </h1>
-    <p class="subtitle is-5 has-text-white"><?php echo t('music_dashboard_subtitle'); ?></p>
+    <p style="color:var(--text-muted);margin-top:0.5rem;"><?php echo t('music_dashboard_subtitle'); ?></p>
 </div>
-<div class="card mb-5 has-background-primary-gradient has-text-white">
-    <div class="card-content has-text-white">
-        <div class="columns is-vcentered is-centered has-text-white">
-            <div class="column is-half has-text-white">
-                <div class="media" style="display: flex; align-items: center; justify-content: center;">
-                    <div class="media-content" style="width: 100%;">
-                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                            <div style="display: flex; align-items: center; justify-content: center;">
-                                <h2 class="title is-6 has-text-white mb-1" style="margin-bottom: 0.25rem; display: flex; align-items: center;"><?php echo t('music_now_playing'); ?></h2>
-                            </div>
-                            <div style="display: flex; align-items: center; justify-content: center; margin-top: 0.5rem; margin-bottom: 0.5rem;">
-                                <p id="now-playing" class="subtitle is-7 has-text-white" style="margin: 0; display: flex; align-items: center;"><?php echo t('music_no_song_playing'); ?></p>
-                                <button id="refresh-now-playing" class="button is-small is-white is-outlined is-rounded" title="<?php echo t('music_refresh_now_playing'); ?>" style="margin-left: 0.75rem; display: flex; align-items: center; justify-content: center;">
-                                    <span class="icon is-small" style="display: flex; align-items: center; justify-content: center;">
-                                        <i class="fas fa-sync-alt"></i>
-                                    </span>
-                                </button>
-                            </div>
-                            <div class="field mt-3" style="display: flex; align-items: center; justify-content: center;">
-                                <div class="control">
-                                    <label class="checkbox has-text-white" style="display: flex; align-items: center;">
-                                        <input type="checkbox" id="local-playback-toggle" class="mr-2" style="margin-right: 0.5em;">
-                                        <span class="is-size-7 has-text-white" style="display: flex; align-items: center;"><?php echo t('music_play_locally'); ?></span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+<!-- Player Card -->
+<div class="sp-card mb-4">
+    <div class="sp-card-body">
+        <div style="display:flex;flex-wrap:wrap;gap:2rem;align-items:center;justify-content:center;">
+            <!-- Now Playing -->
+            <div style="flex:1;min-width:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <h2 style="font-size:0.95rem;font-weight:700;margin-bottom:0.5rem;"><?php echo t('music_now_playing'); ?></h2>
+                <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+                    <p id="now-playing" style="margin:0;"><?php echo t('music_no_song_playing'); ?></p>
+                    <button id="refresh-now-playing" class="sp-btn sp-btn-ghost sp-btn-sm" title="<?php echo t('music_refresh_now_playing'); ?>">
+                        <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                    </button>
                 </div>
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;">
+                    <input type="checkbox" id="local-playback-toggle">
+                    <?php echo t('music_play_locally'); ?>
+                </label>
             </div>
-            <div class="column is-half has-text-white">
-                <div class="columns is-mobile is-multiline is-flex-direction-column is-align-items-center is-justify-content-center" style="align-items: center; justify-content: center;">
-                    <div class="column is-full" style="display: flex; justify-content: center;">
-                        <div class="field is-grouped is-grouped-centered" style="display: flex; align-items: center;">
-                            <div class="control" style="display: flex; align-items: center;">
-                                <button id="prev-btn" class="button is-medium is-white is-outlined is-rounded" style="display: flex; align-items: center; justify-content: center;">
-                                    <span class="icon" style="display: flex; align-items: center; justify-content: center;">
-                                        <i class="fas fa-step-backward"></i>
-                                    </span>
-                                </button>
-                            </div>
-                            <div class="control" style="display: flex; align-items: center;">
-                                <button id="play-pause-btn" class="button is-large is-success is-rounded" style="display: flex; align-items: center; justify-content: center;">
-                                    <span class="icon" style="display: flex; align-items: center; justify-content: center;">
-                                        <i id="play-pause-icon" class="fas fa-play"></i>
-                                    </span>
-                                </button>
-                            </div>
-                            <div class="control" style="display: flex; align-items: center;">
-                                <button id="next-btn" class="button is-medium is-white is-outlined is-rounded" style="display: flex; align-items: center; justify-content: center;">
-                                    <span class="icon" style="display: flex; align-items: center; justify-content: center;">
-                                        <i class="fas fa-step-forward"></i>
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="column is-full" style="display: flex; flex-direction: column; align-items: center;">
-                        <div class="field is-grouped is-grouped-centered mb-3" style="display: flex; align-items: center;">
-                            <div class="control" style="display: flex; align-items: center;">
-                                <button id="repeat-btn"
-                                    class="button is-small is-rounded"
-                                    style="display: flex; align-items: center;"
-                                    type="button">
-                                    <span class="icon is-small" style="display: flex; align-items: center;">
-                                        <i class="fas fa-redo"></i>
-                                    </span>
-                                    <span style="margin-left: 0.25em; display: flex; align-items: center;">Repeat 1</span>
-                                </button>
-                            </div>
-                            <div class="control" style="display: flex; align-items: center;">
-                                <button id="shuffle-btn"
-                                    class="button is-small is-rounded"
-                                    style="display: flex; align-items: center;"
-                                    type="button">
-                                    <span class="icon is-small" style="display: flex; align-items: center;">
-                                        <i class="fas fa-random"></i>
-                                    </span>
-                                    <span style="margin-left: 0.25em; display: flex; align-items: center;"><?php echo t('music_shuffle'); ?></span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="field is-grouped is-grouped-centered is-align-items-center mt-4" style="display: flex; align-items: center; justify-content: center;">
-                            <label class="label is-small has-text-white mr-3 mb-0" style="min-width:60px; display: flex; align-items: center;"><?php echo t('music_volume'); ?></label>
-                            <div class="control is-expanded" style="max-width: 250px; display: flex; align-items: center;">
-                                <input id="volume-range" type="range" min="0" max="100" value="0"
-                                    class="modern-volume"
-                                    style="width: 100%;">
-                            </div>
-                            <div class="control ml-3" style="display: flex; align-items: center;">
-                                <input id="volume-percentage" type="number" min="0" max="100" class="input is-small is-rounded" value="0" style="width: 60px; text-align: center;">
-                            </div>
-                        </div>
-                    </div>
+            <!-- Controls -->
+            <div style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:center;gap:1rem;">
+                <!-- Transport buttons -->
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <button id="prev-btn" class="sp-btn sp-btn-ghost" style="border-radius:50%;width:2.5rem;height:2.5rem;padding:0;display:flex;align-items:center;justify-content:center;">
+                        <span class="icon"><i class="fas fa-step-backward"></i></span>
+                    </button>
+                    <button id="play-pause-btn" class="sp-btn sp-btn-success" style="border-radius:50%;width:3rem;height:3rem;padding:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;">
+                        <span class="icon"><i id="play-pause-icon" class="fas fa-play"></i></span>
+                    </button>
+                    <button id="next-btn" class="sp-btn sp-btn-ghost" style="border-radius:50%;width:2.5rem;height:2.5rem;padding:0;display:flex;align-items:center;justify-content:center;">
+                        <span class="icon"><i class="fas fa-step-forward"></i></span>
+                    </button>
+                </div>
+                <!-- Repeat / Shuffle -->
+                <div style="display:flex;gap:0.5rem;">
+                    <button id="repeat-btn" class="sp-btn sp-btn-ghost sp-btn-sm" type="button" style="border-radius:1rem;">
+                        <span class="icon is-small"><i class="fas fa-redo"></i></span>
+                        <span>Repeat 1</span>
+                    </button>
+                    <button id="shuffle-btn" class="sp-btn sp-btn-ghost sp-btn-sm" type="button" style="border-radius:1rem;">
+                        <span class="icon is-small"><i class="fas fa-random"></i></span>
+                        <span><?php echo t('music_shuffle'); ?></span>
+                    </button>
+                </div>
+                <!-- Volume -->
+                <div style="display:flex;align-items:center;gap:0.75rem;width:100%;max-width:360px;">
+                    <label class="sp-label" style="min-width:60px;margin-bottom:0;"><?php echo t('music_volume'); ?></label>
+                    <input id="volume-range" type="range" min="0" max="100" value="0" class="modern-volume" style="flex:1;">
+                    <input id="volume-percentage" type="number" min="0" max="100" class="sp-input" value="0" style="width:60px;text-align:center;padding:0.25rem 0.4rem;">
                 </div>
             </div>
         </div>
     </div>
 </div>
-<div class="card mb-4 has-text-white">
-    <div class="card-content p-0 has-text-white">
-        <div class="user-uploads mb-0 has-text-white" style="padding: 0.75rem;">
-            <div class="columns is-vcentered is-mobile" style="margin-bottom: 0.5rem;">
-                <div class="column">
-                    <strong>Your uploads</strong>
-                    <div class="is-size-7 has-text-light" style="margin-top:4px;">
-                        You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.
-                    </div>
-                </div>
-                <div class="column is-narrow has-text-right">
-                    <div><small class="has-text-light"><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB</small></div>
-                    <div style="display:flex; align-items:center; gap:0.5rem; margin-top:6px; justify-content:flex-end;">
-                        <label class="label is-small has-text-white mb-0" style="margin-right:0.5rem;">Music source</label>
-                        <div class="select is-small">
-                            <select id="music-source-select">
-                                <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>>Built-in (DMCA-free)</option>
-                                <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>>Use my uploads</option>
-                            </select>
-                        </div>
-                    </div>
+<!-- Upload Card -->
+<div class="sp-card mb-4">
+    <div class="sp-card-body">
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.75rem;">
+            <div>
+                <strong>Your uploads</strong>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">
+                    You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.
                 </div>
             </div>
-            <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data" class="mb-3">
-                <div class="file has-name is-fullwidth is-boxed mb-2">
-                    <label class="file-label" style="width: 100%;">
-                        <input class="file-input" type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3">
-                        <span class="file-cta" style="background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                            <span class="file-label" style="display: flex; align-items: center; justify-content: center; font-size: 1.0em;">
-                                <?php echo t('music_upload_file'); ?>
-                            </span>
-                        </span>
-                        <span class="file-name" id="user-music-file-list" style="text-align: center; background-color: #2b2f3a; border-color: #4a4a4a; color: white;">
-                            No files selected
-                        </span>
-                    </label>
+            <div style="text-align:right;">
+                <div><small style="color:var(--text-muted);"><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB</small></div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-top:6px;justify-content:flex-end;">
+                    <label class="sp-label" style="margin-bottom:0;white-space:nowrap;">Music source</label>
+                    <select id="music-source-select" class="sp-select">
+                        <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>>Built-in (DMCA-free)</option>
+                        <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>>Use my uploads</option>
+                    </select>
                 </div>
-                <div style="display:flex; gap:0.5rem; align-items:flex-start;">
-                    <button class="button is-primary" type="submit">Upload</button>
-                    <?php if (!empty($userMusicStatus)): ?>
-                        <div class="notification is-info" style="background-color:#2b2f3a; border:1px solid #4a8ef5; color:#dceefe; margin:0; padding:0.5rem 0.75rem;">
-                            <?php echo $userMusicStatus; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </form>
-            <!-- AJAX upload progress and response (shown when JS uploads files) -->
-            <div id="userUploadProgressContainer" style="display:none; margin-top:0.5rem; align-items:center; gap:0.5rem;">
-                <progress id="userUploadProgress" class="progress is-small" value="0" max="100" style="width:70%;"></progress>
-                <span id="userUploadProgressPercent" class="is-size-7" style="margin-left:0.5rem;">0%</span>
             </div>
-            <div id="userUploadResponse" class="has-text-info" style="display:none; margin-top:0.5rem;"></div>
         </div>
+        <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data" style="margin-bottom:0.75rem;">
+            <div class="sp-form-group">
+                <label class="sp-label" for="userMusicFiles"><?php echo t('music_upload_file'); ?></label>
+                <input class="sp-input" type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3">
+                <div id="user-music-file-list" style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">No files selected</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap;">
+                <button class="sp-btn sp-btn-primary" type="submit">Upload</button>
+                <?php if (!empty($userMusicStatus)): ?>
+                    <div class="sp-alert sp-alert-info" style="margin:0;flex:1;">
+                        <?php echo $userMusicStatus; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </form>
+        <!-- AJAX upload progress -->
+        <div id="userUploadProgressContainer" style="display:none;margin-top:0.5rem;align-items:center;gap:0.5rem;">
+            <progress id="userUploadProgress" value="0" max="100" style="flex:1;height:0.6rem;border-radius:0.3rem;accent-color:var(--blue);"></progress>
+            <span id="userUploadProgressPercent" style="font-size:0.8rem;min-width:2.5rem;">0%</span>
+        </div>
+        <div id="userUploadResponse" style="display:none;margin-top:0.5rem;color:var(--blue);"></div>
     </div>
 </div>
-<div class="card has-text-white">
-    <header class="card-header has-text-white">
-        <h2 class="card-header-title is-size-4 has-text-white">
-            <span class="icon-text" style="display: flex; align-items: center;">
-                <span class="icon" style="display: flex; align-items: center;">
-                    <i class="fas fa-list-music"></i>
-                </span>
-                <span style="margin-left: 0.5em;"><?php echo t('music_playlist'); ?></span>
-            </span>
-        </h2>
-        <div class="card-header-icon">
-            <span id="playlistCountTag" class="tag is-info is-rounded" data-label="<?php echo t('music_songs'); ?>"><?php echo $serverVisibleCount; ?> <?php echo t('music_songs'); ?></span>
-        </div>
+<!-- Playlist Card -->
+<div class="sp-card">
+    <header class="sp-card-header">
+        <p class="sp-card-title">
+            <span class="icon mr-2"><i class="fas fa-list-music"></i></span>
+            <?php echo t('music_playlist'); ?>
+        </p>
+        <span id="playlistCountTag" class="sp-badge sp-badge-blue" data-label="<?php echo t('music_songs'); ?>"><?php echo $serverVisibleCount; ?> <?php echo t('music_songs'); ?></span>
     </header>
-    <div class="card-content p-0 has-text-white">
-        <div class="field" style="padding: 1rem 1rem 0.5rem 1rem;">
-            <div class="control has-icons-left">
-                <input id="searchInput" class="input is-rounded" type="text" placeholder="<?php echo t('music_search_playlist'); ?>">
-                <span class="icon is-left">
+    <div class="sp-card-body">
+        <!-- Search -->
+        <div class="sp-form-group" style="margin-bottom:0.75rem;">
+            <div style="position:relative;">
+                <span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;">
                     <i class="fas fa-search"></i>
                 </span>
+                <input id="searchInput" class="sp-input" type="text" placeholder="<?php echo t('music_search_playlist'); ?>" style="padding-left:2.25rem;">
             </div>
         </div>
-        <div class="table-container playlist-container has-text-white">
-            <table class="table is-fullwidth has-text-white" id="playlistTable">
-                <thead class="has-text-white">
+        <div class="sp-table-wrap playlist-container">
+            <table class="sp-table" id="playlistTable">
+                <thead>
                     <tr>
-                        <th class="has-text-centered has-text-weight-bold is-narrow has-text-white">#</th>
-                        <th class="has-text-white">
-                            <span class="icon-text">
-                                <span class="icon is-small">
-                                    <i class="fas fa-music"></i>
-                                </span>
-                                <span><?php echo t('music_title'); ?></span>
-                            </span>
+                        <th style="width:3rem;text-align:center;">#</th>
+                        <th>
+                            <span class="icon is-small mr-1"><i class="fas fa-music"></i></span>
+                            <?php echo t('music_title'); ?>
                         </th>
-                        <th class="has-text-right is-narrow has-text-white"><?php echo t('music_actions'); ?></th>
+                        <th style="text-align:right;white-space:nowrap;"><?php echo t('music_actions'); ?></th>
                     </tr>
                 </thead>
-                <tbody class="has-text-white" id="playlistBody">
+                <tbody id="playlistBody">
                     <?php /* Render user uploads first (private to uploader) */ ?>
                     <?php foreach ($userMusicFiles as $uIndex => $fileData):
                         $index = $uIndex;
                         $isVisible = ($music_source === 'user');
                         if ($isVisible) { $visibleIndex++; }
                         $displayNumber = $isVisible ? $visibleIndex : '';
-                        $rowStyle = $isVisible ? '' : 'style="display:none;"'; ?>
+                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;'; ?>
                         <tr data-index="<?php echo $index; ?>"
                             data-file="<?php echo htmlspecialchars('USER:' . $fileData['filename']); ?>"
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row is-clickable user-upload has-text-white" <?php echo $rowStyle; ?> >
-                            <td class="has-text-centered has-text-weight-semibold has-text-grey is-narrow has-text-white">
+                            class="playlist-row user-upload" style="<?php echo $displayStyle; ?>">
+                            <td style="text-align:center;font-weight:600;color:var(--text-muted);">
                                 <span class="row-number"><?php echo $displayNumber; ?></span>
-                                <span class="now-playing-icon" style="display: none;">
-                                    <i class="fas fa-play-circle has-text-success"></i>
+                                <span class="now-playing-icon" style="display:none;">
+                                    <i class="fas fa-play-circle" style="color:var(--green);"></i>
                                 </span>
                             </td>
-                            <td class="is-family-secondary has-text-white song-title">
-                                <?php echo htmlspecialchars($fileData['title']); ?> <span class="tag is-light is-small" style="margin-left:0.5rem;">Your upload</span>
+                            <td class="song-title">
+                                <?php echo htmlspecialchars($fileData['title']); ?> <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;">Your upload</span>
                             </td>
-                            <td class="has-text-right is-narrow">
-                                <button class="button is-small is-ghost play-song-btn" data-index="<?php echo $index; ?>" title="Play">
+                            <td style="text-align:right;white-space:nowrap;">
+                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="Play">
                                     <span class="icon is-small"><i class="fas fa-play"></i></span>
                                 </button>
-                                <button class="button is-small is-danger delete-user-music" data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" title="Delete">
+                                <button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" title="Delete">
                                     <span class="icon is-small"><i class="fas fa-trash"></i></span>
                                 </button>
                             </td>
@@ -452,25 +384,23 @@ ob_start();
                         $isVisible = ($music_source !== 'user');
                         if ($isVisible) { $visibleIndex++; }
                         $displayNumber = $isVisible ? $visibleIndex : '';
-                        $rowStyle = $isVisible ? '' : 'style="display:none;"'; ?>
-                        <tr data-index="<?php echo $index; ?>" 
-                            data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" 
+                        $displayStyle = $isVisible ? 'cursor:pointer;' : 'cursor:pointer;display:none;'; ?>
+                        <tr data-index="<?php echo $index; ?>"
+                            data-file="<?php echo htmlspecialchars($fileData['filename']); ?>"
                             data-title="<?php echo htmlspecialchars(strtolower($fileData['title'])); ?>"
-                            class="playlist-row is-clickable has-text-white" <?php echo $rowStyle; ?>>
-                            <td class="has-text-centered has-text-weight-semibold has-text-grey is-narrow has-text-white">
+                            class="playlist-row" style="<?php echo $displayStyle; ?>">
+                            <td style="text-align:center;font-weight:600;color:var(--text-muted);">
                                 <span class="row-number"><?php echo $displayNumber; ?></span>
-                                <span class="now-playing-icon" style="display: none;">
-                                    <i class="fas fa-play-circle has-text-success"></i>
+                                <span class="now-playing-icon" style="display:none;">
+                                    <i class="fas fa-play-circle" style="color:var(--green);"></i>
                                 </span>
                             </td>
-                            <td class="is-family-secondary has-text-white song-title">
+                            <td class="song-title">
                                 <?php echo htmlspecialchars($fileData['title']); ?>
                             </td>
-                            <td class="has-text-right is-narrow">
-                                <button class="button is-small is-ghost play-song-btn" data-index="<?php echo $index; ?>" title="Play">
-                                    <span class="icon is-small">
-                                        <i class="fas fa-play"></i>
-                                    </span>
+                            <td style="text-align:right;white-space:nowrap;">
+                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="Play">
+                                    <span class="icon is-small"><i class="fas fa-play"></i></span>
                                 </button>
                             </td>
                         </tr>
@@ -481,7 +411,7 @@ ob_start();
     </div>
 </div>
 <!-- Hidden audio element for local playback -->
-<audio id="audio-player" class="is-hidden"></audio>
+<audio id="audio-player" style="display:none;"></audio>
 <?php
 $content = ob_get_clean();
 
@@ -598,21 +528,21 @@ ob_start();
                 `linear-gradient(to right, #3273dc 0%, #3273dc ${percent}%, #dbdbdb ${percent}%, #dbdbdb 100%)`;
         },
         updateButtonState(button, isActive) {
-            button.classList.toggle('is-primary', isActive);
-            button.classList.toggle('is-white', !isActive);
-            button.classList.remove('has-text-white');
-            button.classList.add('has-text-black');
+            button.classList.toggle('sp-btn-primary', isActive);
+            button.classList.toggle('sp-btn-ghost', !isActive);
         },
         highlightCurrentSong(index) {
             // Remove previous highlight
             document.querySelectorAll('.playlist-row').forEach(row => {
                 row.classList.remove('is-active');
+                row.style.background = '';
             });
             // Add highlight to current song
             if (index >= 0) {
                 const row = document.querySelector(`.playlist-row[data-index="${index}"]`);
                 if (row) {
                     row.classList.add('is-active');
+                    row.style.background = 'var(--bg-card-hover)';
                     // Scroll into view if needed
                     row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
@@ -658,7 +588,8 @@ ob_start();
             if (visibleCount === 0) {
                 if (!existingPlaceholder) {
                     const tr = document.createElement('tr');
-                    tr.className = 'playlist-row placeholder has-text-grey';
+                    tr.className = 'playlist-row placeholder';
+                    tr.style.color = 'var(--text-muted)';
                     tr.innerHTML = `<td colspan="3" style="padding:1.25rem; text-align:center;">No tracks for the selected music source.</td>`;
                     tbody.prepend(tr);
                 }
@@ -847,7 +778,7 @@ ob_start();
             }
         },
         handleNowPlaying(data) {
-            MusicPlayer.elements.refreshBtn.classList.remove('is-loading');
+            MusicPlayer.elements.refreshBtn.classList.remove('sp-btn-loading');
             if (data && data.song) {
                 const title = data.song.title || data.song.file || data.song;
                 DOM.updateNowPlaying(title, true);
@@ -987,7 +918,7 @@ ob_start();
                                 MusicPlayer.socket.emit('MUSIC_SETTINGS', { music_source: val, repeat: MusicPlayer.state.repeat, shuffle: MusicPlayer.state.shuffle, volume: MusicPlayer.state.volume });
                             }
                             const toast = document.createElement('div');
-                            toast.className = 'notification is-success';
+                            toast.className = 'sp-alert sp-alert-success';
                             toast.style.position = 'fixed';
                             toast.style.bottom = '1rem';
                             toast.style.right = '1rem';
@@ -1057,7 +988,7 @@ ob_start();
             });
             // Refresh now playing
             MusicPlayer.elements.refreshBtn.addEventListener('click', () => {
-                MusicPlayer.elements.refreshBtn.classList.add('is-loading');
+                MusicPlayer.elements.refreshBtn.classList.add('sp-btn-loading');
                 WebSocket.sendCommand('WHAT_IS_PLAYING');
             });
         },
@@ -1150,7 +1081,7 @@ ob_start();
                 }
                 // UI: disable submit, show progress
                 const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.remove('is-primary'); submitBtn.classList.add('is-loading'); }
+                if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('sp-btn-loading'); }
                 progressContainer.style.display = 'flex';
                 progressBar.value = 0; progressPercent.textContent = '0%';
                 responseEl.style.display = 'none'; responseEl.innerHTML = '';
@@ -1164,7 +1095,7 @@ ob_start();
                     }
                 };
                 xhr.onload = function() {
-                    if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); submitBtn.classList.add('is-primary'); }
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('sp-btn-loading'); }
                     progressContainer.style.display = 'none';
                     if (xhr.status >= 200 && xhr.status < 300) {
                         // Replace playlist tbody with server-rendered version from response
@@ -1181,7 +1112,7 @@ ob_start();
                                 DOM.updatePlaylistForSource(ms);
                             }
                             // show any server messages for uploads
-                            const serverMsg = doc.querySelector('.box.user-uploads-box .notification.is-info');
+                            const serverMsg = doc.querySelector('.sp-alert.sp-alert-info');
                             if (serverMsg) {
                                 responseEl.innerHTML = serverMsg.innerHTML;
                                 responseEl.style.display = 'block';
@@ -1198,7 +1129,7 @@ ob_start();
                     }
                 };
                 xhr.onerror = function() {
-                    if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('is-loading'); submitBtn.classList.add('is-primary'); }
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('sp-btn-loading'); }
                     progressContainer.style.display = 'none';
                     responseEl.innerHTML = 'Upload failed (network error)';
                     responseEl.style.display = 'block';
