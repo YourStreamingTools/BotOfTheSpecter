@@ -395,7 +395,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         <span style="vertical-align:middle;"><?php echo htmlspecialchars($user['username']); ?></span>
                         <?php if ($is_deceased): ?>
                             <span class="sp-badge memorial-label">
-                                <span class="icon is-small"><i class="fas fa-dove"></i></span>&nbsp;Memorial
+                            <span class="icon"><i class="fas fa-dove"></i></span>&nbsp;Memorial
                             </span>
                         <?php elseif ($is_restricted): ?>
                             <span class="sp-badge sp-badge-amber restricted-label">Restricted</span>
@@ -800,11 +800,11 @@ function toggleRestrictUser(userId, username, twitch_user_id, restrict) {
     const actionText = restrict ? 'restrict' : 'remove restriction for';
     const confirmText = restrict ? 'Restrict' : 'Unrestrict';
     const restrictInfoHtml = `
-        <div class="has-text-left" style="margin-top:0.75rem;">
-            <p class="mb-2 has-text-weight-bold">Admin note:</p>
-            <p class="mb-2">Restricting a user blocks dashboard access.</p>
-            <p class="mb-2">They will not be able to use dashboard controls, including starting or stopping the bot.</p>
-            <p class="mb-0">This can be temporary - you can restore access anytime by clicking <span class="has-text-weight-bold">Unrestrict</span>.</p>
+        <div style="text-align:left;margin-top:0.75rem;">
+            <p style="margin-bottom:0.5rem;font-weight:700;">Admin note:</p>
+            <p style="margin-bottom:0.5rem;">Restricting a user blocks dashboard access.</p>
+            <p style="margin-bottom:0.5rem;">They will not be able to use dashboard controls, including starting or stopping the bot.</p>
+            <p style="margin-bottom:0;">This can be temporary - you can restore access anytime by clicking <span style="font-weight:700;">Unrestrict</span>.</p>
         </div>
     `;
     const modalHtml = restrict
