@@ -212,53 +212,60 @@ if ($spam_conn) {
 
 ob_start();
 ?>
-<div class="box">
-    <h1 class="title">Spam Pattern Management</h1>
-    <p class="subtitle">Manage spam patterns for chat moderation</p>
-    <div class="notification is-info is-light">
-        <p><strong>Note:</strong> These patterns are used to detect and block spam messages in chat. Patterns may
-            contain special Unicode characters to match obfuscated spam.</p>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h1 class="sp-card-title"><i class="fas fa-ban"></i> Spam Pattern Management</h1>
     </div>
-    <div class="buttons">
-        <button id="checkDuplicatesBtn" class="button is-warning">
-            <span class="icon">
-                <i class="fas fa-copy"></i>
-            </span>
-            <span>Check for Duplicates</span>
-        </button>
+    <div class="sp-card-body">
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">Manage spam patterns for chat moderation</p>
+        <div class="sp-alert sp-alert-info">
+            <p><strong>Note:</strong> These patterns are used to detect and block spam messages in chat. Patterns may
+                contain special Unicode characters to match obfuscated spam.</p>
+        </div>
+        <div class="sp-btn-group">
+            <button id="checkDuplicatesBtn" class="sp-btn sp-btn-warning">
+                <span class="icon">
+                    <i class="fas fa-copy"></i>
+                </span>
+                <span>Check for Duplicates</span>
+            </button>
+        </div>
     </div>
 </div>
-<div class="box">
-    <h2 class="title is-4">Add New Spam Pattern</h2>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title">Add New Spam Pattern</h2>
+    </div>
+    <div class="sp-card-body">
     <form id="addPatternForm">
-        <div class="field">
-            <label class="label">Spam Pattern</label>
-            <div class="control">
-                <input class="input" type="text" name="pattern" placeholder="Enter spam pattern to detect" required>
-            </div>
-            <p class="help">Enter the text pattern that should be flagged as spam. Special characters are preserved.</p>
+        <div class="sp-form-group">
+            <label class="sp-label">Spam Pattern</label>
+            <input class="sp-input" type="text" name="pattern" placeholder="Enter spam pattern to detect" required>
+            <p class="sp-help">Enter the text pattern that should be flagged as spam. Special characters are preserved.</p>
         </div>
-        <div class="field">
-            <div class="control">
-                <button type="submit" class="button is-primary">
-                    <span class="icon">
-                        <i class="fas fa-plus"></i>
-                    </span>
-                    <span>Add Pattern</span>
-                </button>
-            </div>
+        <div class="sp-form-group">
+            <button type="submit" class="sp-btn sp-btn-primary">
+                <span class="icon">
+                    <i class="fas fa-plus"></i>
+                </span>
+                <span>Add Pattern</span>
+            </button>
         </div>
     </form>
+    </div>
 </div>
-<div class="box">
-    <h2 class="title is-4">Spam Patterns (<?php echo count($spam_patterns); ?>)</h2>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h2 class="sp-card-title">Spam Patterns (<?php echo count($spam_patterns); ?>)</h2>
+    </div>
+    <div class="sp-card-body">
     <?php if (empty($spam_patterns)): ?>
-        <div class="notification is-info">
+        <div class="sp-alert sp-alert-info">
             No spam patterns found. Add one above.
         </div>
     <?php else: ?>
-        <div class="table-container">
-            <table class="table is-fullwidth is-striped is-hoverable">
+        <div class="sp-table-wrap">
+            <table class="sp-table">
                 <thead>
                     <tr>
                         <th style="width: 80px;">ID</th>
@@ -273,20 +280,20 @@ ob_start();
                             <td>
                                 <span
                                     class="pattern-display"><?php echo htmlspecialchars($pattern['spam_pattern'], ENT_QUOTES, 'UTF-8'); ?></span>
-                                <input class="input pattern-edit" type="text"
+                                <input class="sp-input pattern-edit" type="text"
                                     value="<?php echo htmlspecialchars($pattern['spam_pattern'], ENT_QUOTES, 'UTF-8'); ?>"
                                     style="display: none;">
                             </td>
                             <td>
-                                <div class="buttons action-buttons">
-                                    <button class="button is-info is-small edit-pattern"
+                                <div class="sp-btn-group action-buttons">
+                                    <button class="sp-btn sp-btn-info sp-btn-sm edit-pattern"
                                         data-id="<?php echo htmlspecialchars($pattern['id'], ENT_QUOTES, 'UTF-8'); ?>">
                                         <span class="icon">
                                             <i class="fas fa-edit"></i>
                                         </span>
                                         <span>Edit</span>
                                     </button>
-                                    <button class="button is-danger is-small delete-pattern"
+                                    <button class="sp-btn sp-btn-danger sp-btn-sm delete-pattern"
                                         data-id="<?php echo htmlspecialchars($pattern['id'], ENT_QUOTES, 'UTF-8'); ?>">
                                         <span class="icon">
                                             <i class="fas fa-trash"></i>
@@ -294,15 +301,15 @@ ob_start();
                                         <span>Delete</span>
                                     </button>
                                 </div>
-                                <div class="buttons edit-buttons" style="display: none;">
-                                    <button class="button is-success is-small save-pattern"
+                                <div class="sp-btn-group edit-buttons" style="display: none;">
+                                    <button class="sp-btn sp-btn-success sp-btn-sm save-pattern"
                                         data-id="<?php echo htmlspecialchars($pattern['id'], ENT_QUOTES, 'UTF-8'); ?>">
                                         <span class="icon">
                                             <i class="fas fa-check"></i>
                                         </span>
                                         <span>Save</span>
                                     </button>
-                                    <button class="button is-light is-small cancel-edit"
+                                    <button class="sp-btn sp-btn-sm cancel-edit"
                                         data-id="<?php echo htmlspecialchars($pattern['id'], ENT_QUOTES, 'UTF-8'); ?>">
                                         <span class="icon">
                                             <i class="fas fa-times"></i>
@@ -317,7 +324,8 @@ ob_start();
             </table>
         </div>
     <?php endif; ?>
-</div>
+    </div><!-- /sp-card-body -->
+</div><!-- /sp-card -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         function escapeHtml(text) {
@@ -363,7 +371,7 @@ ob_start();
         if (checkDuplicatesBtn) {
             checkDuplicatesBtn.addEventListener('click', async function () {
                 try {
-                    checkDuplicatesBtn.classList.add('is-loading');
+                    checkDuplicatesBtn.classList.add('sp-btn-loading');
                     const formData = new FormData();
                     formData.append('check_duplicates', '1');
                     const response = await fetch('spam_patterns.php', {
@@ -371,12 +379,12 @@ ob_start();
                         body: formData
                     });
                     const result = await response.json();
-                    checkDuplicatesBtn.classList.remove('is-loading');
+                    checkDuplicatesBtn.classList.remove('sp-btn-loading');
                     if (result.success) {
                         if (result.duplicates.length > 0) {
                             let tableHtml = `
-                                <div class="table-container">
-                                    <table class="table is-fullwidth is-striped is-narrow">
+                                <div class="sp-table-wrap">
+                                    <table class="sp-table">
                                         <thead>
                                             <tr>
                                                 <th>Pattern</th>
@@ -399,7 +407,7 @@ ob_start();
                                         </tbody>
                                     </table>
                                 </div>
-                                <p class="is-size-7 has-text-grey mt-2">Click "Clean Up" to automatically remove duplicates (keeping the oldest entry).</p>
+                                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;">Click "Clean Up" to automatically remove duplicates (keeping the oldest entry).</p>
                             `;
                             Swal.fire({
                                 icon: 'warning',
@@ -432,7 +440,7 @@ ob_start();
                         });
                     }
                 } catch (error) {
-                    checkDuplicatesBtn.classList.remove('is-loading');
+                    checkDuplicatesBtn.classList.remove('sp-btn-loading');
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
@@ -463,14 +471,15 @@ ob_start();
                         showConfirmButton: false
                     });
                     let tableBody = document.getElementById('patternsTable');
-                    const noPatternNotification = document.querySelector('.notification.is-info');
+                    const noPatternNotification = document.querySelector('.sp-alert.sp-alert-info');
                     if (noPatternNotification && noPatternNotification.textContent.includes('No spam patterns found')) {
-                        const box = noPatternNotification.closest('.box');
+                        const box = noPatternNotification.closest('.sp-card');
                         noPatternNotification.remove();
                         box.innerHTML = `
-                        <h2 class="title is-4">Spam Patterns (1)</h2>
-                        <div class="table-container">
-                            <table class="table is-fullwidth is-striped is-hoverable">
+                        <div class="sp-card-header"><h2 class="sp-card-title">Spam Patterns (1)</h2></div>
+                        <div class="sp-card-body">
+                        <div class="sp-table-wrap">
+                            <table class="sp-table">
                                 <thead>
                                     <tr>
                                         <th style="width: 80px;">ID</th>
@@ -481,6 +490,7 @@ ob_start();
                                 <tbody id="patternsTable"></tbody>
                             </table>
                         </div>
+                        </div>
                     `;
                         tableBody = document.getElementById('patternsTable');
                     }
@@ -490,25 +500,25 @@ ob_start();
                     <td><strong>#${result.id}</strong></td>
                     <td>
                         <span class="pattern-display">${escapeHtml(pattern)}</span>
-                        <input class="input pattern-edit" type="text" value="${escapeHtml(pattern)}" style="display: none;">
+                        <input class="sp-input pattern-edit" type="text" value="${escapeHtml(pattern)}" style="display: none;">
                     </td>
                     <td>
-                        <div class="buttons action-buttons">
-                            <button class="button is-info is-small edit-pattern" data-id="${result.id}">
+                        <div class="sp-btn-group action-buttons">
+                            <button class="sp-btn sp-btn-info sp-btn-sm edit-pattern" data-id="${result.id}">
                                 <span class="icon"><i class="fas fa-edit"></i></span>
                                 <span>Edit</span>
                             </button>
-                            <button class="button is-danger is-small delete-pattern" data-id="${result.id}">
+                            <button class="sp-btn sp-btn-danger sp-btn-sm delete-pattern" data-id="${result.id}">
                                 <span class="icon"><i class="fas fa-trash"></i></span>
                                 <span>Delete</span>
                             </button>
                         </div>
-                        <div class="buttons edit-buttons" style="display: none;">
-                            <button class="button is-success is-small save-pattern" data-id="${result.id}">
+                        <div class="sp-btn-group edit-buttons" style="display: none;">
+                            <button class="sp-btn sp-btn-success sp-btn-sm save-pattern" data-id="${result.id}">
                                 <span class="icon"><i class="fas fa-check"></i></span>
                                 <span>Save</span>
                             </button>
-                            <button class="button is-light is-small cancel-edit" data-id="${result.id}">
+                            <button class="sp-btn sp-btn-sm cancel-edit" data-id="${result.id}">
                                 <span class="icon"><i class="fas fa-times"></i></span>
                                 <span>Cancel</span>
                             </button>
@@ -518,7 +528,7 @@ ob_start();
                     tableBody.appendChild(newRow);
                     attachRowEventListeners(newRow);
                     addForm.reset();
-                    const titleElement = document.querySelector('.box:last-child .title');
+                    const titleElement = document.querySelector('.sp-card:last-of-type .sp-card-title');
                     const currentCount = tableBody.children.length;
                     titleElement.textContent = `Spam Patterns (${currentCount})`;
                 } else {
@@ -656,17 +666,17 @@ ob_start();
                                 });
                                 row.remove();
                                 const tableBody = document.getElementById('patternsTable');
-                                const titleElement = document.querySelector('.box:last-child .title');
+                                const titleElement = document.querySelector('.sp-card:last-of-type .sp-card-title');
                                 const currentCount = tableBody.children.length;
                                 titleElement.textContent = `Spam Patterns (${currentCount})`;
                                 if (tableBody && tableBody.children.length === 0) {
-                                    const box = tableBody.closest('.box');
+                                    const box = tableBody.closest('.sp-card');
                                     if (box) {
                                         box.innerHTML = `
-                                        <h2 class="title is-4">Spam Patterns (0)</h2>
-                                        <div class="notification is-info">
+                                        <div class="sp-card-header"><h2 class="sp-card-title">Spam Patterns (0)</h2></div>
+                                        <div class="sp-card-body"><div class="sp-alert sp-alert-info">
                                             No spam patterns found. Add one above.
-                                        </div>
+                                        </div></div>
                                     `;
                                     }
                                 }
