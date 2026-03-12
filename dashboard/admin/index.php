@@ -2041,10 +2041,11 @@ $botIconMap = [
     </div>
 </div>
 <div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="sp-card-header">
-        <h2 class="sp-card-title"><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
+    <div class="admin-collapsible-header" onclick="toggleCollapsible('bot-overview', event)">
+        <h2><span class="icon"><i class="fas fa-robot"></i></span> Bot Overview</h2>
+        <span class="collapse-icon" data-section="bot-overview">▼</span>
     </div>
-    <div class="sp-card-body">
+    <div class="collapsible-content" id="bot-overview">
         <div id="bot-overview-container">
             <p style="margin-bottom:1.25rem;">Loading bot overview...</p>
         </div>
