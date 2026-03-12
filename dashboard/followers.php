@@ -194,68 +194,42 @@ function fetchFollowers($url, $authToken, $clientID) {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column is-fullwidth">
-    <div class="card has-background-dark has-text-white mb-5" style="border-radius: 14px; box-shadow: 0 4px 24px #000a;">
-      <header class="card-header" style="border-bottom: 1px solid #23272f;">
-        <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-          <span class="icon mr-2"><i class="fas fa-users"></i></span>
-          <?php echo t('followers_page_title'); ?>
-        </span>
-      </header>
-      <div class="mb-4">
-        <canvas id="followerChart" width="400" height="200"></canvas>
+<div class="sp-card mb-5">
+  <div class="sp-card-header">
+    <span class="sp-card-title">
+      <span class="icon mr-2"><i class="fas fa-users"></i></span>
+      <?php echo t('followers_page_title'); ?>
+    </span>
+  </div>
+  <div class="sp-card-body" style="padding-bottom:0;">
+    <canvas id="followerChart" width="400" height="200"></canvas>
+  </div>
+  <div class="sp-card-body">
+    <div class="sp-stat-row mb-4">
+      <div class="sp-stat">
+        <span class="sp-stat-value" id="total-followers">0</span>
+        <span class="sp-stat-label"><?php echo t('total_followers'); ?></span>
       </div>
-      <div class="card-content">
-        <div class="content">
-          <div class="columns is-multiline mb-4">
-            <div class="column is-6-mobile" style="width: 20%;">
-              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                <div class="card-content has-text-centered">
-                  <p class="title is-4" id="total-followers">0</p>
-                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('total_followers'); ?></p>
-                </div>
-              </div>
-            </div>
-            <div class="column is-6-mobile" style="width: 20%;">
-              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                <div class="card-content has-text-centered">
-                  <p class="title is-4" id="new-today">0</p>
-                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_today'); ?></p>
-                </div>
-              </div>
-            </div>
-            <div class="column is-6-mobile" style="width: 20%;">
-              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                <div class="card-content has-text-centered">
-                  <p class="title is-4" id="new-week">0</p>
-                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_week'); ?></p>
-                </div>
-              </div>
-            </div>
-            <div class="column is-6-mobile" style="width: 20%;">
-              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                <div class="card-content has-text-centered">
-                  <p class="title is-4" id="new-month">0</p>
-                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_month'); ?></p>
-                </div>
-              </div>
-            </div>
-            <div class="column is-6-mobile" style="width: 20%;">
-              <div class="card has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                <div class="card-content has-text-centered">
-                  <p class="title is-4" id="new-year">0</p>
-                  <p class="subtitle is-6 has-text-grey-light"><?php echo t('new_followers_year'); ?></p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <h3 id="live-data" class="subtitle is-6 has-text-grey mb-4"><?php echo t('followers_loading'); ?></h3>
-          <div id="followers-list" class="columns is-multiline is-centered">
-            <!-- AJAX appended followers -->
-          </div>
-        </div>
+      <div class="sp-stat">
+        <span class="sp-stat-value" id="new-today">0</span>
+        <span class="sp-stat-label"><?php echo t('new_followers_today'); ?></span>
       </div>
+      <div class="sp-stat">
+        <span class="sp-stat-value" id="new-week">0</span>
+        <span class="sp-stat-label"><?php echo t('new_followers_week'); ?></span>
+      </div>
+      <div class="sp-stat">
+        <span class="sp-stat-value" id="new-month">0</span>
+        <span class="sp-stat-label"><?php echo t('new_followers_month'); ?></span>
+      </div>
+      <div class="sp-stat">
+        <span class="sp-stat-value" id="new-year">0</span>
+        <span class="sp-stat-label"><?php echo t('new_followers_year'); ?></span>
+      </div>
+    </div>
+    <p id="live-data" class="sp-text-muted mb-4"><?php echo t('followers_loading'); ?></p>
+    <div id="followers-list" class="followers-grid">
+      <!-- AJAX appended followers -->
     </div>
   </div>
 </div>
@@ -378,25 +352,19 @@ $(document).ready(function() {
               }
               // Use profile image if available, otherwise fallback to initials
               var profileImg = follower.profile_image_url 
-                ? `<img src="${follower.profile_image_url}" alt="${follower.user_name}" class="is-rounded" style="width:64px;height:64px;">`
-                : `<span class="has-background-primary has-text-white is-flex is-justify-content-center is-align-items-center is-rounded" style="width:64px;height:64px;font-size:2rem;font-weight:700;">${getInitials(follower.user_name)}</span>`;
+                ? `<img src="${follower.profile_image_url}" alt="${follower.user_name}" class="follower-avatar-img">`
+                : `<span class="follower-avatar-initials">${getInitials(follower.user_name)}</span>`;
               var followerHTML = `
-                <div class="column is-12-mobile is-6-tablet is-3-desktop follower-box">
-                  <div class="box has-background-grey-darker has-text-white" style="border-radius: 8px;">
-                    <article class="media is-align-items-center">
-                      <figure class="media-left">
-                        <p class="image is-64x64">
-                          ${profileImg}
-                        </p>
-                      </figure>
-                      <div class="media-content">
-                        <div class="content">
-                          <p>
-                            <span class="has-text-weight-semibold has-text-white">${follower.user_name}</span><br>
-                            <span class="is-size-7 has-text-grey-light">${formatDate(follower.followed_at)}</span><br>
-                            <span class="is-size-7 has-text-grey-light">${new Date(follower.followed_at).toLocaleTimeString()}</span>
-                          </p>
-                        </div>
+                <div class="follower-card-col follower-box">
+                  <div class="sp-card">
+                    <article class="follower-card-media sp-card-body">
+                      <div class="follower-card-avatar">
+                        ${profileImg}
+                      </div>
+                      <div class="follower-card-content">
+                        <strong>${follower.user_name}</strong><br>
+                        <span class="sp-text-muted">${formatDate(follower.followed_at)}</span><br>
+                        <span class="sp-text-muted">${new Date(follower.followed_at).toLocaleTimeString()}</span>
                       </div>
                     </article>
                   </div>
