@@ -1,4 +1,5 @@
 <?php
+ob_start();
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -54,6 +55,7 @@ function sanitize_command_name($command)
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
+    ob_clean();
     header('Content-Type: application/json');
     if ($_POST['action'] === 'get_random_pick_options') {
         $commandName = sanitize_command_name($_POST['command_name'] ?? '');
@@ -232,6 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $dataUpdated = $result;
         // For AJAX requests, return JSON response
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            ob_clean();
             header('Content-Type: application/json');
             if ($result && $affected_rows > 0) {
                 echo json_encode([
