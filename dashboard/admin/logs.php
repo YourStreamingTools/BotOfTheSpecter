@@ -794,36 +794,29 @@ $res = $conn->query("SELECT username FROM users ORDER BY username ASC");
 while ($row = $res->fetch_assoc()) { $users[] = $row['username']; }
 ob_start();
 ?>
-<div class="box">
-    <div class="level mb-4">
-        <div class="level-left">
-            <h1 class="title is-4 mb-0"><span class="icon"><i class="fas fa-clipboard-list"></i></span> Admin Logs</h1>
-        </div>
-        <div class="level-right">
-            <div class="field has-addons">
-                <div class="control">
-                    <div class="select">
-                        <select id="admin-log-category-select">
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-clipboard-list"></i></span> Admin Logs</h1>
+    </div>
+    <div class="sp-card-body">
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+        <select class="sp-select" id="admin-log-category-select">
                             <option value="">Select Log Category</option>
                             <option value="audit">Admin Audit Log</option>
                             <option value="system">System Logs</option>
                             <option value="user">User Logs</option>
                             <option value="token">Token Logs</option>
                         </select>
-                    </div>
-                </div>                <div class="control">
-                    <div class="select">
-                        <select id="admin-log-user-select" disabled>
+        <div id="admin-log-user-control">
+        <select class="sp-select" id="admin-log-user-select" disabled>
                             <option value="">Select Log Category First</option>
                             <?php foreach ($users as $u): ?>
                                 <option value="<?php echo htmlspecialchars($u); ?>"><?php echo htmlspecialchars($u); ?></option>
                             <?php endforeach; ?>
                         </select>
-                    </div>
-                </div>
-                <div class="control" id="user-log-type-control" style="display: none;">
-                    <div class="select">
-                        <select id="admin-log-type-select" disabled>
+        </div><!-- /admin-log-user-control -->
+        <div id="user-log-type-control" style="display: none;">
+        <select class="sp-select" id="admin-log-type-select" disabled>
                             <option value="">Select Log Type</option>
                             <option value="bot">Bot Log</option>
                             <option value="chat">Chat Log</option>
@@ -835,11 +828,9 @@ ob_start();
                             <option value="system">System Log</option>
                             <option value="integrations">Integrations Log</option>
                         </select>
-                    </div>
-                </div>
-                <div class="control" id="system-log-type-control" style="display: none;">
-                    <div class="select">
-                        <select id="admin-system-log-type-select" disabled>
+        </div><!-- /user-log-type-control -->
+        <div id="system-log-type-control" style="display: none;">
+        <select class="sp-select" id="admin-system-log-type-select" disabled>
                             <option value="">Select System Log Type</option>
                             <?php
                             foreach ($systemLogTypes as $group) {
@@ -851,11 +842,9 @@ ob_start();
                             }
                             ?>
                         </select>
-                    </div>
-                </div>
-                <div class="control" id="token-log-type-control" style="display: none; margin-left: 8px;">
-                    <div class="select">
-                        <select id="admin-token-log-type-select" disabled>
+        </div><!-- /system-log-type-control -->
+        <div id="token-log-type-control" style="display: none;">
+        <select class="sp-select" id="admin-token-log-type-select" disabled>
                             <option value="">Select Token Log</option>
                             <option value="spotify_refresh">Spotify Log</option>
                             <option value="refresh_streamelements_tokens">StreamElements Log</option>
@@ -863,26 +852,18 @@ ob_start();
                             <option value="custom_bot_token_refresh_cron">Custom Bot Logs (cron)</option>
                             <option value="custom_bot_token_refresh">Custom Bot Logs (manual)</option>
                         </select>
-                    </div>
-                </div>
-                <div class="control">
-                    <button class="button is-link" id="admin-log-reload" disabled>Reload</button>
-                </div>
-                <div class="control">
-                    <button class="button is-light" id="admin-log-auto-refresh" disabled>
-                        <span class="icon">
-                            <i class="fas fa-play"></i>
-                        </span>
-                        <span>Auto Refresh</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="table-container">
-        <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"></div>
-    </div>
-</div>
+        </div><!-- /token-log-type-control -->
+        <button class="sp-btn sp-btn-info" id="admin-log-reload" disabled>Reload</button>
+        <button class="sp-btn" id="admin-log-auto-refresh" disabled>
+            <span class="icon">
+                <i class="fas fa-play"></i>
+            </span>
+            <span>Auto Refresh</span>
+        </button>
+    </div><!-- /filter-row -->
+    <div id="admin-log-textarea" class="admin-log-content" contenteditable="false" style="max-height: 400px; min-height: 200px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"></div>
+    </div><!-- /sp-card-body -->
+</div><!-- /sp-card -->
 <?php
 $content = ob_get_clean();
 
@@ -892,7 +873,7 @@ ob_start();
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const userSelect = document.getElementById('admin-log-user-select');
-    const userSelectControl = userSelect.closest('.control');
+    const userSelectControl = document.getElementById('admin-log-user-control');
     const userLogTypeControl = document.getElementById('user-log-type-control');
     const typeSelect = document.getElementById('admin-log-type-select');
     const systemLogTypeControl = document.getElementById('system-log-type-control');
@@ -1084,12 +1065,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const text = autoRefreshBtn.querySelector('span:last-child');
         if (isAutoRefreshActive) {
             // Active state - red stop button
-            autoRefreshBtn.className = 'button is-danger';
+            autoRefreshBtn.className = 'sp-btn sp-btn-danger';
             icon.className = 'fas fa-stop';
             text.textContent = 'Stop Auto Refresh';
         } else {
             // Inactive state - light play button
-            autoRefreshBtn.className = 'button is-light';
+            autoRefreshBtn.className = 'sp-btn';
             icon.className = 'fas fa-play';
             text.textContent = 'Auto Refresh';
         }
