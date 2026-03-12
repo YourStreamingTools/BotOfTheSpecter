@@ -1,4 +1,5 @@
 ﻿<?php
+ob_start();
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -442,6 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
         'service',
         $service
     );
+    ob_clean();
     header('Content-Type: application/json');
     $exit_status = SSHConnectionManager::$last_exit_status ?? null;
     // Include helpful diagnostics for the browser to show
@@ -478,6 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_spotify_tokens
         'script',
         'refresh_spotify_tokens.py'
     );
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'output' => $output]);
     exit;
@@ -506,6 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_streamelements
         'script',
         'refresh_streamelements_tokens.py'
     );
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'output' => $output]);
     exit;
@@ -534,6 +538,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens
         'script',
         'refresh_discord_tokens.py'
     );
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'output' => $output]);
     exit;
@@ -567,6 +572,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($
         'bot_pid',
         (string) $pid
     );
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
@@ -661,6 +667,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
         'username',
         $username
     );
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'message' => $message]);
     exit;
@@ -750,6 +757,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_message'])) {
         (string) ($channel_id ?? '')
     );
     // Return JSON response for AJAX
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode([
         'success' => isset($success_message),
@@ -926,6 +934,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
         'channel_id',
         (string)$from_broadcaster_id
     );
+    ob_clean();
     header('Content-Type: application/json');
     echo json_encode([
         'success' => $success,
@@ -989,6 +998,7 @@ $return_ai_stats_json = false;
 // AJAX handlers: bot_overview and online_channels
 if (isset($_GET['ajax'])) {
     $ajax = $_GET['ajax'];
+    ob_clean();
     header('Content-Type: application/json');
     if ($ajax === 'bot_overview') {
         // Perform the heavy SSH call now (only for the AJAX request)
@@ -1597,6 +1607,7 @@ if (!empty($openai_key) && $return_ai_stats_json) {
 }
 
 if ($return_ai_stats_json) {
+    ob_clean();
     if (!headers_sent()) {
         header('Content-Type: application/json');
     }
