@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -544,233 +544,200 @@ if ($langResult && $langResult->num_rows > 0) {
 ob_start();
 ?>
 <?php if ($message): ?>
-<div class="notification <?php echo $alertClass; ?>">
-    <button class="delete"></button>
+<div class="sp-alert <?php echo str_replace(['is-success','is-danger','is-warning','is-info'],['sp-alert-success','sp-alert-danger','sp-alert-warning','sp-alert-info'],$alertClass); ?>">
     <?php echo $message; ?>
 </div>
 <?php endif; ?>
-<div class="columns is-multiline">
-    <div class="column is-12">
-        <div class="box" id="general">
-            <h2 class="title is-4 mb-4"><?php echo t('profile_title'); ?></h2>
-            <div class="columns is-vcentered">
-                <div class="column is-3 has-text-centered" style="align-items: center; justify-content: center;">
-                    <figure class="image is-square has-text-centered" style="width:100%;max-width:250px;max-height:250px;aspect-ratio:1/1;margin-left:auto;margin-right:auto;">
-                        <img class="is-rounded" style="width:100%;height:100%;object-fit:cover;max-width:250px;max-height:250px;min-width:128px;min-height:128px;" src="<?php echo htmlspecialchars($profileImageUrl, ENT_QUOTES); ?>" alt="Profile">
-                    </figure>
-                </div>
-                <div class="column">
-                    <div class="columns is-multiline">
-                        <div class="column is-6-desktop is-12-mobile">
-                            <div class="field">
-                                <label class="label"><?php echo t('username'); ?></label>
-                                <div class="control">
-                                    <input class="input" type="text" value="<?php echo $_SESSION['username']; ?>" disabled>
-                                </div>
-                                <p class="help"><?php echo t('twitch_username_help'); ?></p>
-                            </div>
-                            <div class="field">
-                                <label class="label"><?php echo t('display_name'); ?></label>
-                                <div class="control">
-                                    <input class="input" type="text" value="<?php echo $_SESSION['display_name'] ?? $_SESSION['username']; ?>" disabled>
-                                </div>
-                                <p class="help"><?php echo t('twitch_display_name_help'); ?></p>
-                            </div>
-                            <div class="field">
-                                <label class="label"><?php echo t('you_joined'); ?></label>
-                                <div class="control">
-                                    <input class="input" type="text" value="<?php echo $joinedFormatted; ?>" disabled>
-                                </div>
-                                <p class="help"><?php echo t('joined_help'); ?></p>
-                            </div>
-                            <div class="field">
-                                <label class="label"><?php echo t('last_login'); ?></label>
-                                <div class="control">
-                                    <input class="input" type="text" value="<?php echo $lastLoginFormatted; ?>" disabled>
-                                </div>
-                                <p class="help"><?php echo t('last_login_help'); ?></p>
-                            </div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+    <div style="grid-column:1/-1;">
+        <div class="sp-card" id="general">
+            <div class="sp-card-header">
+                <h2 class="sp-card-title"><?php echo t('profile_title'); ?></h2>
+            </div>
+            <div class="sp-card-body">
+                <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:1.5rem;align-items:start;">
+                    <div style="flex:0 0 auto;text-align:center;">
+                        <img style="width:120px;height:120px;object-fit:cover;border-radius:50%;display:block;" src="<?php echo htmlspecialchars($profileImageUrl, ENT_QUOTES); ?>" alt="Profile">
+                    </div>
+                    <div>
+                        <div class="sp-form-group">
+                            <label class="sp-label"><?php echo t('username'); ?></label>
+                            <input class="sp-input" type="text" value="<?php echo $_SESSION['username']; ?>" disabled>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('twitch_username_help'); ?></p>
                         </div>
-                        <div class="column is-6-desktop is-12-mobile">
-                            <div class="field">
-                                <form method="post" action="" id="technical-mode-form" style="margin-bottom:0;">
-                                    <input type="hidden" name="action" value="update_technical_mode">
-                                    <label class="label" for="is-technical-select" style="font-weight: 500;"><?php echo t('technical_terms'); ?></label>
-                                    <div class="control">
-                                        <div class="select is-fullwidth">
-                                            <select name="is_technical" id="is-technical-select" onchange="document.getElementById('technical-mode-form').submit();">
-                                                <option value="1" <?php echo $isTechnical ? 'selected' : ''; ?>><?php echo t('yes'); ?></option>
-                                                <option value="0" <?php echo !$isTechnical ? 'selected' : ''; ?>><?php echo t('no'); ?></option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <p class="help">
-                                        <?php echo t('technical_help'); ?>
-                                    </p>
-                                </form>
-                            </div>
-                            <div class="field">
-                                <form method="post" action="" id="language-form" style="margin-bottom:0;">
-                                    <input type="hidden" name="action" value="update_language">
-                                    <label class="label" for="language-select" style="font-weight: 500;"><?php echo t('language'); ?></label>
-                                    <div class="control">
-                                        <div class="select is-fullwidth">
-                                            <select name="language" id="language-select" onchange="document.getElementById('language-form').submit();">
-                                                <?php foreach ($languages as $lang): ?>
-                                                    <option value="<?php echo htmlspecialchars($lang['code']); ?>" <?php if ($userLanguage === $lang['code']) echo 'selected'; ?>>
-                                                        <?php echo htmlspecialchars($lang['name']); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <p class="help">
-                                        <?php echo t('language_help'); ?>
-                                    </p>
-                                </form>
-                                <div class="field mt-5">
-                                    <div class="control">
-                                        <button id="export-data-profile-btn" class="button is-warning" type="button" data-user-id="<?php echo $userId; ?>" data-user-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>" data-user-username="<?php echo htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES); ?>" onclick="exportProfileData()">Export My Data</button>
-                                    </div>
-                                    <p class="help">Request a copy of your personal data. Exports are queued and emailed when ready.</p>
-                                </div>
-                            </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label"><?php echo t('display_name'); ?></label>
+                            <input class="sp-input" type="text" value="<?php echo $_SESSION['display_name'] ?? $_SESSION['username']; ?>" disabled>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('twitch_display_name_help'); ?></p>
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label"><?php echo t('you_joined'); ?></label>
+                            <input class="sp-input" type="text" value="<?php echo $joinedFormatted; ?>" disabled>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('joined_help'); ?></p>
+                        </div>
+                        <div class="sp-form-group">
+                            <label class="sp-label"><?php echo t('last_login'); ?></label>
+                            <input class="sp-input" type="text" value="<?php echo $lastLoginFormatted; ?>" disabled>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('last_login_help'); ?></p>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="sp-form-group">
+                            <form method="post" action="" id="technical-mode-form" style="margin-bottom:0;">
+                                <input type="hidden" name="action" value="update_technical_mode">
+                                <label class="sp-label" for="is-technical-select"><?php echo t('technical_terms'); ?></label>
+                                <select name="is_technical" id="is-technical-select" class="sp-select" onchange="document.getElementById('technical-mode-form').submit();">
+                                    <option value="1" <?php echo $isTechnical ? 'selected' : ''; ?>><?php echo t('yes'); ?></option>
+                                    <option value="0" <?php echo !$isTechnical ? 'selected' : ''; ?>><?php echo t('no'); ?></option>
+                                </select>
+                                <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('technical_help'); ?></p>
+                            </form>
+                        </div>
+                        <div class="sp-form-group">
+                            <form method="post" action="" id="language-form" style="margin-bottom:0;">
+                                <input type="hidden" name="action" value="update_language">
+                                <label class="sp-label" for="language-select"><?php echo t('language'); ?></label>
+                                <select name="language" id="language-select" class="sp-select" onchange="document.getElementById('language-form').submit();">
+                                    <?php foreach ($languages as $lang): ?>
+                                        <option value="<?php echo htmlspecialchars($lang['code']); ?>" <?php if ($userLanguage === $lang['code']) echo 'selected'; ?>>
+                                            <?php echo htmlspecialchars($lang['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('language_help'); ?></p>
+                            </form>
+                        </div>
+                        <div>
+                            <button id="export-data-profile-btn" class="sp-btn sp-btn-warning" type="button" data-user-id="<?php echo $userId; ?>" data-user-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>" data-user-username="<?php echo htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES); ?>" onclick="exportProfileData()">Export My Data</button>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;">Request a copy of your personal data. Exports are queued and emailed when ready.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="column is-6">
-        <div class="box h-100" id="cookie-consent-info" style="height:100%; position:relative; overflow:visible;">
-            <div class="is-flex is-align-items-center mb-2">
-                <span class="icon is-large mr-2"><i class="fas fa-cookie-bite fa-2x has-text-warning"></i></span>
-                <div>
-                    <h2 class="title is-5 mb-0"><?php echo t('cookie_consent_title'); ?></h2>
-                    <p class="help mb-0"><?php echo t('cookie_consent_help'); ?></p>
+    <div id="cookie-consent-info">
+        <div class="sp-card" style="height:100%;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <i class="fas fa-cookie-bite fa-2x" style="color:var(--amber);"></i>
+                    <div>
+                        <h3 class="sp-card-title" style="margin:0;"><?php echo t('cookie_consent_title'); ?></h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('cookie_consent_help'); ?></p>
+                    </div>
                 </div>
             </div>
-            <div class="content" style="position:relative;">
+            <div class="sp-card-body">
                 <?php
                 $cookieConsent = isset($_COOKIE['cookie_consent']) ? $_COOKIE['cookie_consent'] : null;
                 $tagHtml = '';
                 if ($cookieConsent === 'accepted') {
-                    $tagHtml = '<span class="tag is-success is-medium">' . t('cookie_accepted') . '</span>';
+                    $tagHtml = '<span class="sp-badge sp-badge-green">' . t('cookie_accepted') . '</span>';
                     $infoText = t('cookie_accepted_info');
                 } elseif ($cookieConsent === 'declined') {
-                    $tagHtml = '<span class="tag is-danger is-medium">' . t('cookie_declined') . '</span>';
+                    $tagHtml = '<span class="sp-badge sp-badge-red">' . t('cookie_declined') . '</span>';
                     $infoText = t('cookie_declined_info');
                 } else {
-                    $tagHtml = '<span class="tag is-warning is-medium">' . t('cookie_not_set') . '</span>';
+                    $tagHtml = '<span class="sp-badge sp-badge-amber">' . t('cookie_not_set') . '</span>';
                     $infoText = t('cookie_not_set_info');
                 }
-                // Determine button label and id
                 $cookieBtnLabel = ($cookieConsent === 'declined') ? t('cookie_accept_btn') : t('cookie_decline_btn');
                 $cookieBtnId = ($cookieConsent === 'declined') ? 'accept-cookies-btn' : 'decline-cookies-btn';
+                $cookieBtnClass = ($cookieConsent === 'declined') ? 'sp-btn sp-btn-success sp-btn-sm' : 'sp-btn sp-btn-danger sp-btn-sm';
                 ?>
-                <span>
-                    <?php echo $infoText; ?>
-                </span>
-                <p class="help mt-2"><?php echo t('cookie_change_help'); ?></p>
-                <button class="button is-small mt-2 <?php echo ($cookieConsent === 'declined') ? 'is-success' : 'is-danger'; ?>"
-                    id="<?php echo $cookieBtnId; ?>" type="button" style="position:relative; z-index:3;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                    <?php echo $tagHtml; ?>
+                    <span><?php echo $infoText; ?></span>
+                </div>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('cookie_change_help'); ?></p>
+                <button class="<?php echo $cookieBtnClass; ?>" id="<?php echo $cookieBtnId; ?>" type="button" style="margin-top:0.5rem;">
                     <?php echo $cookieBtnLabel; ?>
                 </button>
-                <div style="
-                    position: absolute;
-                    right: -0.5rem;
-                    bottom: -0.5rem;
-                    z-index: 2;
-                    margin: 0;
-                    pointer-events: none;
-                ">
-                    <?php echo $tagHtml; ?>
-                </div>
             </div>
         </div>
     </div>
-    <div class="column is-6">
-        <div class="box h-100" id="timezone-box" style="height:100%;">
-            <div class="is-flex is-align-items-center mb-2">
-                <span class="icon is-large mr-2"><i class="fas fa-globe fa-2x has-text-link"></i></span>
-                <div>
-                    <h2 class="title is-5 mb-0"><?php echo t('timezone_title'); ?></h2>
-                    <p class="help mb-0"><?php echo t('timezone_help'); ?></p>
+    <div id="timezone-box">
+        <div class="sp-card" style="height:100%;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <i class="fas fa-globe fa-2x" style="color:var(--blue);"></i>
+                    <div>
+                        <h3 class="sp-card-title" style="margin:0;"><?php echo t('timezone_title'); ?></h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('timezone_help'); ?></p>
+                    </div>
                 </div>
             </div>
-            <form method="post" action="" id="timezone-form">
-                <input type="hidden" name="action" value="update_timezone">
-                <div class="field mb-3">
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select name="timezone">
-                                <?php foreach ($timezoneOptions as $tz): ?>
-                                    <option value="<?php echo $tz; ?>" <?php echo ($profileData['timezone'] ?? 'UTC') === $tz ? 'selected' : ''; ?>>
-                                        <?php echo $tz; ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+            <div class="sp-card-body">
+                <form method="post" action="" id="timezone-form">
+                    <input type="hidden" name="action" value="update_timezone">
+                    <div class="sp-form-group">
+                        <select name="timezone" class="sp-select">
+                            <?php foreach ($timezoneOptions as $tz): ?>
+                                <option value="<?php echo $tz; ?>" <?php echo ($profileData['timezone'] ?? 'UTC') === $tz ? 'selected' : ''; ?>>
+                                    <?php echo $tz; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button type="submit" class="button is-primary is-fullwidth"><?php echo t('save_timezone'); ?></button>
+                    <div class="sp-form-group">
+                        <button type="submit" class="sp-btn sp-btn-primary" style="width:100%;"><?php echo t('save_timezone'); ?></button>
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
-    <div class="column is-6">
-        <div class="box h-100" id="weather-location-box" style="height:100%;">
-            <div class="is-flex is-align-items-center mb-2">
-                <span class="icon is-large mr-2"><i class="fas fa-cloud-sun fa-2x has-text-info"></i></span>
-                <div>
-                    <h2 class="title is-5 mb-0"><?php echo t('weather_location_title'); ?></h2>
-                    <p class="help mb-0"><?php echo t('weather_location_help'); ?></p>
+    <div id="weather-location-box">
+        <div class="sp-card" style="height:100%;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <i class="fas fa-cloud-sun fa-2x" style="color:var(--blue);"></i>
+                    <div>
+                        <h3 class="sp-card-title" style="margin:0;"><?php echo t('weather_location_title'); ?></h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('weather_location_help'); ?></p>
+                    </div>
                 </div>
             </div>
-            <form method="post" action="" id="weather-form">
-                <input type="hidden" name="action" value="update_weather_location">
-                <div class="field mb-3">
-                    <div class="control has-icons-right">
-                        <input class="input" type="text" name="weather_location" id="weather-location-input" value="<?php echo $profileData['weather_location'] ?? ''; ?>">
-                        <span class="icon is-small is-right" id="weather-location-status" style="display:none;"></span>
+            <div class="sp-card-body">
+                <form method="post" action="" id="weather-form">
+                    <input type="hidden" name="action" value="update_weather_location">
+                    <div class="sp-form-group" style="position:relative;">
+                        <input class="sp-input" type="text" name="weather_location" id="weather-location-input" value="<?php echo $profileData['weather_location'] ?? ''; ?>" style="padding-right:2.5rem;">
+                        <span id="weather-location-status" style="display:none;position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);"></span>
                     </div>
-                    <p class="help" id="weather-location-help"><?php echo t('weather_location_input_help'); ?></p>
-                </div>
-                <div class="field">
-                    <div class="control">
-                        <button type="submit" class="button is-primary is-fullwidth"><?php echo t('save_weather_location'); ?></button>
+                    <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;" id="weather-location-help"><?php echo t('weather_location_input_help'); ?></p>
+                    <div class="sp-form-group" style="margin-top:0.75rem;">
+                        <button type="submit" class="sp-btn sp-btn-primary" style="width:100%;"><?php echo t('save_weather_location'); ?></button>
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
-    <div class="column is-6">
-        <div class="box h-100" id="api" style="height:100%;">
-            <div class="is-flex is-align-items-center mb-2">
-                <span class="icon is-large mr-2"><i class="fas fa-key fa-2x has-text-primary"></i></span>
-                <div>
-                    <h2 class="title is-4 mb-0"><?php echo t('api_access_title'); ?></h2>
-                    <p class="help mb-3"><?php echo t('api_access_help'); ?></p>
+    <div id="api">
+        <div class="sp-card" style="height:100%;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <i class="fas fa-key fa-2x" style="color:var(--accent);"></i>
+                    <div>
+                        <h3 class="sp-card-title" style="margin:0;"><?php echo t('api_access_title'); ?></h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('api_access_help'); ?></p>
+                    </div>
                 </div>
             </div>
-            <div class="field mb-3">
-                <label class="label"><?php echo t('api_key_label'); ?></label>
-                <div class="control">
-                    <div class="is-flex">
-                        <input class="input" type="text" name="api_key_display" value="<?php echo $user['api_key'] ?? ''; ?>" id="api-key-field" readonly autocomplete="off" form="regenerate-api-key-form">
-                        <button class="button ml-2" onclick="copyApiKey()" title="<?php echo t('copy_api_key'); ?>" id="copy-api-key-btn" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
-                            <span class="icon is-medium"><i class="fas fa-copy" id="copy-icon"></i></span>
+            <div class="sp-card-body">
+                <div class="sp-form-group">
+                    <label class="sp-label"><?php echo t('api_key_label'); ?></label>
+                    <div style="display:flex;gap:0.5rem;">
+                        <input class="sp-input" type="text" name="api_key_display" value="<?php echo $user['api_key'] ?? ''; ?>" id="api-key-field" readonly autocomplete="off" form="regenerate-api-key-form">
+                        <button class="sp-btn sp-btn-secondary" onclick="copyApiKey()" title="<?php echo t('copy_api_key'); ?>" id="copy-api-key-btn" style="flex:0 0 auto;width:2.5rem;height:2.5rem;padding:0;">
+                            <i class="fas fa-copy" id="copy-icon"></i>
                         </button>
-                        <button class="button ml-2" onclick="toggleApiKeyVisibility()" title="<?php echo t('show_hide_api_key'); ?>" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
-                            <span class="icon is-medium"><i class="fas fa-eye" id="visibility-icon"></i></span>
+                        <button class="sp-btn sp-btn-secondary" onclick="toggleApiKeyVisibility()" title="<?php echo t('show_hide_api_key'); ?>" style="flex:0 0 auto;width:2.5rem;height:2.5rem;padding:0;">
+                            <i class="fas fa-eye" id="visibility-icon"></i>
                         </button>
-                        <form method="post" action="" id="regenerate-api-key-form" style="margin-left: 0.5rem;">
+                        <form method="post" action="" id="regenerate-api-key-form" style="margin:0;">
                             <input type="hidden" name="action" value="regenerate_api_key">
-                            <button type="button" class="button is-warning" id="regenerate-api-key-btn" title="<?php echo t('regenerate_api_key'); ?>" style="height: 2.5em; width: 2.5em; display: flex; align-items: center; justify-content: center;">
-                                <span class="icon is-medium"><i class="fas fa-sync-alt"></i></span>
+                            <button type="button" class="sp-btn sp-btn-warning" id="regenerate-api-key-btn" title="<?php echo t('regenerate_api_key'); ?>" style="width:2.5rem;height:2.5rem;padding:0;">
+                                <i class="fas fa-sync-alt"></i>
                             </button>
                         </form>
                     </div>
@@ -778,403 +745,282 @@ ob_start();
             </div>
         </div>
     </div>
-    <div class="column is-6">
-        <div class="box h-100" id="storage-usage" style="height:100%; display: flex; flex-direction: column; justify-content: stretch;">
-            <div class="is-flex is-align-items-center mb-2">
-                <span class="icon is-large mr-2">
-                    <i class="fas fa-database fa-2x has-text-info"></i>
-                </span>
-                <div style="flex-grow: 1;">
-                    <div class="is-flex is-align-items-center is-justify-content-space-between">
+    <div id="storage-usage">
+        <div class="sp-card" style="height:100%;display:flex;flex-direction:column;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <i class="fas fa-database fa-2x" style="color:var(--blue);"></i>
                         <div>
-                            <h2 class="title is-5 mb-0"><?php echo t('storage_usage_title'); ?></h2>
-                            <p class="help mb-0"><?php echo t('storage_usage_help'); ?></p>
+                            <h3 class="sp-card-title" style="margin:0;"><?php echo t('storage_usage_title'); ?></h3>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('storage_usage_help'); ?></p>
                         </div>
-                        <div class="tags has-addons" style="margin-left: 10px;">
-                            <?php 
-                            // Check beta access
-                            $betaAccess = isset($user['beta_access']) ? ($user['beta_access'] == 1) : false;
-                            // Get tier from session or check subscription
-                            $tier = $_SESSION['tier'] ?? 'None';
-                            // Display tier tag if subscribed
-                            if ($tier !== 'None' && in_array($tier, ['1000', '2000', '3000'])):
-                                $tierLabel = match($tier) {
-                                    '1000' => 'Tier 1',
-                                    '2000' => 'Tier 2',
-                                    '3000' => 'Tier 3',
-                                    default => 'Tier'
-                                };
-                                $tierColor = match($tier) {
-                                    '1000' => 'is-info',
-                                    '2000' => 'is-warning',
-                                    '3000' => 'is-danger',
-                                    default => 'is-primary'
-                                };
-                            ?>
-                                <span class="tag <?php echo $tierColor; ?> is-medium">
-                                    <span class="icon is-small">
-                                        <i class="fas fa-crown"></i>
-                                    </span>
-                                    <span><?php echo $tierLabel; ?></span>
-                                </span>
-                            <?php endif; ?>
-                            <?php if ($betaAccess): ?>
-                                <span class="tag is-primary is-medium">
-                                    <span class="icon is-small">
-                                        <i class="fas fa-flask"></i>
-                                    </span>
-                                    <span>Beta</span>
-                                </span>
-                            <?php endif; ?>
-                        </div>
+                    </div>
+                    <div style="display:inline-flex;gap:0.25rem;flex-wrap:wrap;">
+                        <?php
+                        $betaAccess = isset($user['beta_access']) ? ($user['beta_access'] == 1) : false;
+                        $tier = $_SESSION['tier'] ?? 'None';
+                        if ($tier !== 'None' && in_array($tier, ['1000', '2000', '3000'])):
+                            $tierLabel = match($tier) {
+                                '1000' => 'Tier 1',
+                                '2000' => 'Tier 2',
+                                '3000' => 'Tier 3',
+                                default => 'Tier'
+                            };
+                            $tierBadgeClass = match($tier) {
+                                '1000' => 'sp-badge sp-badge-blue',
+                                '2000' => 'sp-badge sp-badge-amber',
+                                '3000' => 'sp-badge sp-badge-red',
+                                default => 'sp-badge sp-badge-accent'
+                            };
+                        ?>
+                            <span class="<?php echo $tierBadgeClass; ?>">
+                                <i class="fas fa-crown" style="margin-right:0.25rem;"></i><?php echo $tierLabel; ?>
+                            </span>
+                        <?php endif; ?>
+                        <?php if ($betaAccess): ?>
+                            <span class="sp-badge sp-badge-accent">
+                                <i class="fas fa-flask" style="margin-right:0.25rem;"></i>Beta
+                            </span>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
-            <div class="mb-2">
-                <span class="has-text-weight-bold"><?php echo $storageUsedFormatted; ?></span>
-                <span class="has-text-white">/ <?php echo $storageMaxFormatted; ?></span>
-                <span class="has-text-white" style="float:right;"><?php echo number_format($storagePercent, 2); ?><?php echo t('percent_used'); ?></span>
-            </div>
-            <div style="margin-bottom:3px;">
-                <progress class="progress is-info" value="<?php echo $storagePercent; ?>" max="100" style="height: 10px; margin-bottom:0;">
-                    <?php echo $storagePercent; ?>%
-                </progress>
-            </div>
-            <div class="is-flex is-justify-content-space-between is-size-7" style="margin-top:0;">
-                <span>0%</span>
-                <span>25%</span>
-                <span>50%</span>
-                <span>75%</span>
-                <span>100%</span>
-            </div>
-            <?php if ($storagePercent >= 100): ?>
-                <div class="notification is-danger is-light mt-3 mb-0">
-                    <strong><?php echo t('storage_limit_reached'); ?></strong>
+            <div class="sp-card-body" style="flex:1;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.75rem;">
+                    <span>
+                        <strong><?php echo $storageUsedFormatted; ?></strong>
+                        <span style="color:var(--text-muted);"> / <?php echo $storageMaxFormatted; ?></span>
+                    </span>
+                    <span style="font-weight:600;color:<?php echo $storagePercent >= 90 ? 'var(--red)' : ($storagePercent >= 70 ? 'var(--amber)' : 'var(--green)'); ?>;">
+                        <?php echo number_format($storagePercent, 2); ?><?php echo t('percent_used'); ?>
+                    </span>
                 </div>
-            <?php elseif ($storagePercent >= 90): ?>
-                <div class="notification is-warning is-light mt-3 mb-0">
-                    <strong><?php echo t('storage_almost_full'); ?></strong>
+                <div style="position:relative;height:10px;border-radius:100px;background:var(--border);overflow:hidden;margin-bottom:0.5rem;">
+                    <div style="position:absolute;top:0;left:0;height:100%;width:<?php echo $storagePercent; ?>%;border-radius:100px;background:<?php echo $storagePercent >= 90 ? 'var(--red)' : ($storagePercent >= 70 ? 'var(--amber)' : 'var(--accent)'); ?>;transition:width 0.4s ease;<?php echo $storagePercent > 0 && $storagePercent < 1 ? 'min-width:4px;' : ''; ?>"></div>
                 </div>
-            <?php endif; ?>
+                <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);">
+                    <span>0%</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                </div>
+                <?php if ($storagePercent >= 100): ?>
+                    <div class="sp-alert sp-alert-danger" style="margin-top:1rem;margin-bottom:0;">
+                        <strong><?php echo t('storage_limit_reached'); ?></strong>
+                    </div>
+                <?php elseif ($storagePercent >= 90): ?>
+                    <div class="sp-alert sp-alert-warning" style="margin-top:1rem;margin-bottom:0;">
+                        <strong><?php echo t('storage_almost_full'); ?></strong>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
-    <div class="column is-6">
-        <div class="box h-100" id="heartrate" style="height:100%;">
-            <div class="is-flex is-align-items-center mb-2">
-                <span class="icon is-large mr-2"><i class="fas fa-heartbeat fa-2x has-text-danger"></i></span>
-                <div>
-                    <h2 class="title is-5 mb-0"><?php echo t('heartrate_code_title'); ?></h2>
-                    <p class="help mb-0">
-                        <?php echo t('heartrate_code_help'); ?>
-                        <a href="https://www.hyperate.io/" target="_blank" rel="noopener noreferrer">HypeRate.io</a>
-                    </p>
+    <div id="heartrate">
+        <div class="sp-card" style="height:100%;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <i class="fas fa-heartbeat fa-2x" style="color:var(--red);"></i>
+                    <div>
+                        <h3 class="sp-card-title" style="margin:0;"><?php echo t('heartrate_code_title'); ?></h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">
+                            <?php echo t('heartrate_code_help'); ?>
+                            <a href="https://www.hyperate.io/" target="_blank" rel="noopener noreferrer">HypeRate.io</a>
+                        </p>
+                    </div>
                 </div>
             </div>
-            <div class="content">
-                <form method="post" action="" id="heartrate-form" style="margin-bottom: 1em;">
+            <div class="sp-card-body">
+                <form method="post" action="" id="heartrate-form" style="margin-bottom:1em;">
                     <input type="hidden" name="action" value="update_heartrate_code">
-                    <div class="field has-addons">
-                        <div class="control is-expanded">
-                            <input class="input" type="text" name="heartrate_code" value="<?php echo htmlspecialchars($heartrateCode ?? '', ENT_QUOTES); ?>" placeholder="<?php echo t('heartrate_code_placeholder'); ?>">
-                        </div>
-                        <div class="control">
-                            <button type="submit" class="button is-primary"><?php echo t('heartrate_save'); ?></button>
-                        </div>
+                    <div class="sp-form-group" style="display:flex;gap:0;">
+                        <input class="sp-input" type="text" name="heartrate_code" value="<?php echo htmlspecialchars($heartrateCode ?? '', ENT_QUOTES); ?>" placeholder="<?php echo t('heartrate_code_placeholder'); ?>" style="border-radius:var(--radius) 0 0 var(--radius);">
+                        <button type="submit" class="sp-btn sp-btn-primary" style="border-radius:0 var(--radius) var(--radius) 0;white-space:nowrap;"><?php echo t('heartrate_save'); ?></button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-    <div class="column is-12">
-        <div class="box" id="connections">
-            <h2 class="title is-4 mb-4"><?php echo t('connected_accounts_title'); ?></h2>
-            <div class="columns is-multiline">
-                <div class="column is-3-desktop is-6-tablet is-12-mobile">
-                    <div class="box has-background-dark">
-                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <img src="https://cdn.brandfetch.io/idIwZCwD2f/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668070397594" alt="Twitch" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
-                                        <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading"><?php echo t('twitch'); ?></p>
-                                    </div>
-                                </div>
+    <div style="grid-column:1/-1;" id="connections">
+        <div class="sp-card">
+            <div class="sp-card-header">
+                <h2 class="sp-card-title"><?php echo t('connected_accounts_title'); ?></h2>
+            </div>
+            <div class="sp-card-body">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;">
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/idIwZCwD2f/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668070397594" alt="Twitch" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('twitch'); ?></p>
                             </div>
-                            <div class="level-right" style="margin-left:auto;">
-                                <div class="level-item">
-                                    <button type="button" class="button is-danger is-small" onclick="disconnectTwitch()">
-                                        <span class="icon is-small"><i class="fas fa-sign-out-alt"></i></span>
-                                        <span><?php echo t('logout'); ?></span>
-                                    </button>
-                                </div>
+                            <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectTwitch()">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span><?php echo t('logout'); ?></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/idM8Hlme1a/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668075051777" alt="Discord" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('discord'); ?></p>
                             </div>
+                            <?php if ($discordLinked): ?>
+                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectDiscord()">
+                                    <i class="fas fa-unlink"></i>
+                                    <span><?php echo t('disconnect'); ?></span>
+                                </button>
+                            <?php else: ?>
+                                <a href="discordbot.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
+                                    <i class="fas fa-link"></i>
+                                    <span><?php echo t('connect'); ?></span>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/id20mQyGeY/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1737597212873" alt="Spotify" style="width:2.5em;height:2.5em;object-fit:contain;border-radius:50%;background:#222;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('spotify'); ?></p>
+                            </div>
+                            <?php if ($spotifyLinked): ?>
+                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectSpotify()">
+                                    <i class="fas fa-unlink"></i>
+                                    <span><?php echo t('disconnect'); ?></span>
+                                </button>
+                            <?php else: ?>
+                                <a href="spotifylink.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
+                                    <i class="fas fa-link"></i>
+                                    <span><?php echo t('connect'); ?></span>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" alt="StreamElements" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('streamelements'); ?></p>
+                            </div>
+                            <?php if ($streamelementsLinked): ?>
+                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectStreamelements()">
+                                    <i class="fas fa-unlink"></i>
+                                    <span><?php echo t('disconnect'); ?></span>
+                                </button>
+                            <?php else: ?>
+                                <a href="streamelements.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
+                                    <i class="fas fa-link"></i>
+                                    <span><?php echo t('connect'); ?></span>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/idIDKnQFO2/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1767309079648" alt="StreamLabs" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('streamlabs'); ?></p>
+                            </div>
+                            <?php if ($streamlabsLinked): ?>
+                                <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" style="width:100%;" onclick="disconnectStreamlabs()">
+                                    <i class="fas fa-unlink"></i>
+                                    <span><?php echo t('disconnect'); ?></span>
+                                </button>
+                            <?php else: ?>
+                                <a href="streamlabs.php" class="sp-btn sp-btn-secondary sp-btn-sm" style="width:100%;text-align:center;">
+                                    <i class="fas fa-link"></i>
+                                    <span><?php echo t('connect'); ?></span>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041" alt="YouTube" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('youtube'); ?></p>
+                            </div>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" style="width:100%;" disabled>
+                                <i class="fas fa-clock"></i>
+                                <span><?php echo t('coming_soon'); ?></span>
+                            </button>
                         </div>
                     </div>
                 </div>
-                <div class="column is-3-desktop is-6-tablet is-12-mobile">
-                    <div class="box has-background-dark">
-                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <img src="https://cdn.brandfetch.io/idM8Hlme1a/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668075051777" alt="Discord" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
-                                        <?php if ($discordLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading"><?php echo t('discord'); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="level-right" style="margin-left:auto;">
-                                <div class="level-item">
-                                    <?php if ($discordLinked): ?>
-                                        <button type="button" class="button is-danger is-small" onclick="disconnectDiscord()">
-                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
-                                            <span><?php echo t('disconnect'); ?></span>
-                                        </button>
-                                    <?php else: ?>
-                                        <a href="discordbot.php" class="button is-small">
-                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
-                                            <span><?php echo t('connect'); ?></span>
-                                        </a>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-3-desktop is-6-tablet is-12-mobile">
-                    <div class="box has-background-dark">
-                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <img src="https://cdn.brandfetch.io/id20mQyGeY/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1737597212873" alt="Spotify" style="width:2.5em;height:2.5em;object-fit:contain;border-radius:50%;background:#222;display:block;">
-                                        <?php if ($spotifyLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading"><?php echo t('spotify'); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="level-right" style="margin-left:auto;">
-                                <div class="level-item">
-                                    <?php if ($spotifyLinked): ?>
-                                        <button type="button" class="button is-danger is-small" onclick="disconnectSpotify()">
-                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
-                                            <span><?php echo t('disconnect'); ?></span>
-                                        </button>
-                                    <?php else: ?>
-                                        <a href="spotifylink.php" class="button is-small">
-                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
-                                            <span><?php echo t('connect'); ?></span>
-                                        </a>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-3-desktop is-6-tablet is-12-mobile">
-                    <div class="box has-background-dark">
-                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <img src="https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" alt="StreamElements" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
-                                        <?php if ($streamelementsLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading"><?php echo t('streamelements'); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="level-right" style="margin-left:auto;">
-                                <div class="level-item">
-                                    <?php if ($streamelementsLinked): ?>
-                                        <button type="button" class="button is-danger is-small" onclick="disconnectStreamelements()">
-                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
-                                            <span><?php echo t('disconnect'); ?></span>
-                                        </button>
-                                    <?php else: ?>
-                                        <a href="streamelements.php" class="button is-small">
-                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
-                                            <span><?php echo t('connect'); ?></span>
-                                        </a>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-3-desktop is-6-tablet is-12-mobile">
-                    <div class="box has-background-dark">
-                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <img src="https://cdn.brandfetch.io/idIDKnQFO2/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1767309079648" alt="StreamLabs" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
-                                        <?php if ($streamlabsLinked): ?>
-                                            <i class="fas fa-check-circle has-text-success" style="position:absolute;bottom:0;right:0;transform:translate(25%,25%);background:white;border-radius:50%;font-size:0.8em;overflow:visible;"></i>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading"><?php echo t('streamlabs'); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="level-right" style="margin-left:auto;">
-                                <div class="level-item">
-                                    <?php if ($streamlabsLinked): ?>
-                                        <button type="button" class="button is-danger is-small" onclick="disconnectStreamlabs()">
-                                            <span class="icon is-small"><i class="fas fa-unlink"></i></span>
-                                            <span><?php echo t('disconnect'); ?></span>
-                                        </button>
-                                    <?php else: ?>
-                                        <a href="streamlabs.php" class="button is-small">
-                                            <span class="icon is-small"><i class="fas fa-link"></i></span>
-                                            <span><?php echo t('connect'); ?></span>
-                                        </a>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column is-3-desktop is-6-tablet is-12-mobile">
-                    <div class="box has-background-dark">
-                        <div class="level" style="flex-wrap:wrap;align-items:center;gap:0.5rem;">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large" style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;">
-                                        <img src="https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041" alt="YouTube" style="width:2.5em;height:2.5em;object-fit:contain;display:block;">
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading"><?php echo t('youtube'); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="level-right" style="margin-left:auto;">
-                                <div class="level-item">
-                                    <button type="button" class="button is-warning is-small" disabled>
-                                        <span class="icon is-small"><i class="fas fa-clock"></i></span>
-                                        <span><?php echo t('coming_soon'); ?></span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Example for a 4th account slot, add more as needed -->
-                <!--
-                <div class="column is-3">
-                    <div class="box has-background-dark">
-                        <div class="level">
-                            <div class="level-left">
-                                <div class="level-item">
-                                    <span class="icon is-large">
-                                        <i class="fab fa-example fa-2x"></i>
-                                    </span>
-                                </div>
-                                <div class="level-item">
-                                    <div>
-                                        <p class="heading">Example</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="level-right">
-                                <div class="level-item">
-                                    <span class="tag is-danger">Not Connected</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>-->
             </div>
         </div>
     </div>
-    <div class="column is-12">
-        <div class="box" id="custom-bot">
-        <h2 class="title is-4 mb-4">Custom Bot <span class="tag is-warning" style="margin-left:0.5rem;">Experimental</span></h2>
-            <div class="content">
-                <p>Set a custom bot for your channel by entering the bot's Twitch username. We'll resolve the Twitch user ID for you.</p>
+    <div style="grid-column:1/-1;" id="custom-bot">
+        <div class="sp-card">
+            <div class="sp-card-header">
+                <h2 class="sp-card-title">Custom Bot <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">Beta 5.8</span></h2>
             </div>
-            <?php
-            // Load existing custom bot for this channel if present (include verification state)
-            $existingBot = null;
-            $cbStmt = $conn->prepare("SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
-            if ($cbStmt) {
-                $cbStmt->bind_param('i', $userId);
-                $cbStmt->execute();
-                $cbRes = $cbStmt->get_result();
-                if ($row = $cbRes->fetch_assoc()) {
-                    $existingBot = $row;
+            <div class="sp-card-body">
+                <p style="margin-bottom:1rem;">Set a custom bot for your channel by entering the bot's Twitch username. We'll resolve the Twitch user ID for you.</p>
+                <?php
+                // Load existing custom bot for this channel if present (include verification state)
+                $existingBot = null;
+                $cbStmt = $conn->prepare("SELECT bot_username, bot_channel_id, is_verified FROM custom_bots WHERE channel_id = ? LIMIT 1");
+                if ($cbStmt) {
+                    $cbStmt->bind_param('i', $userId);
+                    $cbStmt->execute();
+                    $cbRes = $cbStmt->get_result();
+                    if ($row = $cbRes->fetch_assoc()) {
+                        $existingBot = $row;
+                    }
                 }
-            }
-            ?>
-            <form method="post" id="custom-bot-form" style="margin-top:1rem;">
-                <input type="hidden" name="action" value="save_custom_bot">
-                <div style="margin-bottom:0.5rem;">
-                    <?php if (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) !== 1): ?>
-                        <span class="tag is-danger">NOT VERIFIED</span>
-                        <div class="help" style="margin-left:0.5rem; margin-top:0.5rem;">
-                            <p><strong>To verify this bot:</strong></p>
-                            <ol style="margin-left:1.5rem; margin-top:0.5rem;">
-                                <li>Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a></li>
-                                <li>Sign in using the <strong>bot account</strong> credentials</li>
-                                <li>Complete the verification process</li>
-                            </ol>
-                            <p style="margin-top:0.5rem;"><em>Note: Using an incognito/private window ensures you don't accidentally sign in with your main account.</em></p>
-                        </div>
-                    <?php elseif (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) === 1): ?>
-                        <span class="tag is-success">Verified</span>
-                    <?php endif; ?>
-                </div>
-                <div class="field">
-                    <label class="label">Bot Name</label>
-                    <div class="control has-icons-right">
-                        <input class="input" type="text" name="bot_username" id="bot-username" value="<?php echo htmlspecialchars($existingBot['bot_username'] ?? '', ENT_QUOTES); ?>" required>
-                        <span class="icon is-small is-right" id="bot-lookup-status" style="display:none;"></span>
+                ?>
+                <form method="post" id="custom-bot-form" style="margin-top:1rem;">
+                    <input type="hidden" name="action" value="save_custom_bot">
+                    <div style="margin-bottom:0.5rem;">
+                        <?php if (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) !== 1): ?>
+                            <span class="sp-badge sp-badge-red">NOT VERIFIED</span>
+                            <div style="margin-left:0.5rem;margin-top:0.5rem;font-size:0.9rem;color:var(--text-secondary);">
+                                <p><strong>To verify this bot:</strong></p>
+                                <ol style="margin-left:1.5rem;margin-top:0.5rem;">
+                                    <li>Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a></li>
+                                    <li>Sign in using the <strong>bot account</strong> credentials</li>
+                                    <li>Complete the verification process</li>
+                                </ol>
+                                <p style="margin-top:0.5rem;"><em>Note: Using an incognito/private window ensures you don't accidentally sign in with your main account.</em></p>
+                            </div>
+                        <?php elseif (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) === 1): ?>
+                            <span class="sp-badge sp-badge-green">Verified</span>
+                        <?php endif; ?>
                     </div>
-                    <p class="help">Enter the Twitch username of the bot (without @).</p>
-                </div>
-                <div class="field">
-                    <label class="label">Bot ID</label>
-                    <div class="control">
-                        <input class="input" type="text" name="bot_channel_id" id="bot-id" value="<?php echo htmlspecialchars($existingBot['bot_channel_id'] ?? '', ENT_QUOTES); ?>" readonly>
+                    <div class="sp-form-group" style="position:relative;">
+                        <label class="sp-label">Bot Name</label>
+                        <input class="sp-input" type="text" name="bot_username" id="bot-username" value="<?php echo htmlspecialchars($existingBot['bot_username'] ?? '', ENT_QUOTES); ?>" required style="padding-right:2.5rem;">
+                        <span id="bot-lookup-status" style="display:none;position:absolute;right:0.75rem;top:calc(50% + 0.75rem);transform:translateY(-50%);"></span>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;">Enter the Twitch username of the bot (without @).</p>
                     </div>
-                    <p class="help">This is the resolved Twitch user ID for the bot.</p>
-                </div>
-                <div class="field is-grouped">
-                    <div class="control">
-                        <button type="submit" class="button is-primary">Save</button>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Bot ID</label>
+                        <input class="sp-input" type="text" name="bot_channel_id" id="bot-id" value="<?php echo htmlspecialchars($existingBot['bot_channel_id'] ?? '', ENT_QUOTES); ?>" readonly>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;">This is the resolved Twitch user ID for the bot.</p>
                     </div>
-                    <div class="control">
-                        <button type="button" class="button" id="resolve-bot-btn">Resolve ID</button>
+                    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+                        <button type="submit" class="sp-btn sp-btn-primary">Save</button>
+                        <button type="button" class="sp-btn sp-btn-secondary" id="resolve-bot-btn">Resolve ID</button>
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -1198,7 +1044,7 @@ ob_start();
     resolveBtn && resolveBtn.addEventListener('click', function(e){
         const name = usernameInput.value.trim();
         if (!name) {
-            setStatus('<i class="fas fa-exclamation-triangle has-text-danger"></i>', '');
+            setStatus('<i class="fas fa-exclamation-triangle" style="color:var(--red);"></i>', '');
             return;
         }
         setStatus('<i class="fas fa-spinner fa-spin"></i>','');
@@ -1209,13 +1055,13 @@ ob_start();
         }).then(r=>r.json()).then(j=>{
             if (j && j.success) {
                 idField.value = j.bot_id || '';
-                setStatus('<i class="fas fa-check has-text-success"></i>','');
+                setStatus('<i class="fas fa-check" style="color:var(--green);"></i>','');
             } else {
-                setStatus('<i class="fas fa-times has-text-danger"></i>','');
+                setStatus('<i class="fas fa-times" style="color:var(--red);"></i>','');
                 alert(j.error || 'Unable to resolve bot ID');
             }
         }).catch(err=>{
-            setStatus('<i class="fas fa-times has-text-danger"></i>','');
+            setStatus('<i class="fas fa-times" style="color:var(--red);"></i>','');
             console.error(err);
             alert('Error resolving bot ID');
         });
@@ -1262,11 +1108,11 @@ function copyApiKey() {
         const copyIcon = document.getElementById('copy-icon');
         copyIcon.classList.remove('fa-copy');
         copyIcon.classList.add('fa-check');
-        copyBtn.classList.add('is-success');
+        copyBtn.classList.add('sp-btn-success');
         setTimeout(() => {
             copyIcon.classList.remove('fa-check');
             copyIcon.classList.add('fa-copy');
-            copyBtn.classList.remove('is-success');
+            copyBtn.classList.remove('sp-btn-success');
         }, 2000);
     }
 }
@@ -1277,12 +1123,10 @@ function showCopyNotification() {
     existingNotifications.forEach(notification => notification.remove());
     // Create notification
     const notification = document.createElement('div');
-    notification.className = 'notification is-success is-light copy-notification';
-    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; animation: slideInRight 0.3s ease-out;';
-    notification.innerHTML = `
-        <button class="delete" onclick="this.parentElement.remove()"></button>
-        <strong><i class="fas fa-check-circle mr-2"></i><?php echo t('api_key_copied'); ?></strong>
-    `;
+    notification.className = 'sp-alert sp-alert-success copy-notification';
+    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; animation: slideInRight 0.3s ease-out; cursor:pointer;';
+    notification.innerHTML = `<strong><i class="fas fa-check-circle" style="margin-right:0.5rem;"></i><?php echo t('api_key_copied'); ?></strong>`;
+    notification.onclick = function() { this.remove(); };
     document.body.appendChild(notification);
     // Auto-remove after 3 seconds
     setTimeout(() => {
@@ -1391,13 +1235,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (apiKeyField) {
         apiKeyField.type = 'password';
     }
-    const deleteButtons = Array.prototype.slice.call(document.querySelectorAll('.notification .delete'), 0);
-    deleteButtons.forEach(function(deleteButton) {
-        const notification = deleteButton.parentNode;
-        deleteButton.addEventListener('click', function() {
-            notification.parentNode.removeChild(notification);
-        });
-    });
+
     const regenBtn = document.getElementById('regenerate-api-key-btn');
     if (regenBtn) {
         regenBtn.addEventListener('click', function(e) {
@@ -1457,10 +1295,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (cachedObj.location === location) {
                     // Use cached result
                     if (cachedObj.valid) {
-                        statusIcon.innerHTML = '<i class="fas fa-check has-text-success"></i>';
+                        statusIcon.innerHTML = '<i class="fas fa-check" style="color:var(--green);"></i>';
                         helpText.textContent = cachedObj.message || <?php echo json_encode(t('location_is_valid')); ?>;
                     } else {
-                        statusIcon.innerHTML = '<i class="fas fa-times has-text-danger"></i>';
+                        statusIcon.innerHTML = '<i class="fas fa-times" style="color:var(--red);"></i>';
                         helpText.textContent = cachedObj.message || <?php echo json_encode(t('location_not_found')); ?>;
                     }
                     statusIcon.style.display = '';
@@ -1475,17 +1313,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 return res.json().then(data => {
                     let valid = false, msg = "";
                     if (res.ok && data && data.message) {
-                        statusIcon.innerHTML = '<i class="fas fa-check has-text-success"></i>';
+                        statusIcon.innerHTML = '<i class="fas fa-check" style="color:var(--green);"></i>';
                         helpText.textContent = data.message;
                         valid = true;
                         msg = data.message;
                     } else if (data && data.detail && data.detail.includes("not found")) {
-                        statusIcon.innerHTML = '<i class="fas fa-times has-text-danger"></i>';
+                        statusIcon.innerHTML = '<i class="fas fa-times" style="color:var(--red);"></i>';
                         helpText.textContent = <?php echo json_encode(t('weather_location_not_found')); ?>;
                         valid = false;
                         msg = <?php echo json_encode(t('weather_location_not_found')); ?>;
                     } else {
-                        statusIcon.innerHTML = '<i class="fas fa-exclamation-triangle has-text-warning"></i>';
+                        statusIcon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:var(--amber);"></i>';
                         helpText.textContent = <?php echo json_encode(t('weather_location_could_not_validate')); ?>;
                         valid = false;
                         msg = <?php echo json_encode(t('weather_location_could_not_validate')); ?>;
@@ -1501,7 +1339,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             })
             .catch(() => {
-                statusIcon.innerHTML = '<i class="fas fa-exclamation-triangle has-text-warning"></i>';
+                statusIcon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:var(--amber);"></i>';
                 helpText.textContent = <?php echo json_encode(t('weather_location_could_not_validate')); ?>;
                 statusIcon.style.display = '';
             });
@@ -1680,8 +1518,8 @@ function exportProfileData() {
     const uname = btn.getAttribute('data-user-username') || '';
     Swal.fire({
         title: 'Request data export?',
-        html: '<p>Data exports can take anywhere from <span class="has-text-weight-semibold">5 minutes</span> to <span class="has-text-weight-semibold">several days</span> depending on queue length.</p>' +
-              '<p>Once the request has been completed, all information will be emailed to <span class="has-text-weight-semibold">' + (email || 'the email linked to your Twitch account') + '</span>.</p>' +
+        html: '<p>Data exports can take anywhere from <strong>5 minutes</span> to <strong>several days</span> depending on queue length.</p>' +
+              '<p>Once the request has been completed, all information will be emailed to <strong>' + (email || 'the email linked to your Twitch account') + '</span>.</p>' +
               '<p>You will receive a notification when the export is ready.</p>',
         icon: 'info',
         showCancelButton: true,
