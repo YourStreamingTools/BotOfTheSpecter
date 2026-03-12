@@ -546,6 +546,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     padding: 0.5rem 1.1rem;
     border-radius: var(--radius);
@@ -848,6 +849,21 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 
 .sp-alert i { margin-right: 0.45rem; vertical-align: text-top; }
+/* Dynamic toast notifications */
+.sp-notif { position: relative; }
+.sp-notif-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0;
+    color: inherit;
+    opacity: 0.6;
+    flex-shrink: 0;
+    margin-right: 0.25rem;
+}
+.sp-notif-close:hover { opacity: 1; }
 
 .sp-alert-info    { background: var(--blue-bg);  border-color: var(--blue);  color: var(--text-primary); }
 .sp-alert-success { background: var(--green-bg); border-color: var(--green); color: var(--text-primary); }
@@ -1247,6 +1263,184 @@ input[type="range"].modern-volume::-webkit-slider-thumb {
     color: var(--text-muted);
     margin: 0;
     flex: 1;
+}
+
+/* ----------------------------------------------------------
+   19. Bot Management page
+   ---------------------------------------------------------- */
+
+/* Two-column layout: left sidebar | main content */
+.bot-page-cols {
+    display: grid;
+    grid-template-columns: 3fr 8fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+/* Stream / channel status badge */
+.bot-stream-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    border: 1px solid transparent;
+}
+.bot-stream-online  { background: rgba(62,207,142,.12);  color: var(--green);  border-color: var(--green); }
+.bot-stream-offline { background: rgba(251,191,36,.12);  color: var(--amber);  border-color: var(--amber); }
+.bot-stream-unknown { background: rgba(108,108,132,.12); color: var(--text-muted); border-color: var(--border); }
+
+/* Toggle switch (replaces Bulma switch extension) */
+input[type="checkbox"].switch {
+    -webkit-appearance: none;
+    appearance: none;
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+}
+input[type="checkbox"].switch + label {
+    position: relative;
+    padding-left: 3.1rem;
+    cursor: pointer;
+    user-select: none;
+    min-height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+}
+input[type="checkbox"].switch + label::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2.5rem;
+    height: 1.375rem;
+    background: var(--bg-input, #2a2a35);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition: background var(--transition), border-color var(--transition);
+}
+input[type="checkbox"].switch + label::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: left var(--transition), background var(--transition);
+}
+input[type="checkbox"].switch:checked + label::before {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+input[type="checkbox"].switch:checked + label::after {
+    left: 1.4rem;
+    background: #fff;
+}
+input[type="checkbox"].switch:focus-visible + label::before {
+    box-shadow: 0 0 0 3px rgba(124,92,191,.35);
+}
+input[type="checkbox"].switch:disabled + label {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* Progress bar color variants */
+.progress-success::-webkit-progress-value { background: var(--green) !important; }
+.progress-success::-moz-progress-bar      { background: var(--green) !important; }
+.progress-info::-webkit-progress-value    { background: var(--blue)  !important; }
+.progress-info::-moz-progress-bar         { background: var(--blue)  !important; }
+.progress-warning::-webkit-progress-value { background: var(--amber) !important; }
+.progress-warning::-moz-progress-bar      { background: var(--amber) !important; }
+
+/* API limit helper text */
+.api-helper-text {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    font-style: italic;
+}
+
+/* Bot management card header layout */
+.bot-header-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 1rem;
+}
+.bot-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+/* Service health grid */
+.service-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+.service-box {
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg, 10px);
+    padding: 1.25rem;
+    text-align: center;
+    transition: border-color var(--transition);
+}
+.service-box:hover { border-color: var(--border-hover, #3a3a50); }
+.service-icon {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+}
+.service-name {
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.25rem;
+    font-size: 0.95rem;
+}
+.service-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+.service-tech {
+    font-family: monospace;
+    font-size: 0.7rem;
+    margin-top: 0.5rem;
+    text-align: left;
+    color: var(--text-muted);
+}
+.service-tech-label {
+    color: var(--text-muted);
+}
+
+/* Responsive breakpoints */
+@media (max-width: 1100px) {
+    .bot-page-cols { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .service-grid { grid-template-columns: repeat(2, 1fr); }
+    .bot-header-wrapper { flex-direction: column; align-items: flex-start; }
+    .bot-header-controls { width: 100%; }
+}
+@media (max-width: 480px) {
+    .service-grid { grid-template-columns: 1fr; }
 }
 
 /* ----------------------------------------------------------

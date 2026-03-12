@@ -340,7 +340,7 @@ if ($BotIsBanned) {
 // Display subscription warning for Beta if no access
 $subscriptionWarning = '';
 if ($selectedBot === 'beta' && !$betaAccess) {
-  $subscriptionWarning = '<div class="notification is-warning has-text-black has-text-weight-bold">'
+  $subscriptionWarning = '<div class="sp-alert sp-alert-warning">'
     . t('bot_beta_subscription_warning', ['premium_url' => 'premium.php'])
     . '</div>';
 }
@@ -352,13 +352,13 @@ $v6Running = false;     // Will be determined by JavaScript
 $runningBotCount = 0;
 $multiBotWarning = '';
 if ($stableRunning || $betaRunning || $v6Running) {
-  $multiBotWarning = '<div class="notification is-danger has-text-black has-text-weight-bold">'
+  $multiBotWarning = '<div class="sp-alert sp-alert-danger">'
     . t('bot_multi_bot_warning')
     . '</div>';
 }
 
 // Check if the bot "knows" the user is online
-$tagClass = 'tag is-large is-fullwidth is-medium mb-2 has-text-weight-bold has-text-centered';
+$tagClass = 'bot-stream-status';
 $userOnlineStatus = null;
 $dbStatus = null;
 $sshStatus = null;
@@ -412,11 +412,11 @@ if (isset($username) && $username !== '') {
   $internalOnline = ($dbStatus === 'True' || $sshStatus === 'True');
   // Generate status display based on final status
   if ($finalStatus === 'True') {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-success" style="width:100%;">' . t('bot_status_online') . '</span>';
+    $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-online bot-status-tag">' . t('bot_status_online') . '</span>';
   } elseif ($finalStatus === 'False') {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_offline') . '</span>';
+    $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-offline bot-status-tag">' . t('bot_status_offline') . '</span>';
   } else {
-    $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_unknown') . '</span>';
+    $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-unknown bot-status-tag">' . t('bot_status_unknown') . '</span>';
   }
   if ($isTechnical) {
     $formatStatus = function($status) {
@@ -430,7 +430,7 @@ if (isset($username) && $username !== '') {
       ['label' => 'Twitch','value' => $twitchStatus,'tooltip' => t('bot_twitch_explanation'),],
       ['label' => 'Final','value' => $finalStatus,'tooltip' => t('bot_final_explanation'),],
     ];
-    $debugInfo = '<div class="columns is-mobile is-multiline has-text-grey is-size-7">';
+    $debugInfo = '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">';
       foreach ($debugStatuses as $statusMeta) {
         $tooltipAttr = '';
         if (!empty($statusMeta['tooltip'])) {
@@ -440,15 +440,15 @@ if (isset($username) && $username !== '') {
         if (!empty($statusMeta['tooltip'])) {
           $titleAttr = ' title="' . htmlspecialchars($statusMeta['tooltip'], ENT_QUOTES) . '"';
         }
-        $debugInfo .= '<div class="column is-narrow has-tooltip-arrow"' . $tooltipAttr . $titleAttr . '>';
-        $debugInfo .= '<span class="has-text-weight-semibold">' . $statusMeta['label'] . ':</span> ' . $formatStatus($statusMeta['value']);
+        $debugInfo .= '<div' . $tooltipAttr . $titleAttr . '>';
+        $debugInfo .= '<strong style="color:var(--text-secondary);">' . $statusMeta['label'] . ':</strong> ' . $formatStatus($statusMeta['value']);
         $debugInfo .= '</div>';
       }
     $debugInfo .= '</div>';
     $userOnlineStatus .= $debugInfo;
   }
 } else {
-  $userOnlineStatus = '<span class="' . $tagClass . ' bot-status-tag is-warning" style="width:100%;">' . t('bot_status_na') . '</span>';
+  $userOnlineStatus = '<span class="' . $tagClass . ' bot-stream-unknown">' . t('bot_status_na') . '</span>';
 }
 
 // Check only the selected bot's status
@@ -504,167 +504,148 @@ ob_start();
   <?php echo $multiBotWarning; ?>
 <?php endif; ?>
 <?php if ($BotIsBanned): ?>
-  <div class="notification is-danger has-text-white has-text-weight-bold" style="border: 3px solid #ff3860;">
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      <div>
-        <span class="icon"><i class="fas fa-ban"></i></span>
-        <span><?php echo $BotModMessage; ?></span>
-      </div>
-      <button id="unban-bot-btn" class="button is-light is-rounded" style="margin-left: 15px;" title="Unban Bot">
-        <span class="icon"><i class="fas fa-unlock"></i></span>
-        <span>Unban Bot</span>
-      </button>
-    </div>
+  <div class="sp-alert sp-alert-danger" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+    <div><i class="fas fa-ban"></i> <?php echo $BotModMessage; ?></div>
+    <button id="unban-bot-btn" class="sp-btn sp-btn-secondary" title="Unban Bot">
+      <i class="fas fa-unlock"></i> Unban Bot
+    </button>
   </div>
 <?php elseif (!$BotIsMod && !empty($BotModMessage)): ?>
-  <div class="notification is-warning has-text-black has-text-weight-bold">
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      <div>
-        <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-        <span><?php echo $BotModMessage; ?></span>
-      </div>
-      <button id="make-mod-btn" class="button is-primary is-rounded" style="margin-left: 15px;" title="Make Bot Moderator">
-        <span class="icon"><i class="fas fa-user-shield"></i></span>
-        <span>Make Mod</span>
-      </button>
-    </div>
+  <div class="sp-alert sp-alert-warning" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+    <div><i class="fas fa-exclamation-triangle"></i> <?php echo $BotModMessage; ?></div>
+    <button id="make-mod-btn" class="sp-btn sp-btn-primary" title="Make Bot Moderator">
+      <i class="fas fa-user-shield"></i> Make Mod
+    </button>
   </div>
 <?php endif; ?>
-<div class="columns is-variable is-6">
-  <div class="column is-4">
-    <div class="card has-background-dark has-text-white mb-4">
-      <div class="card-header">
-        <p class="card-header-title has-text-white is-centered">
-          <?php echo t('bot_channel_status'); ?>
-        </p>
+<div class="bot-page-cols">
+  <div>
+    <div class="sp-card">
+      <div class="sp-card-header" style="justify-content:center;">
+        <span class="sp-card-title"><?php echo t('bot_channel_status'); ?></span>
       </div>
-      <div class="card-content">
-        <div class="content has-text-centered">
-          <p class="is-size-7 has-text-grey"><?php echo t('bot_status_combined_note'); ?></p>
-          <?php echo $userOnlineStatus; ?>
-          <div class="mt-3">
-            <?php
-              if ($internalOnline) {
-                echo '<button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2">'
-                  . t('bot_force_offline') . '</button>';
-              } else {
-                echo '<button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2">'
-                  . t('bot_force_online') . '</button>';
-              }
-            ?>
-          </div>
+      <div id="channel-status-body" class="sp-card-body" style="text-align:center;">
+        <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.75rem;"><?php echo t('bot_status_combined_note'); ?></p>
+        <?php echo $userOnlineStatus; ?>
+        <div style="margin-top:0.75rem;">
+          <?php
+            if ($internalOnline) {
+              echo '<button id="force-offline-btn" class="sp-btn sp-btn-warning" style="width:100%;">'
+                . t('bot_force_offline') . '</button>';
+            } else {
+              echo '<button id="force-online-btn" class="sp-btn sp-btn-success" style="width:100%;">'
+                . t('bot_force_online') . '</button>';
+            }
+          ?>
         </div>
       </div>
     </div>
     <!-- Version Info Card -->
-    <div class="card has-background-dark has-text-white mb-4">
-      <div class="card-content">
-        <div class="content">
-          <p class="card-title-mobile has-text-white is-centered" style="font-weight:700;">
-            <?php if ($selectedBot === 'stable'): ?>
-              <?php echo t('bot_stable_version_info'); ?>
-            <?php elseif ($selectedBot === 'beta'): ?>
-              <?php echo t('bot_beta_version_info'); ?>
-            <?php endif; ?>
+    <div class="sp-card">
+      <div class="sp-card-body">
+        <p class="sp-card-title" style="display:block; text-align:center; margin-bottom:0.75rem;">
+          <?php if ($selectedBot === 'stable'): ?>
+            <?php echo t('bot_stable_version_info'); ?>
+          <?php elseif ($selectedBot === 'beta'): ?>
+            <?php echo t('bot_beta_version_info'); ?>
+          <?php endif; ?>
+        </p>
+        <div class="version-meta">
+          <p>
+            <span style="color:var(--text-muted);"><?php echo t('bot_last_updated'); ?></span>
+            <span id="last-updated" style="color:var(--blue);">Loading...</span>
           </p>
-          <div class="version-meta">
-            <p>
-              <span class="has-text-grey-light"><?php echo t('bot_last_updated'); ?></span>
-              <span id="last-updated" class="has-text-info">Loading...</span>
-            </p>
-            <p>
-              <span class="has-text-grey-light"><?php echo t('bot_last_run'); ?></span>
-              <span id="last-run" class="has-text-info">Loading...</span>
-            </p>
-            <p>
-              <span class="has-text-grey-light"><?php echo t('bot_running_version'); ?></span>
-              <span id="running-version" class="has-text-info">
-                <?php
-                  if ($selectedBot === 'beta') {
-                    echo ($betaVersionRunning ?: $betaNewVersion);
-                  } else {
-                    echo ($versionRunning ?: $newVersion);
-                  }
-                ?>
-              </span>
-            </p>
-            <?php if ($selectedBot === 'stable'): ?>
-            <p>
-              <span class="has-text-grey-light">Update Notes:</span>
-              <a href="https://changelog.botofthespecter.com/<?php echo htmlspecialchars($changelogVersion); ?>.html" target="_blank" class="has-text-info">View Changelog</a>
-            </p>
-            <?php endif; ?>
-            <div id="version-update-indicator" class="mt-2" style="display: none;">
-              <span class="tag is-warning is-light is-small">Update Available</span>
-            </div>
+          <p>
+            <span style="color:var(--text-muted);"><?php echo t('bot_last_run'); ?></span>
+            <span id="last-run" style="color:var(--blue);">Loading...</span>
+          </p>
+          <p>
+            <span style="color:var(--text-muted);"><?php echo t('bot_running_version'); ?></span>
+            <span id="running-version" style="color:var(--blue);">
+              <?php
+                if ($selectedBot === 'beta') {
+                  echo ($betaVersionRunning ?: $betaNewVersion);
+                } else {
+                  echo ($versionRunning ?: $newVersion);
+                }
+              ?>
+            </span>
+          </p>
+          <?php if ($selectedBot === 'stable'): ?>
+          <p>
+            <span style="color:var(--text-muted);">Update Notes:</span>
+            <a href="https://changelog.botofthespecter.com/<?php echo htmlspecialchars($changelogVersion); ?>.html" target="_blank">View Changelog</a>
+          </p>
+          <?php endif; ?>
+          <div id="version-update-indicator" style="margin-top:0.5rem; display:none;">
+            <span class="sp-badge sp-badge-amber">Update Available</span>
           </div>
-          <p class="is-size-7 mt-3 has-text-grey-light">
-            <?php echo t('bot_last_run_hint'); ?>
-          </p>
         </div>
+        <p style="font-size:0.75rem; margin-top:0.75rem; color:var(--text-muted);">
+          <?php echo t('bot_last_run_hint'); ?>
+        </p>
       </div>
     </div>
     <!-- API Limits Card -->
-    <div class="card has-background-dark has-text-white">
-      <div class="card-header">
-        <p class="card-header-title has-text-white is-centered"><?php echo t('bot_api_limits'); ?></p>
+    <div class="sp-card">
+      <div class="sp-card-header" style="justify-content:center;">
+        <span class="sp-card-title"><?php echo t('bot_api_limits'); ?></span>
       </div>
-      <div class="card-content">
-        <div class="api-limit-item mb-5">
-          <div class="is-flex is-justify-content-space-between mb-2">
-            <span class="has-text-grey-light"><?php echo t('bot_song_id_requests'); ?></span>
-            <span id="shazam-count" class="has-text-success has-text-weight-bold">--</span>
+      <div class="sp-card-body">
+        <div class="api-limit-item" style="margin-bottom:1.25rem;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+            <span style="color:var(--text-muted);"><?php echo t('bot_song_id_requests'); ?></span>
+            <span id="shazam-count" style="color:var(--green); font-weight:700;">--</span>
           </div>
           <span class="api-helper-text"><?php echo t('bot_updated'); ?>: <span id="shazam-updated">--</span></span>
-          <progress class="progress is-success" id="shazam-progress" value="0" max="500"></progress>
+          <progress class="progress progress-success" id="shazam-progress" value="0" max="500"></progress>
         </div>
-        <div class="api-limit-item mb-5">
-          <div class="is-flex is-justify-content-space-between mb-2">
-            <span class="has-text-grey-light"><?php echo t('bot_exchange_rate_requests'); ?></span>
-            <span id="exchange-count" class="has-text-info has-text-weight-bold">--</span>
+        <div class="api-limit-item" style="margin-bottom:1.25rem;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+            <span style="color:var(--text-muted);"><?php echo t('bot_exchange_rate_requests'); ?></span>
+            <span id="exchange-count" style="color:var(--blue); font-weight:700;">--</span>
           </div>
           <span class="api-helper-text"><?php echo t('bot_updated'); ?>: <span id="exchange-updated">--</span></span>
-          <progress class="progress is-info" id="exchange-progress" value="0" max="1500"></progress>
+          <progress class="progress progress-info" id="exchange-progress" value="0" max="1500"></progress>
         </div>
         <div class="api-limit-item">
-          <div class="is-flex is-justify-content-space-between mb-2">
-            <span class="has-text-grey-light"><?php echo t('bot_weather_requests'); ?></span>
-            <span id="weather-count" class="has-text-warning has-text-weight-bold">--</span>
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+            <span style="color:var(--text-muted);"><?php echo t('bot_weather_requests'); ?></span>
+            <span id="weather-count" style="color:var(--amber); font-weight:700;">--</span>
           </div>
           <span class="api-helper-text"><?php echo t('bot_updated'); ?>: <span id="weather-updated">--</span></span>
-          <progress class="progress is-warning" id="weather-progress" value="0" max="1000"></progress>
+          <progress class="progress progress-warning" id="weather-progress" value="0" max="1000"></progress>
         </div>
       </div>
     </div>
   </div>
   <!-- Main Bot Management Card -->
-  <div class="column is-8">
-    <div class="card has-background-dark has-text-white mb-4">
-      <header class="card-header">
+  <div>
+    <div class="sp-card">
+      <div class="sp-card-header">
         <div class="bot-header-wrapper">
-          <span class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
+          <span class="sp-card-title" style="font-size:1.15rem;">
             <?php echo t('bot_management_title'); ?>
           </span>
           <div class="bot-header-controls">
             <!-- Custom Bot Name Toggle (Verified Custom Bot Required) -->
             <?php if ($hasVerifiedCustomBot): ?>
-            <div id="custom-bot-toggle-container" class="field" style="display: none; margin-bottom: 0; align-items: center;">
-              <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch is-rounded is-info">
-              <label for="custom-bot-toggle" class="has-text-white" style="white-space: nowrap; display: flex; flex-direction: column; line-height: 1.2;">
+            <div id="custom-bot-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
+              <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch">
+              <label for="custom-bot-toggle" style="white-space:nowrap; display:flex; flex-direction:column; line-height:1.2;">
                 <span>Custom Bot Name</span>
-                <span class="has-text-grey-light is-size-7" style="margin-top: 2px;"><?php echo htmlspecialchars($customBotUsername); ?></span>
+                <span style="color:var(--text-muted); font-size:0.75rem; margin-top:2px;"><?php echo htmlspecialchars($customBotUsername); ?></span>
               </label>
             </div>
             <?php endif; ?>
             <!-- Use Self Toggle -->
-            <div id="use-self-toggle-container" class="field" style="display: none; margin-bottom: 0; align-items: center;">
-              <input id="use-self-toggle" type="checkbox" name="use-self-toggle" class="switch is-rounded is-info" <?php echo ($use_self ? 'checked' : ''); ?>>
-              <label for="use-self-toggle" class="has-text-white has-tooltip-arrow" data-tooltip="Send messages as your connected account when enabled" data-tooltip-pos="top" style="white-space: nowrap; display: flex; align-items: center; line-height: 1.2; margin-left: 6px;">
+            <div id="use-self-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
+              <input id="use-self-toggle" type="checkbox" name="use-self-toggle" class="switch" <?php echo ($use_self ? 'checked' : ''); ?>>
+              <label for="use-self-toggle" title="Send messages as your connected account when enabled" style="white-space:nowrap; display:flex; align-items:center;">
                 <span>Use Self</span>
               </label>
             </div>
-            <div class="select is-medium" style="background: transparent; border: none;">
-              <select id="bot-selector" onchange="changeBotSelection(this.value)" style="background: #23272f; color: #fff; border: none; font-weight: 600;">
+            <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;">
                 <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
                   <?php echo t('bot_stable_bot'); ?>
                 </option>
@@ -675,43 +656,42 @@ ob_start();
                   Version 6
                 </option>
               </select>
-            </div>
           </div>
         </div>
-      </header>
-      <div class="card-content">
+      </div>
+      <div class="sp-card-body">
         <?php if ($selectedBot === 'stable'): ?>
-          <h3 class="title is-4 has-text-white has-text-centered mb-2">
-            <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" class="has-text-info">(v<?php echo $versionRunning ?: $newVersion; ?>)</span>
+          <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
+            <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" style="color:var(--blue);">(v<?php echo $versionRunning ?: $newVersion; ?>)</span>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+          <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
             <?php echo t('bot_stable_description'); ?>
           </p>
         <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
-          <h3 class="title is-4 has-text-white has-text-centered mb-2">
+          <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
             <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+          <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
             <?php echo t('bot_beta_description'); ?>
           </p>
           <!-- Custom Bot Name -->
-          <div id="custom-bot-warning" class="notification is-info has-text-black has-text-weight-bold mb-4" style="display: none;">
-            <span class="icon"><i class="fas fa-info-circle"></i></span>
+          <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
+            <i class="fas fa-info-circle"></i>
             <strong>Important:</strong> When using a custom bot name, BotOfTheSpecter must still remain a moderator in your channel. Many bot features require the Specter account to maintain mod permissions to function properly.
           </div>
           <!-- Use Self -->
-          <div id="use-self-warning" class="notification is-info has-text-black has-text-weight-bold mb-4" style="display: none;">
-            <span class="icon"><i class="fas fa-info-circle"></i></span>
+          <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
+            <i class="fas fa-info-circle"></i>
             <strong>Note:</strong> When Use Self is enabled the bot will send messages using your connected Twitch account. The Specter account must still be a moderator for some features to work.
           </div>
         <?php elseif ($selectedBot === 'v6'): ?>
-          <h3 class="title is-4 has-text-white has-text-centered mb-2">
+          <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
             Version 6 Controls (v<?php echo $v6NewVersion; ?>)
           </h3>
-          <p class="subtitle is-6 has-text-grey-lighter has-text-centered mb-4">
+          <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
             Version 6 is a complete rewrite and is currently in early development.
           </p>
-          <div class="notification is-danger has-text-black has-text-weight-bold has-text-centered mb-4">
+          <div class="sp-alert sp-alert-danger" style="text-align:center;">
             A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
           </div>
         <?php endif; ?>
@@ -723,10 +703,9 @@ ob_start();
         } 
         ?>
         <?php if ($showBotControls): ?>
-        <div class="is-flex is-justify-content-center is-align-items-center mb-4" style="gap: 2rem;">
-          <span class="icon is-large" id="botStatusIcon">
+        <div style="display:flex; justify-content:center; align-items:center; gap:2rem; margin-bottom:1rem;">
+          <span style="font-size:2rem;" id="botStatusIcon">
             <?php
-              // Determine running status for the selected bot only
               $isRunning = false;
               if ($selectedBot === 'stable') {
                 $isRunning = $stableRunning;
@@ -735,31 +714,30 @@ ob_start();
               } elseif ($selectedBot === 'v6') {
                 $isRunning = $v6Running;
               }
-              // Show loading state initially - JavaScript will update with real status
-              $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x has-text-info"></i>';
+              $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x" style="color:var(--blue);"></i>';
               echo $heartIcon;
             ?>
           </span>
-          <span class="is-size-5" style="font-weight:600;">
-            <?php echo t('bot_status_label'); ?> <span id="bot-status-text" class="has-text-info">Fetching status...</span>
+          <span style="font-size:1rem; font-weight:600;">
+            <?php echo t('bot_status_label'); ?> <span id="bot-status-text" style="color:var(--blue);">Fetching status...</span>
             <?php if ($isTechnical): ?>
-            <div id="bot-pid-display" class="has-text-grey-light is-size-7 mt-1" style="display: none;">
+            <div id="bot-pid-display" style="color:var(--text-muted); font-size:0.75rem; margin-top:0.25rem; display:none;">
               PID: <span id="bot-pid-value">--</span>
             </div>
             <?php endif; ?>
           </span>
         </div>
         <?php if ($BotModMessage): ?>
-        <p class="has-text-danger has-text-centered mb-2"><?php echo $BotModMessage; ?></p>
+        <p style="color:var(--red); text-align:center; margin-bottom:0.5rem;"><?php echo $BotModMessage; ?></p>
         <?php endif; ?>
         <?php if ($selectedBot === 'beta' && !$betaAccess): ?>
-        <div class="notification is-warning has-text-black has-text-weight-bold has-text-centered is-centered mb-2">
+        <div class="sp-alert sp-alert-warning" style="text-align:center;">
           <?php echo t('bot_beta_subscription_warning', ['premium_url' => 'premium.php']); ?>
         </div>
         <?php else: ?>
-        <div class="buttons is-centered mb-2">
-          <button class="button is-info is-medium has-text-black has-text-weight-bold px-6 mr-3" disabled>
-            <span class="icon"><i class="fas fa-spinner fa-spin"></i></span>
+        <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;">
+          <button class="sp-btn sp-btn-primary" disabled>
+            <i class="fas fa-spinner fa-spin"></i>
             <span>Checking status...</span>
           </button>
         </div>
@@ -768,33 +746,33 @@ ob_start();
       </div>
     </div>
     <!-- System Status Card -->
-    <div class="card has-background-dark has-text-white">
-      <div class="card-header">
+    <div class="sp-card">
+      <div class="sp-card-header">
         <!-- Left side: Uptime Monitors button -->
         <div class="header-left">
-          <a href="https://uptime.botofthespecter.com/" target="_blank" class="button is-link has-text-weight-bold is-small uptime-monitors-btn">
-            <span class="icon"><i class="fas fa-chart-line"></i></span>
+          <a href="https://uptime.botofthespecter.com/" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
+            <i class="fas fa-chart-line"></i>
             <span><?php echo t('bot_view_detailed_uptime'); ?></span>
           </a>
         </div>
         <!-- Center: Title -->
-        <p class="card-header-title title is-5 has-text-white is-centered">
+        <span class="sp-card-title" style="flex:1; justify-content:center;">
           <?php echo t('bot_system_status'); ?>
-        </p>
+        </span>
         <!-- Right side: Network Status -->
         <?php if ($isTechnical): ?>
         <div class="header-right">
           <div class="network-status-container">
-            <div class="network-status-inner" style="font-family: monospace; font-size: 0.75rem;">
-              <div class="has-text-white-ter" style="font-weight: 600; margin-bottom: 2px;">
-                <span class="icon is-small"><i class="fas fa-network-wired"></i></span>
-                Network Status
-            </div>
-            <div class="has-text-grey-light">
-              <span class="has-text-grey">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
-            </div>
-            <div class="has-text-grey-light">
-              <span class="has-text-grey">Services Up:</span> <span id="services-up-count">--/--</span>
+            <div class="network-status-inner" style="font-family:monospace; font-size:0.75rem;">
+              <div style="font-weight:600; margin-bottom:2px; color:var(--text-primary);">
+                <i class="fas fa-network-wired"></i> Network Status
+              </div>
+              <div style="color:var(--text-muted);">
+                <span style="color:var(--text-muted);">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
+              </div>
+              <div style="color:var(--text-muted);">
+                <span style="color:var(--text-muted);">Services Up:</span> <span id="services-up-count">--/--</span>
+              </div>
             </div>
           </div>
         </div>
@@ -803,198 +781,110 @@ ob_start();
         <?php endif; ?>
       </div>
       <?php if ($isTechnical): ?>
-        <div class="notification is-info has-text-centered" style="width: 100%; margin: 0 auto;">
+        <div class="sp-alert sp-alert-info" style="text-align:center; border-radius:0; margin:0; border-left:none; border-right:none;">
           All latency and service status results below are measured from our Australian datacenter.
         </div>
       <?php endif; ?>
-      <div class="card-content pt-0">
-        <h4 class="title is-5 has-text-white has-text-centered mt-4 mb-4">
+      <div class="sp-card-body" style="padding-top:0;">
+        <h4 style="font-size:1rem; font-weight:700; text-align:center; margin:1rem 0; color:var(--text-primary);">
           <?php echo t('bot_generic_services'); ?>
         </h4>
         <!-- Service Health Meters -->
-        <div class="columns is-multiline">
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-3">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="apiService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+        <div class="service-grid">
+          <div class="service-box">
+            <div class="service-icon"><i id="apiService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name"><?php echo t('bot_api_service'); ?></h4>
+            <p id="api-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="api-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="api-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_api_service'); ?></h4>
-              <p id="api-service-status" class="is-size-7 has-text-grey-light">
-                <?php echo t('bot_running_normally'); ?>
-              </p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="api-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="api-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-3">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="databaseService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+          <div class="service-box">
+            <div class="service-icon"><i id="databaseService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name"><?php echo t('bot_database_service'); ?></h4>
+            <p id="db-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="db-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="db-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_database_service'); ?></h4>
-              <p id="db-service-status" class="is-size-7 has-text-grey-light">
-                <?php echo t('bot_running_normally'); ?>
-              </p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="db-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="db-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-3">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="notificationService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+          <div class="service-box">
+            <div class="service-icon"><i id="notificationService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name"><?php echo t('bot_notification_service'); ?></h4>
+            <p id="notif-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="notif-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="notif-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1"><?php echo t('bot_notification_service'); ?></h4>
-              <p id="notif-service-status" class="is-size-7 has-text-grey-light">
-                <?php echo t('bot_running_normally'); ?>
-              </p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="notif-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="notif-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-3">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="botsService" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+          <div class="service-box">
+            <div class="service-icon"><i id="botsService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name">BOT Server</h4>
+            <p id="bots-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="bots-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="bots-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1">BOT Server</h4>
-              <p id="bots-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="bots-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="bots-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-3">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="discordService" class="fab fa-discord fa-2x beating has-text-success"></i>
-                </span>
+          <div class="service-box">
+            <div class="service-icon"><i id="discordService" class="fab fa-discord fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name">Discord Bot Service</h4>
+            <p id="discord-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">PID:</span> <span id="discord-service-pid">--</span></div>
+                <div><span class="service-tech-label">Latency:</span> <span id="discord-service-latency">Not Recorded</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="discord-service-lastcheck">Not Recorded</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1">Discord Bot Service</h4>
-              <p id="discord-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">PID:</span> <span id="discord-service-pid">--</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="discord-service-latency">Not Recorded</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="discord-service-lastcheck">Not Recorded</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
         </div>
         <?php if (false): // Streaming services disabled - hidden but code preserved for future use ?>
-        <h4 class="title is-5 has-text-white has-text-centered mt-5 mb-4">
+        <h4 style="font-size:1rem; font-weight:700; text-align:center; margin:1.25rem 0; color:var(--text-primary);">
           <?php echo t('bot_streaming_service_status'); ?>
         </h4>
-        <div class="columns is-multiline">
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-2">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="auEast1Service" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+        <div class="service-grid">
+          <div class="service-box">
+            <div class="service-icon"><i id="auEast1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name">AU-EAST-1</h4>
+            <p id="auEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="auEast1-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="auEast1-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1">AU-EAST-1</h4>
-              <p id="auEast1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="auEast1-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="auEast1-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-2">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="usWest1Service" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+          <div class="service-box">
+            <div class="service-icon"><i id="usWest1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name">US-WEST-1</h4>
+            <p id="usWest1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="usWest1-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="usWest1-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1">US-WEST-1</h4>
-              <p id="usWest1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="usWest1-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="usWest1-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
-          <div class="column is-4">
-            <div class="box has-background-darker has-text-centered p-4">
-              <div class="mb-2">
-                <span class="icon is-large" id="botStatusIcon">
-                  <i id="usEast1Service" class="fas fa-heartbeat fa-2x beating has-text-success"></i>
-                </span>
+          <div class="service-box">
+            <div class="service-icon"><i id="usEast1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+            <h4 class="service-name">US-EAST-1</h4>
+            <p id="usEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+            <?php if ($isTechnical): ?>
+              <div class="service-tech">
+                <div><span class="service-tech-label">Latency:</span> <span id="usEast1-service-latency">--ms</span></div>
+                <div><span class="service-tech-label">Last Check:</span> <span id="usEast1-service-lastcheck">--</span></div>
               </div>
-              <h4 class="subtitle has-text-white mb-1">US-EAST-1</h4>
-              <p id="usEast1-service-status" class="is-size-7 has-text-grey-light"><?php echo t('bot_running_normally'); ?></p>
-              <?php if ($isTechnical): ?>
-                <div class="mt-2 has-text-left" style="font-family: monospace; font-size: 0.7rem;">
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Latency:</span> <span id="usEast1-service-latency">--ms</span>
-                  </div>
-                  <div class="has-text-grey-light">
-                    <span class="has-text-grey">Last Check:</span> <span id="usEast1-service-lastcheck">--</span>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
           </div>
         </div>
         <?php endif; // End streaming services section ?>
@@ -1030,7 +920,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const hasBetaAccess = <?php echo json_encode($betaAccess); ?>;
   const isActingAs = <?php echo json_encode($isActingAs); ?>;
   // Initialize the notification deletion functionality
-  const deleteButtons = document.querySelectorAll('.notification .delete');
+  const deleteButtons = document.querySelectorAll('.sp-notif .sp-notif-close');
   deleteButtons.forEach(button => {
     const notification = button.parentNode;
     button.addEventListener('click', () => { notification.parentNode.removeChild(notification); });
@@ -1284,7 +1174,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const originalContent = btn.innerHTML;
     // Show immediate feedback that action was initiated
     showNotification(`Stable bot ${action} command sent...`, 'info');
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
     // Set global flag for run operations
     if (action === 'run') {
@@ -1368,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const originalContent = btn.innerHTML;
     // Show immediate feedback that action was initiated
     showNotification(`Beta bot ${action} command sent...`, 'info');
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
     // Set global flag for run operations
     if (action === 'run') {
@@ -1462,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const btn = action === 'stop' ? stopBotBtn : runBotBtn;
     const originalContent = btn.innerHTML;
     showNotification(`Version 6 bot ${action} command sent...`, 'info');
-    btn.innerHTML = `<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span><?php echo t('bot_working'); ?></span>`;
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span><?php echo t('bot_working'); ?></span>`;
     btn.disabled = true;
     if (action === 'run') {
       botRunOperationInProgress = true;
@@ -1550,7 +1440,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   botRunOperationInProgress = false;
                   currentBotBeingStarted = null;
                   // Remove any persistent bot operation notifications
-                  document.querySelectorAll('.notification.bot-operation-persistent').forEach(n => {
+                  document.querySelectorAll('.bot-operation-persistent').forEach(n => {
                     if (n.parentNode) n.parentNode.removeChild(n);
                   });
                   // Also remove update notifications for this bot since it's now running
@@ -1630,10 +1520,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, delay);
   }
+  // Map notification types to sp-alert variant classes
+  function notifClass(type) {
+    const map = { success: 'sp-alert-success', danger: 'sp-alert-danger', warning: 'sp-alert-warning', info: 'sp-alert-info', update: 'sp-alert-warning' };
+    return map[type] || 'sp-alert-info';
+  }
   // Function to show notifications
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
-    document.querySelectorAll(`.notification.is-${type}`).forEach(n => {
+    document.querySelectorAll(`.sp-notif.sp-notif-${type}`).forEach(n => {
       // Skip removing update notifications here; they are persistent and handled separately
       if (type === 'update' || n.classList.contains('bot-operation-persistent')) {
         return;
@@ -1644,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     // Remove previous status checking notifications when showing new ones
     if (message.includes('command sent') || message.includes('Checking') || message.includes('is now running')) {
-      document.querySelectorAll('.notification.is-info').forEach(n => {
+      document.querySelectorAll('.sp-notif.sp-notif-info').forEach(n => {
         // Don't remove update notifications or persistent notifications
         if (n.classList.contains('bot-operation-persistent') || n.querySelector('.fas.fa-exclamation-triangle')) {
           return;
@@ -1656,7 +1551,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Create notification element
     const notification = document.createElement('div');
-    notification.className = `notification is-${type}`;
+    notification.className = `sp-alert ${notifClass(type)} sp-notif sp-notif-${type}`;
+    notification.style.cssText = 'margin-bottom:0.75rem; display:flex; align-items:flex-start; gap:0.5rem;';
     // Add special handling for bot run operations in progress
     const isPersistentBotOperation = message.includes('currently starting up') || message.includes('Cannot switch bot types');
     // Add special handling for update notifications
@@ -1667,7 +1563,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window._seenUpdateNotifications && window._seenUpdateNotifications.has(message.trim())) {
           return;
         }
-        const existing = Array.from(document.querySelectorAll('.notification.bot-operation-persistent'))
+        const existing = Array.from(document.querySelectorAll('.bot-operation-persistent'))
           .find(n => n.textContent && n.textContent.trim() === message.trim());
         if (existing) {
           try { window._seenUpdateNotifications.add(message.trim()); } catch(e) {}
@@ -1682,35 +1578,35 @@ document.addEventListener('DOMContentLoaded', function() {
       if (isUpdateNotification) {
         // Update notifications are completely persistent with no delete button
         notification.innerHTML = `
-          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          <i class="fas fa-exclamation-triangle"></i>
           ${message}
         `;
       } else {
         // Other persistent notifications get delete button
         notification.innerHTML = `
-          <button class="delete"></button>
-          <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+          <button class="sp-notif-close" aria-label="Dismiss">&times;</button>
+          <i class="fas fa-exclamation-triangle"></i>
           ${message}
         `;
         // Add delete button functionality for non-update persistent notifications
-        const deleteBtn = notification.querySelector('.delete');
+        const deleteBtn = notification.querySelector('.sp-notif-close');
         deleteBtn.addEventListener('click', () => {
           notification.parentNode.removeChild(notification);
         });
       }
     } else {
       notification.innerHTML = `
-        <button class="delete"></button>
+        <button class="sp-notif-close" aria-label="Dismiss">&times;</button>
         ${message}
       `;
       // Add delete button functionality
-      const deleteBtn = notification.querySelector('.delete');
+      const deleteBtn = notification.querySelector('.sp-notif-close');
       deleteBtn.addEventListener('click', () => {
         notification.parentNode.removeChild(notification);
       });
     }
     // Add to the page
-    const container = document.querySelector('.container');
+    const container = document.querySelector('.sp-content');
     container.insertBefore(notification, container.firstChild);
     // If this was an update notification, remember we've shown it this session
     if (isUpdateNotification) {
@@ -1729,10 +1625,10 @@ document.addEventListener('DOMContentLoaded', function() {
   setInterval(function() {
     var webIcon = document.getElementById('web1Service');
     var webStatusElem = document.getElementById('web1-service-status');
-    if (webIcon) webIcon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+    if (webIcon) { webIcon.className = 'fas fa-heartbeat fa-2x beating'; webIcon.style.color = 'var(--green)'; }
     if (webStatusElem) {
       webStatusElem.textContent = '';
-      webStatusElem.className = 'is-size-7 has-text-grey-light';
+      webStatusElem.style.color = 'var(--text-muted)';
     }
   }, 10000); // Increased from 2000ms to 10000ms (10 seconds)
   function getCookie(name) {
@@ -1749,16 +1645,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const heartIconContainer = document.getElementById('botStatusIcon');
     if (heartIconContainer) {
       if (expectedRunning) {
-        heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
+        heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i>';
       } else {
-        heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
+        heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x" style="color:var(--red);"></i>';
       }
     }
     // Update status text
-    const statusSpan = document.querySelector('.is-size-5 span[class*="has-text-"]');
-    if (statusSpan) {
-      statusSpan.textContent = statusText;
-      statusSpan.className = `has-text-${statusClass}`;
+    const statusTextEl = document.getElementById('bot-status-text');
+    if (statusTextEl) {
+      statusTextEl.textContent = statusText;
+      statusTextEl.style.color = expectedRunning ? 'var(--green)' : 'var(--red)';
     }
     // Update PID display if technical mode is enabled
     if (isTechnical) {
@@ -1774,21 +1670,21 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     // Update buttons
-    const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
+    const buttonContainer = document.getElementById('bot-controls-container');
     if (buttonContainer) {
       if (expectedRunning) {
         // Show Stop button
         buttonContainer.innerHTML = `
-          <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3" ${isActingAs ? 'disabled' : ''}>
-            <span class="icon"><i class="fas fa-stop"></i></span>
+          <button id="stop-bot-btn" class="sp-btn sp-btn-danger" ${isActingAs ? 'disabled' : ''}>
+            <i class="fas fa-stop"></i>
             <span><?php echo addslashes(t('bot_stop')); ?></span>
           </button>
         `;
       } else {
         // Show Run button
         buttonContainer.innerHTML = `
-          <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
-            <span class="icon"><i class="fas fa-play"></i></span>
+          <button id="run-bot-btn" class="sp-btn sp-btn-success" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
+            <i class="fas fa-play"></i>
             <span><?php echo addslashes(t('bot_run')); ?></span>
           </button>
         `;
@@ -1837,7 +1733,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to remove update notifications
   function removeUpdateNotifications() {
     // Remove all update notifications
-    document.querySelectorAll('.notification.bot-operation-persistent').forEach(notification => {
+    document.querySelectorAll('.bot-operation-persistent').forEach(notification => {
       if (notification.textContent.includes('version is available') || notification.textContent.includes('Update Available') || notification.textContent.includes('code has been updated')) {
         notification.parentNode.removeChild(notification);
       }
@@ -1847,7 +1743,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Remove beta code update notification specifically
   function removeBetaCodeUpdateNotification() {
-    const selector = '.notification.bot-operation-persistent';
+    const selector = '.bot-operation-persistent';
     document.querySelectorAll(selector).forEach(notification => {
       const text = (notification.textContent || '');
       if (text.includes('Beta bot code has been updated') || text.includes('restart the bot to apply changes')) {
@@ -1869,7 +1765,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Remove update notifications for a specific bot type (stable/beta) or globally
   function removeUpdateNotificationsForBot(botType, latestVersion) {
-    const selector = '.notification.bot-operation-persistent';
+    const selector = '.bot-operation-persistent';
     document.querySelectorAll(selector).forEach(notification => {
       const text = (notification.textContent || '').toLowerCase();
       if (text.includes('version is available') || text.includes('update available') || text.includes('code has been updated') || (botType && text.includes(botType + ' bot'))) {
@@ -1964,33 +1860,34 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update status text
             const statusTextElement = document.getElementById('bot-status-text');
             if (statusTextElement) {
-              statusTextElement.innerHTML = `<span class="has-text-${statusClass}">${statusText}</span>`;
+              statusTextElement.textContent = statusText;
+              statusTextElement.style.color = data.running ? 'var(--green)' : 'var(--red)';
             }
             // Update heart icon
             const heartIconContainer = document.getElementById('botStatusIcon');
             if (heartIconContainer) {
               if (data.running) {
-                heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x has-text-success beating"></i>';
+                heartIconContainer.innerHTML = '<i class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i>';
               } else {
-                heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x has-text-danger"></i>';
+                heartIconContainer.innerHTML = '<i class="fas fa-heart-broken fa-2x" style="color:var(--red);"></i>';
               }
             }
             // Update buttons based on status
-            const buttonContainer = document.querySelector('.buttons.is-centered.mb-2');
+            const buttonContainer = document.getElementById('bot-controls-container');
             if (buttonContainer) {
               if (data.running) {
                 // Show Stop button
                 buttonContainer.innerHTML = `
-                  <button id="stop-bot-btn" class="button is-danger is-medium has-text-black has-text-weight-bold px-6 mr-3" ${isActingAs ? 'disabled' : ''}>
-                    <span class="icon"><i class="fas fa-stop"></i></span>
+                  <button id="stop-bot-btn" class="sp-btn sp-btn-danger" ${isActingAs ? 'disabled' : ''}>
+                    <i class="fas fa-stop"></i>
                     <span><?php echo addslashes(t('bot_stop')); ?></span>
                   </button>
                 `;
               } else {
                 // Show Run button
                 buttonContainer.innerHTML = `
-                  <button id="run-bot-btn" class="button is-success is-medium has-text-black has-text-weight-bold px-6 mr-3" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
-                    <span class="icon"><i class="fas fa-play"></i></span>
+                  <button id="run-bot-btn" class="sp-btn sp-btn-success" ${(!isBotMod || (selectedBot === 'beta' && !hasBetaAccess) || isActingAs) ? 'disabled' : ''}>
+                    <i class="fas fa-play"></i>
                     <span><?php echo addslashes(t('bot_run')); ?></span>
                   </button>
                 `;
@@ -2258,10 +2155,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const webStatusElem = document.getElementById('web1-service-status');
     const webLatencyElem = document.getElementById('web1-service-latency');
     const webLastCheckElem = document.getElementById('web1-service-lastcheck');
-    if (webIcon) webIcon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+    if (webIcon) { webIcon.className = 'fas fa-heartbeat fa-2x beating'; webIcon.style.color = 'var(--green)'; }
     if (webStatusElem) {
       webStatusElem.textContent = '';
-      webStatusElem.className = 'is-size-7 has-text-grey-light';
+      webStatusElem.style.color = 'var(--text-muted)';
     }
     // All other services (excluding web1Service)
     const services = [
@@ -2287,26 +2184,26 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!icon || !statusElem) return;
           // Robust icon update logic
           if (data && data.status === 'OK') {
-            icon.className = 'fas fa-heartbeat fa-2x has-text-success beating';
+            icon.className = 'fas fa-heartbeat fa-2x beating'; icon.style.color = 'var(--green)';
           } else if (data.status === 'DISABLED') {
-            icon.className = 'fas fa-pause-circle fa-2x has-text-grey';
+            icon.className = 'fas fa-pause-circle fa-2x'; icon.style.color = 'var(--text-muted)';
           } else {
-            icon.className = 'fas fa-heart-broken fa-2x has-text-danger';
+            icon.className = 'fas fa-heart-broken fa-2x'; icon.style.color = 'var(--red)';
           }
           // Update status text
           if (statusElem) {
             if (data.status === 'OK') {
               statusElem.textContent = runningNormallyText;
-              statusElem.className = 'is-size-7 has-text-success';
+              statusElem.style.color = 'var(--green)';
             } else if (data.status === 'ERROR') {
               statusElem.textContent = data.message || serviceDegradedText;
-              statusElem.className = 'is-size-7 has-text-danger';
+              statusElem.style.color = 'var(--red)';
             } else if (data.status === 'DISABLED') {
               statusElem.textContent = 'Monitoring Disabled';
-              statusElem.className = 'is-size-7 has-text-grey';
+              statusElem.style.color = 'var(--text-muted)';
             } else {
               statusElem.textContent = serviceDegradedText;
-              statusElem.className = 'is-size-7 has-text-warning';
+              statusElem.style.color = 'var(--amber)';
             }
           }
           // Update technical information if in technical mode
@@ -2316,10 +2213,10 @@ document.addEventListener('DOMContentLoaded', function() {
               const pidElem = document.getElementById(svc.pidId);
               if (pidElem) {
                 if (data.pid) {
-                  const pidStatus = data.pid_running ? 'has-text-success' : 'has-text-danger';
-                  pidElem.innerHTML = `<span class="${pidStatus}">${data.pid}${!data.pid_running ? ' (Dead)' : ''}</span>`;
+                  const pidColor = data.pid_running ? 'var(--green)' : 'var(--red)';
+                  pidElem.innerHTML = `<span style="color:${pidColor}">${data.pid}${!data.pid_running ? ' (Dead)' : ''}</span>`;
                 } else {
-                  pidElem.innerHTML = '<span class="has-text-grey">--</span>';
+                  pidElem.innerHTML = '<span style="color:var(--text-muted)">--</span>';
                 }
               }
             }
@@ -2327,12 +2224,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const lastCheckElem = document.getElementById(svc.lastCheckId);
             if (latencyElem) {
               if (data.status === 'DISABLED') {
-                latencyElem.innerHTML = '<span class="has-text-grey">--ms</span>';
+                latencyElem.innerHTML = '<span style="color:var(--text-muted)">--ms</span>';
               } else if (data.latency_ms !== null && data.latency_ms !== undefined) {
-                const latencyColor = data.latency_ms < 100 ? 'has-text-success' : data.latency_ms < 300 ? 'has-text-warning' : 'has-text-danger';
-                latencyElem.innerHTML = `<span class="${latencyColor}">${data.latency_ms}ms</span>`;
+                const latencyColor = data.latency_ms < 100 ? 'var(--green)' : data.latency_ms < 300 ? 'var(--amber)' : 'var(--red)';
+                latencyElem.innerHTML = `<span style="color:${latencyColor}">${data.latency_ms}ms</span>`;
               } else {
-                latencyElem.innerHTML = '<span class="has-text-danger">--ms</span>';
+                latencyElem.innerHTML = '<span style="color:var(--red)">--ms</span>';
               }
             }
             if (lastCheckElem) {
@@ -2343,7 +2240,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 minute: '2-digit', 
                 second: '2-digit' 
               });
-              lastCheckElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+              lastCheckElem.innerHTML = `<span style="color:var(--blue)">${timeStr}</span>`;
             }
           }
         })
@@ -2353,9 +2250,9 @@ document.addEventListener('DOMContentLoaded', function() {
           const icon = document.getElementById(svc.id);
           const statusElem = document.getElementById(svc.statusId);
           if (icon && statusElem) {
-            icon.className = 'fas fa-heart-broken fa-2x has-text-danger';
+            icon.className = 'fas fa-heart-broken fa-2x'; icon.style.color = 'var(--red)';
             statusElem.textContent = statusCheckFailedText;
-            statusElem.className = 'is-size-7 has-text-danger';
+            statusElem.style.color = 'var(--red)';
           }
           // Update technical information on error if in technical mode
           if (isTechnical) {
@@ -2363,13 +2260,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (svc.pidId) {
               const pidElem = document.getElementById(svc.pidId);
               if (pidElem) {
-                pidElem.innerHTML = '<span class="has-text-danger">ERROR</span>';
+                pidElem.innerHTML = '<span style="color:var(--red)">ERROR</span>';
               }
             }
             const latencyElem = document.getElementById(svc.latencyId);
             const lastCheckElem = document.getElementById(svc.lastCheckId);
             if (latencyElem) {
-              latencyElem.innerHTML = '<span class="has-text-danger">ERROR</span>';
+              latencyElem.innerHTML = '<span style="color:var(--red)">ERROR</span>';
             }
             if (lastCheckElem) {
               const now = new Date();
@@ -2379,7 +2276,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 minute: '2-digit', 
                 second: '2-digit' 
               });
-              lastCheckElem.innerHTML = `<span class="has-text-danger">${timeStr}</span>`;            }
+              lastCheckElem.innerHTML = `<span style="color:var(--red)">${timeStr}</span>`;
+            }
           }
         });
     });
@@ -2415,13 +2313,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update network status
             const avgLatencyElem = document.getElementById('network-avg-latency');
             if (avgLatencyElem) {
-              const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
-              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;
+              const latencyColor = avgLatency < 100 ? 'var(--green)' : avgLatency < 300 ? 'var(--amber)' : 'var(--red)';
+              avgLatencyElem.innerHTML = `<span style="color:${latencyColor}">${avgLatency}ms</span>`;
             }            
             const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === totalEnabled ? 'has-text-success' : servicesUp >= Math.floor(totalEnabled * 0.8) ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/${totalEnabled}</span>`;
+              const servicesColor = servicesUp === totalEnabled ? 'var(--green)' : servicesUp >= Math.floor(totalEnabled * 0.8) ? 'var(--amber)' : 'var(--red)';
+              servicesUpElem.innerHTML = `<span style="color:${servicesColor}">${servicesUp}/${totalEnabled}</span>`;
             }
             const lastUpdateElem = document.getElementById('system-last-update');
             if (lastUpdateElem) {
@@ -2432,7 +2330,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 minute: '2-digit', 
                 second: '2-digit' 
               });
-              lastUpdateElem.innerHTML = `<span class="has-text-info">${timeStr}</span>`;
+              lastUpdateElem.innerHTML = `<span style="color:var(--blue)">${timeStr}</span>`;
             }
           }
         })
@@ -2445,12 +2343,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
             const avgLatencyElem = document.getElementById('network-avg-latency');
             if (avgLatencyElem && avgLatency > 0) {
-              const latencyColor = avgLatency < 100 ? 'has-text-success' : avgLatency < 300 ? 'has-text-warning' : 'has-text-danger';
-              avgLatencyElem.innerHTML = `<span class="${latencyColor}">${avgLatency}ms</span>`;            }
+              const latencyColor = avgLatency < 100 ? 'var(--green)' : avgLatency < 300 ? 'var(--amber)' : 'var(--red)';
+              avgLatencyElem.innerHTML = `<span style="color:${latencyColor}">${avgLatency}ms</span>`;            }
               const servicesUpElem = document.getElementById('services-up-count');
             if (servicesUpElem) {
-              const servicesColor = servicesUp === totalEnabled ? 'has-text-success' : servicesUp >= Math.floor(totalEnabled * 0.8) ? 'has-text-warning' : 'has-text-danger';
-              servicesUpElem.innerHTML = `<span class="${servicesColor}">${servicesUp}/${totalEnabled}</span>`;
+              const servicesColor = servicesUp === totalEnabled ? 'var(--green)' : servicesUp >= Math.floor(totalEnabled * 0.8) ? 'var(--amber)' : 'var(--red)';
+              servicesUpElem.innerHTML = `<span style="color:${servicesColor}">${servicesUp}/${totalEnabled}</span>`;
             }
           }
         });
@@ -2469,24 +2367,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const cpuElem = document.getElementById('server-cpu-load');
         if (cpuElem && data.cpu_load !== null) {
-          const cpuColor = data.cpu_load < 60 ? 'has-text-success' : data.cpu_load < 80 ? 'has-text-warning' : 'has-text-danger';
-          cpuElem.innerHTML = `<span class="${cpuColor}">${data.cpu_load}%</span>`; 
+          const cpuColor = data.cpu_load < 60 ? 'var(--green)' : data.cpu_load < 80 ? 'var(--amber)' : 'var(--red)';
+          cpuElem.innerHTML = `<span style="color:${cpuColor}">${data.cpu_load}%</span>`; 
         } else if (cpuElem) {
-          cpuElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+          cpuElem.innerHTML = '<span style="color:var(--text-muted)">N/A</span>';
         }
         const memoryElem = document.getElementById('server-memory-usage');
         if (memoryElem && data.memory_usage !== null) {
-          const memoryColor = data.memory_usage < 70 ? 'has-text-success' : data.memory_usage < 85 ? 'has-text-warning' : 'has-text-danger';
-          memoryElem.innerHTML = `<span class="${memoryColor}">${data.memory_usage}%</span>`;
+          const memoryColor = data.memory_usage < 70 ? 'var(--green)' : data.memory_usage < 85 ? 'var(--amber)' : 'var(--red)';
+          memoryElem.innerHTML = `<span style="color:${memoryColor}">${data.memory_usage}%</span>`;
         } else if (memoryElem) {
-          memoryElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+          memoryElem.innerHTML = '<span style="color:var(--text-muted)">N/A</span>';
         }
         const diskElem = document.getElementById('server-disk-usage');
         if (diskElem && data.disk_usage !== null) {
-          const diskColor = data.disk_usage < 70 ? 'has-text-success' : data.disk_usage < 85 ? 'has-text-warning' : 'has-text-danger';
-          diskElem.innerHTML = `<span class="${diskColor}">${data.disk_usage}%</span>`;
+          const diskColor = data.disk_usage < 70 ? 'var(--green)' : data.disk_usage < 85 ? 'var(--amber)' : 'var(--red)';
+          diskElem.innerHTML = `<span style="color:${diskColor}">${data.disk_usage}%</span>`;
         } else if (diskElem) {
-          diskElem.innerHTML = '<span class="has-text-grey">N/A</span>';
+          diskElem.innerHTML = '<span style="color:var(--text-muted)">N/A</span>';
         }
       })
       .catch(error => {
@@ -2521,7 +2419,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Disable button and show loading state
       unbanBotBtn.disabled = true;
       const originalHTML = unbanBotBtn.innerHTML;
-      unbanBotBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Processing...</span>';
+      unbanBotBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing...</span>';
       try {
         const response = await fetch('https://api.twitch.tv/helix/moderation/bans?broadcaster_id=<?php echo htmlspecialchars($twitchUserId); ?>&moderator_id=<?php echo htmlspecialchars($twitchUserId); ?>&user_id=971436498', {
           method: 'DELETE',
@@ -2566,7 +2464,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Disable button and show loading state
       makeModBtn.disabled = true;
       const originalHTML = makeModBtn.innerHTML;
-      makeModBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Processing...</span>';
+      makeModBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing...</span>';
       try {
         const response = await fetch('https://api.twitch.tv/helix/moderation/moderators', {
           method: 'POST',
@@ -2631,32 +2529,32 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function updateChannelStatusDisplay(newStatus) {
     // Update the status tag and buttons in the Channel Status card
-    const contentDiv = document.querySelector('.card-content .content.has-text-centered');
+    const contentDiv = document.getElementById('channel-status-body');
     if (!contentDiv) return;
     // Update the status tag
     const statusTag = contentDiv.querySelector('.bot-status-tag');
     if (statusTag) {
       if (newStatus === 'True') {
         statusTag.textContent = <?php echo json_encode(t('bot_status_online')); ?>;
-        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-success';
+        statusTag.className = 'bot-stream-status bot-stream-online bot-status-tag';
       } else if (newStatus === 'False') {
         statusTag.textContent = <?php echo json_encode(t('bot_status_offline')); ?>;
-        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
+        statusTag.className = 'bot-stream-status bot-stream-offline bot-status-tag';
       } else if (newStatus === null || newStatus === 'N/A') {
         statusTag.textContent = <?php echo json_encode(t('bot_status_na')); ?>;
-        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
+        statusTag.className = 'bot-stream-status bot-stream-unknown bot-status-tag';
       } else {
         statusTag.textContent = <?php echo json_encode(t('bot_status_unknown')); ?>;
-        statusTag.className = '<?php echo $tagClass; ?> bot-status-tag is-warning';
+        statusTag.className = 'bot-stream-status bot-stream-unknown bot-status-tag';
       }
     }
     // Update the button
-    const buttonDiv = contentDiv.querySelector('.mt-3');
+    const buttonDiv = contentDiv.querySelector('.mt-3, [style*="margin-top:0.75rem"]');
     if (buttonDiv) {
       if (newStatus === 'True') {
-        buttonDiv.innerHTML = '<button id="force-offline-btn" class="button is-warning is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_offline'); ?></button>';
+        buttonDiv.innerHTML = '<button id="force-offline-btn" class="sp-btn sp-btn-warning" style="width:100%;"><?php echo t('bot_force_offline'); ?></button>';
       } else if (newStatus === 'False') {
-        buttonDiv.innerHTML = '<button id="force-online-btn" class="button is-success is-medium is-fullwidth has-text-black has-text-weight-bold mt-2"><?php echo t('bot_force_online'); ?></button>';
+        buttonDiv.innerHTML = '<button id="force-online-btn" class="sp-btn sp-btn-success" style="width:100%;"><?php echo t('bot_force_online'); ?></button>';
       } else {
         buttonDiv.innerHTML = ''; // No button for unknown/NA status
       }
