@@ -10,137 +10,120 @@ $pageTitle = "Web Terminal";
 
 ob_start();
 ?>
-<div class="box">
-    <h1 class="title is-3"><span class="icon"><i class="fas fa-terminal"></i></span> Web Terminal</h1>
-    <p class="mb-4">Execute commands on remote servers and view live output. Select a server and enter commands below.</p>
-    <div class="field">
-        <label class="label">Select Server</label>
-        <div class="control">
-            <div class="select">
-                <select id="server-select">
-                    <option value="">Choose a server...</option>
-                    <option value="bots">Bot Server</option>
-                    <option value="web">Web Server</option>
-                    <option value="api">API Server</option>
-                    <option value="websocket">WebSocket Server</option>
-                    <option value="sql">SQL Server</option>
-                </select>
-            </div>
-        </div>
+<div class="sp-card">
+    <div class="sp-card-header">
+        <h1 class="sp-card-title"><span class="icon"><i class="fas fa-terminal"></i></span> Web Terminal</h1>
     </div>
-    <div class="field">
-        <label class="label">Command</label>
-        <div class="control">
-            <input class="input" type="text" id="command-input" placeholder="Enter command..." disabled>
-        </div>
-        <p class="help">Press Enter or click Execute. Use 'clear' to reset the terminal.</p>
+    <div class="sp-card-body">
+    <p style="margin-bottom:1rem;">Execute commands on remote servers and view live output. Select a server and enter commands below.</p>
+    <div class="sp-form-group">
+        <label class="sp-label">Select Server</label>
+        <select class="sp-select" id="server-select">
+            <option value="">Choose a server...</option>
+            <option value="bots">Bot Server</option>
+            <option value="web">Web Server</option>
+            <option value="api">API Server</option>
+            <option value="websocket">WebSocket Server</option>
+            <option value="sql">SQL Server</option>
+        </select>
     </div>
-    <div class="box">
-        <h2 class="title is-6 mb-3"><span class="icon"><i class="fas fa-toolbox"></i></span> Terminal Tools</h2>
-        <div class="columns is-multiline mb-0">
-            <div class="column is-6">
-                <label class="label">Quick Preset</label>
-                <div class="field has-addons">
-                    <div class="control is-expanded">
-                        <div class="select is-fullwidth">
-                            <select id="preset-select" disabled>
-                                <option value="">Select preset command...</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="control">
-                        <button class="button is-info" id="run-preset-btn" disabled>
-                            <span class="icon"><i class="fas fa-bolt"></i></span>
-                            <span>Run</span>
-                        </button>
-                    </div>
+    <div class="sp-form-group">
+        <label class="sp-label">Command</label>
+        <input class="sp-input" type="text" id="command-input" placeholder="Enter command..." disabled>
+        <p class="sp-help">Press Enter or click Execute. Use 'clear' to reset the terminal.</p>
+    </div>
+    <div class="sp-card" style="margin-bottom:1.25rem;">
+        <div class="sp-card-header">
+            <h2 class="sp-card-title"><span class="icon"><i class="fas fa-toolbox"></i></span> Terminal Tools</h2>
+        </div>
+        <div class="sp-card-body" style="padding:0.75rem 1rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div>
+                <label class="sp-label">Quick Preset</label>
+                <div class="sp-btn-group">
+                    <select class="sp-select" id="preset-select" disabled style="flex:1;">
+                        <option value="">Select preset command...</option>
+                    </select>
+                    <button class="sp-btn sp-btn-info" id="run-preset-btn" disabled>
+                        <span class="icon"><i class="fas fa-bolt"></i></span>
+                        <span>Run</span>
+                    </button>
                 </div>
             </div>
-            <div class="column is-6">
-                <label class="label">Saved Snippets</label>
-                <div class="field has-addons">
-                    <div class="control is-expanded">
-                        <div class="select is-fullwidth">
-                            <select id="snippet-select">
-                                <option value="">Select saved snippet...</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="control">
-                        <button class="button is-link is-light" id="save-snippet-btn" disabled>
-                            <span class="icon"><i class="fas fa-save"></i></span>
-                            <span>Save</span>
-                        </button>
-                    </div>
+            <div>
+                <label class="sp-label">Saved Snippets</label>
+                <div class="sp-btn-group">
+                    <select class="sp-select" id="snippet-select" style="flex:1;">
+                        <option value="">Select saved snippet...</option>
+                    </select>
+                    <button class="sp-btn" id="save-snippet-btn" disabled>
+                        <span class="icon"><i class="fas fa-save"></i></span>
+                        <span>Save</span>
+                    </button>
                 </div>
             </div>
         </div>
+        </div>
     </div>
-    <div class="field">
-        <div class="control">
-            <button class="button is-primary" id="execute-btn" disabled>
+    <div class="sp-form-group">
+        <div class="sp-btn-group">
+            <button class="sp-btn sp-btn-primary" id="execute-btn" disabled>
                 <span class="icon"><i class="fas fa-play"></i></span>
                 <span>Execute</span>
             </button>
-            <button class="button is-light" id="clear-btn">
+            <button class="sp-btn" id="clear-btn">
                 <span class="icon"><i class="fas fa-broom"></i></span>
                 <span>Clear Terminal</span>
             </button>
-            <button class="button is-warning" id="interrupt-btn" disabled>
+            <button class="sp-btn sp-btn-warning" id="interrupt-btn" disabled>
                 <span class="icon"><i class="fas fa-stop"></i></span>
                 <span>Interrupt</span>
             </button>
-            <button class="button is-link is-light" id="copy-output-btn">
+            <button class="sp-btn sp-btn-info" id="copy-output-btn">
                 <span class="icon"><i class="fas fa-copy"></i></span>
                 <span>Copy Output</span>
             </button>
-            <button class="button is-link is-light" id="download-output-btn">
+            <button class="sp-btn sp-btn-info" id="download-output-btn">
                 <span class="icon"><i class="fas fa-download"></i></span>
                 <span>Download Log</span>
             </button>
         </div>
     </div>
-    <div class="field">
-        <div class="control">
-            <div class="tags terminal-metadata">
-                <span class="tag is-info" id="connection-status">Status: waiting for server selection</span>
-                <span class="tag is-dark has-text-white" id="current-server">Server: none</span>
-                <span class="tag is-dark has-text-white" id="last-command">Last command: none</span>
-                <span class="tag is-dark has-text-white" id="runtime-stat">Runtime: 00:00</span>
-                <span class="tag is-dark has-text-white" id="line-count-stat">Lines: 0</span>
-            </div>
+    <div class="sp-form-group">
+        <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
+            <span class="sp-badge sp-badge-blue" id="connection-status">Status: waiting for server selection</span>
+            <span class="sp-badge sp-badge-grey" id="current-server">Server: none</span>
+            <span class="sp-badge sp-badge-grey" id="last-command">Last command: none</span>
+            <span class="sp-badge sp-badge-grey" id="runtime-stat">Runtime: 00:00</span>
+            <span class="sp-badge sp-badge-grey" id="line-count-stat">Lines: 0</span>
         </div>
     </div>
-    <div class="field">
-        <label class="label">Filter Output</label>
-        <div class="control">
-            <input class="input" type="text" id="output-filter" placeholder="Type to filter terminal output...">
-        </div>
+    <div class="sp-form-group">
+        <label class="sp-label">Filter Output</label>
+        <input class="sp-input" type="text" id="output-filter" placeholder="Type to filter terminal output...">
     </div>
-    <div class="box" style="background-color: #1e1e1e; color: #ffffff; font-family: 'Courier New', monospace; height: 500px; overflow-y: auto; white-space: pre-wrap; padding: 1rem;" id="terminal-output">
+    <div style="background-color:#1e1e1e;color:#ffffff;font-family:'Courier New',monospace;height:500px;overflow-y:auto;white-space:pre-wrap;padding:1rem;border-radius:var(--radius);margin-bottom:1.25rem;" id="terminal-output">
         <div style="color: #00ff00;">Web Terminal Ready</div>
         <div style="color: #888;">Select a server and enter commands to get started.</div>
     </div>
-    <div class="field mt-4">
-        <div class="control">
-            <label class="checkbox">
-                <input type="checkbox" id="auto-scroll">
-                Auto-scroll to bottom
-            </label>
-            <label class="checkbox ml-4">
-                <input type="checkbox" id="safe-mode" checked>
-                Safe mode (blocks risky commands unless confirmed)
-            </label>
-        </div>
+    <div class="sp-form-group" style="margin-top:1rem;">
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;margin-right:1.5rem;cursor:pointer;">
+            <input type="checkbox" id="auto-scroll">
+            Auto-scroll to bottom
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">
+            <input type="checkbox" id="safe-mode" checked>
+            Safe mode (blocks risky commands unless confirmed)
+        </label>
     </div>
-</div>
+    </div><!-- /sp-card-body --></div><!-- /sp-card -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 const STATUS_CLASSES = {
-    info: 'is-info',
-    success: 'is-success',
-    warning: 'is-warning',
-    danger: 'is-danger'
+    info: 'sp-badge-blue',
+    success: 'sp-badge-green',
+    warning: 'sp-badge-amber',
+    danger: 'sp-badge-red'
 };
 const HISTORY_STORAGE_KEY = 'botofthespecter_webterminal_history';
 const SNIPPETS_STORAGE_KEY = 'botofthespecter_webterminal_snippets';
@@ -444,7 +427,7 @@ async function confirmCommandSafety(command) {
 
 function setStatus(message, type = 'info') {
     connectionStatusTag.textContent = `Status: ${message}`;
-    connectionStatusTag.className = `tag ${STATUS_CLASSES[type] || STATUS_CLASSES.info}`;
+    connectionStatusTag.className = `sp-badge ${STATUS_CLASSES[type] || STATUS_CLASSES.info}`;
 }
 
 function setCurrentServer(label) {
@@ -472,7 +455,7 @@ function setExecutionState(executing) {
     saveSnippetBtn.disabled = disabled;
     refreshPresetOptions();
     if (executing) {
-        executeBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Executing...</span>';
+        executeBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Executing...</span>';;
     } else {
         executeBtn.innerHTML = '<span class="icon"><i class="fas fa-play"></i></span><span>Execute</span>';
     }
