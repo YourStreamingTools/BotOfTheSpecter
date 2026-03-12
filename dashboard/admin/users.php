@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -83,13 +83,13 @@ function getTwitchSubTier($twitch_user_id) {
 function mask_email($email) {
     if (!$email) return '';
     $atPos = strpos($email, '@');
-    if ($atPos === false) return str_repeat('•', strlen($email));
-    return str_repeat('•', $atPos) . substr($email, $atPos);
+    if ($atPos === false) return str_repeat('�', strlen($email));
+    return str_repeat('�', $atPos) . substr($email, $atPos);
 }
 
 function mask_api_key($api_key) {
     if (!$api_key) return '';
-    return str_repeat('•', strlen($api_key));
+    return str_repeat('�', strlen($api_key));
 }
 
 // Fetch users from database
@@ -325,39 +325,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
 }
 ?>
 <?php if ($actAsNotice): ?>
-    <div class="notification <?php echo $actAsNoticeClass; ?> is-light">
+    <?php $alertClass = str_replace('is-', '', $actAsNoticeClass); ?>
+    <div class="sp-alert sp-alert-<?php echo htmlspecialchars($alertClass); ?>">
         <?php echo htmlspecialchars($actAsNotice); ?>
     </div>
 <?php endif; ?>
-<div class="box">
-    <div class="level mb-4">
-        <div class="level-left">
-            <h1 class="title is-4 mb-0"><span class="icon"><i class="fas fa-users-cog"></i></span> User Management</h1>
-        </div>
-        <div class="level-right">
-            <form class="field has-addons" onsubmit="event.preventDefault(); filterUsers();">
-                <p class="control has-icons-left">
-                    <input class="input is-rounded" type="text" placeholder="Search users..." id="user-search" autocomplete="off">
-                    <span class="icon is-left">
-                        <i class="fas fa-search"></i>
-                    </span>
-                </p>
-            </form>
-        </div>
+<div class="sp-card">
+  <div class="sp-card-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h1 style="font-size:1.25rem;font-weight:700;margin:0;"><span class="icon"><i class="fas fa-users-cog"></i></span> User Management</h1>
+        <form onsubmit="event.preventDefault(); filterUsers();">
+            <div style="position:relative;">
+                <span style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--text-muted);"><i class="fas fa-search"></i></span>
+                <input class="sp-input" style="padding-left:2.25rem;border-radius:2rem;" type="text" placeholder="Search users..." id="user-search" autocomplete="off">
+            </div>
+        </form>
     </div>
-    <div class="table-container">
-        <table class="table is-fullwidth admin-users-table">
+    <div class="sp-table-wrap">
+        <table class="sp-table admin-users-table">
             <thead>
                 <tr>
-                    <th class="has-text-centered">ID</th>
-                    <th class="has-text-centered">User</th>
-                    <th class="has-text-centered">Admin</th>
-                    <th class="has-text-centered">Super Admin</th>
-                    <th class="has-text-centered">Beta Access</th>
-                    <th class="has-text-centered">Premium Access</th>
-                    <th class="has-text-centered">Signup Date</th>
-                    <th class="has-text-centered">Last Login</th>
-                    <th class="has-text-centered">Actions</th>
+                    <th style="text-align:center;">ID</th>
+                    <th style="text-align:center;">User</th>
+                    <th style="text-align:center;">Admin</th>
+                    <th style="text-align:center;">Super Admin</th>
+                    <th style="text-align:center;">Beta Access</th>
+                    <th style="text-align:center;">Premium Access</th>
+                    <th style="text-align:center;">Signup Date</th>
+                    <th style="text-align:center;">Last Login</th>
+                    <th style="text-align:center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -393,72 +389,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                 elseif ($is_restricted) $rowClass = 'is-restricted-row';
                 ?>
                 <tr<?php if ($rowClass) echo ' class="' . htmlspecialchars($rowClass) . '"'; ?>>
-                    <td class="has-text-centered" style="vertical-align: middle;"><?php echo htmlspecialchars($user['id']); ?></td>
+                    <td style="text-align:center;vertical-align:middle;"><?php echo htmlspecialchars($user['id']); ?></td>
                     <td style="vertical-align: middle;">
-                        <figure class="image is-32x32 is-inline-block mr-2" style="vertical-align:middle;">
-                            <img class="is-rounded" src="<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
-                        </figure>
+                        <img class="admin-bot-avatar" src="<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="margin-right:0.5rem;vertical-align:middle;">
                         <span style="vertical-align:middle;"><?php echo htmlspecialchars($user['username']); ?></span>
                         <?php if ($is_deceased): ?>
-                            <span class="tag is-light memorial-label">
+                            <span class="sp-badge memorial-label">
                                 <span class="icon is-small"><i class="fas fa-dove"></i></span>&nbsp;Memorial
                             </span>
                         <?php elseif ($is_restricted): ?>
-                            <span class="tag is-warning is-light restricted-label">Restricted</span>
+                            <span class="sp-badge sp-badge-amber restricted-label">Restricted</span>
                         <?php endif; ?>
                     </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
+                    <td style="text-align:center;vertical-align:middle;">
                         <?php if ($user['is_admin']): ?>
-                            <span class="tag is-success">True</span>
+                            <span class="sp-badge sp-badge-green">True</span>
                         <?php else: ?>
-                            <span class="tag is-danger">False</span>
+                            <span class="sp-badge sp-badge-red">False</span>
                         <?php endif; ?>
                     </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
+                    <td style="text-align:center;vertical-align:middle;">
                         <?php if ($is_super_admin): ?>
-                            <span class="tag is-success">True</span>
+                            <span class="sp-badge sp-badge-green">True</span>
                         <?php else: ?>
-                            <span class="tag is-danger">False</span>
+                            <span class="sp-badge sp-badge-red">False</span>
                         <?php endif; ?>
                     </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
+                    <td style="text-align:center;vertical-align:middle;">
                         <?php if ($user['beta_access']): ?>
-                            <span class="tag is-success">True</span>
+                            <span class="sp-badge sp-badge-green">True</span>
                         <?php else: ?>
-                            <span class="tag is-danger">False</span>
+                            <span class="sp-badge sp-badge-red">False</span>
                         <?php endif; ?>
                     </td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
+                    <td style="text-align:center;vertical-align:middle;">
                         <?php
                         if (!empty($user['twitch_user_id'])) {
                             $tier = getTwitchSubTier($user['twitch_user_id']);
                             if ($tier === "1000") {
-                                echo '<span class="tag is-warning">Tier 1</span>';
+                                echo '<span class="sp-badge sp-badge-amber">Tier 1</span>';
                             } elseif ($tier === "2000") {
-                                echo '<span class="tag is-link">Tier 2</span>';
+                                echo '<span class="sp-badge sp-badge-blue">Tier 2</span>';
                             } elseif ($tier === "3000") {
-                                echo '<span class="tag is-danger">Tier 3</span>';
+                                echo '<span class="sp-badge sp-badge-red">Tier 3</span>';
                             } else {
-                                echo '<span class="tag is-info">None</span>';
+                                echo '<span class="sp-badge sp-badge-grey">None</span>';
                             }
                         } else {
-                            echo '<span class="tag is-info">None</span>';
+                            echo '<span class="sp-badge sp-badge-grey">None</span>';
                         }
                         ?>
                     </td>
-                    <td class="has-text-centered admin-date-cell" style="vertical-align: middle;"><?php echo format_pretty_date($user['signup_date']); ?></td>
-                    <td class="has-text-centered admin-date-cell" style="vertical-align: middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
-                    <td class="has-text-centered" style="vertical-align: middle;">
+                    <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><?php echo format_pretty_date($user['signup_date']); ?></td>
+                    <td class="admin-date-cell" style="text-align:center;vertical-align:middle;"><?php echo format_pretty_date($user['last_login']); ?></td>
+                    <td style="text-align:center;vertical-align:middle;">
                         <div class="actions-wrap">
-                            <button class="button is-small is-light" title="View Details" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
+                            <button class="sp-btn sp-btn-sm" title="View Details" onclick="showSensitiveModal(<?php echo $user['id']; ?>)">
                                 <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
-                            <button class="button is-small is-danger" title="Delete User" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                            <button class="sp-btn sp-btn-danger sp-btn-sm" title="Delete User" onclick="deleteUser(<?php echo $user['id']; ?>)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                 <span class="icon"><i class="fas fa-trash"></i></span>
                             </button>
                             <?php if ((int) $user['is_admin']): ?>
                                 <button
-                                    class="button is-small is-warning"
+                                    class="sp-btn sp-btn-warning sp-btn-sm"
                                     onclick="removeAdminAccess(<?php echo (int) $user['id']; ?>)"
                                     title="Remove Admin"
                                     <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
@@ -467,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                 </button>
                             <?php else: ?>
                                 <button
-                                    class="button is-small is-link"
+                                    class="sp-btn sp-btn-primary sp-btn-sm"
                                     onclick="grantAdminAccess(<?php echo (int) $user['id']; ?>)"
                                     title="Give Admin"
                                     <?php if (!$currentAdminIsSuperAdmin || $is_deceased): ?>disabled<?php endif; ?>
@@ -476,45 +470,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                 </button>
                             <?php endif; ?>
                             <?php if ((int) $user['beta_access']): ?>
-                                <button class="button is-small is-warning" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="Remove Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                <button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="Remove Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-primary" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="Give Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="Give Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-flask"></i></span>
                                 </button>
                             <?php endif; ?>
                             <?php if ($is_restricted): ?>
-                                <button class="button is-small is-warning" title="Unrestrict"
+                                <button class="sp-btn sp-btn-warning sp-btn-sm" title="Unrestrict"
                                     onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-dark" title="<?php echo $can_restrict_user ? 'Restrict' : 'Only super admins can restrict admins. Super admins cannot be restricted.'; ?>"
+                                <button class="sp-btn sp-btn-sm" title="<?php echo $can_restrict_user ? 'Restrict' : 'Only super admins can restrict admins. Super admins cannot be restricted.'; ?>"
                                     onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', true)"
                                     <?php if (!$can_restrict_user || $is_deceased): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-user-lock"></i></span>
                                 </button>
                             <?php endif; ?>
                             <?php if ($is_deceased): ?>
-                                <button class="button is-small is-light memorial-action-btn" title="Remove Memorial"
+                                <button class="sp-btn sp-btn-sm memorial-action-btn" title="Remove Memorial"
                                     onclick="unmarkDeceased(<?php echo (int) $user['id']; ?>)"
                                     <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-dove"></i></span>
                                 </button>
                             <?php else: ?>
-                                <button class="button is-small is-light memorial-action-btn" title="Mark as Memorial"
+                                <button class="sp-btn sp-btn-sm memorial-action-btn" title="Mark as Memorial"
                                     onclick="markDeceased(<?php echo (int) $user['id']; ?>)"
                                     <?php if (!$currentAdminIsSuperAdmin): ?>disabled<?php endif; ?>>
                                     <span class="icon"><i class="fas fa-dove"></i></span>
                                 </button>
                             <?php endif; ?>
                             <?php if ((int) $user['id'] !== $currentAdminUserId): ?>
-                                <a class="button is-small is-info" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="Act As">
+                                <a class="sp-btn sp-btn-info sp-btn-sm" href="act_as_user.php?user_id=<?php echo (int) $user['id']; ?>" title="Act As">
                                     <span class="icon"><i class="fas fa-user-secret"></i></span>
                                 </a>
                             <?php else: ?>
-                                <button class="button is-small is-info" type="button" disabled title="You are already viewing your own dashboard">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" type="button" disabled title="You are already viewing your own dashboard">
                                     <span class="icon"><i class="fas fa-user-secret"></i></span>
                                 </button>
                             <?php endif; ?>
@@ -525,23 +519,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
             </tbody>
         </table>
     </div>
+  </div>
 </div>
 
 <!-- Sensitive Info Modal -->
-<div class="modal" id="sensitive-modal">
-    <div class="modal-background" onclick="closeSensitiveModal()"></div>
-    <div class="modal-card" style="max-width: 800px;">
-        <header class="modal-card-head">
-            <p class="modal-card-title"><span class="icon"><i class="fas fa-user-secret"></i></span> User Details</p>
-            <button class="delete" aria-label="close" onclick="closeSensitiveModal()"></button>
-        </header>
-        <section class="modal-card-body" id="sensitive-modal-content">
+<div class="sp-modal-backdrop" id="sensitive-modal" style="display:none;" onclick="closeSensitiveModal()">
+    <div class="sp-modal" style="max-width:800px;" onclick="event.stopPropagation()">
+        <div class="sp-modal-head">
+            <span class="sp-modal-title"><span class="icon"><i class="fas fa-user-secret"></i></span> User Details</span>
+            <button class="sp-modal-close" aria-label="close" onclick="closeSensitiveModal()">&#x2715;</button>
+        </div>
+        <div class="sp-modal-body" id="sensitive-modal-content">
             <!-- Populated by JS -->
-        </section>
-        <footer class="modal-card-foot" style="justify-content: flex-end;">
-            <button class="button is-primary" id="export-sensitive-btn" onclick="exportSensitiveUser()" title="Export user data">Export Data</button>
-            <button class="button" onclick="closeSensitiveModal()">Close</button>
-        </footer>
+        </div>
+        <div style="padding:1rem;display:flex;justify-content:flex-end;gap:0.5rem;border-top:1px solid var(--border);">
+            <button class="sp-btn sp-btn-primary" id="export-sensitive-btn" onclick="exportSensitiveUser()" title="Export user data">Export Data</button>
+            <button class="sp-btn" onclick="closeSensitiveModal()">Close</button>
+        </div>
     </div>
 </div>
 
@@ -551,12 +545,12 @@ const usersData = <?php echo json_encode($users); ?>;
 function maskEmail(email) {
     if (!email) return '';
     const atPos = email.indexOf('@');
-    if (atPos === -1) return '•'.repeat(email.length);
-    return '•'.repeat(atPos) + email.substring(atPos);
+    if (atPos === -1) return '�'.repeat(email.length);
+    return '�'.repeat(atPos) + email.substring(atPos);
 }
 function maskApiKey(api) {
     if (!api) return '';
-    return '•'.repeat(api.length);
+    return '�'.repeat(api.length);
 }
 
 function showSensitiveModal(userId) {
@@ -578,29 +572,26 @@ function showSensitiveModal(userId) {
         return `${day}${suffix} ${dt.toLocaleString('en-US', { month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
     }
     let html = `
-    <div class="box">
-        <div class="columns is-vcentered mb-2">
-            <div class="column is-narrow">
-                <figure class="image is-48x48">
-                    <img class="is-rounded" src="${user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png'}" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';">
-                </figure>
-            </div>
-            <div class="column">
-                <p class="title is-5 mb-1">${user.twitch_display_name ? user.twitch_display_name : ''}</p>
-                <p class="subtitle is-7 mb-0" style="vertical-align: middle;">Twitch ID: <span class="has-text-danger">${user.twitch_user_id}</span></p>
+    <div class="sp-card">
+      <div class="sp-card-body">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;">
+            <img class="admin-bot-avatar" src="${user.profile_image ? user.profile_image : 'https://cdn.botofthespecter.com/logo.png'}" alt="Profile" onerror="this.src='https://cdn.botofthespecter.com/logo.png';" style="width:48px;height:48px;flex-shrink:0;">
+            <div>
+                <p style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;">${user.twitch_display_name ? user.twitch_display_name : ''}</p>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">Twitch ID: <span class="sp-text-danger">${user.twitch_user_id}</span></p>
             </div>
         </div>
-        <hr class="my-2">
-        <div class="content">
-            <table class="table is-fullwidth is-bordered is-narrow">
+        <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">
+        <div class="sp-table-wrap">
+            <table class="sp-table">
                 <tbody>
                     <tr>
                         <th>Admin</th>
-                        <td>${user.is_admin ? '<span class="tag is-success">True</span>' : '<span class="tag is-danger">False</span>'}</td>
+                        <td>${user.is_admin ? '<span class="sp-badge sp-badge-green">True</span>' : '<span class="sp-badge sp-badge-red">False</span>'}</td>
                     </tr>
                     <tr>
                         <th>Beta Access</th>
-                        <td>${user.beta_access ? '<span class="tag is-success">True</span>' : '<span class="tag is-danger">False</span>'}</td>
+                        <td>${user.beta_access ? '<span class="sp-badge sp-badge-green">True</span>' : '<span class="sp-badge sp-badge-red">False</span>'}</td>
                     </tr>
                     <tr>
                         <th>Premium Access</th>
@@ -609,12 +600,12 @@ function showSensitiveModal(userId) {
                                 user.twitch_user_id
                                 ? (() => {
                                     let tier = '';
-                                    if (user.twitch_sub_tier === "1000") return '<span class="tag is-warning">Tier 1</span>';
-                                    if (user.twitch_sub_tier === "2000") return '<span class="tag is-link">Tier 2</span>';
-                                    if (user.twitch_sub_tier === "3000") return '<span class="tag is-danger">Tier 3</span>';
-                                    return '<span class="tag is-info">None</span>';
+                                    if (user.twitch_sub_tier === "1000") return '<span class="sp-badge sp-badge-amber">Tier 1</span>';
+                                    if (user.twitch_sub_tier === "2000") return '<span class="sp-badge sp-badge-blue">Tier 2</span>';
+                                    if (user.twitch_sub_tier === "3000") return '<span class="sp-badge sp-badge-red">Tier 3</span>';
+                                    return '<span class="sp-badge sp-badge-grey">None</span>';
                                 })()
-                                : '<span class="tag is-info">None</span>'
+                                : '<span class="sp-badge sp-badge-grey">None</span>'
                             }
                         </td>
                     </tr>
@@ -631,25 +622,25 @@ function showSensitiveModal(userId) {
                         <td>
                             ${user.email ? `
                                 <span id="modal-email-masked">${maskEmail(user.email)}</span>
-                                <span id="modal-email-unmasked" class="is-hidden">${user.email}</span>
-                                <button class="button is-small is-light ml-2" id="modal-email-eye" onclick="toggleModalInfo('email', true)" style="vertical-align: middle;">
+                                <span id="modal-email-unmasked" style="display:none;">${user.email}</span>
+                                <button class="sp-btn sp-btn-sm ml-2" id="modal-email-eye" onclick="toggleModalInfo('email', true)" style="vertical-align:middle;">
                                     <span class="icon"><i class="fas fa-eye"></i></span>
                                 </button>
-                                <button class="button is-small is-light ml-2 is-hidden" id="modal-email-eye-slash" onclick="toggleModalInfo('email', false)" style="vertical-align: middle;">
+                                <button class="sp-btn sp-btn-sm ml-2" id="modal-email-eye-slash" style="display:none;vertical-align:middle;" onclick="toggleModalInfo('email', false)">
                                     <span class="icon"><i class="fas fa-eye-slash"></i></span>
                                 </button>
-                            ` : '<span class="has-text-grey-light">None</span>'}
+                            ` : '<span class="sp-text-muted">None</span>'}
                         </td>
                     </tr>
                     <tr>
                         <th>API Key</th>
                         <td>
                             <span id="modal-api-masked">${maskApiKey(user.api_key)}</span>
-                            <span id="modal-api-unmasked" class="is-hidden">${user.api_key}</span>
-                            <button class="button is-small is-light ml-2" id="modal-api-eye" onclick="toggleModalInfo('api', true)" style="vertical-align: middle;">
+                            <span id="modal-api-unmasked" style="display:none;">${user.api_key}</span>
+                            <button class="sp-btn sp-btn-sm ml-2" id="modal-api-eye" onclick="toggleModalInfo('api', true)" style="vertical-align:middle;">
                                 <span class="icon"><i class="fas fa-eye"></i></span>
                             </button>
-                            <button class="button is-small is-light ml-2 is-hidden" id="modal-api-eye-slash" onclick="toggleModalInfo('api', false)" style="vertical-align: middle;">
+                            <button class="sp-btn sp-btn-sm ml-2" id="modal-api-eye-slash" style="display:none;vertical-align:middle;" onclick="toggleModalInfo('api', false)">
                                 <span class="icon"><i class="fas fa-eye-slash"></i></span>
                             </button>
                         </td>
@@ -657,6 +648,7 @@ function showSensitiveModal(userId) {
                 </tbody>
             </table>
         </div>
+      </div>
     </div>
     `;
     document.getElementById('sensitive-modal-content').innerHTML = html;
@@ -664,11 +656,11 @@ function showSensitiveModal(userId) {
     window.currentSensitiveUserId = user.id;
     window.currentSensitiveUserEmail = user.email || '';
     window.currentSensitiveUsername = user.username || '';
-    document.getElementById('sensitive-modal').classList.add('is-active');
+    document.getElementById('sensitive-modal').style.display = 'flex';
 }
 
 function closeSensitiveModal() {
-    document.getElementById('sensitive-modal').classList.remove('is-active');
+    document.getElementById('sensitive-modal').style.display = 'none';
 }
 
 function toggleModalInfo(type, reveal) {
@@ -684,36 +676,36 @@ function toggleModalInfo(type, reveal) {
         }).then((result) => {
             if (result.isConfirmed) {
                 if (type === 'email') {
-                    document.getElementById('modal-email-masked').classList.add('is-hidden');
-                    document.getElementById('modal-email-unmasked').classList.remove('is-hidden');
-                    document.getElementById('modal-email-eye').classList.add('is-hidden');
-                    document.getElementById('modal-email-eye-slash').classList.remove('is-hidden');
+                    document.getElementById('modal-email-masked').style.display = 'none';
+                    document.getElementById('modal-email-unmasked').style.display = '';
+                    document.getElementById('modal-email-eye').style.display = 'none';
+                    document.getElementById('modal-email-eye-slash').style.display = '';
                 } else if (type === 'api') {
-                    document.getElementById('modal-api-masked').classList.add('is-hidden');
-                    document.getElementById('modal-api-unmasked').classList.remove('is-hidden');
-                    document.getElementById('modal-api-eye').classList.add('is-hidden');
-                    document.getElementById('modal-api-eye-slash').classList.remove('is-hidden');
+                    document.getElementById('modal-api-masked').style.display = 'none';
+                    document.getElementById('modal-api-unmasked').style.display = '';
+                    document.getElementById('modal-api-eye').style.display = 'none';
+                    document.getElementById('modal-api-eye-slash').style.display = '';
                 }
             }
         });
     } else {
         if (type === 'email') {
-            document.getElementById('modal-email-masked').classList.remove('is-hidden');
-            document.getElementById('modal-email-unmasked').classList.add('is-hidden');
-            document.getElementById('modal-email-eye').classList.remove('is-hidden');
-            document.getElementById('modal-email-eye-slash').classList.add('is-hidden');
+            document.getElementById('modal-email-masked').style.display = '';
+            document.getElementById('modal-email-unmasked').style.display = 'none';
+            document.getElementById('modal-email-eye').style.display = '';
+            document.getElementById('modal-email-eye-slash').style.display = 'none';
         } else if (type === 'api') {
-            document.getElementById('modal-api-masked').classList.remove('is-hidden');
-            document.getElementById('modal-api-unmasked').classList.add('is-hidden');
-            document.getElementById('modal-api-eye').classList.remove('is-hidden');
-            document.getElementById('modal-api-eye-slash').classList.add('is-hidden');
+            document.getElementById('modal-api-masked').style.display = '';
+            document.getElementById('modal-api-unmasked').style.display = 'none';
+            document.getElementById('modal-api-eye').style.display = '';
+            document.getElementById('modal-api-eye-slash').style.display = 'none';
         }
     }
 }
 
 function filterUsers() {
     const input = document.getElementById('user-search').value.toLowerCase();
-    const table = document.querySelector('.table tbody');
+    const table = document.querySelector('.sp-table tbody');
     const rows = table.getElementsByTagName('tr');
     for (let row of rows) {
         const usernameCell = row.cells[1];
