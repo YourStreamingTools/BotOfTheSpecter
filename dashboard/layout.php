@@ -127,9 +127,10 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <?php if ($isAdminCssPage): ?>
         <link rel="stylesheet" href="/css/admin.css?v=<?php echo uuidv4(); ?>">
     <?php endif; ?>
-    <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
-    <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
-    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
+    <link rel="shortcut icon" href="https://cdn.botofthespecter.com/favicon.ico?v=<?php echo $dashboardVersion; ?>">
+    <link rel="icon" type="image/x-icon" href="https://cdn.botofthespecter.com/favicon.ico?v=<?php echo $dashboardVersion; ?>">
+    <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/favicon.png?v=<?php echo $dashboardVersion; ?>">
+    <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png?v=<?php echo $dashboardVersion; ?>">
 </head>
 <body>
     <!-- Cookie Consent Box -->
