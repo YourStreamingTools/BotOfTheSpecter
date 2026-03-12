@@ -1490,9 +1490,6 @@ function validateToken(token, tokenId) {
                 statusCell.textContent = 'No Token';
                 statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
-                if (fetchData.error) {
-                    Swal.fire({ title: 'Token Fetch Failed', text: fetchData.error, icon: 'error' });
-                }
                 button.disabled = false;
                 button.classList.remove('sp-btn-loading');
                 return Promise.reject(new Error(fetchData.error || 'No token'));
@@ -1542,7 +1539,6 @@ function validateToken(token, tokenId) {
             expiryCell.textContent = errMsg;
             // Save to cache
             saveTokenToCache(tokenId, 'regular', 0, false);
-            Swal.fire({ title: 'Validation Failed', text: errMsg, icon: 'error' });
         }
         return data;
     })
@@ -1551,7 +1547,6 @@ function validateToken(token, tokenId) {
         statusCell.textContent = 'Error';
         statusCell.className = 'sp-text-danger';
         expiryCell.textContent = msg;
-        Swal.fire({ title: 'Validation Error', text: msg, icon: 'error' });
         return { success: false };
     })
     .finally(() => {
@@ -1686,9 +1681,6 @@ function validateCustomToken(token, tokenId) {
                 statusCell.textContent = 'No Token';
                 statusCell.className = 'sp-text-warning';
                 expiryCell.textContent = fetchData.error ? fetchData.error : '-';
-                if (fetchData.error) {
-                    Swal.fire({ title: 'Token Fetch Failed', text: fetchData.error, icon: 'error' });
-                }
                 if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
                 return Promise.reject(new Error(fetchData.error || 'No token'));
             }
@@ -1733,7 +1725,6 @@ function validateCustomToken(token, tokenId) {
                 expiryCell.textContent = errMsg;
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', 0, false);
-                Swal.fire({ title: 'Validation Failed', text: errMsg, icon: 'error' });
             }
         })
         .catch((err) => {
@@ -1741,7 +1732,6 @@ function validateCustomToken(token, tokenId) {
             statusCell.textContent = 'Error';
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = msg;
-            Swal.fire({ title: 'Validation Error', text: msg, icon: 'error' });
         })
         .finally(() => {
             if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
