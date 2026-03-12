@@ -285,68 +285,66 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 	$clipPortraitDownload = isset($clipDownloads['portrait_download_url']) ? (string) $clipDownloads['portrait_download_url'] : '';
 	ob_start();
 	?>
-	<div class="column is-12-mobile is-6-tablet is-4-desktop">
-		<div class="card has-background-grey-darker has-text-white" style="height:100%; border:1px solid #2d3138;">
-			<div class="card-image">
-				<figure class="image is-16by9">
-					<?php if ($thumbnail !== ''): ?>
-						<img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>" alt="Video thumbnail">
-					<?php else: ?>
-						<div class="has-background-dark is-flex is-align-items-center is-justify-content-center" style="height:100%; min-height:180px;">
-							<span class="has-text-grey-light"><i class="fas fa-image mr-2"></i>No Thumbnail</span>
-						</div>
-					<?php endif; ?>
-				</figure>
+	<div class="media-card-col">
+		<div class="sp-card" style="height:100%; display:flex; flex-direction:column;">
+			<div class="media-card-thumb">
+				<?php if ($thumbnail !== ''): ?>
+					<img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>" alt="Video thumbnail">
+				<?php else: ?>
+					<div class="media-card-no-thumb">
+						<span><i class="fas fa-image mr-2"></i>No Thumbnail</span>
+					</div>
+				<?php endif; ?>
 			</div>
-			<div class="card-content">
-				<p class="title is-6 has-text-white mb-2" style="min-height:3em; overflow:hidden;">
+			<div class="sp-card-body" style="flex:1; display:flex; flex-direction:column;">
+				<p class="sp-card-title mb-2" style="min-height:3em; overflow:hidden;">
 					<?php echo htmlspecialchars($videoTitle, ENT_QUOTES, 'UTF-8'); ?>
 				</p>
 				<?php if (!$isClipsMode): ?>
-					<p class="is-size-7 has-text-grey-light mb-3" style="min-height:4.5em; overflow:hidden;">
+					<p class="sp-text-muted mb-3" style="font-size:0.82rem; min-height:4.5em; overflow:hidden;">
 						<?php echo htmlspecialchars($videoDescription !== '' ? $videoDescription : 'No description provided.', ENT_QUOTES, 'UTF-8'); ?>
 					</p>
 				<?php endif; ?>
-				<div class="tags mb-3">
-					<span class="tag is-info is-light"><?php echo htmlspecialchars($videoType, ENT_QUOTES, 'UTF-8'); ?></span>
-					<span class="tag is-primary is-light"><?php echo htmlspecialchars($videoDuration, ENT_QUOTES, 'UTF-8'); ?></span>
+				<div class="media-card-tags">
+					<span class="sp-badge sp-badge-blue"><?php echo htmlspecialchars($videoType, ENT_QUOTES, 'UTF-8'); ?></span>
+					<span class="sp-badge sp-badge-accent"><?php echo htmlspecialchars($videoDuration, ENT_QUOTES, 'UTF-8'); ?></span>
 					<?php if ($isClipsMode): ?>
-						<span class="tag is-success is-light"><?php echo $clipFeatured ? 'featured' : 'not featured'; ?></span>
+						<span class="sp-badge sp-badge-green"><?php echo $clipFeatured ? 'featured' : 'not featured'; ?></span>
 					<?php endif; ?>
 				</div>
 				<?php if ($isClipsMode): ?>
-					<p class="is-size-7 has-text-grey-light mb-1"><strong>Creator:</strong> <?php echo htmlspecialchars($clipCreator !== '' ? $clipCreator : 'Unknown', ENT_QUOTES, 'UTF-8'); ?></p>
-					<p class="is-size-7 has-text-grey-light mb-1"><strong>Broadcaster:</strong> <?php echo htmlspecialchars($clipBroadcaster !== '' ? $clipBroadcaster : 'Unknown', ENT_QUOTES, 'UTF-8'); ?></p>
-					<p class="is-size-7 has-text-grey-light mb-1"><strong>VOD Offset:</strong> <?php echo $clipVodOffset !== null ? number_format($clipVodOffset) . 's' : 'N/A'; ?></p>
+					<p class="media-card-meta"><strong>Creator:</strong> <?php echo htmlspecialchars($clipCreator !== '' ? $clipCreator : 'Unknown', ENT_QUOTES, 'UTF-8'); ?></p>
+					<p class="media-card-meta"><strong>Broadcaster:</strong> <?php echo htmlspecialchars($clipBroadcaster !== '' ? $clipBroadcaster : 'Unknown', ENT_QUOTES, 'UTF-8'); ?></p>
+					<p class="media-card-meta"><strong>VOD Offset:</strong> <?php echo $clipVodOffset !== null ? number_format($clipVodOffset) . 's' : 'N/A'; ?></p>
 				<?php endif; ?>
-				<p class="is-size-7 has-text-grey-light mb-1"><strong>Views:</strong> <?php echo number_format($videoViews); ?></p>
-				<p class="is-size-7 has-text-grey-light mb-4"><strong><?php echo $isClipsMode ? 'Created' : 'Published'; ?>:</strong> <?php echo htmlspecialchars($videoDate, ENT_QUOTES, 'UTF-8'); ?></p>
-				<div class="buttons is-flex is-justify-content-space-between" style="gap:0.5rem; flex-wrap:wrap;">
+				<p class="media-card-meta"><strong>Views:</strong> <?php echo number_format($videoViews); ?></p>
+				<p class="media-card-meta" style="margin-bottom:1rem;"><strong><?php echo $isClipsMode ? 'Created' : 'Published'; ?>:</strong> <?php echo htmlspecialchars($videoDate, ENT_QUOTES, 'UTF-8'); ?></p>
+				<div class="sp-btn-group" style="margin-top:auto; flex-wrap:wrap;">
 					<?php if ($videoUrl !== ''): ?>
-						<a class="button is-link is-small" href="<?php echo htmlspecialchars($videoUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">
+						<a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($videoUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">
 							<i class="fas fa-external-link-alt mr-1"></i>Open
 						</a>
 					<?php else: ?>
-						<button class="button is-light is-small" disabled>No URL</button>
+						<button class="sp-btn sp-btn-sm" disabled>No URL</button>
 					<?php endif; ?>
 					<?php if (!$isClipsMode && $videoId !== ''): ?>
-						<button type="button" class="button is-danger is-small delete-video-btn" data-video-id="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>">
+						<button type="button" class="sp-btn sp-btn-danger sp-btn-sm delete-video-btn" data-video-id="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>">
 							<i class="fas fa-trash mr-1"></i>Delete
 						</button>
 					<?php endif; ?>
 					<?php if ($isClipsMode): ?>
 						<?php if ($clipLandscapeDownload !== ''): ?>
-							<a class="button is-primary is-small" href="<?php echo htmlspecialchars($clipLandscapeDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
+							<a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($clipLandscapeDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
 								<i class="fas fa-download mr-1"></i>Landscape
 							</a>
 						<?php endif; ?>
 						<?php if ($clipPortraitDownload !== ''): ?>
-							<a class="button is-primary is-small" href="<?php echo htmlspecialchars($clipPortraitDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
+							<a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($clipPortraitDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
 								<i class="fas fa-download mr-1"></i>Portrait
 							</a>
 						<?php endif; ?>
 						<?php if ($clipLandscapeDownload === '' && $clipPortraitDownload === ''): ?>
-							<button class="button is-light is-small" disabled>
+							<button class="sp-btn sp-btn-sm" disabled>
 								<i class="fas fa-download mr-1"></i>Download unavailable
 							</button>
 						<?php endif; ?>
@@ -499,61 +497,55 @@ $clipsTabLink = 'videos.php?tab=clips';
 
 ob_start();
 ?>
-<div class="columns is-centered">
-	<div class="column is-fullwidth">
-		<div class="card has-background-dark has-text-white mb-5" style="border-radius:14px; box-shadow:0 4px 24px #000a;">
-			<header class="card-header" style="border-bottom:1px solid #23272f;">
-				<div class="card-header-title is-size-4 has-text-white" style="font-weight:700;">
-					<span class="icon mr-2"><i class="fas fa-photo-video"></i></span>
-					Videos & Clips Analytics
-				</div>
-			</header>
-			<div class="card-content">
-				<div class="tabs is-boxed is-medium mb-4">
-					<ul>
-						<li class="<?php echo $tab === 'videos' ? 'is-active' : ''; ?>">
-							<a href="<?php echo htmlspecialchars($videosTabLink, ENT_QUOTES, 'UTF-8'); ?>">
-								<span class="icon is-small"><i class="fas fa-photo-video"></i></span>
-								<span>Video Archive VODs</span>
-							</a>
-						</li>
-						<li class="<?php echo $tab === 'clips' ? 'is-active' : ''; ?>">
-							<a href="<?php echo htmlspecialchars($clipsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
-								<span class="icon is-small"><i class="fas fa-film"></i></span>
-								<span>Clips</span>
-							</a>
-						</li>
-					</ul>
-				</div>
-				<?php if ($flashSuccess !== ''): ?>
-					<div class="notification is-success"><?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></div>
-				<?php endif; ?>
-				<?php if ($flashError !== ''): ?>
-					<div class="notification is-danger"><?php echo htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8'); ?></div>
-				<?php endif; ?>
-				<?php if ($apiError !== ''): ?>
-					<div class="notification is-danger"><?php echo htmlspecialchars($apiError, ENT_QUOTES, 'UTF-8'); ?></div>
-				<?php endif; ?>
-				<?php if (empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== ''): ?>
-					<div class="notification is-info">No <?php echo $isClipsMode ? 'clips' : 'videos'; ?> found for this channel.</div>
-				<?php endif; ?>
-				<?php if ($isClipsMode): ?>
-					<div class="box has-background-grey-darker mb-4" style="border:1px solid #2d3138;">
-						<div class="is-flex is-justify-content-space-between is-align-items-center" style="gap:1rem; flex-wrap:wrap;">
-							<p class="has-text-grey-light mb-0" id="clipsLoadStatus">Loaded <?php echo count($videos); ?> clips.</p>
-							<div class="buttons mb-0">
-								<button id="clipsLoadMoreBtn" class="button is-link is-light" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load 20 More</button>
-								<button id="clipsLoadAllBtn" class="button is-warning is-light" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load All</button>
-							</div>
-						</div>
+<div class="sp-card mb-5">
+	<div class="sp-card-header">
+		<span class="sp-card-title">
+			<span class="icon mr-2"><i class="fas fa-photo-video"></i></span>
+			Videos & Clips Analytics
+		</span>
+	</div>
+	<div class="sp-card-body">
+		<ul class="sp-tabs-nav mb-4">
+			<li class="<?php echo $tab === 'videos' ? 'is-active' : ''; ?>">
+				<a href="<?php echo htmlspecialchars($videosTabLink, ENT_QUOTES, 'UTF-8'); ?>">
+					<span class="icon is-small"><i class="fas fa-photo-video"></i></span>
+					<span>Video Archive VODs</span>
+				</a>
+			</li>
+			<li class="<?php echo $tab === 'clips' ? 'is-active' : ''; ?>">
+				<a href="<?php echo htmlspecialchars($clipsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
+					<span class="icon is-small"><i class="fas fa-film"></i></span>
+					<span>Clips</span>
+				</a>
+			</li>
+		</ul>
+		<?php if ($flashSuccess !== ''): ?>
+			<div class="sp-alert sp-alert-success"><?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></div>
+		<?php endif; ?>
+		<?php if ($flashError !== ''): ?>
+			<div class="sp-alert sp-alert-danger"><?php echo htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8'); ?></div>
+		<?php endif; ?>
+		<?php if ($apiError !== ''): ?>
+			<div class="sp-alert sp-alert-danger"><?php echo htmlspecialchars($apiError, ENT_QUOTES, 'UTF-8'); ?></div>
+		<?php endif; ?>
+		<?php if (empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== ''): ?>
+			<div class="sp-alert sp-alert-info">No <?php echo $isClipsMode ? 'clips' : 'videos'; ?> found for this channel.</div>
+		<?php endif; ?>
+		<?php if ($isClipsMode): ?>
+			<div class="sp-card mb-4">
+				<div class="sp-card-body" style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+					<p class="sp-text-muted" id="clipsLoadStatus">Loaded <?php echo count($videos); ?> clips.</p>
+					<div class="sp-btn-group" style="margin-bottom:0;">
+						<button id="clipsLoadMoreBtn" class="sp-btn sp-btn-primary" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load 20 More</button>
+						<button id="clipsLoadAllBtn" class="sp-btn sp-btn-warning" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load All</button>
 					</div>
-				<?php endif; ?>
-				<div class="columns is-multiline" id="mediaCardsContainer">
-					<?php foreach ($videos as $video): ?>
-						<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls); ?>
-					<?php endforeach; ?>
 				</div>
 			</div>
+		<?php endif; ?>
+		<div class="media-cards-grid" id="mediaCardsContainer">
+			<?php foreach ($videos as $video): ?>
+				<?php echo renderMediaCard($video, $isClipsMode, $clipDownloadUrls); ?>
+			<?php endforeach; ?>
 		</div>
 	</div>
 </div>
