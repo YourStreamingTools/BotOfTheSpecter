@@ -109,47 +109,45 @@ try {
 // Start output buffering
 ob_start();
 ?>
-<div class="section">
-    <div class="container">
-        <h1 class="title is-2">
-            <i class="fas fa-bell"></i> EventSub Notifications
-        </h1>
-        <p class="subtitle">Monitor and manage your Twitch EventSub subscriptions <span id="auto-refresh-indicator" style="font-size: 12px; color: #aaa;">(Auto-refreshing every 10s)</span></p>
-        <div style="margin-bottom:12px;">
-            <button id="refresh-my-ws-btn" class="button is-small" onclick="refreshInternalWebsocket(this)">
-                <i class="fas fa-plug"></i>&nbsp; Refresh Internal Websocket
-            </button>
+<h1 style="font-size:1.75rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;">
+    <i class="fas fa-bell"></i> EventSub Notifications
+</h1>
+<p style="color:var(--text-secondary); margin-bottom:1rem;">Monitor and manage your Twitch EventSub subscriptions <span id="auto-refresh-indicator" style="font-size:12px; color:var(--text-muted);">(Auto-refreshing every 10s)</span></p>
+<div style="margin-bottom:0.75rem;">
+    <button id="refresh-my-ws-btn" class="sp-btn sp-btn-sm" onclick="refreshInternalWebsocket(this)">
+        <i class="fas fa-plug"></i>&nbsp; Refresh Internal Websocket
+    </button>
+</div>
+<div id="notification-messages">
+    <?php if ($error): ?>
+        <div class="error-box">
+            <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
         </div>
-        <div id="notification-messages">
-            <?php if ($error): ?>
-                <div class="error-box">
-                    <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
-                </div>
-            <?php endif; ?>
-        </div>
-        <div id="subscription-content">
-            <?php include 'notifications_content.php'; ?>
-        </div>
-        <div class="box" id="internal-ws-box" style="margin-top: 16px;">
-            <h2 class="title is-4"><i class="fas fa-plug"></i> Internal Websocket Connections</h2>
-            <p class="mb-3">This shows websocket clients connected to your API key on the internal BotOfTheSpecter websocket service.</p>
-            <div id="internal-ws-summary" class="info-box">Loading internal websocket status...</div>
-            <div class="table-container" style="margin-top:10px;">
-                <table class="data-table" id="internal-ws-table">
-                    <thead>
-                        <tr>
-                            <th>Client Name</th>
-                            <th>Socket ID</th>
-                            <th>Admin</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="internal-ws-tbody">
-                        <tr><td colspan="4" class="has-text-centered">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <?php endif; ?>
+</div>
+<div id="subscription-content">
+    <?php include 'notifications_content.php'; ?>
+</div>
+<div class="sp-card" id="internal-ws-box" style="margin-top:1rem;">
+    <div class="sp-card-body">
+    <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><i class="fas fa-plug"></i> Internal Websocket Connections</h2>
+    <p style="margin-bottom:0.75rem;">This shows websocket clients connected to your API key on the internal BotOfTheSpecter websocket service.</p>
+    <div id="internal-ws-summary" class="info-box">Loading internal websocket status...</div>
+    <div class="sp-table-wrap" style="margin-top:0.625rem;">
+        <table class="data-table sp-table" id="internal-ws-table">
+            <thead>
+                <tr>
+                    <th>Client Name</th>
+                    <th>Socket ID</th>
+                    <th>Admin</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="internal-ws-tbody">
+                <tr><td colspan="4" style="text-align:center;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
     </div>
 </div>
 <script>
@@ -247,8 +245,8 @@ function renderSubscriptions(data) {
     // Empty state
     if (Object.keys(data.sessionGroups).length === 0 && data.webhookSubs.length === 0) {
         html += `
-            <div class="box has-text-centered">
-                <p class="subtitle">
+            <div class="sp-card" style="text-align:center; padding:2rem;">
+                <p style="color:var(--text-secondary); font-size:1rem;">
                     <i class="fas fa-inbox"></i><br>
                     No EventSub subscriptions found.
                 </p>
@@ -316,8 +314,8 @@ function buildStatsGrid(data) {
 // Build active sessions section
 function buildActiveSessionsSection(data) {
     let html = `
-        <div class="box">
-            <h2 class="title is-4">
+        <div class="sp-card"><div class="sp-card-body">
+            <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
                 <i class="fas fa-network-wired"></i> Active WebSocket Sessions
             </h2>
             <div class="info-box">
@@ -332,15 +330,15 @@ function buildActiveSessionsSection(data) {
         const sessionName = data.sessionNames[sessionId] || `WebSocket Session ${sessionNumber}`;
         html += buildSessionGroup(sessionId, subs, sessionName, data.userId, false);
     }
-    html += '</div>';
+    html += '</div></div>';
     return html;
 }
 
 // Build disabled sessions section
 function buildDisabledSessionsSection(data) {
     let html = `
-        <div class="box" style="border-left: 3px solid #e74c3c;">
-            <h2 class="title is-4">
+        <div class="sp-card" style="border-left:3px solid var(--red);"><div class="sp-card-body">
+            <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
                 <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
             </h2>
             <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
@@ -354,7 +352,7 @@ function buildDisabledSessionsSection(data) {
         const sessionName = data.sessionNames[sessionId] || `WebSocket Session ${sessionNumber}`;
         html += buildSessionGroup(sessionId, subs, sessionName, data.userId, true);
     }
-    html += '</div>';
+    html += '</div></div>';
     return html;
 }
 
@@ -377,7 +375,7 @@ function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
                     ${deleteAllButton}
                 </div>
             </div>
-            <table class="data-table">
+            <table class="data-table sp-table">
                 <thead>
                     <tr>
                         <th>Type</th>
@@ -430,11 +428,11 @@ function buildSessionGroup(sessionId, subs, sessionName, userId, isDisabled) {
 // Build webhook section
 function buildWebhookSection(data) {
     let html = `
-        <div class="box">
-            <h2 class="title is-4">
+        <div class="sp-card"><div class="sp-card-body">
+            <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
                 <i class="fas fa-link"></i> Webhook Subscriptions
             </h2>
-            <table class="data-table">
+            <table class="data-table sp-table">
                 <thead>
                     <tr>
                         <th>Type</th>
@@ -466,7 +464,7 @@ function buildWebhookSection(data) {
     html += `
                 </tbody>
             </table>
-        </div>
+        </div></div>
     `;
     return html;
 }
@@ -627,7 +625,7 @@ async function refreshInternalWebsocket(button = null) {
         summary.innerHTML = `<strong>${clientCount}</strong> active internal websocket client(s) for your API key.`;
 
         if (clients.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">No active websocket clients for your API key.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No active websocket clients for your API key.</td></tr>';
             return;
         }
 
@@ -638,16 +636,16 @@ async function refreshInternalWebsocket(button = null) {
             const sid = escapeHtml(sidRaw || 'N/A');
             const isAdmin = !!(c.is_admin || c.isAdmin || c.admin);
             const adminBadge = isAdmin
-                ? '<span class="tag is-danger">Admin</span>'
-                : '<span class="tag is-info">User</span>';
+                ? '<span class="sp-badge sp-badge-red">Admin</span>'
+                : '<span class="sp-badge sp-badge-blue">User</span>';
 
-            html += `<tr><td>${name}</td><td><code>${sid}</code></td><td>${adminBadge}</td><td><button class="button is-small is-danger" onclick='disconnectWs(${JSON.stringify(sidRaw)}, this)'><i class="fas fa-times"></i> Disconnect</button></td></tr>`;
+            html += `<tr><td>${name}</td><td><code>${sid}</code></td><td>${adminBadge}</td><td><button class="sp-btn sp-btn-danger sp-btn-sm" onclick='disconnectWs(${JSON.stringify(sidRaw)}, this)'><i class="fas fa-times"></i> Disconnect</button></td></tr>`;
         });
         tbody.innerHTML = html;
     } catch (err) {
         console.error('refreshInternalWebsocket error', err);
         summary.innerHTML = `<span style="color:#e74c3c;">Failed to load internal websocket data: ${escapeHtml(err.message || String(err))}</span>`;
-        tbody.innerHTML = '<tr><td colspan="4" class="has-text-centered">Unable to load data.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Unable to load data.</td></tr>';
     } finally {
         if (button) {
             button.disabled = false;

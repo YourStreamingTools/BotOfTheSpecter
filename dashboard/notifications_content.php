@@ -87,8 +87,8 @@ if ($sessionCount >= 3) {
 </div>
 
 <?php if (count($data['sessionGroups']) > 0): ?>
-    <div class="box">
-        <h2 class="title is-4">
+    <div class="sp-card"><div class="sp-card-body">
+        <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
             <i class="fas fa-network-wired"></i> Active WebSocket Sessions
         </h2>
         <div class="info-box">
@@ -111,7 +111,7 @@ if ($sessionCount >= 3) {
                     </div>
                     <div class="sub-count"><?php echo count($subs); ?> subscriptions</div>
                 </div>
-                <table class="data-table">
+                <table class="data-table sp-table">
                     <thead>
                         <tr>
                             <th>Type</th>
@@ -164,12 +164,12 @@ if ($sessionCount >= 3) {
                 </table>
             </div>
         <?php endforeach; ?>
-    </div>
+    </div></div>
 <?php endif; ?>
 
 <?php if (count($data['sessionGroupsDisabled']) > 0): ?>
-    <div class="box" style="border-left: 3px solid #e74c3c;">
-        <h2 class="title is-4">
+    <div class="sp-card" style="border-left:3px solid var(--red);"><div class="sp-card-body">
+        <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
             <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
         </h2>
         <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
@@ -196,7 +196,7 @@ if ($sessionCount >= 3) {
                         </button>
                     </div>
                 </div>
-                <table class="data-table">
+                <table class="data-table sp-table">
                     <thead>
                         <tr>
                             <th>Type</th>
@@ -249,15 +249,15 @@ if ($sessionCount >= 3) {
                 </table>
             </div>
         <?php endforeach; ?>
-    </div>
+    </div></div>
 <?php endif; ?>
 
 <?php if (count($data['webhookSubs']) > 0): ?>
-    <div class="box">
-        <h2 class="title is-4">
+    <div class="sp-card"><div class="sp-card-body">
+        <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
             <i class="fas fa-link"></i> Webhook Subscriptions
         </h2>
-        <table class="data-table">
+        <table class="data-table sp-table">
             <thead>
                 <tr>
                     <th>Type</th>
@@ -291,14 +291,14 @@ if ($sessionCount >= 3) {
                 <?php endforeach; ?>
             </tbody>
         </table>
-    </div>
+    </div></div>
 <?php endif; ?>
 
 <?php if (count($data['sessionGroups']) === 0 && count($data['webhookSubs']) === 0): ?>
-    <div class="box has-text-centered">
-        <p class="subtitle">
+    <div class="sp-card" style="text-align:center;"><div class="sp-card-body">
+        <p style="color:var(--text-secondary);">
             <i class="fas fa-inbox"></i><br>
             No EventSub subscriptions found.
         </p>
-    </div>
+    </div></div>
 <?php endif; ?>
