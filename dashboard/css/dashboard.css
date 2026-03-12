@@ -2026,3 +2026,25 @@ input[type="checkbox"].switch:disabled + label {
     color: var(--accent-hover);
     font-weight: 600;
 }
+
+/* ----------------------------------------------------------
+   24. Page utility helpers
+   ---------------------------------------------------------- */
+.sp-btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.sp-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+@media (max-width: 900px) {
+    .sp-two-col { grid-template-columns: 1fr; }
+}
+.sp-text-success { color: var(--green); }
+.sp-text-danger  { color: var(--red); }
+.sp-text-muted   { color: var(--text-muted); }
