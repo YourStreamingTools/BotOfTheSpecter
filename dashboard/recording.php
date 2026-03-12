@@ -6,6 +6,17 @@ $today = new DateTime();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
+    // For AJAX requests, return JSON error instead of redirecting
+    if (isset($_GET['ajax'])) {
+        header('Content-Type: application/json');
+        http_response_code(401);
+        echo json_encode([
+            'error' => 'Session expired',
+            'remoteFileError' => 'Your session has expired. Please refresh the page to log in again.',
+            'remoteFileSections' => []
+        ]);
+        exit();
+    }
     header('Location: login.php');
     exit();
 }
@@ -153,13 +164,15 @@ $recorderHost = $recorder_ssh_host ?? '';
 $recorderSshUser = $recorder_ssh_username ?? '';
 $recorderSshPassword = $recorder_ssh_password ?? '';
 
-// AJAX response handler - return JSON when called with ?ajax=1
+// AJAX response handler - set header early and wrap logic in try-catch
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
     // remoteFileSections and remoteFileError will be populated later in the script
     // ensure we run the connection logic even for ajax so they exist
 }
 
+// Wrap SSH connection logic in try-catch for AJAX error handling
+try {
 if (!function_exists('ssh2_connect')) {
     $remoteFileError = 'SSH2 extension is not installed on the server.';
 } elseif (empty($recorderHost) || empty($recorderSshUser) || empty($recorderSshPassword)) {
@@ -255,6 +268,16 @@ if (!function_exists('ssh2_connect')) {
                 }
             }
         }
+    }
+}
+} catch (Exception $e) {
+    // Catch any errors during SSH connection for AJAX requests
+    if (isset($_GET['ajax'])) {
+        $remoteFileError = 'An error occurred while connecting to the recorder server. Please try again later.';
+        error_log('Recording.php AJAX error: ' . $e->getMessage());
+    } else {
+        // Re-throw for non-AJAX requests to show proper error page
+        throw $e;
     }
 }
 // if this is an ajax request, return the JSON now and exit
@@ -517,17 +540,36 @@ document.addEventListener('DOMContentLoaded', function () {
         })
             .then(function (response) {
                 if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
+                    return response.json().catch(function () {
+                        throw new Error('HTTP ' + response.status);
+                    }).then(function (errorData) {
+                        if (errorData && errorData.error === 'Session expired') {
+                            throw new Error('SESSION_EXPIRED');
+                        }
+                        throw new Error('HTTP ' + response.status);
+                    });
                 }
-                return response.json();
+                return response.json().catch(function () {
+                    throw new Error('INVALID_JSON');
+                });
             })
             .then(function (data) {
-                renderRemoteFiles(data);
+                if (data && typeof data === 'object') {
+                    renderRemoteFiles(data);
+                } else {
+                    throw new Error('INVALID_RESPONSE');
+                }
             })
-            .catch(function () {
+            .catch(function (error) {
                 var notice = document.createElement('div');
                 notice.className = 'sp-alert sp-alert-warning';
-                notice.textContent = 'Unable to refresh recorder files right now.';
+                if (error && error.message === 'SESSION_EXPIRED') {
+                    notice.innerHTML = 'Your session has expired. <a href="' + window.location.pathname + '" style="text-decoration:underline;">Click here to reload the page</a> and log in again.';
+                } else if (error && (error.message === 'INVALID_JSON' || error.message === 'INVALID_RESPONSE')) {
+                    notice.innerHTML = 'Received an unexpected response from the server. <a href="' + window.location.pathname + '" style="text-decoration:underline;">Reload the page</a> to try again.';
+                } else {
+                    notice.textContent = 'Unable to refresh recorder files right now. Check your connection and try again.';
+                }
                 container.innerHTML = '';
                 container.appendChild(notice);
             })
