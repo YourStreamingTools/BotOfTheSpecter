@@ -112,12 +112,12 @@ ob_start();
     </header>
     <div class="sp-card-body">
         <!-- Storage Usage Info -->
-        <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.9rem 1.1rem; margin-bottom:1rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-                <span><i class="fas fa-database" style="margin-right:0.4rem;"></i><strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
+        <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
                 <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
             </div>
-            <progress class="progress progress-success" value="<?php echo $storage_percentage; ?>" max="100" style="height:0.75rem;"></progress>
+            <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
         </div>
         <?php if (!empty($status)) : ?>
             <div class="sp-alert sp-alert-info" id="uploadStatusMsg" style="margin-bottom:1rem;">
