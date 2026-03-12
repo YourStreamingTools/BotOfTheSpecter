@@ -104,6 +104,30 @@ function read_websocket_log_over_ssh($remote_path) {
     return ['logContent' => $logContent];
 }
 
+// Function to read recorder server logs via SSH
+function read_recorder_log_over_ssh($remote_path) {
+    global $recorder_ssh_host, $recorder_ssh_username, $recorder_ssh_password;
+    if (!function_exists('ssh2_connect')) { return ['error' => 'SSH2 extension not installed']; }
+    $connection = ssh2_connect($recorder_ssh_host, 22);
+    if (!$connection) return ['error' => 'Could not connect to recorder server'];
+    if (!ssh2_auth_password($connection, $recorder_ssh_username, $recorder_ssh_password)) { return ['error' => 'SSH authentication failed']; }
+    // Check if file exists
+    $cmd_exists = "test -f " . escapeshellarg($remote_path) . " && echo 1 || echo 0";
+    $stream = ssh2_exec($connection, $cmd_exists);
+    stream_set_blocking($stream, true);
+    $exists = trim(stream_get_contents($stream));
+    fclose($stream);
+    if ($exists !== "1") { return ['error' => 'not_found']; }
+    // Read entire file
+    $cmd = "cat " . escapeshellarg($remote_path);
+    $stream = ssh2_exec($connection, $cmd);
+    stream_set_blocking($stream, true);
+    $logContent = stream_get_contents($stream);
+    fclose($stream);
+    if (trim($logContent) === '') { return ['logContent' => '','empty' => true]; }
+    return ['logContent' => $logContent];
+}
+
 // Function to read MySQL server logs via SSH to database server
 function read_mysql_log_over_ssh($remote_path) {
     global $sql_server_host, $sql_server_username, $sql_server_password;
@@ -343,6 +367,7 @@ function highlight_admin_audit_logs($rows) {
 
 if (isset($_GET['admin_audit_log'])) {
     header('Content-Type: application/json');
+    ob_clean();
     $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 300;
     if ($limit < 1) {
         $limit = 1;
@@ -379,6 +404,7 @@ if (isset($_GET['admin_audit_log'])) {
 // Handle AJAX log fetch for admin (always via SSH)
 if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     header('Content-Type: application/json');
+    ob_clean();
     $selectedUser = $_GET['admin_log_user'];
     $logType = $_GET['admin_log_type'];
     $logPath = "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
@@ -444,6 +470,7 @@ function read_local_log($filePath, $lines = 200, $startLine = null) {
 // Handle AJAX log fetch for system logs
 if (isset($_GET['admin_system_log_type'])) {
     header('Content-Type: application/json');
+    ob_clean();
     $logType = $_GET['admin_system_log_type'];
     // Determine log path and read method based on log type
     switch ($logType) {        // Standard Apache2 Logs
@@ -646,6 +673,12 @@ if (isset($_GET['admin_system_log_type'])) {
             $logPath = "/var/log/streamersconnect/cleanup_tokens.log";
             $result = read_local_log($logPath, 500);
             break;
+        case 'twitch-recorder':
+            // Twitch recorder creates daily log files, read the most recent one
+            $today = date('Y-m-d');
+            $logPath = "/home/botofthespecter/logs/twitch-recorder-{$today}.log";
+            $result = read_recorder_log_over_ssh($logPath);
+            break;
         default:
             // Other system logs in custom directory (use SSH)
             $logPath = "/home/botofthespecter/logs/system/$logType.txt";
@@ -688,6 +721,7 @@ if (isset($_GET['admin_system_log_type'])) {
 // Handle AJAX token log fetch (Token Logs category)
 if (isset($_GET['admin_token_log_type'])) {
     header('Content-Type: application/json');
+    ob_clean();
     $logType = $_GET['admin_token_log_type'];
     $map = [
         'spotify_refresh' => '/home/botofthespecter/logs/spotify_refresh.log',
@@ -784,6 +818,7 @@ $systemLogTypes = [
             ['value' => 'mysql-error', 'label' => 'MySQL Error Log'],
             ['value' => 'discordbot', 'label' => 'Discord Bot Log'],
             ['value' => 'streamersconnect-cleanup', 'label' => 'StreamersConnect Cleanup Log'],
+            ['value' => 'twitch-recorder', 'label' => 'Twitch Auto-Recorder Log'],
         ]
     ],
 ];
