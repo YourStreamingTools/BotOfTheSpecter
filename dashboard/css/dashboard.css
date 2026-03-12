@@ -1,4 +1,4 @@
-/* ==========================================================
+﻿/* ==========================================================
    BotOfTheSpecter - Dashboard CSS
    Based on the sp-* dark theme system.
    ========================================================== */
@@ -425,7 +425,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sp-overlay.active { display: block; }
 
 /* ----------------------------------------------------------
-   6. Banners (legacy — now rendered as topbar pills via sp-topbar-tag)
+   6. Banners (legacy - now rendered as topbar pills via sp-topbar-tag)
    ---------------------------------------------------------- */
 
 /* ----------------------------------------------------------
@@ -2007,6 +2007,7 @@ input[type="checkbox"].switch:disabled + label {
    ---------------------------------------------------------- */
 .sp-tabs-nav {
     display: flex;
+    flex-wrap: wrap;
     list-style: none;
     margin: 0 0 1.25rem 0;
     padding: 0;
@@ -2016,7 +2017,8 @@ input[type="checkbox"].switch:disabled + label {
     overflow: hidden;
 }
 .sp-tabs-nav li {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 7rem;
 }
 .sp-tabs-nav li a {
     display: flex;
@@ -2026,11 +2028,15 @@ input[type="checkbox"].switch:disabled + label {
     padding: 0.6rem 1rem;
     color: var(--text-secondary);
     border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
     text-decoration: none;
     transition: background var(--transition), color var(--transition);
     font-size: 0.875rem;
     font-weight: 500;
+    white-space: nowrap;
+    height: 100%;
+    box-sizing: border-box;
 }
 .sp-tabs-nav li:last-child a {
     border-right: none;
@@ -2211,3 +2217,359 @@ input[type="checkbox"].switch:disabled + label {
 @media (max-width: 900px) { .raids-layout { grid-template-columns: 1fr; } }
 .raids-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; }
 .raids-section-head h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+
+/* ===== Section 31 - Admin Dashboard ===== */
+.sp-text-accent { color: var(--accent); }
+.sp-input.is-success { border-color: var(--green); }
+.sp-input.is-danger  { border-color: var(--red); }
+.sp-input.is-warning { border-color: var(--amber); }
+.w-100 { width: 100%; }
+.admin-service-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; }
+@media (max-width: 1200px) { .admin-service-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 767px)  { .admin-service-grid { grid-template-columns: repeat(2, 1fr); } }
+.admin-service-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; transition: border-color var(--transition), box-shadow var(--transition); }
+.admin-service-card:hover { border-color: var(--border-hover); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.admin-heading { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.25rem; display: block; }
+.admin-service-status { font-size: 0.875rem; font-weight: 700; }
+.admin-bot-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 1023px) { .admin-bot-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 767px)  { .admin-bot-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px)  { .admin-bot-grid { grid-template-columns: 1fr; } }
+.admin-bot-card { min-width: 0; }
+.admin-cols-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+@media (max-width: 900px) { .admin-cols-row { grid-template-columns: 1fr; } }
+.admin-token-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
+.admin-token-grid > div { flex: 1; min-width: 250px; }
+.admin-msg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+.bot-message-count-display { margin-top: 0.5rem; }
+.bot-message-count-number { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+.bot-message-count-timestamp { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.admin-collapsible-header { cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding-bottom: 1rem; }
+.admin-collapsible-header h2 { margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; }
+.collapse-icon { font-size: 1.25rem; transition: transform 0.3s ease; color: var(--text-muted); }
+.collapsible-content { overflow: hidden; }
+.admin-level-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.admin-bot-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.bot-channel { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); word-break: break-word; overflow-wrap: break-word; margin: 0; }
+.ml-2 { margin-left: 0.5rem; }
+
+/* ----------------------------------------------------------
+   32. Discord page - Bulma-compat modal (.modal / .is-active)
+   ---------------------------------------------------------- */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    overflow-y: auto;
+}
+.modal.is-active { display: flex; }
+.modal-background {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+    z-index: 0;
+}
+.modal-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    margin: auto;
+    border-radius: var(--radius-lg);
+}
+.modal-close {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition);
+    flex-shrink: 0;
+}
+.modal-close:hover { background: rgba(255, 255, 255, 0.25); }
+.modal-close::before,
+.modal-close::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 2px;
+    background: var(--text-primary);
+    border-radius: 1px;
+}
+.modal-close::before { transform: rotate(45deg); }
+.modal-close::after  { transform: rotate(-45deg); }
+
+/* ----------------------------------------------------------
+   33. Discord page - label-wrapping toggle switch
+   ---------------------------------------------------------- */
+label.switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text-primary);
+}
+label.switch input[type=checkbox] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 44px;
+    height: 24px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-hover);
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background var(--transition), border-color var(--transition);
+}
+label.switch input[type=checkbox]::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: left var(--transition), background var(--transition);
+}
+label.switch input[type=checkbox]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+label.switch input[type=checkbox]:checked::after {
+    left: 23px;
+    background: #fff;
+}
+label.switch input[type=checkbox]:disabled { opacity: 0.45; cursor: not-allowed; }
+label.switch .check { display: none; }
+
+/* ----------------------------------------------------------
+   34. Discord page - server-management toggles grid
+   ---------------------------------------------------------- */
+.server-management-toggles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+.toggle-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+}
+.toggle-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.toggle-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+}
+
+/* ----------------------------------------------------------
+   35. Premium page - subscription plan cards
+   ---------------------------------------------------------- */
+.sp-plan-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+.sp-plan-page-title {
+    font-size: 1.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 1rem;
+    letter-spacing: -0.02em;
+}
+.sp-plan-status-badges {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.sp-plan-status-badges .sp-badge {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.9rem;
+}
+.sp-plan-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.5rem;
+    align-items: stretch;
+}
+.sp-plan-card {
+    position: relative;
+    margin-bottom: 0;
+    transition: transform var(--transition), box-shadow var(--transition);
+    overflow: visible;
+}
+.sp-plan-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.sp-plan-card.is-current {
+    border-color: var(--green);
+    box-shadow: 0 0 0 2px var(--green);
+}
+.sp-plan-card.is-current:hover {
+    box-shadow: 0 0 0 2px var(--green), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.sp-plan-current-ribbon {
+    position: absolute;
+    top: 14px;
+    right: -11px;
+    background: var(--green);
+    color: #000;
+    padding: 4px 18px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    transform: rotate(12deg);
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    border-radius: var(--radius-sm);
+}
+.sp-plan-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.sp-plan-icon-area {
+    text-align: center;
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.sp-plan-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--bg-surface);
+    margin-bottom: 0.75rem;
+}
+.sp-plan-icon {
+    font-size: 1.4em;
+}
+.sp-plan-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.35rem;
+}
+.sp-plan-price {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-hover);
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+.sp-plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.25rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+.sp-plan-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    line-height: 1.4;
+}
+.sp-plan-feature-icon        { color: var(--green); margin-right: 0.5rem; flex-shrink: 0; margin-top: 0.15rem; }
+.sp-plan-feature-icon--amber { color: var(--amber); margin-right: 0.5rem; flex-shrink: 0; margin-top: 0.15rem; }
+.sp-plan-note {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 1.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+.sp-btn-block {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+.sp-plan-beta-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+}
+.sp-plan-beta-card {
+    max-width: 420px;
+    width: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: var(--green);
+    box-shadow: 0 0 0 2px var(--green);
+}
+.sp-plan-beta-card:hover {
+    box-shadow: 0 0 0 2px var(--green), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.sp-plan-beta-card .sp-plan-icon-area {
+    border-bottom-color: rgba(255, 255, 255, 0.15);
+}
+.sp-plan-beta-card .sp-plan-icon-wrap {
+    background: rgba(255, 255, 255, 0.15);
+}
+.sp-plan-beta-card .sp-plan-name     { color: #fff; }
+.sp-plan-beta-card .sp-plan-price    { color: rgba(255, 255, 255, 0.9); }
+.sp-plan-beta-card .sp-plan-features { color: rgba(255, 255, 255, 0.9); }
+.sp-plan-beta-card .sp-plan-feature-icon { color: #a8ffcb; }
+.sp-plan-beta-footer {
+    text-align: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.sp-plan-beta-footer span {
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: default;
+    font-style: italic;
+}
+
+/* ---- field-help: small muted hint text below form inputs ---- */
+.field-help {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+    display: block;
+}
+.field-help.text-success { color: var(--green); }
+.field-help.text-warning { color: var(--amber); }
+.field-help.text-danger  { color: var(--red); }
+
+/* ---- input-error: validation error state for sp-input / sp-select / sp-textarea ---- */
+.sp-input.input-error,
+.sp-select.input-error,
+.sp-textarea.input-error {
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2) !important;
+}
