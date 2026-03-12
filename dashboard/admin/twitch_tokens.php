@@ -1166,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const remaining = Math.floor((expiryTime - now) / 1000);
                     if (remaining > 0) {
                         expiryCell.textContent = formatTimeRemaining(remaining);
+                        expiryCell.className = '';
                     } else {
                         expiryCell.textContent = 'Expired';
                         expiryCell.className = 'sp-text-danger';
@@ -1453,16 +1454,19 @@ function validateChatToken(token) {
             statusCell.textContent = 'Valid';
             statusCell.className = 'sp-text-success';
             expiryCell.textContent = timeString;
+            expiryCell.className = '';
         } else {
             statusCell.textContent = 'Invalid';
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = '-';
+            expiryCell.className = 'sp-text-danger';
         }
     })
     .catch(error => {
         statusCell.textContent = 'Error';
         statusCell.className = 'sp-text-danger';
         expiryCell.textContent = '-';
+        expiryCell.className = 'sp-text-danger';
     })
     .finally(() => {
         button.disabled = false;
@@ -1530,6 +1534,7 @@ function validateToken(token, tokenId) {
             statusCell.textContent = 'Valid';
             statusCell.className = 'sp-text-success';
             expiryCell.textContent = timeString;
+            expiryCell.className = '';
             // Save to cache
             saveTokenToCache(tokenId, 'regular', expiresIn, true);
         } else {
@@ -1537,6 +1542,7 @@ function validateToken(token, tokenId) {
             statusCell.textContent = 'Invalid';
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = errMsg;
+            expiryCell.className = 'sp-text-danger';
             // Save to cache
             saveTokenToCache(tokenId, 'regular', 0, false);
         }
@@ -1547,6 +1553,7 @@ function validateToken(token, tokenId) {
         statusCell.textContent = 'Error';
         statusCell.className = 'sp-text-danger';
         expiryCell.textContent = msg;
+        expiryCell.className = 'sp-text-danger';
         return { success: false };
     })
     .finally(() => {
@@ -1580,6 +1587,7 @@ function renewToken(userId, tokenId) {
             statusCell.textContent = 'Renewed';
             statusCell.className = 'sp-text-warning';
             expiryCell.textContent = '-';
+            expiryCell.className = '';
             // Optionally, auto-validate
             setTimeout(() => validateToken(data.new_token, tokenId), 500);
         } else {
@@ -1716,6 +1724,7 @@ function validateCustomToken(token, tokenId) {
                 statusCell.textContent = 'Valid';
                 statusCell.className = 'sp-text-success';
                 expiryCell.textContent = timeString;
+                expiryCell.className = '';
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', expiresIn, true);
             } else {
@@ -1723,6 +1732,7 @@ function validateCustomToken(token, tokenId) {
                 statusCell.textContent = 'Invalid';
                 statusCell.className = 'sp-text-danger';
                 expiryCell.textContent = errMsg;
+                expiryCell.className = 'sp-text-danger';
                 // Save to cache
                 saveTokenToCache(tokenId, 'custom', 0, false);
             }
@@ -1732,6 +1742,7 @@ function validateCustomToken(token, tokenId) {
             statusCell.textContent = 'Error';
             statusCell.className = 'sp-text-danger';
             expiryCell.textContent = msg;
+            expiryCell.className = 'sp-text-danger';
         })
         .finally(() => {
             if (btn) { btn.disabled = false; btn.classList.remove('sp-btn-loading'); }
@@ -1762,6 +1773,7 @@ function renewCustomToken(botChannelId, tokenId) {
                 // Update row data-token and expiry display
                 row.setAttribute('data-token', newToken);
                 expiryCell.textContent = expiresAt || '-';
+                expiryCell.className = '';
                 statusCell.textContent = 'Renewed';
                 statusCell.className = 'sp-text-warning';
                 // Optionally auto-validate
