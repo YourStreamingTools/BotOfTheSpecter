@@ -644,6 +644,24 @@ ul { list-style: none; margin: 0; padding: 0; }
     cursor: not-allowed;
     pointer-events: none;
 }
+.sp-btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+}
+.sp-btn-loading::after {
+    content: '';
+    display: inline-block;
+    width: 0.75em;
+    height: 0.75em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: sp-spin 0.6s linear infinite;
+    margin-left: 0.5em;
+    vertical-align: middle;
+}
+@keyframes sp-spin { to { transform: rotate(360deg); } }
 
 /* ----------------------------------------------------------
    10. Cards
@@ -2119,3 +2137,69 @@ input[type="checkbox"].switch:disabled + label {
 .sp-pagination-link { display: inline-flex; align-items: center; justify-content: center; min-width: 2.25rem; height: 2.25rem; padding: 0 0.6rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 0.9rem; text-decoration: none; transition: border-color var(--transition), background var(--transition); cursor: pointer; }
 .sp-pagination-link:hover { border-color: var(--accent); background: var(--accent-light); }
 .sp-pagination-link.is-current { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; cursor: default; }
+
+/* ----------------------------------------------------------
+   29. General-purpose Modal (sp-modal)
+   ---------------------------------------------------------- */
+.sp-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.sp-modal-backdrop.is-active { display: flex; }
+
+.sp-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+.sp-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.sp-modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+}
+
+.sp-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius);
+    transition: color var(--transition);
+    line-height: 1;
+}
+.sp-modal-close:hover { color: var(--text-primary); }
+
+.sp-modal-body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    color: var(--text-secondary);
+}
