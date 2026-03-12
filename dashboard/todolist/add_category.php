@@ -75,57 +75,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 ob_start();
 ?>
-<div class="columns is-centered">
-  <div class="column">
-    <div class="card" style="border-radius: 18px;">
-      <header class="card-header">
-        <p class="card-header-title is-size-4">
-          <span class="icon"><i class="fas fa-folder-plus"></i></span>
-          <span class="ml-2">Add New Category</span>
-        </p>
-      </header>
-      <div class="card-content" style="padding: 2.5rem;">
-        <?php if ($message): ?>
-          <div class="notification <?php echo $messageType; ?>">
-            <span class="icon is-medium">
-              <?php if ($messageType === 'is-danger'): ?>
-                <i class="fas fa-exclamation-triangle"></i>
-              <?php elseif ($messageType === 'is-warning'): ?>
-                <i class="fas fa-exclamation-circle"></i>
-              <?php elseif ($messageType === 'is-success'): ?>
-                <i class="fas fa-check-circle"></i>
-              <?php else: ?>
-                <i class="fas fa-info-circle"></i>
-              <?php endif; ?>
-            </span>
-            <span><?php echo $message; ?></span>
-          </div>
+<div class="sp-card">
+  <div class="sp-card-header">
+    <div class="sp-card-title"><i class="fas fa-folder-plus"></i> Add New Category</div>
+  </div>
+  <div class="sp-card-body">
+    <?php if ($message): ?>
+      <div class="sp-alert sp-alert-<?php echo preg_replace('/^is-/', '', $messageType); ?>" style="margin-bottom:1rem;">
+        <?php if ($messageType === 'is-danger'): ?>
+          <i class="fas fa-exclamation-triangle" style="margin-right:0.4rem;"></i>
+        <?php elseif ($messageType === 'is-warning'): ?>
+          <i class="fas fa-exclamation-circle" style="margin-right:0.4rem;"></i>
+        <?php elseif ($messageType === 'is-success'): ?>
+          <i class="fas fa-check-circle" style="margin-right:0.4rem;"></i>
+        <?php else: ?>
+          <i class="fas fa-info-circle" style="margin-right:0.4rem;"></i>
         <?php endif; ?>
-        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-          <h3 class="title is-4 mb-4">Type in what your new category will be:</h3>
-          <div class="field <?php echo (!empty($category_err)) ? 'has-error' : ''; ?>">
-            <label class="label" for="category">Category Name</label>
-            <div class="control has-icons-left">
-              <input type="text" name="category" id="category" class="input is-rounded is-medium" value="<?php echo htmlspecialchars($category); ?>" placeholder="e.g. Work, Personal, Shopping">
-              <span class="icon is-left">
-                <i class="fas fa-folder"></i>
-              </span>
-            </div>
-            <?php if (!empty($category_err)): ?>
-              <p class="help is-danger"><?php echo $category_err; ?></p>
-            <?php endif; ?>
-          </div>
-          <div class="field is-grouped is-grouped-right mt-5">
-            <div class="control">
-              <input type="submit" class="button is-primary is-medium is-rounded px-5" value="Submit">
-            </div>
-            <div class="control">
-              <a href="categories.php" class="button is-light is-medium is-rounded px-5">Cancel</a>
-            </div>
-          </div>
-        </form>
+        <span><?php echo $message; ?></span>
       </div>
-    </div>
+    <?php endif; ?>
+    <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
+      <h3 style="font-size:1.05rem; font-weight:700; margin-bottom:1rem;">Type in what your new category will be:</h3>
+      <div class="sp-form-group <?php echo (!empty($category_err)) ? 'has-error' : ''; ?>">
+        <label class="sp-label" for="category">Category Name</label>
+        <input type="text" name="category" id="category" class="sp-input" value="<?php echo htmlspecialchars($category); ?>" placeholder="e.g. Work, Personal, Shopping">
+        <?php if (!empty($category_err)): ?>
+          <p style="color:var(--red); font-size:0.8rem; margin-top:0.25rem;"><?php echo $category_err; ?></p>
+        <?php endif; ?>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
+        <input type="submit" class="sp-btn sp-btn-primary" value="Submit">
+        <a href="categories.php" class="sp-btn sp-btn-secondary">Cancel</a>
+      </div>
+    </form>
   </div>
 </div>
 
