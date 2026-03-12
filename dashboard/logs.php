@@ -46,7 +46,6 @@ function list_rotated_logs($log_type, $username) {
     // List all files matching the pattern username.txt*
     $listCommand = "ls -1 " . escapeshellarg("$logDir/$baseFileName") . "* 2>/dev/null || echo ''";
     $result = SSHConnectionManager::executeCommandNoMarker($connection, $listCommand);
-    
     if (trim($result) === '') {
       return [];
     }
@@ -55,19 +54,16 @@ function list_rotated_logs($log_type, $username) {
     foreach ($files as $file) {
       if (empty($file)) continue;
       $fileName = basename($file);
-      
       // Get modification date for this file
       $dateCommand = "stat -c '%y' " . escapeshellarg($file) . " 2>/dev/null || date -r " . escapeshellarg($file) . " '+%Y-%m-%d %H:%M:%S' 2>/dev/null";
       $dateResult = SSHConnectionManager::executeCommandNoMarker($connection, $dateCommand);
       $fileDate = 'Unknown';
-      
       if (!empty(trim($dateResult))) {
         // Extract just the date part (YYYY-MM-DD)
         if (preg_match('/(\d{4}-\d{2}-\d{2})/', $dateResult, $dateMatches)) {
           $fileDate = $dateMatches[1];
         }
       }
-      
       // Match username.txt or username.txt.N
       if ($fileName === $baseFileName) {
         $rotatedLogs[] = ['file' => $fileName, 'rotation' => 0, 'label' => "Current ($fileDate)"];
@@ -262,82 +258,73 @@ if (isset($_GET['logType'])) {
   $logContent = highlight_log_dates($logContent);
 }
 
-
 // Include access control
 include "mod_access.php";
 
 // Start output buffering for content
 ob_start();
 ?>
-<div class="notification is-warning is-light mb-3">
-  <span class="icon"><i class="fas fa-info-circle"></i></span>
+<div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
+  <span><i class="fas fa-info-circle"></i></span>
   <span>
     <?php echo t('logs_language_notice'); ?>
   </span>
 </div>
-<div class="columns">
-  <div class="column is-one-quarter">
-    <div class="box" style="height: 500px;">
-      <p class="title is-5"><?php echo t('logs_select_log'); ?></p>
-      <div class="field">
-        <div class="control">
-          <div class="select is-fullwidth" style="margin-bottom: 1em;">
-            <select id="logs-select">
-              <option><?php echo t('logs_select_type'); ?></option>
-              <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>><?php echo t('logs_type_bot'); ?></option>
-              <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>><?php echo t('logs_type_chat'); ?></option>
-              <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>><?php echo t('logs_type_twitch'); ?></option>
-              <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>><?php echo t('logs_type_api'); ?></option>
-              <option value="chat_history" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>><?php echo t('logs_type_chat_history'); ?></option>
-              <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>><?php echo t('logs_type_event_log'); ?></option>
-              <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
-              <option value="system" <?php echo $logType === 'system' ? 'selected' : ''; ?>><?php echo t('logs_type_system'); ?></option>
-              <option value="integrations" <?php echo $logType === 'integrations' ? 'selected' : ''; ?>><?php echo t('logs_type_integrations'); ?></option>
-            </select>
-          </div>
-        </div>
+<div style="display:flex; gap:1rem; align-items:flex-start;">
+  <div style="width:25%; min-width:200px; flex-shrink:0;">
+    <div class="sp-card" style="min-height:500px;">
+      <div class="sp-card-body">
+      <p style="font-weight:700; font-size:1rem; color:var(--text-primary); margin-bottom:0.75rem;"><?php echo t('logs_select_log'); ?></p>
+      <div class="sp-form-group">
+        <select class="sp-select" id="logs-select" style="width:100%; margin-bottom:1rem;">
+          <option><?php echo t('logs_select_type'); ?></option>
+          <option value="bot" <?php echo $logType === 'bot' ? 'selected' : ''; ?>><?php echo t('logs_type_bot'); ?></option>
+          <option value="chat" <?php echo $logType === 'chat' ? 'selected' : ''; ?>><?php echo t('logs_type_chat'); ?></option>
+          <option value="twitch" <?php echo $logType === 'twitch' ? 'selected' : ''; ?>><?php echo t('logs_type_twitch'); ?></option>
+          <option value="api" <?php echo $logType === 'api' ? 'selected' : ''; ?>><?php echo t('logs_type_api'); ?></option>
+          <option value="chat_history" <?php echo $logType === 'chat_history' ? 'selected' : ''; ?>><?php echo t('logs_type_chat_history'); ?></option>
+          <option value="event_log" <?php echo $logType === 'event_log' ? 'selected' : ''; ?>><?php echo t('logs_type_event_log'); ?></option>
+          <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
+          <option value="system" <?php echo $logType === 'system' ? 'selected' : ''; ?>><?php echo t('logs_type_system'); ?></option>
+          <option value="integrations" <?php echo $logType === 'integrations' ? 'selected' : ''; ?>><?php echo t('logs_type_integrations'); ?></option>
+        </select>
       </div>
-      <div class="field" id="rotation-selector" style="display: none;">
-        <label class="label">Log Rotation:</label>
-        <div class="control">
-          <div class="select is-fullwidth">
-            <select id="logs-rotation-select">
-              <option value="0">Current</option>
-            </select>
-          </div>
-        </div>
+      <div class="sp-form-group" id="rotation-selector" style="display:none;">
+        <label class="sp-label">Log Rotation:</label>
+        <select class="sp-select" id="logs-rotation-select" style="width:100%;">
+          <option value="0">Current</option>
+        </select>
       </div>
-      <div class="content" id="logs-options">
+      <div id="logs-options" style="color:var(--text-secondary); font-size:0.875rem;">
         <?php echo t('logs_time_is'); ?> GMT+<span id="timezone-offset"></span>
-        <div id="current-time-display" class="mt-2">
+        <div id="current-time-display" style="margin-top:0.5rem;">
           <strong><?php echo t('logs_current_time'); ?></strong><br><span id="current-log-time"></span>
         </div>
       </div>
       <!-- Buttons Container - Hidden initially -->
-      <div class="buttons buttons-container mt-4" style="display: none;">
-        <button class="button is-link mr-2 mb-2" id="reload-log"><?php echo t('logs_reload_btn'); ?></button>
-        <button class="button is-info toggle-button mr-2 mb-2" id="toggle-auto-refresh"><?php echo t('logs_auto_refresh'); ?>: OFF</button>
-        <button class="button is-success mr-2 mb-2" id="download-log">
-          <span class="icon"><i class="fas fa-download"></i></span>
+      <div class="buttons-container" style="display:none; flex-direction:column; gap:0.5rem; margin-top:1rem;">
+        <button class="sp-btn sp-btn-primary" id="reload-log"><?php echo t('logs_reload_btn'); ?></button>
+        <button class="sp-btn sp-btn-info" id="toggle-auto-refresh"><?php echo t('logs_auto_refresh'); ?>: OFF</button>
+        <button class="sp-btn sp-btn-success" id="download-log">
+          <i class="fas fa-download"></i>
           <span>Download</span>
         </button>
       </div>
+      </div>
     </div>
   </div>
-  <div class="column">
-    <div class="box">
+  <div style="flex:1; min-width:0;">
+    <div class="sp-card">
+      <div class="sp-card-body">
       <div id="logs-logDisplay" class="logs-log-content">
-        <h3 class="title is-5" id="log-title"></h3>
-        <div class="field">
-          <div class="control">
-            <div
-              id="logs-log-html"
-              class="admin-log-content"
-              style="max-height: 450px; min-height: 450px; font-family: monospace; white-space: pre-wrap; word-break: break-all; background: #23272f; color: #f5f5f5; border: 1px solid #444; border-radius: 4px; padding: 1em; width: 100%; overflow-x: hidden; overflow-y: auto;"
-              contenteditable="false"
-            ><?php echo $logContent; ?></div>
-          </div>
-        </div>
+        <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;" id="log-title"></h3>
+        <div
+          id="logs-log-html"
+          class="admin-log-content"
+          style="max-height:450px; min-height:450px; font-family:monospace; white-space:pre-wrap; word-break:break-all; background:var(--bg-dark, #1a1d23); color:var(--text-primary); border:1px solid var(--border); border-radius:var(--radius); padding:1em; width:100%; overflow-x:hidden; overflow-y:auto;"
+          contenteditable="false"
+        ><?php echo $logContent; ?></div>
+      </div>
       </div>
     </div>
   </div>
@@ -375,7 +362,7 @@ function capitalizeFirstLetter(string) {
 // Function to show buttons when a log file is selected
 function toggleButtonsContainer(show) {
   if (show) {
-    buttonsContainer.style.display = "block";
+    buttonsContainer.style.display = "flex";
   } else {
     buttonsContainer.style.display = "none";
   }
