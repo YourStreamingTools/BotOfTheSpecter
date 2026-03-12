@@ -245,6 +245,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_action'])) {
         echo json_encode($response);
         exit;
     }
+    // Non-super-admins cannot modify beta access for super admin users
+    if (!$currentAdminIsSuperAdmin) {
+        $saChk = $conn->prepare("SELECT super_admin FROM users WHERE id = ? LIMIT 1");
+        $saChk->bind_param("i", $user_id);
+        $saChk->execute();
+        $saChk->bind_result($targetSAFlag);
+        $saChk->fetch();
+        $saChk->close();
+        if ((int) $targetSAFlag === 1) {
+            $response['msg'] = 'Only super admins can manage super admin users.';
+            echo json_encode($response);
+            exit;
+        }
+    }
     $betaValue = ($action === 'grant_beta') ? 1 : 0;
     $stmt = $conn->prepare("UPDATE users SET beta_access = ? WHERE id = ?");
     $stmt->bind_param("ii", $betaValue, $user_id);
@@ -398,6 +412,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         $can_restrict_user = !$is_super_admin && (!$is_admin_user || $currentAdminIsSuperAdmin);
                         $can_delete_user = ((int) $user['id'] !== $currentAdminUserId)
                             && ($currentAdminIsSuperAdmin || (!$is_admin_user && !$is_super_admin));
+                        // Normal admins cannot control anything on super admin rows except Act As and Memorial
+                        $target_locked_for_admin = $is_super_admin && !$currentAdminIsSuperAdmin;
                         $is_deceased = isset($user['is_deceased']) && (int) $user['is_deceased'] === 1;
                     ?>
                     <?php
@@ -493,11 +509,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                     </button>
                                 <?php endif; ?>
                                 <?php if ((int) $user['beta_access']): ?>
-                                    <button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="Remove Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                    <button class="sp-btn sp-btn-warning sp-btn-sm" onclick="removeBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo $target_locked_for_admin ? 'Only super admins can manage super admin users' : 'Remove Beta'; ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-flask"></i></span>
                                     </button>
                                 <?php else: ?>
-                                    <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="Give Beta" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                    <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="grantBetaAccess(<?php echo (int) $user['id']; ?>)" title="<?php echo $target_locked_for_admin ? 'Only super admins can manage super admin users' : 'Give Beta'; ?>" <?php if ($is_deceased || $target_locked_for_admin): ?>disabled<?php endif; ?>>
                                         <span class="icon"><i class="fas fa-flask"></i></span>
                                     </button>
                                 <?php endif; ?>
