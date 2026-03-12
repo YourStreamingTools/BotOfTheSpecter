@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -265,7 +265,7 @@ function refreshPresetOptions() {
     presets.forEach((preset) => {
         const option = document.createElement('option');
         option.value = preset.command;
-        option.textContent = `${preset.label} — ${preset.command}`;
+        option.textContent = `${preset.label} - ${preset.command}`;
         presetSelect.appendChild(option);
     });
     const shouldDisable = !server || isExecuting || presets.length === 0;

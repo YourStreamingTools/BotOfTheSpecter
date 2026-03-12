@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 header('Content-Type: application/json');
 
@@ -113,7 +113,7 @@ if ($existingResult['code'] >= 200 && $existingResult['code'] < 300) {
     if (isset($existingData['data']) && is_array($existingData['data'])) {
         foreach ($existingData['data'] as $r) {
             if (isset($r['title']) && strcasecmp(trim($r['title']), $title) === 0) {
-                // Reward already exists — ensure it is synced into the local DB so the view shows it
+                // Reward already exists - ensure it is synced into the local DB so the view shows it
                 require_once '/var/www/config/database.php';
                 $dbname = $_SESSION['username'];
                 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
@@ -136,7 +136,7 @@ if ($existingResult['code'] >= 200 && $existingResult['code'] < 300) {
                     echo json_encode(['success' => true, 'message' => 'Reward already exists', 'existing_reward_id' => $rewardId, 'db_synced' => true]);
                     exit();
                 }
-                // DB failed — still return the existing reward id but note sync failed
+                // DB failed - still return the existing reward id but note sync failed
                 echo json_encode(['success' => true, 'message' => 'Reward already exists', 'existing_reward_id' => $rewardId, 'db_synced' => false, 'db_error' => $db->connect_error]);
                 exit();
             }

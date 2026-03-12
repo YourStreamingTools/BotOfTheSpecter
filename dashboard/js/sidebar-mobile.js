@@ -1,5 +1,5 @@
-(function(){
-    // Mobile sidebar toggle behavior — robust init whether DOMContentLoaded already fired or not
+﻿(function(){
+    // Mobile sidebar toggle behavior - robust init whether DOMContentLoaded already fired or not
     // Expose a global toggle so inline onclick or other scripts can toggle reliably
     window.toggleMobileSidebar = function(e){
         if(e && e.preventDefault) e.preventDefault();

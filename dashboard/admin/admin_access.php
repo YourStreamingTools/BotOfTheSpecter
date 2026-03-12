@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -355,7 +355,7 @@ if (!defined('ADMIN_AUDIT_REQUEST_LOGGED')) {
     admin_audit_auto_log_request();
 }
 
-// Signal to userdata.php that we are in the admin panel — act-as should not apply here.
+// Signal to userdata.php that we are in the admin panel - act-as should not apply here.
 if (!defined('ADMIN_PANEL_CONTEXT')) {
     define('ADMIN_PANEL_CONTEXT', true);
 }

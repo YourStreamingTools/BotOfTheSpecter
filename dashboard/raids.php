@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -85,7 +85,7 @@ ob_start();
   <div class="sp-card-body">
     <div class="raids-layout">
       <div>
-        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;">Recent Raids — Received</h3>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;">Recent Raids - Received</h3>
         <?php if (empty($recentReceivedRaids)): ?>
           <div style="text-align:center;padding:3rem 0;">
             <p class="sp-text-muted" style="font-size:1.1rem;">No received raid data available yet.</p>
@@ -115,7 +115,7 @@ ob_start();
       </div>
       <div>
         <div class="raids-section-head">
-          <h3>Latest Raid — Sent</h3>
+          <h3>Latest Raid - Sent</h3>
           <button class="sp-btn sp-btn-info sp-btn-sm" id="showLastFiveSentRaidsBtn" <?php echo empty($recentSentRaids) ? 'disabled' : ''; ?>>
             Show Last 5
           </button>
@@ -183,7 +183,7 @@ ob_start();
         <?php else: ?>
           <ul style="padding-left:1.25rem;margin:0;">
             <?php foreach ($topRaiders as $t): ?>
-              <li style="margin-bottom:0.5rem;"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> — <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> viewers</li>
+              <li style="margin-bottom:0.5rem;"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> - <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> viewers</li>
             <?php endforeach; ?>
           </ul>
         <?php endif; ?>

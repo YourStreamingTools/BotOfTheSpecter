@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -153,7 +153,7 @@ $recorderHost = $recorder_ssh_host ?? '';
 $recorderSshUser = $recorder_ssh_username ?? '';
 $recorderSshPassword = $recorder_ssh_password ?? '';
 
-// AJAX response handler – return JSON when called with ?ajax=1
+// AJAX response handler - return JSON when called with ?ajax=1
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json');
     // remoteFileSections and remoteFileError will be populated later in the script
