@@ -5,23 +5,7 @@ include_once __DIR__ . '/lang/i18n.php';
 $today = new DateTime();
 $backup_system = false;
 
-function validateTwitchToken($token) {
-  $url = "https://id.twitch.tv/oauth2/validate";
-  $headers = ['Authorization: OAuth ' . $token];
-  $ch = curl_init($url);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
-  $response = curl_exec($ch);
-  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-  if ($httpCode === 200) {
-    $data = json_decode($response, true);
-    return $data; // Return the validation data including expires_in
-  } else {
-    return false; // Token is invalid or expired
-  }
-}
+require_once __DIR__ . '/api/twitch_token_validate.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
@@ -134,179 +118,15 @@ if (!isset($v6VersionFilePath)) {
   $v6VersionFilePath = null;
 }
 
-function checkSSHFileStatus($username) {
-  global $bots_ssh_host, $bots_ssh_username, $bots_ssh_password;
-  // Check if SSH extension is available
-  if (!extension_loaded('ssh2')) {
-    error_log("SSH2 extension not loaded - cannot check SSH file status");
-    return null;
-  }
-  // Check if SSH config variables are set
-  if (empty($bots_ssh_host) || empty($bots_ssh_username) || empty($bots_ssh_password)) {
-    error_log("SSH configuration incomplete - cannot check SSH file status");
-    return null;
-  }
-  try {
-    $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
-    if (!$connection) {
-      return null;
-    }
-    $filePath = "/home/botofthespecter/logs/online/" . escapeshellarg($username) . ".txt";
-    $command = "cat " . $filePath . " 2>/dev/null";
-    $output = SSHConnectionManager::executeCommand($connection, $command);
-    if ($output !== false && $output !== null) {
-      // Sanitize output to remove any appended exit code markers
-      if (function_exists('sanitizeSSHOutput')) {
-        $output = sanitizeSSHOutput($output);
-      } else {
-        // Fallback: remove trailing [exit_code:NN] style markers
-        $output = preg_replace('/\s*\[exit_code:\s*-?\d+\]\s*$/', '', (string)$output);
-        $output = preg_replace('/__SSH_EXIT_STATUS__-?\d+\s*$/', '', (string)$output);
-      }
-      $status = trim($output);
-      // Return the status if it's either 'True' or 'False'
-      if ($status === 'True' || $status === 'False') {
-        return $status;
-      }
-    }
-    return null;
-  } catch (Exception $e) {
-    error_log("SSH status check failed for user {$username}: " . $e->getMessage());
-    return null;
-  }
-}
-
-function checkTwitchStreamStatus($twitchUserId, $authToken, $clientID) {
-  // Check if we have the required parameters
-  if (empty($twitchUserId) || empty($authToken) || empty($clientID)) {
-    error_log("Twitch API check failed: Missing required parameters");
-    return null;
-  }
-  try {
-    $url = "https://api.twitch.tv/helix/streams?user_id=" . urlencode($twitchUserId);
-    $headers = [
-      'Authorization: Bearer ' . $authToken,
-      'Client-ID: ' . $clientID
-    ];
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 second timeout
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); // 3 second connection timeout
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false || $httpCode !== 200) {
-      error_log("Twitch API request failed. HTTP Code: $httpCode");
-      return null;
-    }
-    $data = json_decode($response, true);
-    if (!isset($data['data'])) {
-      error_log("Twitch API response missing data field");
-      return null;
-    }
-    // If the data array has content, the stream is live
-    // If the data array is empty, the stream is offline (but we won't use this for offline determination)
-    if (!empty($data['data'])) {
-      return 'True'; // Stream is definitively online according to Twitch
-    }
-    return null; // Don't return 'False' even if empty, as per requirement
-  } catch (Exception $e) {
-    error_log("Twitch API check exception: " . $e->getMessage());
-    return null;
-  }
-}
-
-function checkBotIsMod($broadcasterId, $authToken, $clientID) {
-  try {
-    $url = "https://api.twitch.tv/helix/moderation/moderators?broadcaster_id=" . urlencode($broadcasterId);
-    $headers = ['Authorization: Bearer ' . $authToken,'Client-ID: ' . $clientID];
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false || $httpCode !== 200) {
-      error_log("Twitch API mod check failed. HTTP Code: $httpCode");
-      return false;
-    }
-    $data = json_decode($response, true);
-    if (!isset($data['data'])) {
-      error_log("Twitch API mod check response missing data field");
-      return false;
-    }
-    $botUserId = '971436498'; // The bot's user ID
-    foreach ($data['data'] as $mod) {
-      if ($mod['user_id'] === $botUserId) {
-        return true;
-      }
-    }
-    return false;
-  } catch (Exception $e) {
-    error_log("Twitch API mod check exception: " . $e->getMessage());
-    return false;
-  }
-}
-
-function checkBotIsBanned($broadcasterId, $authToken, $clientID) {
-  try {
-    $botUserId = '971436498';
-    $url = "https://api.twitch.tv/helix/moderation/banned?broadcaster_id=" . urlencode($broadcasterId) . "&user_id=" . urlencode($botUserId);
-    $headers = ['Authorization: Bearer ' . $authToken,'Client-ID: ' . $clientID];
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($response === false || $httpCode !== 200) {
-      return ['banned' => false, 'reason' => ''];
-    }
-    $data = json_decode($response, true);
-    if (!isset($data['data'])) {
-      return ['banned' => false, 'reason' => ''];
-    }
-    if (!empty($data['data'])) {
-      $banReason = $data['data'][0]['reason'] ?? 'No reason given';
-      return ['banned' => true, 'reason' => $banReason];
-    }
-    return ['banned' => false, 'reason' => ''];
-  } catch (Exception $e) {
-    error_log("Twitch API ban check exception: " . $e->getMessage());
-    return ['banned' => false, 'reason' => ''];
-  }
-}
+require_once __DIR__ . '/api/ssh_file_status.php';
+require_once __DIR__ . '/api/twitch_stream_status.php';
+require_once __DIR__ . '/api/twitch_bot_status.php';
 
 // Check Beta Access
-$betaAccess = false;
-if ($user['beta_access'] == 1) {
-  $betaAccess = true;
-  $_SESSION['tier'] = "4000";
-} else {
-  $twitch_subscriptions_url = "https://api.twitch.tv/helix/subscriptions/user?broadcaster_id=140296994&user_id=$twitchUserId";
-  $headers = [
-    'Authorization: Bearer ' . $authToken,
-    'Client-ID: ' . $clientID
-  ];
-  $ch = curl_init($twitch_subscriptions_url);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-  $response = curl_exec($ch);
-  curl_close($ch);
-  $data = json_decode($response, true);
-  if (isset($data['data'][0])) {
-    $tier = $data['data'][0]['tier'];
-    $_SESSION['tier'] = $tier;
-    if (in_array($tier, ["1000", "2000", "3000"])) {
-      $betaAccess = true;
-    }
-  } else {
-    $_SESSION['tier'] = "None";
-  }
-}
+require_once __DIR__ . '/api/twitch_beta_access.php';
+$betaResult = checkBetaAccess($user, $twitchUserId, $authToken, $clientID);
+$betaAccess = $betaResult['betaAccess'];
+$_SESSION['tier'] = $betaResult['tier'];
 
 // Check if bot is mod
 $BotIsBanned = false;
