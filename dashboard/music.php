@@ -274,46 +274,63 @@ ob_start();
 </div>
 <!-- Upload Card -->
 <div class="sp-card mb-4">
+    <header class="sp-card-header">
+        <span class="sp-card-title">
+            <i class="fas fa-upload"></i>
+            <?php echo t('music_upload_file'); ?>
+        </span>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+            <label class="sp-label" style="margin-bottom:0;white-space:nowrap;">Music source</label>
+            <select id="music-source-select" class="sp-select" style="width:auto;">
+                <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>>Built-in (DMCA-free)</option>
+                <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>>Use my uploads</option>
+            </select>
+        </div>
+    </header>
     <div class="sp-card-body">
-        <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.75rem;">
-            <div>
-                <strong>Your uploads</strong>
-                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">
-                    You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.
-                </div>
-            </div>
-            <div style="text-align:right;">
-                <div><small style="color:var(--text-muted);"><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB</small></div>
-                <div style="display:flex;align-items:center;gap:0.5rem;margin-top:6px;justify-content:flex-end;">
-                    <label class="sp-label" style="margin-bottom:0;white-space:nowrap;">Music source</label>
-                    <select id="music-source-select" class="sp-select">
-                        <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>>Built-in (DMCA-free)</option>
-                        <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>>Use my uploads</option>
-                    </select>
-                </div>
-            </div>
+        <!-- Disclaimer -->
+        <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
+            <i class="fas fa-exclamation-triangle"></i>
+            You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.
         </div>
-        <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data" style="margin-bottom:0.75rem;">
+        <!-- Storage Usage Info -->
+        <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
+                <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
+            </div>
+            <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
+        </div>
+        <?php if (!empty($userMusicStatus)) : ?>
+            <div class="sp-alert sp-alert-info sp-notif" style="margin-bottom:1rem;">
+                <?php echo $userMusicStatus; ?>
+            </div>
+        <?php endif; ?>
+        <form id="userMusicUploadForm" action="" method="POST" enctype="multipart/form-data">
             <div class="sp-form-group">
-                <label class="sp-label" for="userMusicFiles"><?php echo t('music_upload_file'); ?></label>
-                <input class="sp-input" type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3">
-                <div id="user-music-file-list" style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">No files selected</div>
+                <label for="userMusicFiles" style="display:block;border:2px dashed var(--border);border-radius:var(--radius-lg);padding:1.5rem;text-align:center;cursor:pointer;background:var(--bg-input);transition:border-color var(--transition);color:var(--text-secondary);">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:2rem;margin-bottom:0.5rem;display:block;"></i>
+                    <span id="user-music-file-list"><?php echo t('sound_alerts_no_files_selected'); ?></span>
+                    <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-muted);"><?php echo t('sound_alerts_choose_files'); ?></div>
+                    <input type="file" name="userMusicFiles[]" id="userMusicFiles" multiple accept=".mp3" style="display:none;">
+                </label>
             </div>
-            <div style="display:flex;gap:0.5rem;align-items:flex-start;flex-wrap:wrap;">
-                <button class="sp-btn sp-btn-primary" type="submit">Upload</button>
-                <?php if (!empty($userMusicStatus)): ?>
-                    <div class="sp-alert sp-alert-info" style="margin:0;flex:1;">
-                        <?php echo $userMusicStatus; ?>
+            <!-- Upload Status Container -->
+            <div id="userUploadProgressContainer" style="display:none;margin-bottom:1rem;">
+                <div class="sp-alert sp-alert-info">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                        <strong id="userUploadStatusText">Preparing upload...</strong>
+                        <span id="userUploadProgressPercent" style="font-weight:600;">0%</span>
                     </div>
-                <?php endif; ?>
+                    <progress class="progress" id="userUploadProgress" value="0" max="100" style="width:100%;">0%</progress>
+                </div>
             </div>
+            <button class="sp-btn sp-btn-primary" type="submit" id="userUploadBtn" style="width:100%;font-size:1.1rem;">
+                <i class="fas fa-upload"></i>
+                <span id="userUploadBtnText"><?php echo t('music_upload_file'); ?></span>
+            </button>
         </form>
-        <!-- AJAX upload progress -->
-        <div id="userUploadProgressContainer" style="display:none;margin-top:0.5rem;align-items:center;gap:0.5rem;">
-            <progress id="userUploadProgress" value="0" max="100" style="flex:1;height:0.6rem;border-radius:0.3rem;accent-color:var(--blue);"></progress>
-            <span id="userUploadProgressPercent" style="font-size:0.8rem;min-width:2.5rem;">0%</span>
-        </div>
-        <div id="userUploadResponse" style="display:none;margin-top:0.5rem;color:var(--blue);"></div>
+        <div id="userUploadResponse" style="display:none;margin-top:0.75rem;"></div>
     </div>
 </div>
 <!-- Playlist Card -->
@@ -1082,7 +1099,9 @@ ob_start();
                 // UI: disable submit, show progress
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('sp-btn-loading'); }
-                progressContainer.style.display = 'flex';
+                const statusText = document.getElementById('userUploadStatusText');
+                if (statusText) { statusText.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Uploading ' + files.length + ' file(s)...'; }
+                progressContainer.style.display = 'block';
                 progressBar.value = 0; progressPercent.textContent = '0%';
                 responseEl.style.display = 'none'; responseEl.innerHTML = '';
                 const xhr = new XMLHttpRequest();
