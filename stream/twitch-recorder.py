@@ -28,6 +28,7 @@ import subprocess
 import datetime
 import random
 import logging
+from logging.handlers import RotatingFileHandler
 import threading
 import asyncio
 import argparse
@@ -53,11 +54,43 @@ RETRY_BASE = 2
 RETRY_JITTER = 0.01
 LIVE_FROM_START_UNSUPPORTED_TEXT = "no formats that can be downloaded from the start"
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    datefmt='%Hh%Mm%Ss'
-)
+# Setup logging with both file and console output
+def setup_logging():
+    # Create logs directory if it doesn't exist
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    # Create log filename with date
+    log_filename = os.path.join(log_dir, f'twitch-recorder-{datetime.datetime.now().strftime("%Y-%m-%d")}.log')
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    # Setup root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    # Remove any existing handlers
+    root_logger.handlers.clear()
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    # File handler with rotation (max 10MB per file, keep 5 backup files)
+    file_handler = RotatingFileHandler(
+        log_filename,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+    logging.info(f"Logging initialized. Log file: {log_filename}")
+    return log_filename
+
+# Initialize logging
+setup_logging()
 
 def sanitize_filename(filename: str) -> str:
     return "".join(x for x in filename if x.isalnum() or x in [" ", "-", "_", "."])
@@ -255,28 +288,40 @@ class TwitchRecorderThread(threading.Thread):
         try:
             url = f"https://www.twitch.tv/{self.username}"
             command = build_yt_dlp_command(url, output_template, live_from_start=True)
+            logging.info(f"Starting recording for {self.username}")
+            logging.info(f"Command: {' '.join(command)}")
+            logging.info(f"Output file: {output_template}")
             result = subprocess.run(command, capture_output=True, text=True)
 
             if result.returncode != 0:
                 combined_output = f"{result.stdout}\n{result.stderr}".lower()
+                logging.error(f"yt-dlp failed with return code {result.returncode}")
+                logging.error(f"STDOUT: {result.stdout}")
+                logging.error(f"STDERR: {result.stderr}")
                 if "no formats that can be downloaded from the start" in combined_output:
                     logging.warning(
                         f"{self.username} does not support live-from-start; retrying from current live edge"
                     )
                     fallback_command = build_yt_dlp_command(url, output_template, live_from_start=False)
+                    logging.info(f"Fallback command: {' '.join(fallback_command)}")
                     fallback_result = subprocess.run(fallback_command, capture_output=True, text=True)
                     if fallback_result.returncode != 0:
                         error_text = (fallback_result.stderr or fallback_result.stdout or "Unknown yt-dlp error").strip()
                         logging.error(f"yt-dlp fallback failed for {self.username}: {error_text}")
                         return
+                    else:
+                        logging.info(f"Fallback recording successful for {self.username}")
                 else:
                     error_text = (result.stderr or result.stdout or "Unknown yt-dlp error").strip()
                     logging.error(f"yt-dlp failed for {self.username}: {error_text}")
                     return
+            else:
+                logging.info(f"Recording completed successfully for {self.username}")
+                logging.info(f"STDOUT: {result.stdout}")
 
             logging.info("Recording stream is done.")
         except Exception as e:
-            logging.error(f"Error recording stream: {e}")
+            logging.error(f"Error recording stream for {self.username}: {e}", exc_info=True)
 
     def run(self):
         logging.info(f"Checking for {self.username} every {self.refresh} seconds. Record with {self.quality} quality.")
@@ -423,22 +468,27 @@ class RecordChecker:
 
     async def check_and_record_user(self, username):
         try:
+            self.logger.debug(f"Checking stream status for {username}")
             is_live, stream_info = await get_internal_stream_status(username, self.logger)
             if is_live is None:
+                self.logger.warning(f"Could not determine stream status for {username}")
                 return
             if is_live:
+                self.logger.info(f"{username} is live")
                 # Start recording if not already recording
                 if username not in self.active_recordings:
+                    self.logger.info(f"Starting new recording for {username}")
                     await self.start_recording_for_user(username, stream_info)
                 else:
                     self.logger.debug(f"Already recording {username}")
             else:
+                self.logger.debug(f"{username} is offline")
                 # Stop recording if currently recording
                 if username in self.active_recordings:
                     self.logger.info(f"User {username} went offline, stopping recording")
                     await self.stop_recording_for_user(username)
         except Exception as e:
-            self.logger.error(f"Error checking user {username}: {e}")
+            self.logger.error(f"Error checking user {username}: {e}", exc_info=True)
 
     def select_recording_command(self, username: str, url: str, output_template: str) -> List[str]:
         if not YT_DLP_LIVE_FROM_START:
@@ -468,12 +518,14 @@ class RecordChecker:
             # Create directories
             user_storage_path = os.path.join(self.root_path, username)
             os.makedirs(user_storage_path, exist_ok=True)
+            self.logger.info(f"Created/verified storage path: {user_storage_path}")
             output_prefix = os.path.join(user_storage_path, base_filename)
             output_template = f"{output_prefix}.%(ext)s"
             # Start recording process
             url = f"https://www.twitch.tv/{username}"
             cmd = self.select_recording_command(username, url, output_template)
-            process = subprocess.Popen(cmd)
+            self.logger.info(f"Recording command for {username}: {' '.join(cmd)}")
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.active_recordings[username] = {
                 'process': process,
                 'filename': None,
@@ -483,8 +535,9 @@ class RecordChecker:
                 'start_time': datetime.datetime.now()
             }
             self.logger.info(f"Started recording for {username}: {base_filename}")
+            self.logger.info(f"Process PID: {process.pid}")
         except Exception as e:
-            self.logger.error(f"Error starting recording for {username}: {e}")
+            self.logger.error(f"Error starting recording for {username}: {e}", exc_info=True)
 
     async def stop_recording_for_user(self, username):
         try:
@@ -509,9 +562,20 @@ class RecordChecker:
         for username, recording_info in self.active_recordings.items():
             process = recording_info['process']
             if process.poll() is not None:  # Process has finished
+                return_code = process.returncode
                 finished_users.append(username)
+                self.logger.info(f"Recording process finished for {username} with return code {return_code}")
+                # Log any output from the process
+                try:
+                    stdout, stderr = process.communicate(timeout=1)
+                    if stdout:
+                        self.logger.info(f"Process STDOUT for {username}: {stdout.decode('utf-8', errors='ignore')}")
+                    if stderr:
+                        self.logger.info(f"Process STDERR for {username}: {stderr.decode('utf-8', errors='ignore')}")
+                except Exception as e:
+                    self.logger.debug(f"Could not read process output for {username}: {e}")
         for username in finished_users:
-            self.logger.info(f"Recording finished for {username}")
+            self.logger.info(f"Cleaning up recording for {username}")
             del self.active_recordings[username]
 
     def stop_checker(self):
