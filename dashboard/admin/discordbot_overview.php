@@ -119,18 +119,17 @@ ob_start();
         </div>
     </div>
     <!-- Modal for detailed user configuration -->
-    <div id="user-config-modal" class="modal">
-        <div class="modal-background"></div>
-        <div class="modal-card">
-            <header class="modal-card-head">
-                <p id="config-modal-title" class="modal-card-title">Discord Configuration Details</p>
-                <button class="delete" aria-label="close" id="config-modal-close"></button>
+    <div id="user-config-modal" class="db-modal-backdrop hidden">
+        <div class="db-modal">
+            <header class="db-modal-head">
+                <h2 id="config-modal-title" class="db-modal-title">Discord Configuration Details</h2>
+                <button class="db-modal-close" aria-label="close" id="config-modal-close"><i class="fas fa-times"></i></button>
             </header>
-            <section class="modal-card-body" id="config-modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="db-modal-body" id="config-modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <!-- populated by JS -->
-            </section>
-            <footer class="modal-card-foot">
-                <button class="sp-btn" id="config-modal-close-btn">Close</button>
+            </div>
+            <footer class="db-modal-foot">
+                <button class="sp-btn sp-btn-secondary" id="config-modal-close-btn">Close</button>
             </footer>
         </div>
     </div>
@@ -471,11 +470,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         html += '</div>';
         configModalBody.innerHTML = html;
-        configModal.classList.add('is-active');
+        configModal.classList.remove('hidden');
         configModalCloseBtn.focus();
     }
     function closeConfigModal() {
-        configModal.classList.remove('is-active');
+        configModal.classList.add('hidden');
         configModalBody.innerHTML = '';
     }
     function escapeHtml(text) {
@@ -494,9 +493,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Modal close events
     configModalClose.addEventListener('click', closeConfigModal);
     configModalCloseBtn.addEventListener('click', closeConfigModal);
-    configModal.querySelector('.modal-background').addEventListener('click', closeConfigModal);
+    configModal.addEventListener('click', function(e) {
+        if (e.target === configModal) closeConfigModal();
+    });
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeConfigModal();
+        if (e.key === 'Escape' && !configModal.classList.contains('hidden')) closeConfigModal();
     });
 });
 </script>

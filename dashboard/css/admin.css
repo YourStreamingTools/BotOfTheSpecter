@@ -2,6 +2,13 @@
    Admin Dashboard Styles - Custom CSS (No Bulma)
    ---------------------------------------------------------- */
 
+/* Generic icon wrapper */
+.icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Card components */
 .sp-card-header {
     cursor: pointer;
@@ -427,4 +434,92 @@
 .admin-users-table .admin-time-line {
     display: inline-block;
     white-space: nowrap;
+}
+
+/* ----------------------------------------------------------
+   Discord Configuration Overview Styles
+   ---------------------------------------------------------- */
+.admin-discord-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.25rem;
+    margin-top: 1rem;
+}
+
+.discord-config-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.discord-config-card:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.discord-config-card-head {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-surface);
+}
+
+.discord-config-card-body {
+    padding: 1rem;
+    flex: 1;
+}
+
+.discord-config-card-body p {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.discord-config-card-body p:last-child {
+    margin-bottom: 0;
+}
+
+.discord-config-card-body p strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.discord-config-card-body .mt-3 {
+    margin-top: 0.75rem;
+}
+
+.discord-config-card-footer {
+    border-top: 1px solid var(--border);
+    display: flex;
+}
+
+.discord-config-card-footer-item {
+    flex: 1;
+    padding: 0.75rem;
+    text-align: center;
+    color: var(--accent-hover);
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.discord-config-card-footer-item:hover {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.sp-text-accent {
+    color: var(--accent-hover);
+}
+
+@media (max-width: 768px) {
+    .admin-discord-grid {
+        grid-template-columns: 1fr;
+    }
 }
