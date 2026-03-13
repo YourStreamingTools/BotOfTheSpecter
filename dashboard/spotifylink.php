@@ -175,9 +175,11 @@ if ($spotifyResult->num_rows > 0) {
         } else {
             $message = "Please follow the linking instructions above this error panel. (Error: User is not authorized.)";
             $messageType = "is-danger";
-            // Set authorization URL to trigger reauthorization
-            $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
-            $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$effective_client_id&scope=$scopes&redirect_uri=$redirect_uri";
+            // Allow reconnect if using own client OR if they already had a linked slot (has_access = 1)
+            if ($own_client == 1 || $hasAccess == 1) {
+                $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+                $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$effective_client_id&scope=$scopes&redirect_uri=$redirect_uri";
+            }
             $connectionStatus = 'error';
         }
     } else {
@@ -187,8 +189,8 @@ if ($spotifyResult->num_rows > 0) {
         $connectionStatus = 'pending';
     }
 } else {
-    // User not linked, set authorization URL
-    if (!$isActAsUser) {
+    // User not linked - only allow linking via own client (dev account is full)
+    if (!$isActAsUser && $own_client == 1) {
         $scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
         $authURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=$client_id&scope=$scopes&redirect_uri=$redirect_uri";
     }
@@ -204,7 +206,7 @@ $linkedAccountsStmt = $conn->prepare("SELECT COUNT(*) as count FROM spotify_toke
 $linkedAccountsStmt->execute();
 $linkedAccountsResult = $linkedAccountsStmt->get_result();
 $linkedAccountsCount = $linkedAccountsResult->fetch_assoc()['count'];
-$maxAccounts = 25;
+$maxAccounts = 5;
 
 // Start output buffering for layout
 ob_start();
@@ -233,6 +235,11 @@ ob_start();
         <?php endif; ?>
     </div>
     <div class="sp-card-body">
+        <div class="sp-alert sp-alert-warning" style="margin-bottom: 1.5rem;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Important: Spotify Integration Changes (Effective March 9, 2026)</strong><br>
+            We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users — Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration — it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
+        </div>
         <?php if ($message): ?>
             <?php
                 if ($messageType === 'is-success') $alertClass = 'sp-alert-success';
@@ -253,7 +260,6 @@ ob_start();
                 <?php echo $message; ?>
             </div>
         <?php endif; ?>
-
         <div class="sp-card" style="margin-bottom: 1.5rem;">
             <div class="sp-card-header">
                 <div class="sp-card-title">
@@ -262,7 +268,7 @@ ob_start();
                 </div>
             </div>
             <div class="sp-card-body">
-                <p style="color: var(--text-secondary); margin-bottom: 1rem;">If you prefer to use your own Spotify application instead of waiting for authorization, enable this option. You'll need to create your own Spotify app and enter the credentials below.</p>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Create your own Spotify app and enter the credentials below. This app will be used solely for your channel's integration with BotOfTheSpecter.</p>
                 <a href="https://help.botofthespecter.com/spotify_setup.php" target="_blank" class="sp-btn sp-btn-info sp-btn-sm" style="margin-bottom: 1rem;">
                     <i class="fas fa-external-link-alt"></i>
                     Get Setup Instructions
@@ -290,7 +296,6 @@ ob_start();
                 </form>
             </div>
         </div>
-
         <?php if ($connectionStatus === 'connected'): ?>
             <div class="sp-card">
                 <div class="sp-card-header">
@@ -335,7 +340,6 @@ ob_start();
         <?php else: ?>
             <div style="text-align: center;">
                 <div style="max-width: 700px; margin: 0 auto 1.5rem;">
-                    <p style="color: var(--text-secondary); margin-bottom: 1rem;"><?php echo t('spotify_connect_instructions'); ?><br><?php echo t('spotify_connect_after_request'); ?></p>
                     <div class="sp-card" style="max-width: 600px; margin: 0 auto 1rem;">
                         <div class="sp-card-header">
                             <div class="sp-card-title">
@@ -368,6 +372,12 @@ ob_start();
                     <div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">
                         <i class="fas fa-exclamation-circle"></i>
                         Act As mode is active. Linking Spotify is disabled for acting users.
+                    </div>
+                <?php elseif (!$authURL && $connectionStatus === 'not-connected' && $own_client == 0): ?>
+                    <div class="sp-alert sp-alert-danger" style="max-width: 700px; margin: 0 auto;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Platform Spotify account is at capacity (<?php echo $linkedAccountsCount; ?>/<?php echo $maxAccounts; ?> slots used).</strong>
+                        Due to Spotify's updated Developer Policy (effective March 9, 2026), Development Mode Client IDs are limited to <?php echo $maxAccounts; ?> authorized users. No new accounts can be linked via the BotOfTheSpecter platform client. To use Spotify integration, please enable <strong>Use Your Own Spotify Client</strong> above and enter your own Spotify app credentials.
                     </div>
                 <?php endif; ?>
             </div>
