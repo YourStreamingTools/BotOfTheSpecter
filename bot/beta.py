@@ -2683,7 +2683,8 @@ async def process_tanggle_room_complete(data):
             winner_name = user.get('username')
             winner_twitch_name = twitch_connection.get('username')
             winner_score = winner.get('score')
-            winner_timer = winner.get('timer')
+            winner_timer_raw = winner.get('timer')
+            winner_timer = int(float(winner_timer_raw)) if winner_timer_raw is not None else None
         pieces = room.get('pieces', {}) if isinstance(room, dict) else {}
         image = room.get('image', {}) if isinstance(room, dict) else {}
         community = room.get('community', {}) if isinstance(room, dict) else {}
@@ -2739,11 +2740,11 @@ async def process_tanggle_room_complete(data):
                     await cursor.execute(
                         """
                         INSERT INTO tanggle_puzzle_stats (id, completed_count, last_completed_room_uuid, last_completed_at)
-                        VALUES (1, 1, %s, %s)
+                        VALUES (1, 1, %s, %s) AS new_row
                         ON DUPLICATE KEY UPDATE
                             completed_count = completed_count + 1,
-                            last_completed_room_uuid = VALUES(last_completed_room_uuid),
-                            last_completed_at = VALUES(last_completed_at),
+                            last_completed_room_uuid = new_row.last_completed_room_uuid,
+                            last_completed_at = new_row.last_completed_at,
                             updated_at = CURRENT_TIMESTAMP
                         """,
                         (room_uuid, completed_at)
@@ -2780,11 +2781,11 @@ async def process_stream_bingo_message(data):
                 async with user_db.cursor() as cursor:
                     await cursor.execute("""
                         INSERT INTO bingo_games (game_id, events_count, is_sub_only, random_call_only, status)
-                        VALUES (%s, %s, %s, %s, 'active')
+                        VALUES (%s, %s, %s, %s, 'active') AS new_row
                         ON DUPLICATE KEY UPDATE
-                        events_count = VALUES(events_count),
-                        is_sub_only = VALUES(is_sub_only),
-                        random_call_only = VALUES(random_call_only),
+                        events_count = new_row.events_count,
+                        is_sub_only = new_row.is_sub_only,
+                        random_call_only = new_row.random_call_only,
                         status = 'active'
                     """, (game_id, len(events), is_sub_only, random_call_only))
                     await user_db.commit()
@@ -3498,12 +3499,19 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: stream_online is False")
                 elif already_seen_today:
                     chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: already_seen_today")
+        except asyncioCancelledError:
+            raise
         except Exception as e:
             chat_logger.error(f"Error in message_counting for {messageAuthor}: {e}", exc_info=True)
         finally:
-            await self.user_points(messageAuthor, messageAuthorID)
-            await self.user_grouping(messageAuthor, messageAuthorID)
-            await handle_chat_message(messageAuthor, messageContent)
+            try:
+                await self.user_points(messageAuthor, messageAuthorID)
+                await self.user_grouping(messageAuthor, messageAuthorID)
+                await handle_chat_message(messageAuthor, messageContent)
+            except asyncioCancelledError:
+                raise
+            except Exception:
+                pass
 
     async def send_first_command_welcome_if_needed(self, messageAuthor, messageAuthorID, messageContent=""):
         global stream_online
@@ -12420,7 +12428,7 @@ async def process_channel_point_rewards(event_data, event_type):
                                             # If vip.today, record the user so we can remove at stream end
                                             if '(vip.today)' in custom_message:
                                                 try:
-                                                    await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (user_id, user_name))
+                                                    await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) AS new_row ON DUPLICATE KEY UPDATE username = new_row.username", (user_id, user_name))
                                                     await connection.commit()
                                                 except Exception as _e:
                                                     chat_logger.error(f"Failed to record vip_today for {user_name}: {_e}")
