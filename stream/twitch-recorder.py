@@ -3,22 +3,33 @@ Twitch Auto-Recorder Script
 
 This script provides an automated Twitch stream recording system with two main components:
 
-1. RecordChecker: An async coordinator that checks the database for users who have 
-   enabled auto-recording and manages the recording threads accordingly.
+1. RecordChecker: An async coordinator that checks the database for users who have
+   enabled auto-recording and manages the recording processes accordingly.
 
 2. TwitchRecorderThread: The actual recording implementation that handles individual
-   stream recording using streamlink, including live status checking and file management.
+   stream recording using yt-dlp, including live status checking and file management.
 
 Architecture:
-- RecordChecker runs asynchronously and efficiently monitors multiple users
-- Each active recorder runs in its own TwitchRecorderThread
+- RecordChecker runs asynchronously and monitors multiple users on a configurable interval
+- Each active recorder is managed as a subprocess via yt-dlp
 - Database-driven configuration allows real-time enabling/disabling of recording
-- Supports OAuth token management with system fallback for API calls
-- Uses modern aiohttp for all HTTP/API requests
+  (per-user auto_record_settings table in each user's individual database)
+- Live status is determined via the internal BotOfTheSpecter stream API
+- Uses aiohttp for all HTTP/API requests and aiomysql for async database access
 
-Status: NEW SCRIPT - UNDER DEVELOPMENT
-Note: This is a newly created script that is still under active development.
-Testing has not yet begun, and functionality may change during implementation.
+Recording:
+- Output files are named: [channel] - [YYYY-MM-DD HH:MM:SS] UTC - [game name]
+- Files are stored under STREAM_ROOT_PATH/<username>/
+- yt-dlp is used with --hls-use-mpegts and --live-from-start (with automatic fallback)
+- Old recordings are automatically cleaned up after FILE_RETENTION_SECONDS
+
+Logging:
+- Logs are written to a fixed file: logs/twitch-recorder.log
+- Log file is rotated at 10MB with 5 backup files retained
+
+Status: UNDER DEVELOPMENT
+Note: This script is under active development. Testing has not yet begun on the
+production server and functionality may change during implementation.
 """
 
 import os
@@ -59,8 +70,8 @@ def setup_logging():
     # Create logs directory if it doesn't exist
     log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     os.makedirs(log_dir, exist_ok=True)
-    # Create log filename with date
-    log_filename = os.path.join(log_dir, f'twitch-recorder-{datetime.datetime.now().strftime("%Y-%m-%d")}.log')
+    # Fixed log filename (no date) so admin log viewer always finds the same file
+    log_filename = os.path.join(log_dir, 'twitch-recorder.log')
     # Create formatter
     formatter = logging.Formatter(
         '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -276,12 +287,11 @@ class TwitchRecorderThread(threading.Thread):
         return 1, info
 
     def record_stream(self, info: Dict[str, Any]):
-        title = info.get('stream_title') if info else None
-        if not title:
-            title = info.get('title') if info else None
-        if not title:
-            title = "Untitled"
-        base_filename = f"{self.username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
+        game = info.get('game_name') if info else None
+        if not game:
+            game = "Unknown Game"
+        start_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        base_filename = f"{self.username} - {start_time} UTC - {game}"
         base_filename = sanitize_filename(base_filename)
         output_prefix = os.path.join(self.user_storage_path, base_filename)
         output_template = f"{output_prefix}.%(ext)s"
@@ -292,7 +302,6 @@ class TwitchRecorderThread(threading.Thread):
             logging.info(f"Command: {' '.join(command)}")
             logging.info(f"Output file: {output_template}")
             result = subprocess.run(command, capture_output=True, text=True)
-
             if result.returncode != 0:
                 combined_output = f"{result.stdout}\n{result.stderr}".lower()
                 logging.error(f"yt-dlp failed with return code {result.returncode}")
@@ -318,7 +327,6 @@ class TwitchRecorderThread(threading.Thread):
             else:
                 logging.info(f"Recording completed successfully for {self.username}")
                 logging.info(f"STDOUT: {result.stdout}")
-
             logging.info("Recording stream is done.")
         except Exception as e:
             logging.error(f"Error recording stream for {self.username}: {e}", exc_info=True)
@@ -474,7 +482,6 @@ class RecordChecker:
                 self.logger.warning(f"Could not determine stream status for {username}")
                 return
             if is_live:
-                self.logger.info(f"{username} is live")
                 # Start recording if not already recording
                 if username not in self.active_recordings:
                     self.logger.info(f"Starting new recording for {username}")
@@ -510,10 +517,11 @@ class RecordChecker:
 
     async def start_recording_for_user(self, username, stream_info):
         try:
-            title = stream_info.get('stream_title') if stream_info else None
-            if not title:
-                title = stream_info.get('title', 'Untitled') if stream_info else 'Untitled'
-            base_filename = f"{username} - {datetime.datetime.now().strftime('%Y-%m-%d %Hh%Mm%Ss')} - {title}"
+            game = stream_info.get('game_name') if stream_info else None
+            if not game:
+                game = 'Unknown Game'
+            start_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            base_filename = f"{username} - {start_time} UTC - {game}"
             base_filename = sanitize_filename(base_filename)
             # Create directories
             user_storage_path = os.path.join(self.root_path, username)
