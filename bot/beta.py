@@ -10225,37 +10225,40 @@ async def shoutout_worker():
     global last_shoutout_time
     while True:
         user_to_shoutout, user_id, is_automated, shoutout_message, source, trigger_api = await shoutout_queue.get()
-        now = time_right_now()
-        # Check per-user cooldown FIRST (before waiting for global cooldown)
-        in_cooldown, cooldown_minutes, remaining_minutes = await get_shoutout_cooldown_state(user_id)
-        if in_cooldown:
-            twitch_logger.info(
-                f"Skipping shoutout for {user_to_shoutout}. User cooldown in effect ({cooldown_minutes} minute window, {remaining_minutes} minute(s) remaining). [source={source}]"
-            )
+        try:
+            now = time_right_now()
+            # Check per-user cooldown FIRST (before waiting for global cooldown)
+            in_cooldown, cooldown_minutes, remaining_minutes = await get_shoutout_cooldown_state(user_id)
+            if in_cooldown:
+                twitch_logger.info(
+                    f"Skipping shoutout for {user_to_shoutout}. User cooldown in effect ({cooldown_minutes} minute window, {remaining_minutes} minute(s) remaining). [source={source}]"
+                )
+                continue
+            # Check global cooldown (only if user passed per-user cooldown check)
+            if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
+                wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
+                twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
+                await sleep(wait_time)
+            # Trigger Twitch shoutout when applicable
+            if trigger_api:
+                shoutout_sent = await trigger_twitch_shoutout(user_to_shoutout, user_id)
+                if not shoutout_sent:
+                    twitch_logger.info(f"Twitch API shoutout failed for {user_to_shoutout}; still sending chat message. [source={source}]")
+            if shoutout_message:
+                await send_chat_message(shoutout_message)
+            twitch_logger.info(f"Shoutout processed for {user_to_shoutout}. [source={source}]")
+            if trigger_api:
+                shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
+                create_task(remove_shoutout_user(user_to_shoutout, 60))
+            # Record shoutout for per-user cooldown tracking regardless of source
+            await record_automated_shoutout(user_id, user_to_shoutout)
+            # Update cooldown trackers
+            last_shoutout_time = time_right_now()
+        except Exception as e:
+            twitch_logger.error(f"Unhandled error in shoutout_worker while processing shoutout for {user_to_shoutout}: {e}")
+        finally:
+            # Always mark the task done so the queue doesn't stall
             shoutout_queue.task_done()
-            continue
-        # Check global cooldown (only if user passed per-user cooldown check)
-        if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
-            wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
-            twitch_logger.info(f"Waiting {wait_time} seconds for global cooldown.")
-            await sleep(wait_time)
-        # Trigger Twitch shoutout when applicable
-        if trigger_api:
-            shoutout_sent = await trigger_twitch_shoutout(user_to_shoutout, user_id)
-            if not shoutout_sent:
-                twitch_logger.info(f"Twitch API shoutout failed for {user_to_shoutout}; still sending chat message. [source={source}]")
-        if shoutout_message:
-            await send_chat_message(shoutout_message)
-        twitch_logger.info(f"Shoutout processed for {user_to_shoutout}. [source={source}]")
-        if trigger_api:
-            shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
-            create_task(remove_shoutout_user(user_to_shoutout, 60))
-        # Record shoutout for per-user cooldown tracking regardless of source
-        await record_automated_shoutout(user_id, user_to_shoutout)
-        # Update cooldown trackers
-        last_shoutout_time = time_right_now()
-        # Mark the task as done
-        shoutout_queue.task_done()
 
 # Function to trigger a Twitch shoutout via Twitch API
 async def trigger_twitch_shoutout(user_to_shoutout, user_id):
