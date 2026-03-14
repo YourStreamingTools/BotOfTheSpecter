@@ -674,9 +674,8 @@ if (isset($_GET['admin_system_log_type'])) {
             $result = read_local_log($logPath, 500);
             break;
         case 'twitch-recorder':
-            // Twitch recorder creates daily log files, read the most recent one
-            $today = date('Y-m-d');
-            $logPath = "/home/botofthespecter/logs/twitch-recorder-{$today}.log";
+            // Twitch recorder uses a single fixed log file (rotated by size)
+            $logPath = "/home/botofthespecter/logs/twitch-recorder.log";
             $result = read_recorder_log_over_ssh($logPath);
             break;
         default:
