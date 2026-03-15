@@ -65,6 +65,36 @@ RETRY_BASE = 2
 RETRY_JITTER = 0.01
 LIVE_FROM_START_UNSUPPORTED_TEXT = "no formats that can be downloaded from the start"
 
+# Custom formatter that stamps log entries in Sydney, Australia time
+class SydneyFormatter(logging.Formatter):
+    _TZ = datetime.timezone(datetime.timedelta(hours=10))  # AEST base offset
+
+    def _sydney_offset(self, dt: datetime.datetime) -> datetime.timezone:
+        # AEDT (UTC+11) last Sun Oct -> first Sun Apr; AEST (UTC+10) otherwise
+        year = dt.year
+        # Last Sunday in October (DST start)
+        oct_last_sun = max(
+            d for d in (datetime.date(year, 10, d) for d in range(25, 32))
+            if d.weekday() == 6
+        )
+        # First Sunday in April (DST end)
+        apr_first_sun = min(
+            d for d in (datetime.date(year, 4, d) for d in range(1, 8))
+            if d.weekday() == 6
+        )
+        dt_date = dt.date()
+        if oct_last_sun <= dt_date or dt_date < apr_first_sun:
+            return datetime.timezone(datetime.timedelta(hours=11))  # AEDT
+        return datetime.timezone(datetime.timedelta(hours=10))  # AEST
+
+    def formatTime(self, record, datefmt=None):
+        utc_dt = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc)
+        tz = self._sydney_offset(utc_dt)
+        local_dt = utc_dt.astimezone(tz)
+        if datefmt:
+            return local_dt.strftime(datefmt)
+        return local_dt.strftime('%Y-%m-%d %H:%M:%S')
+
 # Setup logging with both file and console output
 def setup_logging():
     # Create logs directory if it doesn't exist
@@ -72,8 +102,8 @@ def setup_logging():
     os.makedirs(log_dir, exist_ok=True)
     # Fixed log filename (no date) so admin log viewer always finds the same file
     log_filename = os.path.join(log_dir, 'twitch-recorder.log')
-    # Create formatter
-    formatter = logging.Formatter(
+    # Create formatter (timestamps in Sydney, Australia time)
+    formatter = SydneyFormatter(
         '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
@@ -533,9 +563,14 @@ class RecordChecker:
             url = f"https://www.twitch.tv/{username}"
             cmd = self.select_recording_command(username, url, output_template)
             self.logger.info(f"Recording command for {username}: {' '.join(cmd)}")
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Redirect yt-dlp output to a per-recording log file to prevent pipe buffer
+            # deadlock (stdout/stderr=PIPE with no reader blocks yt-dlp after ~64KB)
+            ytdlp_log_path = os.path.join(user_storage_path, f"{base_filename}.ytdlp.log")
+            ytdlp_log_file = open(ytdlp_log_path, 'w', encoding='utf-8')
+            process = subprocess.Popen(cmd, stdout=ytdlp_log_file, stderr=ytdlp_log_file)
             self.active_recordings[username] = {
                 'process': process,
+                'log_file': ytdlp_log_file,
                 'filename': None,
                 'output_prefix': output_prefix,
                 'output_template': output_template,
@@ -547,19 +582,49 @@ class RecordChecker:
         except Exception as e:
             self.logger.error(f"Error starting recording for {username}: {e}", exc_info=True)
 
+    def _rename_part_files(self, username: str, output_prefix: str):
+        directory = os.path.dirname(output_prefix)
+        basename = os.path.basename(output_prefix)
+        try:
+            if not os.path.isdir(directory):
+                return
+            for filename in os.listdir(directory):
+                if filename.startswith(basename) and filename.endswith('.part'):
+                    part_path = os.path.join(directory, filename)
+                    final_path = part_path[:-5]  # Strip .part suffix
+                    if not os.path.exists(final_path):
+                        os.rename(part_path, final_path)
+                        self.logger.info(f"Renamed partial recording: {filename} -> {os.path.basename(final_path)}")
+                    else:
+                        self.logger.warning(f"Cannot rename {filename}: target file already exists")
+        except Exception as e:
+            self.logger.warning(f"Could not rename .part files for {username}: {e}")
+
     async def stop_recording_for_user(self, username):
         try:
             if username in self.active_recordings:
                 recording_info = self.active_recordings[username]
                 process = recording_info['process']
-                # Terminate the process
-                process.terminate()
-                # Wait a bit for graceful termination
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+                log_file = recording_info.get('log_file')
+                output_prefix = recording_info.get('output_prefix', '')
+                # Give yt-dlp time to finish naturally before sending SIGTERM — it may
+                # already be finalizing after detecting the HLS playlist ended
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        self.logger.warning(f"yt-dlp did not exit gracefully for {username}, forcing kill")
+                        process.kill()
+                        process.wait()
+                if log_file:
+                    try:
+                        log_file.close()
+                    except Exception:
+                        pass
+                # Rename any .part files yt-dlp left behind
+                if output_prefix:
+                    self._rename_part_files(username, output_prefix)
                 self.logger.info(f"Stopped recording for {username}")
                 del self.active_recordings[username]
         except Exception as e:
@@ -573,15 +638,15 @@ class RecordChecker:
                 return_code = process.returncode
                 finished_users.append(username)
                 self.logger.info(f"Recording process finished for {username} with return code {return_code}")
-                # Log any output from the process
-                try:
-                    stdout, stderr = process.communicate(timeout=1)
-                    if stdout:
-                        self.logger.info(f"Process STDOUT for {username}: {stdout.decode('utf-8', errors='ignore')}")
-                    if stderr:
-                        self.logger.info(f"Process STDERR for {username}: {stderr.decode('utf-8', errors='ignore')}")
-                except Exception as e:
-                    self.logger.debug(f"Could not read process output for {username}: {e}")
+                log_file = recording_info.get('log_file')
+                if log_file:
+                    try:
+                        log_file.close()
+                    except Exception:
+                        pass
+                output_prefix = recording_info.get('output_prefix', '')
+                if output_prefix:
+                    self._rename_part_files(username, output_prefix)
         for username in finished_users:
             self.logger.info(f"Cleaning up recording for {username}")
             del self.active_recordings[username]
@@ -595,13 +660,21 @@ class RecordChecker:
             try:
                 recording_info = self.active_recordings[username]
                 process = recording_info['process']
+                log_file = recording_info.get('log_file')
+                output_prefix = recording_info.get('output_prefix', '')
                 process.terminate()
                 try:
-                    process.wait(timeout=5.0)
+                    process.wait(timeout=30)
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-                    
+                if log_file:
+                    try:
+                        log_file.close()
+                    except Exception:
+                        pass
+                if output_prefix:
+                    self._rename_part_files(username, output_prefix)
             except Exception as e:
                 self.logger.error(f"Error stopping recording for {username}: {e}")
         self.active_recordings.clear()
