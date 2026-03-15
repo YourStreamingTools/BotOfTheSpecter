@@ -1631,47 +1631,44 @@ ob_start();
                                         Users on Cooldown
                                     </h3>
                                     <p style="color:var(--text-muted); margin:0 0 1rem;">These users recently received an automated shoutout and are currently in the cooldown period. The cooldown resets when the stream goes offline or the timer above is reached.</p>
-                                    <?php if (empty($automated_shoutout_tracking)): ?>
-                                        <div class="sp-alert sp-alert-info">
-                                            <i class="fas fa-info-circle"></i>
-                                            No users are currently on automated shoutout cooldown.
-                                        </div>
-                                    <?php else: ?>
-                                        <div class="sp-table-wrap">
-                                            <table class="sp-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>User</th>
-                                                        <th>Last Shoutout</th>
-                                                        <th>Cooldown Remaining</th>
+                                    <div class="sp-alert sp-alert-info"<?php echo !empty($automated_shoutout_tracking) ? ' style="display:none;"' : ''; ?>>
+                                        <i class="fas fa-info-circle"></i>
+                                        No users are currently on automated shoutout cooldown.
+                                    </div>
+                                    <div class="sp-table-wrap"<?php echo empty($automated_shoutout_tracking) ? ' style="display:none;"' : ''; ?>>
+                                        <table class="sp-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>User</th>
+                                                    <th>Last Shoutout</th>
+                                                    <th>Cooldown Remaining</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($automated_shoutout_tracking as $tracking):
+                                                    $shoutout_time = new DateTime($tracking['shoutout_time'], new DateTimeZone($timezone));
+                                                    $now = new DateTime('now', new DateTimeZone($timezone));
+                                                    $diff = $now->getTimestamp() - $shoutout_time->getTimestamp();
+                                                    $cooldown_seconds = $automated_shoutout_cooldown * 60;
+                                                    $remaining_seconds = max(0, $cooldown_seconds - $diff);
+                                                    $remaining_minutes = ceil($remaining_seconds / 60);
+                                                    $is_expired = $remaining_seconds <= 0;
+                                                    ?>
+                                                    <tr<?php echo $is_expired ? ' style="color:var(--text-muted);"' : ''; ?>>
+                                                        <td><?php echo htmlspecialchars($tracking['user_name']); ?></td>
+                                                        <td><?php echo $shoutout_time->format('Y-m-d H:i:s'); ?></td>
+                                                        <td>
+                                                            <?php if ($is_expired): ?>
+                                                                <span class="sp-badge sp-badge-green">Ready</span>
+                                                            <?php else: ?>
+                                                                <span class="sp-badge sp-badge-amber"><?php echo $remaining_minutes; ?> min</span>
+                                                            <?php endif; ?>
+                                                        </td>
                                                     </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <?php foreach ($automated_shoutout_tracking as $tracking):
-                                                        $shoutout_time = new DateTime($tracking['shoutout_time'], new DateTimeZone($timezone));
-                                                        $now = new DateTime('now', new DateTimeZone($timezone));
-                                                        $diff = $now->getTimestamp() - $shoutout_time->getTimestamp();
-                                                        $cooldown_seconds = $automated_shoutout_cooldown * 60;
-                                                        $remaining_seconds = max(0, $cooldown_seconds - $diff);
-                                                        $remaining_minutes = ceil($remaining_seconds / 60);
-                                                        $is_expired = $remaining_seconds <= 0;
-                                                        ?>
-                                                        <tr<?php echo $is_expired ? ' style="color:var(--text-muted);"' : ''; ?>>
-                                                            <td><?php echo htmlspecialchars($tracking['user_name']); ?></td>
-                                                            <td><?php echo $shoutout_time->format('Y-m-d H:i:s'); ?></td>
-                                                            <td>
-                                                                <?php if ($is_expired): ?>
-                                                                    <span class="sp-badge sp-badge-green">Ready</span>
-                                                                <?php else: ?>
-                                                                    <span class="sp-badge sp-badge-amber"><?php echo $remaining_minutes; ?> min</span>
-                                                                <?php endif; ?>
-                                                            </td>
-                                                        </tr>
-                                                    <?php endforeach; ?>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    <?php endif; ?>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
