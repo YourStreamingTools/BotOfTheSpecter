@@ -2,10 +2,10 @@
 // support/tickets.php
 // ----------------------------------------------------------------
 // All ticket views in one file:
-//   ?action=list        — user's own tickets (default)
-//   ?action=list&view=queue — staff queue (is_staff() only)
-//   ?action=new         — submit a ticket form
-//   ?id=SPT-XXXXX       — ticket thread view
+//   ?action=list        - user's own tickets (default)
+//   ?action=list&view=queue - staff queue (is_staff() only)
+//   ?action=new         - submit a ticket form
+//   ?id=SPT-XXXXX       - ticket thread view
 //
 // All POST actions verified with CSRF.
 // ----------------------------------------------------------------
@@ -17,11 +17,24 @@ require_login(); // tickets always require auth
 $action   = $_GET['action']   ?? 'list';
 $ticketId = $_GET['id']       ?? null;
 $queueView = (isset($_GET['view']) && $_GET['view'] === 'queue' && is_staff());
-
 $db      = support_db();
 $success = '';
 $errors  = [];
 
+// Check if the logged-in user is a registered BotOfTheSpecter user
+$isRegisteredUser = is_staff(); // staff always pass
+if (!$isRegisteredUser) {
+    $wdb   = website_db();
+    $wstmt = $wdb->prepare('SELECT 1 FROM users WHERE twitch_user_id = ? LIMIT 1');
+    if ($wstmt) {
+        $wstmt->bind_param('s', $_SESSION['twitch_user_id']);
+        $wstmt->execute();
+        $wstmt->store_result();
+        $isRegisteredUser = ($wstmt->num_rows === 1);
+        $wstmt->close();
+    }
+    $wdb->close();
+}
 // ----------------------------------------------------------------
 // POST: Submit new ticket
 // ----------------------------------------------------------------
@@ -145,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
 }
 
 // ----------------------------------------------------------------
-// POST: Staff — update ticket status / priority
+// POST: Staff - update ticket status / priority
 // ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST['_action'] === 'staff_update') {
     if (!is_staff()) {
@@ -342,7 +355,6 @@ if ($ticketId):
 // VIEW: NEW TICKET
 // ============================================================
 elseif ($action === 'new'):
-
 ?>
 <div class="sp-page-header">
     <div>
@@ -350,7 +362,14 @@ elseif ($action === 'new'):
         <h1>Submit a Support Ticket</h1>
     </div>
 </div>
-<div class="sp-card" style="max-width:640px;">
+<?php if (!$isRegisteredUser): ?>
+<div class="sp-alert sp-alert-warning">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span>This support system is only for users of <strong>BotOfTheSpecter</strong> the Twitch and Discord bot.
+    You don't appear to have a BotOfTheSpecter account. Please <a href="https://botofthespecter.com" target="_blank" rel="noopener">sign up at botofthespecter.com</a> before submitting a ticket.</span>
+</div>
+<?php endif; ?>
+<div class="sp-card" style="max-width:640px;<?php echo !$isRegisteredUser ? 'opacity:0.5;pointer-events:none;' : ''; ?>">
     <div class="sp-card-header"><i class="fa-solid fa-ticket"></i> New Ticket</div>
     <div class="sp-card-body">
         <form method="POST" action="/tickets.php" data-once>
@@ -387,7 +406,7 @@ elseif ($action === 'new'):
                 <label class="sp-label" for="ticket_message">Description <span class="sp-req">*</span></label>
                 <textarea id="ticket_message" name="message" class="sp-textarea" rows="7"
                     data-min-chars="20" data-max-chars="5000"
-                    placeholder="Please describe the issue in detail — what happened, what you expected, and any error messages you saw."><?php echo htmlspecialchars($_POST['message'] ?? ''); ?></textarea>
+                    placeholder="Please describe the issue in detail - what happened, what you expected, and any error messages you saw."><?php echo htmlspecialchars($_POST['message'] ?? ''); ?></textarea>
                 <div class="sp-char-counter" data-for="ticket_message"></div>
             </div>
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
@@ -483,6 +502,13 @@ else:
     $result = $db->query($sql);
     $tickets = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 ?>
+<?php if (!$isRegisteredUser): ?>
+<div class="sp-alert sp-alert-warning">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span>This support system is only for users of <strong>BotOfTheSpecter</strong> the Twitch and Discord bot.
+    You don't appear to have a BotOfTheSpecter account. Please <a href="https://botofthespecter.com" target="_blank" rel="noopener">sign up at botofthespecter.com</a> before submitting a ticket.</span>
+</div>
+<?php endif; ?>
 <div class="sp-page-header">
     <div>
         <h1>My Support Tickets</h1>
@@ -492,7 +518,11 @@ else:
         <?php if (is_staff()): ?>
         <a href="/tickets.php?view=queue" class="sp-btn sp-btn-secondary"><i class="fa-solid fa-shield-halved"></i> Staff Queue</a>
         <?php endif; ?>
+        <?php if ($isRegisteredUser): ?>
         <a href="/tickets.php?action=new" class="sp-btn sp-btn-primary"><i class="fa-solid fa-plus"></i> New Ticket</a>
+        <?php else: ?>
+        <button class="sp-btn sp-btn-primary" disabled title="You must be a registered BotOfTheSpecter user to submit a ticket"><i class="fa-solid fa-plus"></i> New Ticket</button>
+        <?php endif; ?>
     </div>
 </div>
 <form method="GET" action="/tickets.php" class="sp-filters">
@@ -510,7 +540,11 @@ else:
     <div class="sp-empty-icon"><i class="fa-solid fa-ticket"></i></div>
     <h3>No tickets yet</h3>
     <p>Submit your first support ticket if you need help.</p>
+    <?php if ($isRegisteredUser): ?>
     <a href="/tickets.php?action=new" class="sp-btn sp-btn-primary sp-mt-2"><i class="fa-solid fa-plus"></i> Submit a Ticket</a>
+    <?php else: ?>
+    <button class="sp-btn sp-btn-primary sp-mt-2" disabled title="You must be a registered BotOfTheSpecter user to submit a ticket"><i class="fa-solid fa-plus"></i> Submit a Ticket</button>
+    <?php endif; ?>
 </div>
 <?php else: ?>
 <div class="sp-table-wrap">
