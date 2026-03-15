@@ -662,47 +662,14 @@ async def twitch_eventsub():
 async def subscribe_to_events(session_id):
     global CHANNEL_ID, CHANNEL_AUTH, CLIENT_ID
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-    # Default headers use the broadcaster's User Access Token (required for most subscriptions)
+    # Always use the broadcaster's User Access Token - EventSub WebSocket transport requires a User Access Token
     user_headers = {
         "Client-Id": CLIENT_ID,
         "Authorization": f"Bearer {CHANNEL_AUTH}",
         "Content-Type": "application/json"
     }
-    # Use the bot's own token for chat subscriptions so Twitch awards the Chat Bot badge
-    if SELF_MODE:
-        chat_headers = user_headers
-        bot_user_id = CHANNEL_ID
-        twitch_logger.info("Chat subscriptions will use broadcaster token (SELF_MODE)")
-    elif CUSTOM_MODE:
-        custom_creds = await get_current_custom_credentials()
-        website_creds = await get_website_twitch_app_credentials()
-        bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
-        bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
-        if custom_creds and custom_creds.get('bot_channel_id') and bot_app_token:
-            bot_user_id = custom_creds['bot_channel_id']
-            chat_headers = {
-                "Client-Id": bot_app_client_id,
-                "Authorization": f"Bearer {bot_app_token}",
-                "Content-Type": "application/json"
-            }
-            twitch_logger.info(f"Chat subscriptions will use App Access Token with custom bot user ID {bot_user_id} ({BOT_USERNAME})")
-        else:
-            # Fall back to broadcaster token if credentials aren't available yet
-            chat_headers = user_headers
-            bot_user_id = CHANNEL_ID
-            twitch_logger.warning(f"App credentials or custom bot ID not available for {BOT_USERNAME}; falling back to broadcaster token for chat subscriptions")
-    else:
-        # Standard mode - use the botofthespecter App Access Token (bot_chat_token table).
-        website_creds = await get_website_twitch_app_credentials()
-        bot_app_token = website_creds.get("access_token") or TWITCH_OAUTH_API_TOKEN
-        bot_app_client_id = website_creds.get("client_id") or TWITCH_OAUTH_API_CLIENT_ID
-        bot_user_id = "971436498"  # botofthespecter Twitch user ID
-        chat_headers = {
-            "Client-Id": bot_app_client_id,
-            "Authorization": f"Bearer {bot_app_token}",
-            "Content-Type": "application/json"
-        }
-        twitch_logger.info(f"Chat subscriptions will use App Access Token with bot user ID {bot_user_id}")
+    bot_user_id = CHANNEL_ID
+    twitch_logger.info("All EventSub subscriptions will use broadcaster User Access Token")
     # Channel-scoped (broadcaster) topics - use broadcaster User Access Token
     broadcaster_topics = [
         {"type": "stream.online", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
@@ -745,7 +712,7 @@ async def subscribe_to_events(session_id):
                 headers
             ))
         return result
-    all_payloads = build_payloads(broadcaster_topics, user_headers) + build_payloads(chat_topics, chat_headers)
+    all_payloads = build_payloads(broadcaster_topics, user_headers) + build_payloads(chat_topics, user_headers)
     # Subscribe concurrently
     async with httpClientSession() as session:
         twitch_logger.info("===== Subscribing to Twitch EventSub Events =====")
@@ -770,27 +737,6 @@ async def subscribe_to_events(session_id):
                     twitch_logger.error(f"Failed to subscribe to {payload['type']}: HTTP {result.status} - {error_text}")
                     failed_events += 1
                     events_failed_to_subscribe.append(payload['type'])
-                    # If a chat subscription fails with 403, the broadcaster has not yet granted channel:bot scope
-                    if result.status == 403 and payload['type'].startswith("channel.chat"):
-                        twitch_logger.warning(
-                            f"Chat subscription {payload['type']} denied - broadcaster may not have granted "
-                            f"channel:bot scope. Falling back to broadcaster user token for this subscription."
-                        )
-                        fallback_payload = dict(payload)
-                        fallback_payload["condition"] = {k: CHANNEL_ID for k in payload["condition"]}
-                        try:
-                            async with session.post(url, headers=user_headers, json=fallback_payload) as fb_resp:
-                                if fb_resp.status in (200, 202):
-                                    subscribed_events += 1
-                                    failed_events -= 1
-                                    events_subscribed_to.append(f"{payload['type']} (fallback)")
-                                    events_failed_to_subscribe.remove(payload['type'])
-                                    twitch_logger.info(f"Fallback subscription succeeded for {payload['type']}")
-                                else:
-                                    fb_text = await fb_resp.text()
-                                    twitch_logger.error(f"Fallback also failed for {payload['type']}: HTTP {fb_resp.status} - {fb_text}")
-                        except Exception as fb_e:
-                            twitch_logger.error(f"Fallback request error for {payload['type']}: {fb_e}")
         twitch_logger.info(f"Subscribed to {subscribed_events} Twitch EventSub events. Events: {', '.join(events_subscribed_to)}")
         if events_failed_to_subscribe:
             twitch_logger.error(f"Failed to subscribe to {failed_events} events: {', '.join(events_failed_to_subscribe)}")
