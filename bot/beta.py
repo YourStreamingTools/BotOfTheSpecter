@@ -1221,13 +1221,17 @@ async def process_twitch_eventsub_message(message):
                         # Track the recipient to prevent duplicate sub notification
                         if recipient_user_id:
                             gift_sub_recipients[recipient_user_id] = time.time()
-                        create_task(process_giftsub_event(
-                            event_data["chatter_user_name"],
-                            tier_name,
-                            1,  # Single gift
-                            event_data.get("chatter_is_anonymous", False),
-                            sub_gift_data.get("cumulative_total")
-                        ))
+                        # If part of a community gift batch, the community_sub_gift event already
+                        # handles the aggregate chat message — skip individual sub_gift alerts
+                        is_community_gift = bool(sub_gift_data.get("community_gift_id"))
+                        if not is_community_gift:
+                            create_task(process_giftsub_event(
+                                event_data["chatter_user_name"],
+                                tier_name,
+                                1,  # Single targeted gift
+                                event_data.get("chatter_is_anonymous", False),
+                                sub_gift_data.get("cumulative_total")
+                            ))
                     elif notice_type == "community_sub_gift":
                         community_gift_data = event_data.get("community_sub_gift", {})
                         tier = community_gift_data.get("sub_tier")
