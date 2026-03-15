@@ -107,6 +107,7 @@ bot/export_user_data.log
 /newdashboard
 /StreamersConnect
 config/streamersconnect.php
+/yourlinks.click
 # This will be added later to the commits, for now, we're ignoring it.
 /ghostbot
 
