@@ -541,46 +541,41 @@ document.addEventListener('DOMContentLoaded', function () {
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-            .then(function (response) {
-                if (!response.ok) {
-                    return response.json().catch(function () {
-                        throw new Error('HTTP ' + response.status);
-                    }).then(function (errorData) {
-                        if (errorData && errorData.error === 'Session expired') {
-                            throw new Error('SESSION_EXPIRED');
-                        }
-                        throw new Error('HTTP ' + response.status);
-                    });
-                }
+        .then(function (response) {
+            if (!response.ok) {
                 return response.json().catch(function () {
-                    throw new Error('INVALID_JSON');
+                    throw new Error('HTTP ' + response.status);
+                }).then(function (errorData) {
+                    if (errorData && errorData.error === 'Session expired') {
+                        throw new Error('SESSION_EXPIRED');
+                    }
+                    throw new Error('HTTP ' + response.status);
                 });
-            })
-            .then(function (data) {
-                if (data && typeof data === 'object') {
-                    renderRemoteFiles(data);
-                } else {
-                    throw new Error('INVALID_RESPONSE');
-                }
-            })
-            .catch(function (error) {
+            }
+            return response.json().catch(function () {
+                throw new Error('INVALID_JSON');
+            });
+        })
+        .then(function (data) {
+            if (data && typeof data === 'object') {
+                renderRemoteFiles(data);
+            } else {
+                throw new Error('INVALID_RESPONSE');
+            }
+        })
+        .catch(function (error) {
+            if (error && error.message === 'SESSION_EXPIRED') {
                 var notice = document.createElement('div');
                 notice.className = 'sp-alert sp-alert-warning';
-                if (error && error.message === 'SESSION_EXPIRED') {
-                    notice.innerHTML = 'Your session has expired. <a href="' + window.location.pathname + '" style="text-decoration:underline;">Click here to reload the page</a> and log in again.';
-                } else if (error && (error.message === 'INVALID_JSON' || error.message === 'INVALID_RESPONSE')) {
-                    notice.innerHTML = 'Received an unexpected response from the server. <a href="' + window.location.pathname + '" style="text-decoration:underline;">Reload the page</a> to try again.';
-                } else {
-                    notice.textContent = 'Unable to refresh recorder files right now. Check your connection and try again.';
-                }
+                notice.innerHTML = 'Your session has expired. <a href="' + window.location.pathname + '" style="text-decoration:underline;">Click here to reload the page</a> and log in again.';
                 container.innerHTML = '';
                 container.appendChild(notice);
-            })
-            .finally(function () {
-                isLoading = false;
-            });
+            }
+        })
+        .finally(function () {
+            isLoading = false;
+        });
     }
-
     container.addEventListener('click', function (event) {
         var target = event.target;
         if (!(target instanceof Element)) {
@@ -608,7 +603,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }, 12000);
     });
-
     window.setInterval(refreshRemoteFiles, 60000);
 });
 </script>
