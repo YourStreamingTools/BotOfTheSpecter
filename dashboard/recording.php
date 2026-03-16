@@ -92,6 +92,9 @@ function listRemoteDirectoryFiles($sftp, $directoryPath) {
         if ($fileName === '.' || $fileName === '..') {
             continue;
         }
+        if (substr($fileName, -10) === '.ytdlp.log') {
+            continue;
+        }
         $fullPath = rtrim($directoryPath, '/') . '/' . $fileName;
         $stat = @ssh2_sftp_stat($sftp, $fullPath);
         if (!$stat) {
