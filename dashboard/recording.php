@@ -334,20 +334,24 @@ ob_start();
             </ul>
             <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
             <form method="post" action="">
-                <div class="sp-form-group">
-                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                <div class="sp-form-group" style="display:flex;align-items:center;gap:1rem;">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin:0;">
                         <input type="checkbox" name="auto_record" <?= $autoRecordEnabled ? 'checked' : '' ?>>
                         Enable channel recording
                     </label>
-                </div>
-                <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
-                    <button type="submit" name="save_recording_settings" class="sp-btn sp-btn-primary">
+                    <button type="submit" name="save_recording_settings" class="sp-btn sp-btn-primary sp-btn-sm">
                         <span class="icon"><i class="fas fa-save"></i></span>
                         <span>Save</span>
                     </button>
                 </div>
             </form>
-            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Files on Recorder Server</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0 0.5rem;">
+                <h3 style="font-size:0.95rem;font-weight:700;margin:0;">Files on Recorder Server</h3>
+                <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
+                    <span class="icon"><i class="fas fa-sync-alt"></i></span>
+                    <span>Refresh</span>
+                </button>
+            </div>
             <div id="remote-files-container">
                 <?php if ($remoteFileError): ?>
                     <div class="sp-alert sp-alert-warning">
@@ -527,11 +531,24 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     var isLoading = false;
+    var refreshBtn = document.getElementById('refresh-remote-files-btn');
+    function setRefreshLoading(loading) {
+        if (!refreshBtn) { return; }
+        var icon = refreshBtn.querySelector('.icon i');
+        if (loading) {
+            refreshBtn.setAttribute('disabled', 'disabled');
+            if (icon) { icon.className = 'fas fa-sync-alt fa-spin'; }
+        } else {
+            refreshBtn.removeAttribute('disabled');
+            if (icon) { icon.className = 'fas fa-sync-alt'; }
+        }
+    }
     function refreshRemoteFiles() {
         if (isLoading) {
             return;
         }
         isLoading = true;
+        setRefreshLoading(true);
         var url = new URL(window.location.href);
         url.searchParams.set('ajax', '1');
         url.searchParams.set('_ts', String(Date.now()));
@@ -571,9 +588,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 container.innerHTML = '';
                 container.appendChild(notice);
             }
+            // All other errors: keep existing content visible, user can retry with the Refresh button
         })
         .finally(function () {
             isLoading = false;
+            setRefreshLoading(false);
+        });
+    }
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+            refreshRemoteFiles();
         });
     }
     container.addEventListener('click', function (event) {
