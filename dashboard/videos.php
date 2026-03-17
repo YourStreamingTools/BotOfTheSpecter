@@ -20,6 +20,7 @@ include 'storage_used.php';
 
 $accessToken = $_SESSION['access_token'] ?? '';
 $channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ($broadcasterID ?? '')));
+$editorUserId = ($isActAs && !empty($originalContext['twitchUserId'])) ? (string) $originalContext['twitchUserId'] : $channelUserId;
 $allowedTabs = ['videos', 'clips'];
 $requestedTab = isset($_GET['tab']) ? trim((string) $_GET['tab']) : '';
 $tab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'videos';
@@ -403,7 +404,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'clips') {
 			$clipIds[] = (string) $clip['id'];
 		}
 	}
-	$downloadLookup = fetchClipDownloadUrls($clipIds, $channelUserId, $channelUserId, $accessToken, $clientID);
+	$downloadLookup = fetchClipDownloadUrls($clipIds, $channelUserId, $editorUserId, $accessToken, $clientID);
 	if ($downloadLookup['error'] !== '' && $error === '') {
 		$error = $downloadLookup['error'];
 	}
@@ -476,7 +477,7 @@ if ($channelUserId === '') {
 					$clipIds[] = (string) $clip['id'];
 				}
 			}
-			$downloadLookup = fetchClipDownloadUrls($clipIds, $channelUserId, $channelUserId, $accessToken, $clientID);
+			$downloadLookup = fetchClipDownloadUrls($clipIds, $channelUserId, $editorUserId, $accessToken, $clientID);
 			$clipDownloadUrls = $downloadLookup['downloads'];
 			if ($downloadLookup['error'] !== '' && $flashError === '') {
 				$flashError = $downloadLookup['error'];
