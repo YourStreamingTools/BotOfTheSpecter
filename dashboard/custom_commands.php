@@ -201,21 +201,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $status = "Failed to add: The custom command name matches a built-in command.";
             $notification_status = "sp-alert-danger";
         } else {
-            // Insert new command into MySQL database
-            try {
-                $dbPermission = $permissionsMap[$permission];
-                $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, 'Enabled', ?, ?)");
-                $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $dbPermission);
-                $insertSTMT->execute();
-                $insertSTMT->close();
-                $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
-                $commandsSTMT->execute();
-                $result = $commandsSTMT->get_result();
-                $commands = $result->fetch_all(MYSQLI_ASSOC);
-                $commandsSTMT->close();
-            } catch (Exception $e) {
-                $status = t('custom_commands_error_generic');
+            // Check if command already exists
+            $checkSTMT = $db->prepare("SELECT command FROM custom_commands WHERE command = ?");
+            $checkSTMT->bind_param("s", $newCommand);
+            $checkSTMT->execute();
+            $checkSTMT->store_result();
+            $alreadyExists = $checkSTMT->num_rows > 0;
+            $checkSTMT->close();
+            if ($alreadyExists) {
+                $status = "Failed to add: The command '!" . $newCommand . "' already exists in the list.";
                 $notification_status = "sp-alert-danger";
+            } else {
+                // Insert new command into MySQL database
+                try {
+                    $dbPermission = $permissionsMap[$permission];
+                    $insertSTMT = $db->prepare("INSERT INTO custom_commands (command, response, status, cooldown, permission) VALUES (?, ?, 'Enabled', ?, ?)");
+                    $insertSTMT->bind_param("ssis", $newCommand, $newResponse, $cooldown, $dbPermission);
+                    $insertSTMT->execute();
+                    $insertSTMT->close();
+                    $commandsSTMT = $db->prepare("SELECT * FROM custom_commands");
+                    $commandsSTMT->execute();
+                    $result = $commandsSTMT->get_result();
+                    $commands = $result->fetch_all(MYSQLI_ASSOC);
+                    $commandsSTMT->close();
+                } catch (Exception $e) {
+                    $status = t('custom_commands_error_generic');
+                    $notification_status = "sp-alert-danger";
+                }
             }
         }
     }
