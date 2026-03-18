@@ -531,6 +531,15 @@ async def get_user_pronouns(username: str):
         api_logger.error(f"Failed to fetch pronouns for {username}: {e}")
     return None
 
+# Parse a pronoun string like "she/her" or "they/them" into a (subject, object) tuple
+def _split_pronouns(pronoun_str):
+    if pronoun_str:
+        parts = pronoun_str.split('/')
+        subject = parts[0] if len(parts) > 0 else 'they'
+        obj = parts[1] if len(parts) > 1 else 'them'
+        return subject, obj
+    return 'they', 'them'
+
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
     async with await mysql_connection(db_name="spam_pattern") as connection:
@@ -9676,7 +9685,7 @@ async def get_user_count(command, user):
 # Shared dynamic variable switches used across command/timed-message processing
 DYNAMIC_MESSAGE_SWITCHES = (
     '(customapi.', '(count)', '(daysuntil.',
-    '(command.', '(user)', '(author)', '(pronouns)',
+    '(command.', '(user)', '(author)', '(pronouns)', '(pronouns.they)', '(pronouns.them)',
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.'
@@ -9795,14 +9804,19 @@ async def process_dynamic_message_variables(
                     response = response.replace('(user)', user)
                 if '(author)' in response:
                     response = response.replace('(author)', user)
-                # Handle (pronouns)
-                if '(pronouns)' in response:
+                # Handle (pronouns), (pronouns.they), (pronouns.them)
+                if '(pronouns)' in response or '(pronouns.they)' in response or '(pronouns.them)' in response:
                     try:
                         pronouns = await get_user_pronouns(user)
+                        p_subject, p_object = _split_pronouns(pronouns)
                         response = response.replace('(pronouns)', pronouns if pronouns else 'they/them')
+                        response = response.replace('(pronouns.they)', p_subject)
+                        response = response.replace('(pronouns.them)', p_object)
                     except Exception as e:
                         chat_logger.error(f"Error processing (pronouns): {e}")
                         response = response.replace('(pronouns)', 'they/them')
+                        response = response.replace('(pronouns.they)', 'they')
+                        response = response.replace('(pronouns.them)', 'them')
                 # Handle (command.) - reference other commands
                 if '(command.' in response:
                     command_match = re.search(r'\(command\.(\w+)\)', response)
@@ -11298,6 +11312,18 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                 shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "raid")
             # Replace variables in the message
             alert_message = alert_message.replace("(user)", from_broadcaster_name).replace("(viewers)", str(viewer_count))
+            if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
+                try:
+                    pronouns = await get_user_pronouns(from_broadcaster_name)
+                    p_subject, p_object = _split_pronouns(pronouns)
+                    alert_message = alert_message.replace("(pronouns)", pronouns if pronouns else "they/them")
+                    alert_message = alert_message.replace("(pronouns.they)", p_subject)
+                    alert_message = alert_message.replace("(pronouns.them)", p_object)
+                except Exception as e:
+                    event_logger.error(f"Error processing (pronouns) in raid alert: {e}")
+                    alert_message = alert_message.replace("(pronouns)", "they/them")
+                    alert_message = alert_message.replace("(pronouns.they)", "they")
+                    alert_message = alert_message.replace("(pronouns.them)", "them")
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
@@ -11360,6 +11386,18 @@ async def process_cheer_event(user_id, user_name, bits):
                 alert_message = alert_message.replace("(shoutout)", "")
                 shoutout_message = await get_shoutout_message(user_id, user_name, "cheer")
             alert_message = alert_message.replace("(user)", user_name).replace("(bits)", str(bits)).replace("(total-bits)", str(total_bits))
+            if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
+                try:
+                    pronouns = await get_user_pronouns(user_name)
+                    p_subject, p_object = _split_pronouns(pronouns)
+                    alert_message = alert_message.replace("(pronouns)", pronouns if pronouns else "they/them")
+                    alert_message = alert_message.replace("(pronouns.they)", p_subject)
+                    alert_message = alert_message.replace("(pronouns.them)", p_object)
+                except Exception as e:
+                    event_logger.error(f"Error processing (pronouns) in cheer alert: {e}")
+                    alert_message = alert_message.replace("(pronouns)", "they/them")
+                    alert_message = alert_message.replace("(pronouns.they)", "they")
+                    alert_message = alert_message.replace("(pronouns.them)", "them")
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
@@ -11486,6 +11524,18 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                     alert_message = alert_message.replace("(shoutout)", "")
                     shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
                 alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
+                if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
+                    try:
+                        pronouns = await get_user_pronouns(user_name)
+                        p_subject, p_object = _split_pronouns(pronouns)
+                        alert_message = alert_message.replace("(pronouns)", pronouns if pronouns else "they/them")
+                        alert_message = alert_message.replace("(pronouns.they)", p_subject)
+                        alert_message = alert_message.replace("(pronouns.them)", p_object)
+                    except Exception as e:
+                        event_logger.error(f"Error processing (pronouns) in subscription alert: {e}")
+                        alert_message = alert_message.replace("(pronouns)", "they/them")
+                        alert_message = alert_message.replace("(pronouns.they)", "they")
+                        alert_message = alert_message.replace("(pronouns.them)", "them")
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -11593,6 +11643,18 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                     alert_message = alert_message.replace("(shoutout)", "")
                     shoutout_message = await get_shoutout_message(user_id, user_name, "subscription")
                 alert_message = alert_message.replace("(user)", user_name).replace("(tier)", sub_plan).replace("(months)", str(event_months))
+                if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
+                    try:
+                        pronouns = await get_user_pronouns(user_name)
+                        p_subject, p_object = _split_pronouns(pronouns)
+                        alert_message = alert_message.replace("(pronouns)", pronouns if pronouns else "they/them")
+                        alert_message = alert_message.replace("(pronouns.they)", p_subject)
+                        alert_message = alert_message.replace("(pronouns.them)", p_object)
+                    except Exception as e:
+                        event_logger.error(f"Error processing (pronouns) in subscription message alert: {e}")
+                        alert_message = alert_message.replace("(pronouns)", "they/them")
+                        alert_message = alert_message.replace("(pronouns.they)", "they")
+                        alert_message = alert_message.replace("(pronouns.them)", "them")
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -11649,6 +11711,23 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 else:
                     giftsubfrom = gifter_user_name
                 alert_message = alert_message.replace("(user)", giftsubfrom).replace("(count)", str(number_gifts)).replace("(tier)", givent_sub_plan).replace("(total-gifted)", str(total_gifted))
+                if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
+                    if not anonymous:
+                        try:
+                            pronouns = await get_user_pronouns(gifter_user_name)
+                            p_subject, p_object = _split_pronouns(pronouns)
+                            alert_message = alert_message.replace("(pronouns)", pronouns if pronouns else "they/them")
+                            alert_message = alert_message.replace("(pronouns.they)", p_subject)
+                            alert_message = alert_message.replace("(pronouns.them)", p_object)
+                        except Exception as e:
+                            event_logger.error(f"Error processing (pronouns) in gift sub alert: {e}")
+                            alert_message = alert_message.replace("(pronouns)", "they/them")
+                            alert_message = alert_message.replace("(pronouns.they)", "they")
+                            alert_message = alert_message.replace("(pronouns.them)", "them")
+                    else:
+                        alert_message = alert_message.replace("(pronouns)", "they/them")
+                        alert_message = alert_message.replace("(pronouns.they)", "they")
+                        alert_message = alert_message.replace("(pronouns.them)", "them")
                 await send_chat_message(alert_message)
                 marker_description = f"New Gift Subs from {giftsubfrom}"
                 if await make_stream_marker(marker_description):
@@ -11713,6 +11792,18 @@ async def process_followers_event(user_id, user_name):
                 alert_message = alert_message.replace("(shoutout)", "")
                 shoutout_message = await get_shoutout_message(user_id, user_name, "follow")
             alert_message = alert_message.replace("(user)", user_name)
+            if "(pronouns)" in alert_message or "(pronouns.they)" in alert_message or "(pronouns.them)" in alert_message:
+                try:
+                    pronouns = await get_user_pronouns(user_name)
+                    p_subject, p_object = _split_pronouns(pronouns)
+                    alert_message = alert_message.replace("(pronouns)", pronouns if pronouns else "they/them")
+                    alert_message = alert_message.replace("(pronouns.they)", p_subject)
+                    alert_message = alert_message.replace("(pronouns.them)", p_object)
+                except Exception as e:
+                    event_logger.error(f"Error processing (pronouns) in follow alert: {e}")
+                    alert_message = alert_message.replace("(pronouns)", "they/them")
+                    alert_message = alert_message.replace("(pronouns.they)", "they")
+                    alert_message = alert_message.replace("(pronouns.them)", "them")
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
@@ -12238,7 +12329,7 @@ async def process_channel_point_rewards(event_data, event_type):
                     # Apply all replacements in a loop until no more variables are found
                     max_iterations = 8
                     iteration = 0
-                    vars_to_replace = ['(user)', '(pronouns)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(message)', '(customapi.', '(json.']
+                    vars_to_replace = ['(user)', '(pronouns)', '(pronouns.they)', '(pronouns.them)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(message)', '(customapi.', '(json.']
                     while iteration < max_iterations:
                         iteration += 1
                         has_vars = any(var in custom_message for var in vars_to_replace if var not in ('(customapi.', '(json.'))
@@ -12251,14 +12342,19 @@ async def process_channel_point_rewards(event_data, event_type):
                         # Handle (user)
                         if '(user)' in custom_message:
                             replacements['(user)'] = user_name
-                        # Handle (pronouns)
-                        if '(pronouns)' in custom_message:
+                        # Handle (pronouns), (pronouns.they), (pronouns.them)
+                        if '(pronouns)' in custom_message or '(pronouns.they)' in custom_message or '(pronouns.them)' in custom_message:
                             try:
                                 pronouns = await get_user_pronouns(user_name)
+                                p_subject, p_object = _split_pronouns(pronouns)
                                 replacements['(pronouns)'] = pronouns if pronouns else 'they/them'
+                                replacements['(pronouns.they)'] = p_subject
+                                replacements['(pronouns.them)'] = p_object
                             except Exception as e:
                                 chat_logger.error(f"Error processing (pronouns) in channel point reward: {e}")
                                 replacements['(pronouns)'] = 'they/them'
+                                replacements['(pronouns.they)'] = 'they'
+                                replacements['(pronouns.them)'] = 'them'
                         # Handle (usercount)
                         if '(usercount)' in custom_message:
                             try:
