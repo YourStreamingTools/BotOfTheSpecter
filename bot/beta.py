@@ -3439,6 +3439,10 @@ class TwitchBot(commands.Bot):
                             user_id = messageAuthorID
                             user_to_shoutout = messageAuthor
                             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
+                        if has_dynamic_message_variables(message_to_send):
+                            message_to_send = await process_dynamic_message_variables(
+                                command="welcome_message", response=message_to_send, user=messageAuthor
+                            )
                         if message_to_send.strip():
                             await send_chat_message(message_to_send)
                         if send_shoutout and shoutout_message:
@@ -3555,6 +3559,10 @@ class TwitchBot(commands.Bot):
                         user_id = messageAuthorID
                         user_to_shoutout = messageAuthor
                         shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
+                    if has_dynamic_message_variables(message_to_send):
+                        message_to_send = await process_dynamic_message_variables(
+                            command="welcome_message", response=message_to_send, user=messageAuthor
+                        )
                     if message_to_send.strip():
                         await send_chat_message(message_to_send)
                     if send_shoutout and shoutout_message:
@@ -11386,6 +11394,10 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                     alert_message = alert_message.replace("(pronouns)", "they/them")
                     alert_message = alert_message.replace("(pronouns.they)", "they")
                     alert_message = alert_message.replace("(pronouns.them)", "them")
+            if has_dynamic_message_variables(alert_message):
+                alert_message = await process_dynamic_message_variables(
+                    command="raid_alert", response=alert_message, user=from_broadcaster_name
+                )
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
@@ -11460,6 +11472,10 @@ async def process_cheer_event(user_id, user_name, bits):
                     alert_message = alert_message.replace("(pronouns)", "they/them")
                     alert_message = alert_message.replace("(pronouns.they)", "they")
                     alert_message = alert_message.replace("(pronouns.them)", "them")
+            if has_dynamic_message_variables(alert_message):
+                alert_message = await process_dynamic_message_variables(
+                    command="cheer_alert", response=alert_message, user=user_name
+                )
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
@@ -11598,6 +11614,10 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                         alert_message = alert_message.replace("(pronouns)", "they/them")
                         alert_message = alert_message.replace("(pronouns.they)", "they")
                         alert_message = alert_message.replace("(pronouns.them)", "them")
+                if has_dynamic_message_variables(alert_message):
+                    alert_message = await process_dynamic_message_variables(
+                        command="subscription_alert", response=alert_message, user=user_name
+                    )
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -11717,6 +11737,10 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                         alert_message = alert_message.replace("(pronouns)", "they/them")
                         alert_message = alert_message.replace("(pronouns.they)", "they")
                         alert_message = alert_message.replace("(pronouns.them)", "them")
+                if has_dynamic_message_variables(alert_message):
+                    alert_message = await process_dynamic_message_variables(
+                        command="subscription_alert", response=alert_message, user=user_name
+                    )
             try:
                 create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("Sent WebSocket notice")
@@ -11790,6 +11814,10 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                         alert_message = alert_message.replace("(pronouns)", "they/them")
                         alert_message = alert_message.replace("(pronouns.they)", "they")
                         alert_message = alert_message.replace("(pronouns.them)", "them")
+                if has_dynamic_message_variables(alert_message):
+                    alert_message = await process_dynamic_message_variables(
+                        command="gift_subscription_alert", response=alert_message, user=giftsubfrom
+                    )
                 await send_chat_message(alert_message)
                 marker_description = f"New Gift Subs from {giftsubfrom}"
                 if await make_stream_marker(marker_description):
@@ -11866,6 +11894,10 @@ async def process_followers_event(user_id, user_name):
                     alert_message = alert_message.replace("(pronouns)", "they/them")
                     alert_message = alert_message.replace("(pronouns.they)", "they")
                     alert_message = alert_message.replace("(pronouns.them)", "them")
+            if has_dynamic_message_variables(alert_message):
+                alert_message = await process_dynamic_message_variables(
+                    command="follower_alert", response=alert_message, user=user_name
+                )
             if alert_message.strip():
                 await send_chat_message(alert_message)
             if send_shoutout and shoutout_message:
