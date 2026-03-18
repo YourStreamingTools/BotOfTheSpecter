@@ -9685,10 +9685,10 @@ async def get_user_count(command, user):
 # Shared dynamic variable switches used across command/timed-message processing
 DYNAMIC_MESSAGE_SWITCHES = (
     '(customapi.', '(count)', '(daysuntil.',
-    '(command.', '(user)', '(author)', '(pronouns)', '(pronouns.they)', '(pronouns.them)',
+    '(command.', '(user)', '(author)', '(arg)', '(pronouns)', '(pronouns.they)', '(pronouns.them)',
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
-    '(usercount)', '(timeuntil.', '(game)', '(json.'
+    '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.'
 )
 
 def has_dynamic_message_variables(text):
@@ -9804,6 +9804,9 @@ async def process_dynamic_message_variables(
                     response = response.replace('(user)', user)
                 if '(author)' in response:
                     response = response.replace('(author)', user)
+                # Handle (arg) - the argument passed to the command
+                if '(arg)' in response:
+                    response = response.replace('(arg)', arg if arg is not None else '')
                 # Handle (pronouns), (pronouns.they), (pronouns.them)
                 if '(pronouns)' in response or '(pronouns.they)' in response or '(pronouns.them)' in response:
                     try:
@@ -9952,6 +9955,65 @@ async def process_dynamic_message_variables(
                         else:
                             replacement = format_json_placeholder_value(resolve_json_path(json_context, json_path))
                         response = response.replace(full_placeholder, replacement)
+                # Handle (if.condition|true_text|false_text)
+                # All other variables are already resolved at this point.
+                # Supported operators: =  !=  <  >  <=  >=  contains  startswith  endswith
+                # Example: (if.(json.username) = (user)|You're authorised|You're not authorised)
+                if '(if.' in response:
+                    for if_match in list(re.finditer(r'\(if\.(.+?)\|(.*?)\|(.*?)\)', response)):
+                        full_placeholder = if_match.group(0)
+                        condition_str = if_match.group(1).strip()
+                        true_val = if_match.group(2)
+                        false_val = if_match.group(3)
+                        cond_match = re.match(
+                            r'^(.*?)\s*(!=|<=|>=|contains|startswith|endswith|=|<|>)\s*(.*?)$',
+                            condition_str,
+                            re.IGNORECASE,
+                        )
+                        if not cond_match:
+                            chat_logger.warning(f"(if.) could not parse condition: {condition_str!r}")
+                            response = response.replace(full_placeholder, false_val, 1)
+                            continue
+                        left = cond_match.group(1).strip()
+                        op = cond_match.group(2).strip().lower()
+                        right = cond_match.group(3).strip()
+                        try:
+                            if op == '=':
+                                result = left == right
+                            elif op == '!=':
+                                result = left != right
+                            elif op in ('<', '>', '<=', '>='):
+                                try:
+                                    lv, rv = float(left), float(right)
+                                    if op == '<':
+                                        result = lv < rv
+                                    elif op == '>':
+                                        result = lv > rv
+                                    elif op == '<=':
+                                        result = lv <= rv
+                                    else:
+                                        result = lv >= rv
+                                except ValueError:
+                                    if op == '<':
+                                        result = left < right
+                                    elif op == '>':
+                                        result = left > right
+                                    elif op == '<=':
+                                        result = left <= right
+                                    else:
+                                        result = left >= right
+                            elif op == 'contains':
+                                result = right.lower() in left.lower()
+                            elif op == 'startswith':
+                                result = left.lower().startswith(right.lower())
+                            elif op == 'endswith':
+                                result = left.lower().endswith(right.lower())
+                            else:
+                                result = False
+                        except Exception as e:
+                            chat_logger.error(f"(if.) evaluation error for condition {condition_str!r}: {e}")
+                            result = False
+                        response = response.replace(full_placeholder, true_val if result else false_val, 1)
             # Send the main response to chat if requested
             if send_to_chat:
                 await send_long_chat_message(response)
