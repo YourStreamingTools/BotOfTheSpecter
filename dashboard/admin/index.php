@@ -1181,6 +1181,8 @@ if (isset($_GET['ajax'])) {
         exit;
     } elseif ($ajax === 'ai_platform_stats') {
         $return_ai_stats_json = true;
+        // Give extra time for OpenAI API pagination calls
+        set_time_limit(120);
     }
 }
 
@@ -1282,7 +1284,7 @@ if ($conn) {
     }
     // Count premium users (actual Twitch subscribers who are NOT beta users)
     $premium_count = 0;
-    if (isset($_SESSION['access_token'])) {
+    if (!$return_ai_stats_json && isset($_SESSION['access_token'])) {
         $result = $conn->query("SELECT twitch_user_id FROM users WHERE twitch_user_id IS NOT NULL AND twitch_user_id != '' AND beta_access = 0");
         if ($result) {
             while ($row = $result->fetch_assoc()) {
