@@ -27,9 +27,7 @@ $downloadUrl = "https://cdn.botofthespecter.com/app-builds/OBSConnector/BotOfThe
 
 // StreamDeck Plugin version and download information
 $streamdeckVersion = "1.0.0.1";
-$streamdeckPrevVersion = "1.0.0.0";
 $streamdeckDownloadUrl = "https://cdn.botofthespecter.com/app-builds/StreamDeck/BotOfTheSpecter-$streamdeckVersion.streamDeckPlugin";
-$streamdeckPrevDownloadUrl = "https://cdn.botofthespecter.com/app-builds/StreamDeck/BotOfTheSpecter-$streamdeckPrevVersion.streamDeckPlugin";
 
 ob_start();
 ?>
@@ -180,10 +178,6 @@ ob_start();
                     <a href="<?php echo $streamdeckDownloadUrl; ?>" class="sp-btn sp-btn-success">
                         <i class="fas fa-download"></i>
                         <span><?php echo sprintf(t('streamdeck_download_button'), $streamdeckVersion); ?></span>
-                    </a>
-                    <a href="<?php echo $streamdeckPrevDownloadUrl; ?>" class="sp-btn sp-btn-secondary">
-                        <i class="fas fa-history"></i>
-                        <span><?php echo sprintf(t('streamdeck_download_previous_button'), $streamdeckPrevVersion); ?></span>
                     </a>
                 </div>
             </div>
