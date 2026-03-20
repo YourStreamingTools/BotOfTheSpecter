@@ -180,7 +180,10 @@ ob_start();
                     </div>
                 </div>
                 <!-- Trigger Custom Commands -->
-                <div class="sp-card" style="margin-bottom:0;">
+                <div class="sp-card" style="margin-bottom:0;position:relative;">
+                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
+                        <span class="sp-badge sp-badge-blue">Bot v5.8 Beta</span>
+                    </div>
                     <div class="sp-card-body">
                         <div style="font-size:2rem;color:var(--blue);margin-bottom:0.75rem;"><i class="fas fa-terminal"></i></div>
                         <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_customcommands_title'); ?></p>
