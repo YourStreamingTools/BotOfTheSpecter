@@ -195,6 +195,15 @@ return [
     'obsconnector_download_button' => 'Download Controller App v%s (Windows)',
     'obsconnector_view_on_github' => 'View on GitHub',
     'obsconnector_coming_soon_badge' => 'Coming Soon',
+    // StreamDeck Plugin Page
+    'streamdeck_title' => 'Stream Deck Plugin',
+    'streamdeck_version_tag' => 'v%s',
+    'streamdeck_banner_title' => 'Control Your Stream from Your Stream Deck',
+    'streamdeck_banner_p1' => 'The BotOfTheSpecter Stream Deck Plugin brings your bot commands and stream controls directly to your Stream Deck. Trigger bot actions, manage your stream, and interact with your audience all from the touch of a button.',
+    'streamdeck_download_title' => 'Download Stream Deck Plugin',
+    'streamdeck_download_note' => 'Download the latest version of the Stream Deck Plugin and install it directly into the Elgato Stream Deck software.',
+    'streamdeck_download_button' => 'Download Plugin v%s',
+    'streamdeck_download_previous_button' => 'Previous Version v%s',
     // Bot Control Page
     'bot_management_title' => 'Bot Management',
     'bot_channel_status' => 'Twitch Status',
