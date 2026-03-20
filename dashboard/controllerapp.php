@@ -164,6 +164,64 @@ ob_start();
                 <?php echo t('streamdeck_banner_p1'); ?>
             </p>
         </div>
+        <!-- Features section -->
+        <div style="margin:2rem 0;">
+            <p style="font-size:0.9rem;font-weight:600;color:var(--text-primary);margin-bottom:1rem;">
+                <i class="fas fa-star" style="margin-right:0.4rem;color:var(--accent-hover);"></i>
+                <?php echo t('streamdeck_keyfeatures_title'); ?>
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;">
+                <!-- Trigger Sound Alerts -->
+                <div class="sp-card" style="margin-bottom:0;">
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--amber);margin-bottom:0.75rem;"><i class="fas fa-volume-up"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_soundalerts_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_soundalerts_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Trigger Custom Commands -->
+                <div class="sp-card" style="margin-bottom:0;">
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--blue);margin-bottom:0.75rem;"><i class="fas fa-terminal"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_customcommands_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_customcommands_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Trigger Video Alerts (coming soon) -->
+                <div class="sp-card" style="margin-bottom:0;opacity:0.7;position:relative;">
+                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
+                        <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
+                    </div>
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--red);margin-bottom:0.75rem;"><i class="fas fa-film"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_videoalerts_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_videoalerts_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- Trigger Walkons Manually (coming soon) -->
+                <div class="sp-card" style="margin-bottom:0;opacity:0.7;position:relative;">
+                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
+                        <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
+                    </div>
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:#00d1b2;margin-bottom:0.75rem;"><i class="fas fa-walking"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_walkons_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_walkons_desc'); ?></p>
+                    </div>
+                </div>
+                <!-- ConnectorApp Integration (coming soon) -->
+                <div class="sp-card" style="margin-bottom:0;opacity:0.7;position:relative;">
+                    <div style="position:absolute;top:0.75rem;right:0.75rem;">
+                        <span class="sp-badge sp-badge-amber"><?php echo t('obsconnector_coming_soon_badge'); ?></span>
+                    </div>
+                    <div class="sp-card-body">
+                        <div style="font-size:2rem;color:var(--green);margin-bottom:0.75rem;"><i class="fas fa-plug"></i></div>
+                        <p style="font-weight:600;color:var(--text-primary);margin-bottom:0.4rem;"><?php echo t('streamdeck_feature_connectorapp_title'); ?></p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);"><?php echo t('streamdeck_feature_connectorapp_desc'); ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- Download section -->
         <div class="sp-card" style="margin-bottom:0;max-width:800px;margin-left:auto;margin-right:auto;">
             <div class="sp-card-body" style="text-align:center;">
