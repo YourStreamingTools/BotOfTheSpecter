@@ -40,7 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash[] = ['type' => 'danger', 'msg' => 'Security token mismatch. Please try again.'];
     } else {
         $postAction = $_POST['_action'] ?? '';
-
         // ---- Save section (new or update) ----
         if ($postAction === 'save_section') {
             $key   = trim(preg_replace('/[^a-z0-9_-]/', '', strtolower($_POST['section_key'] ?? '')));
@@ -48,24 +47,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $icon  = trim($_POST['section_icon']  ?? 'fa-solid fa-file');
             $order = (int)($_POST['section_order'] ?? 0);
             $editId = (int)($_POST['edit_id'] ?? 0);
-
             if (strlen($key) < 1)   $flash[] = ['type'=>'danger','msg'=>'Section key is required.'];
             if (strlen($label) < 1) $flash[] = ['type'=>'danger','msg'=>'Section label is required.'];
-
             if (empty($flash)) {
                 if ($editId > 0) {
                     // Get the old key first so we can update doc rows too
                     $old = $db->query("SELECT section_key FROM support_doc_sections WHERE id = {$editId}");
                     $oldRow = $old ? $old->fetch_assoc() : null;
                     $oldKey = $oldRow['section_key'] ?? '';
-
                     $stmt = $db->prepare(
                         'UPDATE support_doc_sections SET section_key=?, section_label=?, section_icon=?, section_order=? WHERE id=?'
                     );
                     $stmt->bind_param('sssii', $key, $label, $icon, $order, $editId);
                     $stmt->execute();
                     $stmt->close();
-
                     // Cascade key rename to docs
                     if ($oldKey && $oldKey !== $key) {
                         $esc = $db->real_escape_string($oldKey);
@@ -89,7 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         }
-
         // ---- Delete section ----
         if ($postAction === 'delete_section') {
             $delId = (int)($_POST['section_id'] ?? 0);
@@ -106,7 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: /docs.php');
             exit;
         }
-
         // ---- Save doc block (new or update) ----
         if ($postAction === 'save_doc') {
             $secKey   = trim($_POST['section_key'] ?? '');
@@ -116,10 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $visible  = isset($_POST['is_visible']) ? 1 : 0;
             $editDocId = (int)($_POST['edit_id']   ?? 0);
             $author   = $_SESSION['display_name'] ?? $_SESSION['username'] ?? 'staff';
-
             if (empty($secKey))  $flash[] = ['type'=>'danger','msg'=>'A section is required.'];
             if (empty($content)) $flash[] = ['type'=>'danger','msg'=>'Content cannot be empty.'];
-
             if (empty($flash)) {
                 if ($editDocId > 0) {
                     $stmt = $db->prepare(
@@ -146,7 +137,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-
         // ---- Delete doc block ----
         if ($postAction === 'delete_doc') {
             $delId = (int)($_POST['id'] ?? 0);
@@ -162,7 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             exit;
         }
-
         // ---- Toggle visibility ----
         if ($postAction === 'toggle_vis') {
             $togId = (int)($_POST['id'] ?? 0);
@@ -279,7 +268,6 @@ if ($action === 'edit' || $action === 'new'):
     $heading = $isNew ? 'New Doc Block' : 'Edit Doc Block';
     if (!$isNew && $editDoc && !empty($editDoc['title'])) $heading = 'Edit: ' . $editDoc['title'];
 ?>
-
 <div class="sp-page-header">
     <div>
         <a href="/docs.php" class="sp-back-link"><i class="fa-solid fa-arrow-left"></i> All Sections</a>
@@ -310,7 +298,6 @@ if ($action === 'edit' || $action === 'new'):
     </div>
     <?php endif; ?>
 </div>
-
 <form method="POST" action="/docs.php" id="sp-doc-form">
     <input type="hidden" name="_action"    value="save_doc">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
@@ -373,7 +360,6 @@ if ($action === 'edit' || $action === 'new'):
             </label>
         </div>
     </div>
-
     <!-- HTML editor + live preview -->
     <div class="sp-editor-wrap">
         <div class="sp-editor-col">
@@ -409,7 +395,6 @@ if ($action === 'edit' || $action === 'new'):
         </div>
     </div>
 </form>
-
 <?php if (!$isNew && $editDoc): ?>
 <form method="POST" action="/docs.php" style="margin-top:0.75rem;">
     <input type="hidden" name="_action"    value="toggle_vis">
@@ -421,9 +406,8 @@ if ($action === 'edit' || $action === 'new'):
         <?php echo $editDoc['is_visible'] ? 'Hide from public' : 'Make visible'; ?>
     </button>
 </form>
-<?php endif; ?>
-
 <?php
+endif; 
 
 // ================================================================
 // VIEW: NEW / EDIT SECTION
@@ -433,7 +417,6 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
     $s = $editSection ?? ['id'=>0,'section_key'=>'','section_label'=>'','section_icon'=>'fa-solid fa-file','section_order'=>$nextSecOrder];
     $heading = $isNewSec ? 'New Section' : 'Edit Section: ' . ($editSection['section_label'] ?? '');
 ?>
-
 <div class="sp-page-header">
     <div>
         <a href="/docs.php" class="sp-back-link"><i class="fa-solid fa-arrow-left"></i> All Sections</a>
@@ -451,14 +434,12 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
     </form>
     <?php endif; ?>
 </div>
-
 <div class="sp-card" style="max-width:640px;">
     <div class="sp-card-body">
         <form method="POST" action="/docs.php">
             <input type="hidden" name="_action"    value="save_section">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
             <input type="hidden" name="edit_id"    value="<?php echo (int)$s['id']; ?>">
-
             <div class="sp-form-group">
                 <label class="sp-label" for="section_key">
                     Section Key <span class="sp-req">*</span>
@@ -475,7 +456,6 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
                 <span class="sp-field-hint">Used as the tab ID. Use only lowercase letters, numbers, hyphens, underscores.</span>
                 <?php endif; ?>
             </div>
-
             <div class="sp-form-group">
                 <label class="sp-label" for="section_label">Display Name <span class="sp-req">*</span></label>
                 <input type="text" id="section_label" name="section_label" class="sp-input"
@@ -483,7 +463,6 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
                        placeholder="e.g. First Time Setup"
                        value="<?php echo htmlspecialchars($s['section_label']); ?>">
             </div>
-
             <div class="sp-form-group">
                 <label class="sp-label" for="section_icon">Font Awesome Icon Class</label>
                 <input type="text" id="section_icon" name="section_icon" class="sp-input"
@@ -494,7 +473,6 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
                     Preview: <i id="sp-icon-preview" class="<?php echo htmlspecialchars($s['section_icon']); ?>" style="color:var(--accent);"></i>
                 </span>
             </div>
-
             <div class="sp-form-group">
                 <label class="sp-label" for="section_order">Sort Order</label>
                 <input type="number" id="section_order" name="section_order" class="sp-input"
@@ -514,7 +492,6 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
             }());
             </script>
             <?php endif; ?>
-
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1rem;">
                 <button type="submit" class="sp-btn sp-btn-primary">
                     <i class="fa-solid fa-floppy-disk"></i> <?php echo $isNewSec ? 'Create Section' : 'Save Changes'; ?>
@@ -524,7 +501,6 @@ elseif ($action === 'new_section' || $action === 'edit_section'):
         </form>
     </div>
 </div>
-
 <?php
 
 // ================================================================
@@ -537,7 +513,6 @@ else:
     $docsBySec = [];
     foreach ($allDocsList as $doc) { $docsBySec[$doc['section_key']][] = $doc; }
 ?>
-
 <div class="sp-page-header">
     <div>
         <h1><i class="fa-solid fa-pen-to-square"></i> Documentation Manager</h1>
@@ -559,7 +534,6 @@ else:
         </a>
     </div>
 </div>
-
 <?php if (empty($sections)): ?>
 <div class="sp-empty-state" style="padding:4rem 1rem;">
     <div class="sp-empty-icon"><i class="fa-solid fa-folder-open"></i></div>
@@ -570,9 +544,7 @@ else:
     </a>
 </div>
 <?php else: ?>
-
 <div class="sp-cms-sections">
-
 <?php foreach ($sections as $sec):
     $secKey  = $sec['section_key'];
     $secDocs = $docsBySec[$secKey] ?? [];
@@ -610,7 +582,6 @@ else:
             </button>
         </div>
     </div>
-
     <div class="sp-cms-section-body">
     <?php if (empty($secDocs)): ?>
     <div class="sp-cms-empty-section">
@@ -695,13 +666,10 @@ else:
     </table>
     <?php endif; ?>
     </div><!-- /.sp-cms-section-body -->
-
 </div><!-- /.sp-cms-section-card -->
 <?php endforeach; ?>
-
 </div><!-- /.sp-cms-sections -->
 <?php endif; // sections list ?>
-
 <?php
 endif; // end action router
 
@@ -711,7 +679,6 @@ $content = ob_get_clean();
 $extraScripts = <<<'JS'
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-
     /* ---- Icon preview (section form) ---- */
     var iconInput   = document.getElementById('section_icon');
     var iconPreview = document.getElementById('sp-icon-preview');
@@ -733,7 +700,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     }
-
     /* ---- Live preview ---- */
     var textarea = document.getElementById('doc_content');
     var preview  = document.getElementById('sp-preview');
@@ -746,7 +712,6 @@ document.addEventListener('DOMContentLoaded', function () {
         textarea.addEventListener('input', updatePreview);
         updatePreview();
     }
-
     /* ---- Snippet inserts ---- */
     function insertSnippet(text) {
         if (!textarea) return;
@@ -759,7 +724,6 @@ document.addEventListener('DOMContentLoaded', function () {
         textarea.focus();
         textarea.dispatchEvent(new Event('input'));
     }
-
     var snippets = {
         'sp-insert-h2':    '<h2>Heading</h2>\n',
         'sp-insert-h3':    '<h3>Sub-heading</h3>\n',
@@ -771,12 +735,10 @@ document.addEventListener('DOMContentLoaded', function () {
         'sp-insert-alert': '<div class="sp-alert sp-alert-info">\n    <i class="fa-solid fa-circle-info"></i>\n    <span>Your message here.</span>\n</div>\n',
         'sp-insert-step':  '<div class="sp-step">\n    <div class="sp-step-num">1</div>\n    <div class="sp-step-body">\n        <h4>Step Title</h4>\n        <p>Step description.</p>\n    </div>\n</div>\n',
     };
-
     Object.keys(snippets).forEach(function (id) {
         var btn = document.getElementById(id);
         if (btn) btn.addEventListener('click', function () { insertSnippet(snippets[id]); });
     });
-
     /* ---- Collapsible section cards ---- */
     var STORAGE_KEY = 'sp_cms_collapsed';
     function getCollapsed() {
@@ -804,7 +766,6 @@ document.addEventListener('DOMContentLoaded', function () {
             setCollapsed(collapsed);
         });
     });
-
 });
 </script>
 JS;
