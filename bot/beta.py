@@ -13473,11 +13473,10 @@ async def return_the_action_back(ctx, author, action):
 
 # Function to remove the temp user from the shoutout_user dict
 async def remove_shoutout_user(username: str, delay: int):
-    global shoutout_user
     await sleep(delay)
-    if shoutout_user:
+    if username in shoutout_user:
         chat_logger.info(f"Removed temporary shoutout data for {username}")
-        shoutout_user = None
+        del shoutout_user[username]
 
 # Helper function to format duration
 def format_duration(duration_seconds):
