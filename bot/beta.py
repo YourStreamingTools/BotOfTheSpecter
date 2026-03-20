@@ -3459,9 +3459,9 @@ class TwitchBot(commands.Bot):
                     # First message is a command - do not mark as seen yet.
                     chat_logger.info(f"{messageAuthor} sent a command as their first message; deferring 'seen' until a non-command message is received.")
                 elif not stream_online:
-                    chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: stream_online is False")
+                    return
                 elif already_seen_today:
-                    chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: already_seen_today")
+                    return
         except asyncioCancelledError:
             raise
         except Exception as e:
