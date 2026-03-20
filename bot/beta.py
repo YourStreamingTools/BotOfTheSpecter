@@ -226,6 +226,7 @@ active_timer_routines = {}                                                      
 gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
 _tanggle_no_creds_logged = False                                                        # Tracks whether the "no credentials" message has been logged for Tanggle
+_stream_bingo_no_creds_logged = False                                                   # Tracks whether the "no credentials" message has been logged for Stream Bingo
 
 # Initialize global variables
 specterSocket = AsyncClient()                                                           # Specter Socket Client instance
@@ -2495,7 +2496,7 @@ async def join_channel(hyperate_websocket, heartrate_code):
 
 # Stream Bingo WebSocket integration
 async def stream_bingo_websocket():
-    global CHANNEL_ID
+    global CHANNEL_ID, _stream_bingo_no_creds_logged
     integrations_logger.info("===== Stream Bingo =====")
     while True:
         try:
@@ -2511,8 +2512,13 @@ async def stream_bingo_websocket():
             except Exception as sb_db_err:
                 integrations_logger.error(f"Stream Bingo: DB error retrieving API key: {sb_db_err}")
             if not stream_bingo_api_key:
+                if not _stream_bingo_no_creds_logged:
+                    integrations_logger.info("No Stream Bingo credentials found, skipping connection")
+                    _stream_bingo_no_creds_logged = True
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
+            # Credentials found — reset the flag so a reconnection is logged if creds are later removed
+            _stream_bingo_no_creds_logged = False
             # Construct WebSocket URL
             websocket_url = f"wss://api.stream-bingo.com/games/{CHANNEL_ID}/{stream_bingo_api_key}/notifications"
             integrations_logger.info("Attempting to connect to Stream Bingo WebSocket")
