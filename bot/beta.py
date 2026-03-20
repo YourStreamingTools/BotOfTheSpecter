@@ -225,6 +225,7 @@ message_tasks = {}                                                              
 active_timer_routines = {}                                                              # Dictionary to track active user timer routines by user_id
 gift_sub_recipients = {}                                                                # Tracks users who received gift subs to prevent duplicate notifications
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
+_tanggle_no_creds_logged = False                                                        # Tracks whether the "no credentials" message has been logged for Tanggle
 
 # Initialize global variables
 specterSocket = AsyncClient()                                                           # Specter Socket Client instance
@@ -2542,7 +2543,7 @@ async def stream_bingo_websocket():
             await sleep(10)  # Wait before retrying
 
 async def connect_to_tanggle():
-    global CHANNEL_NAME
+    global CHANNEL_NAME, _tanggle_no_creds_logged
     integrations_logger.info("===== Tanggle =====")
     while True:
         try:
@@ -2560,9 +2561,13 @@ async def connect_to_tanggle():
             except Exception as tg_db_err:
                 integrations_logger.error(f"Tanggle: DB error retrieving credentials: {tg_db_err}")
             if not tanggle_api_token or not tanggle_community_uuid:
-                integrations_logger.info("No Tanggle credentials found, skipping connection")
+                if not _tanggle_no_creds_logged:
+                    integrations_logger.info("No Tanggle credentials found, skipping connection")
+                    _tanggle_no_creds_logged = True
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
+            # Credentials found — reset the flag so a reconnection is logged if creds are later removed
+            _tanggle_no_creds_logged = False
             # Construct WebSocket URL with events parameter
             websocket_url = f"wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms"
             headers = {"Authorization": f"Bearer {tanggle_api_token}"}
