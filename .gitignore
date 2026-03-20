@@ -103,6 +103,7 @@ bot/export_user_data.log
 /cdn/css
 /bot/ai
 /cdn/memoriam
+/cdn/app-builds/StreamDeck
 # Other GitHub repositories within the main repository folder structure to be ignored
 /newdashboard
 /StreamersConnect
