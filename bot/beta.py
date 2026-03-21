@@ -15,6 +15,8 @@ from logging import INFO as LoggingLevel
 from pathlib import Path
 
 # Third-party imports
+import pytz as set_timezone
+import yt_dlp
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
 from websockets import ConnectionClosedError as WebSocketConnectionClosedError
@@ -31,13 +33,11 @@ from deep_translator import GoogleTranslator as translator
 from twitchio.ext.commands import Context
 from twitchio.ext import commands, routines
 from streamlink import Streamlink
-import pytz as set_timezone
 from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 from pint import UnitRegistry as ureg
 from paramiko import SSHClient, AutoAddPolicy
-import yt_dlp
 from openai import AsyncOpenAI
 
 # Load environment variables from .env file
