@@ -448,6 +448,7 @@ ob_start();
 <?php endif; ?>
 <!-- Search / Filter -->
 <div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="sp-card-body">
     <form method="GET" action="">
         <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
             <div style="flex:2;min-width:200px;">
@@ -471,9 +472,11 @@ ob_start();
             <?php endif; ?>
         </div>
     </form>
+    </div>
 </div>
 <!-- Add New Item -->
 <div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="sp-card-body">
     <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;"><i class="fa-solid fa-plus" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Add New Roadmap Item</h2>
     <form method="POST" action="" id="addItemForm" enctype="multipart/form-data">
         <input type="hidden" name="action" value="add">
@@ -535,6 +538,7 @@ ob_start();
             </div>
         </div>
     </form>
+    </div>
 </div>
 <?php
 function renderAdminCard($item): string {
@@ -584,6 +588,7 @@ function renderAdminCard($item): string {
 if (!empty($searchQuery) || !empty($selectedCategory)): ?>
 <!-- Filtered Results -->
 <div class="sp-card">
+    <div class="sp-card-body">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
         <h2 style="font-size:1rem;font-weight:600;">
             <i class="fa-solid fa-filter" style="color:var(--accent-hover);margin-right:0.4rem;"></i>
@@ -603,6 +608,7 @@ if (!empty($searchQuery) || !empty($selectedCategory)): ?>
             <?php foreach ($allItems as $item): echo renderAdminCard($item); endforeach; ?>
         </div>
     <?php endif; ?>
+    </div>
 </div>
 <?php else: ?>
 <!-- Kanban Board -->
