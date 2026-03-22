@@ -71,7 +71,7 @@ async def _get_ai_response(
     try:
         Path(bot_home_ai_history_dir).mkdir(parents=True, exist_ok=True)
     except Exception as e:
-        api_logger.debug(f"Could not create bot-home history directory {bot_home_ai_history_dir}: {e}")
+        api_logger.debug(f"[AI] Could not create bot-home history directory {bot_home_ai_history_dir}: {e}")
     messages = await get_remote_instruction_messages(home_ai=True)
     try:
         user_context = (
@@ -87,7 +87,7 @@ async def _get_ai_response(
             )
         })
     except Exception as e:
-        api_logger.error(f"Failed to build bot-home user context for AI: {e}")
+        api_logger.error(f"[AI] Failed to build bot-home user context for AI: {e}")
     history_key = str(user_id or message_author_name or 'unknown').strip().lower()
     history_key = re.sub(r'[^a-z0-9_\-]', '_', history_key)
     history_file = Path(bot_home_ai_history_dir) / f"{history_key}.json"
@@ -98,16 +98,16 @@ async def _get_ai_response(
                 with history_file.open('r', encoding='utf-8') as hf:
                     history = json.load(hf)
             except Exception as e:
-                api_logger.debug(f"Failed to read bot-home history for {history_key}: {e}")
+                api_logger.debug(f"[AI] Failed to read bot-home history for {history_key}: {e}")
         if isinstance(history, list) and history:
             for item in history[-12:]:
                 if isinstance(item, dict) and 'role' in item and 'content' in item:
                     messages.append({'role': item['role'], 'content': item['content']})
     except Exception as e:
-        api_logger.debug(f"Error loading bot-home history for {history_key}: {e}")
+        api_logger.debug(f"[AI] Error loading bot-home history for {history_key}: {e}")
     messages.append({'role': 'user', 'content': user_message})
     try:
-        api_logger.debug("Calling OpenAI chat completion from botofthespecter module")
+        api_logger.debug("[AI] Calling OpenAI chat completion from botofthespecter module")
         chat_client = getattr(openai_client, 'chat', None)
         ai_text = None
         resp = None
@@ -132,13 +132,13 @@ async def _get_ai_response(
                 if choices and len(choices) > 0:
                     ai_text = getattr(choices[0].message, 'content', None)
         else:
-            api_logger.error("No compatible chat completions method found on openai_client")
+            api_logger.error("[AI] No compatible chat completions method found on openai_client")
             return "AI chat completions API is not available."
     except Exception as e:
-        api_logger.error(f"Error calling chat completion API for bot-home mode: {e}")
+        api_logger.error(f"[AI] Error calling chat completion API for bot-home mode: {e}")
         return "An error occurred while contacting the AI chat service."
     if not ai_text:
-        api_logger.error(f"Bot-home chat completion returned no usable text: {resp}")
+        api_logger.error(f"[AI] Bot-home chat completion returned no usable text: {resp}")
         return "The AI chat service returned an unexpected response."
     try:
         history = []
@@ -147,7 +147,7 @@ async def _get_ai_response(
                 with history_file.open('r', encoding='utf-8') as hf:
                     history = json.load(hf)
             except Exception as e:
-                api_logger.debug(f"Failed to read existing bot-home history for append {history_key}: {e}")
+                api_logger.debug(f"[AI] Failed to read existing bot-home history for append {history_key}: {e}")
         history.append({'role': 'user', 'content': user_message})
         history.append({'role': 'assistant', 'content': ai_text})
         if len(history) > 200:
@@ -155,5 +155,5 @@ async def _get_ai_response(
         with history_file.open('w', encoding='utf-8') as hf:
             json.dump(history, hf, ensure_ascii=False, indent=2)
     except Exception as e:
-        api_logger.debug(f"Error while persisting bot-home chat history for {history_key}: {e}")
+        api_logger.debug(f"[AI] Error while persisting bot-home chat history for {history_key}: {e}")
     return ai_text
