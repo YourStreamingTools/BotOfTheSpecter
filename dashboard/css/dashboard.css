@@ -281,12 +281,15 @@ ul { list-style: none; margin: 0; padding: 0; }
     flex-direction: column;
     min-width: 0;
     min-height: 100vh;
+    padding-top: var(--topbar-height);
 }
 
 /* Topbar */
 .sp-topbar {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: var(--sidebar-width);
+    right: 0;
     z-index: 200;
     height: var(--topbar-height);
     background: var(--bg-surface);
@@ -294,8 +297,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0 1.5rem;
-    flex-shrink: 0;
+    padding-right: 1.5rem;
+    padding-left: 0.5rem;
 }
 
 .sp-hamburger {
@@ -334,7 +337,8 @@ ul { list-style: none; margin: 0; padding: 0; }
     justify-content: center;
     gap: 0.5rem;
     overflow: hidden;
-    padding: 0 0.75rem;
+    padding-right: 1.5rem;
+    padding-left: 0.5rem;
 }
 
 .sp-topbar-tag {
@@ -1597,7 +1601,8 @@ input[type="checkbox"].switch:disabled + label {
         flex-wrap: wrap;
         height: auto;
         min-height: var(--topbar-height);
-        padding: 0.4rem 1rem;
+        padding-right: 1.5rem;
+        padding-left: 0.5rem;
         row-gap: 0.35rem;
     }
     .sp-topbar-center {
@@ -1973,23 +1978,21 @@ input[type="checkbox"].switch:disabled + label {
     .sp-sidebar {
         transform: translateX(-100%);
     }
-
     .sp-sidebar.open {
         transform: translateX(0);
     }
-
     .sp-main {
         margin-left: 0;
     }
-
+    .sp-topbar {
+        left: 0;
+    }
     .sp-hamburger {
         display: inline-flex;
     }
-
     .sp-content {
         padding: 1.25rem 1rem;
     }
-
     .sp-footer {
         padding: 1rem;
     }
