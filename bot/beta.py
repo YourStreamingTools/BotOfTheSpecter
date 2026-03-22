@@ -12799,13 +12799,25 @@ async def add_task(ctx, params, user_id, connection):
             try:
                 task_and_category = params[0].strip().split('"')
                 task_description = task_and_category[1].strip()
-                category_id = int(task_and_category[2].strip()) if len(task_and_category) > 2 and task_and_category[2].strip() else 1
-                await cursor.execute("INSERT INTO todos (objective, category) VALUES (%s, %s)", (task_description, category_id))
+                rest = task_and_category[2].strip() if len(task_and_category) > 2 else ''
+                rest_parts = rest.split()
+                private = 0
+                category_id = 1
+                for part in rest_parts:
+                    if part.lower() == 'private':
+                        private = 1
+                    else:
+                        try:
+                            category_id = int(part)
+                        except ValueError:
+                            pass
+                await cursor.execute("INSERT INTO todos (objective, category, private) VALUES (%s, %s, %s)", (task_description, category_id, private))
                 task_id = cursor.lastrowid
                 await connection.commit()
                 category_name = await fetch_category_name(cursor, category_id)
-                await send_chat_message(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or ("Unknown" if category_name is None else category_name)}".')
-                chat_logger.info(f"[TODO] {user.name} added a task: '{task_description}' in category: '{category_name or 'Unknown'}' with ID {task_id}.")
+                private_note = ' [Private]' if private else ''
+                await send_chat_message(f'{user.name}, your task "{task_description}" ID {task_id} has been added to category "{category_name or "Unknown"}"{private_note}.')
+                chat_logger.info(f"[TODO] {user.name} added a task: '{task_description}' in category: '{category_name or 'Unknown'}' with ID {task_id} (private={private}).")
             except (ValueError, IndexError):
                 await send_chat_message(f"{user.name}, please provide a valid task description and optional category ID.")
                 chat_logger.error(f"[TODO] {user.name} provided invalid task description or category ID for adding a task.")
@@ -12902,14 +12914,16 @@ async def view_task(ctx, params, user_id, connection):
         if params:
             try:
                 todo_id = int(params[0].strip())
-                await cursor.execute("SELECT objective, category, completed FROM todos WHERE id = %s", (todo_id,))
+                await cursor.execute("SELECT objective, category, completed, private FROM todos WHERE id = %s", (todo_id,))
                 result = await cursor.fetchone()
                 if result:
                     objective = result.get("objective")
                     category_id = result.get("category")
                     completed = result.get("completed")
+                    private = result.get("private", 0)
                     category_name = await fetch_category_name(cursor, category_id)
-                    await send_chat_message(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}")
+                    private_note = ' [Private - not shown on overlay]' if private else ''
+                    await send_chat_message(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}{private_note}")
                     chat_logger.info(f"[TODO] {user.name} viewed task ID {todo_id}.")
                 else:
                     await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
