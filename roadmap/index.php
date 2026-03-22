@@ -74,7 +74,7 @@ ob_start();
                     <label class="sp-label">Search</label>
                     <div class="sp-input-group">
                         <input class="sp-input" type="text" name="search" placeholder="Search roadmap items by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
-                        <button type="submit" class="sp-btn sp-btn-info" style="white-space:nowrap;border-radius:0 var(--radius) var(--radius) 0;flex-shrink:0;">
+                        <button type="submit" class="sp-btn sp-btn-info" style="white-space:nowrap;">
                             <i class="fa-solid fa-magnifying-glass"></i> Search
                         </button>
                     </div>

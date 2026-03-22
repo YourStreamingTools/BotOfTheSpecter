@@ -577,10 +577,21 @@ hr {
 
 .sp-input-group {
     display: flex;
-    gap: 0.5rem;
+    gap: 0;
+    align-items: stretch;
 }
 
-.sp-input-group .sp-input { flex: 1; }
+.sp-input-group .sp-input {
+    flex: 1;
+    min-width: 0;
+    border-radius: var(--radius) 0 0 var(--radius);
+    border-right: none;
+}
+
+.sp-input-group .sp-btn {
+    border-radius: 0 var(--radius) var(--radius) 0;
+    flex-shrink: 0;
+}
 
 
 /* ----------------------------------------------------------
