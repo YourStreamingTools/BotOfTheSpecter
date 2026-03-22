@@ -48,7 +48,7 @@ foreach ($allItems as $item) $itemsByCategory[$item['category']][] = $item;
 ob_start();
 ?>
 <!-- Page header -->
-<div class="sp-page-header">
+<div class="sp-page-header-row">
     <div>
         <h1 class="sp-page-title">BotOfTheSpecter Roadmap</h1>
         <p class="sp-page-subtitle">View our development progress and upcoming features</p>
@@ -74,7 +74,7 @@ ob_start();
                     <label class="sp-label">Search</label>
                     <div class="sp-input-group">
                         <input class="sp-input" type="text" name="search" placeholder="Search roadmap items by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
-                        <button type="submit" class="sp-btn sp-btn-info" style="white-space:nowrap;">
+                        <button type="submit" class="sp-btn sp-btn-primary">
                             <i class="fa-solid fa-magnifying-glass"></i> Search
                         </button>
                     </div>
