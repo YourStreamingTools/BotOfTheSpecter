@@ -641,20 +641,23 @@ hr {
    6. Alerts / Notifications
    ---------------------------------------------------------- */
 .sp-alert {
-    display: block;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
     padding: 0.9rem 1.1rem;
     border-radius: var(--radius);
     border: 1px solid var(--border);
     font-size: 0.875rem;
     margin-bottom: 1rem;
+    line-height: 1.5;
 }
 
-.sp-alert i { margin-right: 0.45rem; }
+.sp-alert i { flex-shrink: 0; margin-top: 0.1rem; }
 
-.sp-alert-info    { background: var(--blue-bg);  border-color: var(--blue);  color: var(--text-primary); }
-.sp-alert-success { background: var(--green-bg); border-color: var(--green); color: var(--text-primary); }
-.sp-alert-warning { background: var(--amber-bg); border-color: var(--amber); color: var(--text-primary); }
-.sp-alert-danger  { background: var(--red-bg);   border-color: var(--red);   color: var(--text-primary); }
+.sp-alert-info    { background: rgba(74, 163, 240, 0.18);  border-color: var(--blue);  color: var(--text-primary); }
+.sp-alert-success { background: rgba(62, 207, 142, 0.18);  border-color: var(--green); color: var(--text-primary); }
+.sp-alert-warning { background: rgba(240, 165, 0, 0.18);   border-color: var(--amber); color: var(--text-primary); }
+.sp-alert-danger  { background: rgba(240, 80, 80, 0.18);   border-color: var(--red);   color: var(--text-primary); }
 
 .sp-alert-info i    { color: var(--blue); }
 .sp-alert-success i { color: var(--green); }
@@ -664,7 +667,15 @@ hr {
 /* ----------------------------------------------------------
    7. Page header
    ---------------------------------------------------------- */
-.sp-page-header { margin-bottom: 1.75rem; margin-top: 1rem; }
+.sp-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.75rem;
+    margin-top: 1rem;
+}
 .sp-page-header h1 { font-size: 1.5rem; font-weight: 700; }
 .sp-page-header p { color: var(--text-secondary); margin-top: 0.3rem; font-size: 0.9rem; }
 
@@ -1245,9 +1256,14 @@ hr {
     border: 2px dashed var(--border);
     border-radius: var(--radius);
     padding: 1.5rem;
-    text-align: center;
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
     transition: border-color var(--transition), background var(--transition);
+    min-height: 120px;
 }
 
 .rm-upload-zone:hover,
@@ -1259,15 +1275,12 @@ hr {
 .rm-upload-zone i {
     font-size: 1.75rem;
     color: var(--text-muted);
-    margin-bottom: 0.5rem;
-    display: block;
+    margin-bottom: 0.25rem;
 }
 
 .rm-upload-label {
     font-size: 0.85rem;
     color: var(--text-secondary);
-    display: block;
-    margin-bottom: 0.25rem;
 }
 
 .rm-upload-hint {
@@ -1278,7 +1291,7 @@ hr {
 .rm-upload-filename {
     font-size: 0.8rem;
     color: var(--accent-hover);
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
 }
 
 /* Progress bar */
