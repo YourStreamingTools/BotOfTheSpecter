@@ -763,14 +763,14 @@ hr {
 .rm-board::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 .rm-column {
-    flex: 0 0 220px;
-    min-width: 220px;
+    flex: 1 1 220px;
+    min-width: 200px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 140px);
+    height: 920px;
 }
 
 .rm-column-head {
@@ -1548,7 +1548,7 @@ hr {
         flex: none;
         width: 100%;
         min-width: 0;
-        max-height: none;
+        height: auto;
     }
     .rm-timeline-line { display: none; }
     .rm-timeline-item.rm-tl-left,
