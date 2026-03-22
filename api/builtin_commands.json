@@ -55,6 +55,9 @@
 		"todo": {
 			"description": "This command will handle the to-do list for stream tasks."
 		},
+		"todolist": {
+			"description": "This command will display the top 5 public tasks from the to-do list."
+		},
 		"kill": {
 			"description": "This command will simulate a fun 'kill' action for interactions."
 		},

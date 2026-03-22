@@ -17,6 +17,7 @@
 		"convert": "This command will convert currencies or units as requested.",
 		"subathon": "This command will manage subathon events and countdown timers.",
 		"todo": "This command will handle the to-do list for stream tasks.",
+		"todolist": "This command will display the top 5 public tasks from the to-do list.",
 		"kill": "This command will simulate a fun 'kill' action for interactions.",
 		"points": "This command will show the current points balance of a user.",
 		"slots": "This command will run a slot machine game for chat fun.",
