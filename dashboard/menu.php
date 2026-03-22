@@ -74,16 +74,12 @@ function getMenuItems($role = 'default') {
     // todolist menu
     $todolist = [
         [ 'label' => 'View Tasks', 'icon' => 'fas fa-list-check', 'href' => 'index.php' ],
-        [ 'label' => 'Tasks', 'icon' => 'fas fa-tasks', 'submenu' => [
-            [ 'label' => 'Add Task', 'icon' => 'fas fa-plus', 'href' => 'insert.php' ],
-            [ 'label' => 'Remove Task', 'icon' => 'fas fa-trash', 'href' => 'remove.php' ],
-            [ 'label' => 'Update Task', 'icon' => 'fas fa-edit', 'href' => 'update_objective.php' ],
-            [ 'label' => 'Completed Tasks', 'icon' => 'fas fa-check-double', 'href' => 'completed.php' ],
-        ]],
-        [ 'label' => 'Categories', 'icon' => 'fas fa-folder', 'submenu' => [
-            [ 'label' => 'View Categories', 'icon' => 'fas fa-folder', 'href' => 'categories.php' ],
-            [ 'label' => 'Add Category', 'icon' => 'fas fa-plus-square', 'href' => 'add_category.php' ],
-        ]],
+        [ 'label' => 'Add Task', 'icon' => 'fas fa-plus', 'href' => 'insert.php' ],
+        [ 'label' => 'Remove Task', 'icon' => 'fas fa-trash', 'href' => 'remove.php' ],
+        [ 'label' => 'Update Task', 'icon' => 'fas fa-edit', 'href' => 'update_objective.php' ],
+        [ 'label' => 'Completed Tasks', 'icon' => 'fas fa-check-double', 'href' => 'completed.php' ],
+        [ 'label' => 'View Categories', 'icon' => 'fas fa-folder', 'href' => 'categories.php' ],
+        [ 'label' => 'Add Category', 'icon' => 'fas fa-plus-square', 'href' => 'add_category.php' ],
         [ 'label' => 'OBS Options', 'icon' => 'fas fa-cog', 'href' => 'obs_options.php' ],
     ];
     switch ($role) {
