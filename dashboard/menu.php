@@ -74,27 +74,35 @@ function getMenuItems($role = 'default') {
     // admin menu (admin panel)
     $admin = [
         [ 'label' => 'Dashboard', 'icon' => 'fas fa-tachometer-alt', 'href' => 'index.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'User Management', 'icon' => 'fas fa-users-cog', 'href' => 'users.php' ],
         [ 'label' => 'Start User Bots', 'icon' => 'fas fa-play-circle', 'href' => 'start_bots.php' ],
         [ 'label' => 'EventSub Connections', 'icon' => 'fas fa-bell', 'href' => 'event_sub.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'Log Management', 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],
         [ 'label' => 'Feedback', 'icon' => 'fas fa-comments', 'href' => 'feedback.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'Twitch Tokens', 'icon' => 'fab fa-twitch', 'href' => 'twitch_tokens.php' ],
         [ 'label' => 'Discord Bot Overview', 'icon' => 'fab fa-discord', 'href' => 'discordbot_overview.php' ],
         [ 'label' => 'Websocket Clients', 'icon' => 'fas fa-plug', 'href' => 'websocket_clients.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'API Keys', 'icon' => 'fas fa-key', 'href' => 'api_keys.php' ],
         [ 'label' => 'Spam Patterns', 'icon' => 'fas fa-ban', 'href' => 'spam_patterns.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'Web Terminal', 'icon' => 'fas fa-terminal', 'href' => 'terminal.php' ],
     ];
     // todolist menu
     $todolist = [
         [ 'label' => 'View Tasks', 'icon' => 'fas fa-list-check', 'href' => 'index.php' ],
-        [ 'label' => 'Add Task', 'icon' => 'fas fa-plus', 'href' => 'insert.php' ],
-        [ 'label' => 'Remove Task', 'icon' => 'fas fa-trash', 'href' => 'remove.php' ],
-        [ 'label' => 'Update Task', 'icon' => 'fas fa-edit', 'href' => 'update_objective.php' ],
         [ 'label' => 'Completed Tasks', 'icon' => 'fas fa-check-double', 'href' => 'completed.php' ],
+        [ 'divider' => true ],
+        [ 'label' => 'Add Task', 'icon' => 'fas fa-plus', 'href' => 'insert.php' ],
+        [ 'label' => 'Update Task', 'icon' => 'fas fa-edit', 'href' => 'update_objective.php' ],
+        [ 'label' => 'Remove Task', 'icon' => 'fas fa-trash', 'href' => 'remove.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'View Categories', 'icon' => 'fas fa-folder', 'href' => 'categories.php' ],
         [ 'label' => 'Add Category', 'icon' => 'fas fa-plus-square', 'href' => 'add_category.php' ],
+        [ 'divider' => true ],
         [ 'label' => 'OBS Options', 'icon' => 'fas fa-cog', 'href' => 'obs_options.php' ],
     ];
     switch ($role) {
