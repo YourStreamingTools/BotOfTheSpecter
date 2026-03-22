@@ -50,9 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $row_id = $row['id'];
     $new_objective = $_POST['objective'][$row_id];
     $new_category = $_POST['category'][$row_id];
-    if ($new_objective != $row['objective'] || $new_category != $row['category']) {
-      $updateStmt = $db->prepare("UPDATE todos SET objective = ?, category = ? WHERE id = ?");
-      $updateStmt->bind_param('sii', $new_objective, $new_category, $row_id);
+    $new_private = isset($_POST['private'][$row_id]) ? 1 : 0;
+    if ($new_objective != $row['objective'] || $new_category != $row['category'] || $new_private != $row['private']) {
+      $updateStmt = $db->prepare("UPDATE todos SET objective = ?, category = ?, private = ? WHERE id = ?");
+      $updateStmt->bind_param('siii', $new_objective, $new_category, $new_private, $row_id);
       $updateStmt->execute();
     }
   }
@@ -88,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                   <label class="sp-label" for="objective_<?php echo $row['id']; ?>">Update Objective</label>
                   <input type="text" name="objective[<?php echo $row['id']; ?>]" id="objective_<?php echo $row['id']; ?>" class="sp-input" value="<?php echo htmlspecialchars($row['objective']); ?>">
                 </div>
-                <div class="sp-form-group" style="margin-bottom:0;">
+                <div class="sp-form-group">
                   <label class="sp-label" for="category_<?php echo $row['id']; ?>">Update Category</label>
                   <select name="category[<?php echo $row['id']; ?>]" id="category_<?php echo $row['id']; ?>" class="sp-select">
                     <?php foreach ($categories as $cat): ?>
@@ -97,6 +98,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                       </option>
                     <?php endforeach; ?>
                   </select>
+                </div>
+                <div class="sp-form-group" style="margin-bottom:0;">
+                  <label class="sp-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="checkbox" name="private[<?php echo $row['id']; ?>]" value="1" <?php if (!empty($row['private']) && $row['private'] == 1) echo 'checked'; ?>>
+                    <i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i> Private (hide from OBS overlay)
+                  </label>
                 </div>
               </div>
             </div>

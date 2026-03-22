@@ -80,7 +80,7 @@ if (!$error_html) {
     $category_row = $result->fetch_assoc();
     if ($category_row) {
         $category = $category_row['category'];
-        $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? ORDER BY id ASC");
+        $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? AND (private = 0 OR private IS NULL) ORDER BY id ASC");
         $stmt->bind_param("i", $category_id);
         $stmt->execute();
         $tasks_result = $stmt->get_result();
