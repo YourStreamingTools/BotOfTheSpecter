@@ -133,7 +133,7 @@ SSH_HOSTS = {
 }
 builtin_commands = {
     "commands", "bot", "roadmap", "quote", "rps", "story", "roulette", "songrequest", "songqueue", "watchtime", "stoptimer",
-    "checktimer", "version", "convert", "subathon", "todo", "kill", "points", "slots", "timer", "game", "joke", "ping",
+    "checktimer", "version", "convert", "subathon", "todo", "todolist", "kill", "points", "slots", "timer", "game", "joke", "ping",
     "weather", "time", "song", "translate", "cheerleader", "steam", "schedule", "mybits", "lurk", "unlurk", "lurking",
     "lurklead", "userslurking", "clip", "subscription", "hug", "highfive", "kiss", "uptime", "typo", "typos", "followage",
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles"
@@ -8492,6 +8492,37 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='todolist')
+    async def todolist_command(self, ctx: commands.Context):
+        global bot_owner
+        connection = None
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("todolist",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not await check_cooldown('todolist', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+            await todolist_command_handler(ctx, connection)
+            add_usage('todolist', bucket_key, cooldown_bucket)
+        except Exception as e:
+            bot_logger.error(f"[TODOLIST] An error occurred in todolist_command: {e}")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name="subathon")
     async def subathon_command(self, ctx, action: str = None, minutes: int = None):
         global bot_owner
@@ -12934,6 +12965,27 @@ async def view_task(ctx, params, user_id, connection):
         else:
             await send_chat_message(f"{user.name}, please provide the task ID to view.")
             chat_logger.error(f"[TODO] {user.name} did not provide task ID for viewing.")
+
+# ToDo List Function - Todolist (view top 5 public tasks)
+async def todolist_command_handler(ctx, connection):
+    user = ctx.author
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute(
+            "SELECT t.id, t.objective, t.completed, c.category AS category_name "
+            "FROM todos t LEFT JOIN categories c ON t.category = c.id "
+            "WHERE (t.private = 0 OR t.private IS NULL) ORDER BY t.id ASC LIMIT 5"
+        )
+        tasks = await cursor.fetchall()
+        if not tasks:
+            await send_chat_message(f"{user.name}, there are no tasks on the to-do list right now.")
+            chat_logger.info(f"[TODOLIST] {user.name} viewed the to-do list (empty).")
+            return
+        parts = []
+        for task in tasks:
+            status = '✓' if task.get('completed') == 'Yes' else '○'
+            parts.append(f"{status} #{task['id']}: {task['objective']}")
+        await send_chat_message(f"To-Do List: {' | '.join(parts)}")
+        chat_logger.info(f"[TODOLIST] {user.name} viewed the to-do list.")
 
 # Function to get Category Names for the ToDo List
 async def fetch_category_name(cursor, category_id):
