@@ -7,54 +7,69 @@ function getMenuItems($role = 'default') {
     $default = [
         [ 'label' => t('navbar_home'), 'icon' => 'fas fa-home', 'href' => 'dashboard.php' ],
         [ 'label' => t('navbar_bot_control'), 'icon' => 'fas fa-robot', 'href' => 'bot.php' ],
+        [ 'divider' => true ],
         [ 'label' => t('navbar_commands'), 'icon' => 'fas fa-terminal', 'submenu' => [
             [ 'label' => t('navbar_view_custom_commands'), 'icon' => 'fas fa-terminal', 'href' => 'custom_commands.php' ],
             [ 'label' => t('navbar_manage_user_commands'), 'icon' => 'fas fa-user-cog', 'href' => 'manage_custom_user_commands.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_view_builtin_commands'), 'icon' => 'fas fa-terminal', 'href' => 'builtin.php' ],
         ]],
         [ 'label' => 'Settings', 'icon' => 'fas fa-cogs', 'submenu' => [
             [ 'label' => t('navbar_timed_messages'), 'icon' => 'fas fa-clock', 'href' => 'timed_messages.php' ],
             [ 'label' => t('navbar_points_system'), 'icon' => 'fas fa-coins', 'href' => 'bot_points.php' ],
             [ 'label' => t('navbar_subathon'), 'icon' => 'fas fa-hourglass-half', 'href' => 'subathon.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_welcome_messages'), 'icon' => 'fas fa-users', 'href' => 'known_users.php' ],
             [ 'label' => t('navbar_channel_rewards'), 'icon' => 'fas fa-gift', 'href' => 'channel_rewards.php' ],
         ]],
+        [ 'divider' => true ],
         [ 'label' => t('navbar_analytics'), 'icon' => 'fas fa-chart-line', 'submenu' => [
             [ 'label' => t('navbar_bot_logs'), 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],
             [ 'label' => 'EventSub Notifications', 'icon' => 'fas fa-bell', 'href' => 'notifications.php' ],
             [ 'label' => t('navbar_counters'), 'icon' => 'fas fa-calculator', 'href' => 'counters.php' ],
+            [ 'divider' => true ],
             [ 'label' => 'Schedule', 'icon' => 'fas fa-calendar-days', 'href' => 'schedule.php' ],
             [ 'label' => 'Videos', 'icon' => 'fas fa-photo-video', 'href' => 'videos.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_followers'), 'icon' => 'fas fa-user-plus', 'href' => 'followers.php' ],
             [ 'label' => t('navbar_subscribers'), 'icon' => 'fas fa-star', 'href' => 'subscribers.php' ],
             [ 'label' => t('navbar_moderators'), 'icon' => 'fas fa-user-shield', 'href' => 'mods.php' ],
             [ 'label' => t('navbar_vips'), 'icon' => 'fas fa-crown', 'href' => 'vips.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_raids'), 'icon' => 'fas fa-bullhorn', 'href' => 'raids.php' ],
             [ 'label' => 'Stream Watch Streaks', 'icon' => 'fas fa-fire', 'href' => 'stream_streak.php' ],
         ]],
+        [ 'divider' => true ],
         [ 'label' => t('navbar_stream_tools'), 'icon' => 'fas fa-video', 'submenu' => [
             [ 'label' => t('navbar_recording'), 'icon' => 'fas fa-video', 'href' => 'recording.php' ],
             [ 'label' => 'Streaming', 'icon' => 'fas fa-tower-broadcast', 'href' => 'streaming.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_overlays'), 'icon' => 'fas fa-layer-group', 'href' => 'overlays.php' ],
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
             [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
             [ 'label' => t('navbar_walkon_alerts'), 'icon' => 'fas fa-door-open', 'href' => 'walkons.php' ],
         ]],
+        [ 'label' => t('navbar_vod_music'), 'icon' => 'fas fa-music', 'href' => 'music.php' ],
+        [ 'divider' => true ],
         [ 'label' => t('navbar_integrations'), 'icon' => 'fas fa-plug', 'submenu' => [
             [ 'label' => t('navbar_specter_modules'), 'icon' => 'fa fa-puzzle-piece', 'href' => 'modules.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_discord_bot'), 'icon' => 'fab fa-discord', 'icon_img' => 'https://cdn.brandfetch.io/idM8Hlme1a/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668075051777', 'href' => 'discordbot.php' ],
             [ 'label' => t('navbar_spotify'), 'icon' => 'fab fa-spotify', 'icon_img' => 'https://cdn.brandfetch.io/id20mQyGeY/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1737597212873', 'href' => 'spotifylink.php' ],
             [ 'label' => t('navbar_streamelements'), 'icon' => 'fas fa-globe', 'icon_img' => 'https://cdn.brandfetch.io/idj4DI2QBL/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B', 'href' => 'streamelements.php' ],
             [ 'label' => t('navbar_streamlabs'), 'icon' => 'fas fa-gift', 'icon_img' => 'https://cdn.brandfetch.io/idIDKnQFO2/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1767309079648', 'href' => 'streamlabs.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_obsconnector'), 'icon' => 'fas fa-plug', 'href' => 'controllerapp.php' ],
             [ 'label' => t('navbar_stream_bingo'), 'icon' => 'fas fa-trophy', 'href' => 'bingo.php' ],
             [ 'label' => 'Tanggle', 'icon' => 'fas fa-puzzle-piece', 'href' => 'tanggle.php' ],
+            [ 'divider' => true ],
             [ 'label' => t('navbar_platform_integrations'), 'icon' => 'fas fa-globe', 'href' => 'integrations.php' ],
         ]],
-        [ 'label' => t('navbar_premium'), 'icon' => 'fas fa-crown', 'href' => 'premium.php' ],
-        [ 'label' => t('navbar_vod_music'), 'icon' => 'fas fa-music', 'href' => 'music.php' ],
+        [ 'divider' => true ],
         [ 'label' => t('navbar_raffles'), 'icon' => 'fas fa-ticket-alt', 'href' => 'raffles.php' ],
         [ 'label' => t('navbar_todo_list'), 'icon' => 'fas fa-list-check', 'href' => 'todolist/index.php' ],
+        [ 'divider' => true ],
+        [ 'label' => t('navbar_premium'), 'icon' => 'fas fa-crown', 'href' => 'premium.php' ],
     ];
     // admin menu (admin panel)
     $admin = [
@@ -97,6 +112,11 @@ function renderMenu($mode = 'desktop', $role = 'default') {
     $isMobile = ($mode === 'mobile');
     echo "<ul class=\"sidebar-menu\">\n";
     foreach ($items as $item) {
+        // Top-level divider
+        if (isset($item['divider']) && $item['divider']) {
+            echo "    <li class=\"sidebar-menu-divider\"></li>\n";
+            continue;
+        }
         $hasSub = isset($item['submenu']) && is_array($item['submenu']);
         $liClass = 'sidebar-menu-item' . ($hasSub ? ' has-submenu' : '');
         echo "    <li class=\"{$liClass}\">\n";
@@ -111,6 +131,11 @@ function renderMenu($mode = 'desktop', $role = 'default') {
             }
             echo "        <ul class=\"sidebar-submenu\">\n";
             foreach ($item['submenu'] as $sub) {
+                // Submenu divider
+                if (isset($sub['divider']) && $sub['divider']) {
+                    echo "            <li class=\"sidebar-submenu-divider\"></li>\n";
+                    continue;
+                }
                 $subIcon = isset($sub['icon']) ? $sub['icon'] : 'fas fa-circle';
                 $subIconImg = isset($sub['icon_img']) ? $sub['icon_img'] : '';
                 echo "            <li>\n";
