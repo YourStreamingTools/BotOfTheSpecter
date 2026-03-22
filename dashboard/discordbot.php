@@ -3572,7 +3572,7 @@ ob_start();
       </div>
       <button class="db-modal-close" aria-label="close" onclick="document.getElementById('savedStreamersModal').classList.add('hidden')">&times;</button>
     </div>
-    <div class="db-modal-body" style="padding:0;">
+    <div class="db-modal-body" style="padding:0;overflow-y:auto;max-height:calc(90vh - 80px);">
       <div class="sp-table-wrap">
         <table class="sp-table">
           <thead>
