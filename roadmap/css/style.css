@@ -603,8 +603,8 @@ hr {
 
 .sp-input-group .sp-btn {
     border-radius: 0;
-    border: none;
-    border-left: 1px solid var(--border);
+    border: none !important;
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
     flex-shrink: 0;
 }
 
