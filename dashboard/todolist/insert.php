@@ -38,14 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   // Get form data
   $objective = isset($_POST['objective']) ? trim($_POST['objective']) : '';
   $category = isset($_POST['category']) ? intval($_POST['category']) : 1;
+  $private = isset($_POST['private']) ? 1 : 0;
   // Basic validation
   if (empty($objective)) {
     $message = "Please enter a task.";
     $messageType = "is-danger"; 
   } else {
     // Prepare and execute query
-    $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed) VALUES (?, ?, NOW(), NOW(), 'No')");
-    $stmt->bind_param("si", $objective, $category);
+    $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed, private) VALUES (?, ?, NOW(), NOW(), 'No', ?)");
+    $stmt->bind_param("sii", $objective, $category, $private);
     if ($stmt->execute()) {
       $message = "Task added successfully!";
       $messageType = "is-success"; 
@@ -91,6 +92,12 @@ ob_start();
           }
           ?>
         </select>
+      </div>
+      <div class="sp-form-group" style="margin-top:1rem;">
+        <label class="sp-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+          <input type="checkbox" name="private" id="private" value="1">
+          <i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i> Private (hide from OBS overlay)
+        </label>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
         <button type="submit" class="sp-btn sp-btn-primary">Add</button>

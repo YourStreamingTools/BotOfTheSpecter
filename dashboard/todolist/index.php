@@ -99,6 +99,9 @@ ob_start();
                 <?php echo ($row['completed'] === 'Yes')
                   ? '<span class="sp-badge sp-badge-green">Completed</span>'
                   : '<span class="sp-badge sp-badge-amber">Not completed</span>'; ?>
+                <?php if (!empty($row['private']) && $row['private'] == 1): ?>
+                  <span class="sp-badge sp-badge-red"><i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i>Private</span>
+                <?php endif; ?>
               </p>
               <p style="font-size:0.8rem; display:flex; align-items:center; gap:0.3rem; color:var(--text-secondary); margin-bottom:0.2rem;">
                 <i class="fas fa-calendar-plus"></i>

@@ -367,6 +367,7 @@ try {
                 objective VARCHAR(255) NOT NULL,
                 category VARCHAR(255) DEFAULT NULL,
                 completed VARCHAR(3) NOT NULL DEFAULT 'No',
+                private TINYINT(1) NOT NULL DEFAULT 0,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id)
