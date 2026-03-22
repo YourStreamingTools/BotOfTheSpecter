@@ -652,7 +652,7 @@ hr {
 /* ----------------------------------------------------------
    7. Page header
    ---------------------------------------------------------- */
-.sp-page-header { margin-bottom: 1.75rem; }
+.sp-page-header { margin-bottom: 1.75rem; margin-top: 1rem; }
 .sp-page-header h1 { font-size: 1.5rem; font-weight: 700; }
 .sp-page-header p { color: var(--text-secondary); margin-top: 0.3rem; font-size: 0.9rem; }
 
