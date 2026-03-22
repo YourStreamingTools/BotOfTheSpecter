@@ -68,34 +68,36 @@ ob_start();
 <!-- Search / Filter -->
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <form method="GET" action="">
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
-            <div style="flex:2;min-width:200px;">
-                <label class="sp-label">Search</label>
-                <div style="display:flex;gap:0;">
-                    <input class="sp-input" style="border-radius:var(--radius) 0 0 var(--radius);" type="text" name="search" placeholder="Search roadmap items by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
-                    <button type="submit" class="sp-btn sp-btn-info" style="border-radius:0 var(--radius) var(--radius) 0;white-space:nowrap;">
-                        <i class="fa-solid fa-magnifying-glass"></i> Search
-                    </button>
+        <div class="sp-card-body">
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+                <div style="flex:2;min-width:200px;">
+                    <label class="sp-label">Search</label>
+                    <div class="sp-input-group">
+                        <input class="sp-input" type="text" name="search" placeholder="Search roadmap items by title..." value="<?php echo htmlspecialchars($searchQuery); ?>">
+                        <button type="submit" class="sp-btn sp-btn-info" style="white-space:nowrap;border-radius:0 var(--radius) var(--radius) 0;flex-shrink:0;">
+                            <i class="fa-solid fa-magnifying-glass"></i> Search
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div style="flex:1;min-width:160px;">
-                <label class="sp-label">Category</label>
-                <select class="sp-select" name="category" onchange="this.form.submit()">
-                    <option value="">All Categories</option>
-                    <?php foreach ($categories as $cat): ?>
-                        <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory===$cat?'selected':''; ?>>
-                            <?php echo htmlspecialchars($cat); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <?php if (!empty($searchQuery) || !empty($selectedCategory)): ?>
-                <div>
-                    <a href="index.php" class="sp-btn sp-btn-ghost sp-btn-sm" style="margin-top:1.5rem;">
-                        <i class="fa-solid fa-xmark"></i> Clear
-                    </a>
+                <div style="flex:1;min-width:160px;">
+                    <label class="sp-label">Category</label>
+                    <select class="sp-select" name="category" onchange="this.form.submit()">
+                        <option value="">All Categories</option>
+                        <?php foreach ($categories as $cat): ?>
+                            <option value="<?php echo htmlspecialchars($cat); ?>" <?php echo $selectedCategory===$cat?'selected':''; ?>>
+                                <?php echo htmlspecialchars($cat); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-            <?php endif; ?>
+                <?php if (!empty($searchQuery) || !empty($selectedCategory)): ?>
+                    <div>
+                        <a href="index.php" class="sp-btn sp-btn-ghost sp-btn-sm" style="margin-top:1.5rem;">
+                            <i class="fa-solid fa-xmark"></i> Clear
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
     </form>
 </div>

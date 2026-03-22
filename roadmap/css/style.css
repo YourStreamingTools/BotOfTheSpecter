@@ -319,10 +319,16 @@ hr {
     margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
+    padding-top: var(--topbar-height);
 }
 
 /* Topbar */
 .sp-topbar {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    z-index: 200;
     height: var(--topbar-height);
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border);
@@ -330,10 +336,6 @@ hr {
     align-items: center;
     padding: 0 1.5rem;
     gap: 1rem;
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    flex-shrink: 0;
 }
 
 .sp-topbar-title {
@@ -1495,7 +1497,6 @@ hr {
    ---------------------------------------------------------- */
 @media (max-width: 768px) {
     .sp-hamburger { display: flex; }
-
     .sp-sidebar {
         position: fixed;
         left: -100%;
@@ -1504,47 +1505,36 @@ hr {
         transition: left var(--transition);
         z-index: 200;
     }
-
     .sp-main { margin-left: 0; }
-
+    .sp-topbar { left: 0; }
     .sp-sidebar.open {
         left: 0;
         box-shadow: var(--shadow-lg);
     }
-
     .sp-content {
         padding: 1rem 1.25rem;
     }
-
     .sp-footer {
         padding: 1rem 1.25rem;
     }
-
     .rm-board {
         flex-direction: column;
     }
-
     .rm-column {
         flex: none;
         width: 100%;
         min-width: 0;
         max-height: none;
     }
-
     .rm-timeline-line { display: none; }
-
     .rm-timeline-item.rm-tl-left,
     .rm-timeline-item.rm-tl-right {
         flex-direction: column;
         padding: 0;
     }
-
     .rm-timeline-dot { display: none; }
-
     .rm-timeline-card { max-width: none; }
-
     .rm-modal-card { margin: 0; border-radius: var(--radius); }
-
     .rm-legend-grid { grid-template-columns: 1fr; }
 }
 
@@ -1553,7 +1543,6 @@ hr {
         grid-template-columns: 1fr;
     }
 }
-
 
 /* ----------------------------------------------------------
    21. Markdown rendered content (in details modal)
