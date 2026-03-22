@@ -323,7 +323,7 @@ class UserLogger:
                         self.username_cache[channel_code] = username
                         return username
                 except Exception as e:
-                    self.admin_logger.debug(f"Error resolving username from channel_code {channel_code}: {e}")
+                    self.admin_logger.debug(f"[USER LOG] Error resolving username from channel_code {channel_code}: {e}")
         # Try guild_id if channel_code didn't work
         if guild_id and self.mysql_helper:
             try:
@@ -340,7 +340,7 @@ class UserLogger:
                     if user_row and user_row.get('username'):
                         return user_row['username']
             except Exception as e:
-                self.admin_logger.debug(f"Error resolving username from guild_id {guild_id}: {e}")
+                self.admin_logger.debug(f"[USER LOG] Error resolving username from guild_id {guild_id}: {e}")
         return None
     
     async def log(self, level, message, channel_code=None, guild_id=None, username=None):
@@ -357,7 +357,7 @@ class UserLogger:
                 user_log_func = getattr(user_logger, level.lower(), user_logger.info)
                 user_log_func(message)
             except Exception as e:
-                self.admin_logger.debug(f"Failed to write to user log for {username}: {e}")
+                self.admin_logger.debug(f"[USER LOG] Failed to write to user log for {username}: {e}")
     # Convenience methods for different log levels
     async def info(self, message, **kwargs):
         await self.log('INFO', message, **kwargs)
@@ -9608,7 +9608,7 @@ class DiscordBotRunner:
 def main():
     bot_log_file = os.path.join(config.discord_logs, f"discordbot.txt")
     discord_logger = setup_logger('discord', bot_log_file, level=logging.INFO)
-    discord_logger.info(f"Starting BotOfTheSpecter Discord Bot version {config.bot_version}")
+    discord_logger.info(f"[STARTUP] Starting BotOfTheSpecter Discord Bot version {config.bot_version}")
     bot_runner = DiscordBotRunner(discord_logger)
     bot_runner.run()
 
