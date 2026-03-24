@@ -1348,19 +1348,6 @@ async def process_twitch_eventsub_message(message):
                                     pass
                                 outgoing_raid_task = None
                             event_logger.info("[EVENTSUB] Outgoing raid canceled (unraid)")
-                    elif notice_type == "viewer_milestone":
-                        milestone_data = event_data.get("viewer_milestone", {})
-                        category = milestone_data.get("category", "")
-                        if category == "watch-streak":
-                            milestone_value = milestone_data.get("value", 0)
-                            chatter_name = event_data.get("chatter_user_name", "")
-                            await cursor.execute(
-                                "INSERT INTO analytic_stream_watch_streak (user_name, streak_value) VALUES (%s, %s) "
-                                "ON DUPLICATE KEY UPDATE streak_value = %s, updated_at = NOW()",
-                                (chatter_name, milestone_value, milestone_value)
-                            )
-                            await cursor.commit()
-                            event_logger.info(f"[EVENTSUB] Viewer milestone (watch-streak): {chatter_name} has watched {milestone_value} consecutive streams")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
                     create_task(process_cheer_event(
@@ -1943,7 +1930,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     server_reconnect = True
                     break
                 # ── NOTICE — categorised handling using the full NOTICE msg-id reference ──
-                elif "NOTICE" in line and ("#" + CHANNEL_NAME) in line:
+                elif " NOTICE " in line and ("#" + CHANNEL_NAME) in line:
                     tags = _parse_irc_tags(line)
                     msg_id = tags.get("msg-id", "")
                     if msg_id in _BLOCKING_NOTICE_IDS:
@@ -2015,17 +2002,29 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                             event_logger.info(
                                 f"[IRC PRESENCE] IRC watch-streak: {un_display} has watched {un_value} consecutive streams"
                             )
+                            streak_result = None
                             try:
                                 async with await mysql_connection(db_name=CHANNEL_NAME) as _wsc:
-                                    async with _wsc.cursor() as _wscur:
+                                    async with _wsc.cursor(DictCursor) as _wscur:
                                         await _wscur.execute(
                                             "INSERT INTO analytic_stream_watch_streak (user_name, streak_value) VALUES (%s, %s) "
                                             "ON DUPLICATE KEY UPDATE streak_value = %s, updated_at = NOW()",
                                             (un_display, un_value, un_value)
                                         )
                                         await _wsc.commit()
+                                        await _wscur.execute(
+                                            "SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s",
+                                            ("watch_streak",)
+                                        )
+                                        streak_result = await _wscur.fetchone()
                             except Exception as _wse:
                                 event_logger.error(f"[IRC PRESENCE] IRC watch-streak DB error for {un_display}: {_wse}")
+                            if streak_result and streak_result.get("alert_message"):
+                                streak_msg = streak_result.get("alert_message")
+                            else:
+                                streak_msg = "Congrats (user) on watching (value) consecutive streams!"
+                            streak_msg = streak_msg.replace("(user)", un_display).replace("(value)", str(un_value))
+                            create_task(send_chat_message(streak_msg))
                         else:
                             bot_logger.info(f"[IRC PRESENCE] IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")
                     else:
@@ -12974,7 +12973,7 @@ async def todolist_command_handler(ctx, connection):
         await cursor.execute(
             "SELECT t.id, t.objective, t.completed, c.category AS category_name "
             "FROM todos t LEFT JOIN categories c ON t.category = c.id "
-            "WHERE (t.private = 0 OR t.private IS NULL) ORDER BY t.id ASC LIMIT 5"
+            "WHERE (t.private = 0 OR t.private IS NULL) AND (t.completed IS NULL OR t.completed != 'Yes') ORDER BY t.id ASC LIMIT 5"
         )
         tasks = await cursor.fetchall()
         if not tasks:
