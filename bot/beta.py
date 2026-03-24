@@ -3332,7 +3332,6 @@ class TwitchBot(commands.Bot):
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         global stream_online
-        chat_logger.info(f"[WELCOME] message_counting called: author={messageAuthor!r} id={messageAuthorID!r} stream_online={stream_online} content={messageContent!r:.60}")
         if messageAuthor in [bannedUser, None, ""]:
             chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: banned/invalid (bannedUser={bannedUser!r})")
             return
@@ -3360,7 +3359,6 @@ class TwitchBot(commands.Bot):
                 await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
                 seen_today_result = await cursor.fetchone()
                 already_seen_today = seen_today_result is not None
-                chat_logger.info(f"[WELCOME] {messageAuthor!r}: already_seen_today={already_seen_today} is_broadcaster={is_broadcaster} is_mod={is_mod} is_vip={is_vip}")
                 # Skip further handling for broadcaster
                 if is_broadcaster:
                     chat_logger.info(f"[WELCOME] SKIP {messageAuthor!r}: is_broadcaster")
@@ -3408,7 +3406,6 @@ class TwitchBot(commands.Bot):
                     return message.replace("(user)", username)
                 # If user has not been seen today and stream is online, ONLY insert them when the message is NOT a command
                 is_command_message = bool(messageContent and messageContent.strip().startswith('!'))
-                chat_logger.info(f"[WELCOME] {messageAuthor!r}: stream_online={stream_online} already_seen={already_seen_today} is_cmd={is_command_message} user_status_enabled={user_status_enabled} send_welcome_messages={send_welcome_messages}")
                 if not already_seen_today and stream_online and not is_command_message:
                     await cursor.execute(
                         'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
@@ -3650,7 +3647,11 @@ class TwitchBot(commands.Bot):
         if not stream_online:
             return False
         try:
-            if message_author and await command_permissions("mod", message_author):
+            if message_author and (
+                message_author.is_mod
+                or (message_author.name or "").lower() == (CHANNEL_NAME or "").lower()
+                or (message_author.name or "").lower() == (bot_owner or "").lower()
+            ):
                 return False
             if messageAuthor and messageAuthor.lower() == CHANNEL_NAME.lower():
                 return False
@@ -8383,11 +8384,11 @@ class TwitchBot(commands.Bot):
                         to_unit = args[2].lower()
                         # Handle common temperature unit aliases
                         unit_aliases = {
-                            'c': 'celsius',
-                            'f': 'fahrenheit',
+                            'c': 'degC',
+                            'f': 'degF',
                             'k': 'kelvin',
-                            'celsius': 'celsius',
-                            'fahrenheit': 'fahrenheit',
+                            'celsius': 'degC',
+                            'fahrenheit': 'degF',
                             'kelvin': 'kelvin'
                         }
                         # Convert unit aliases to proper pint units
@@ -8395,7 +8396,7 @@ class TwitchBot(commands.Bot):
                             from_unit = unit_aliases[from_unit]
                         if to_unit in unit_aliases:
                             to_unit = unit_aliases[to_unit]
-                        quantity = amount * ureg(from_unit)
+                        quantity = ureg.Quantity(amount, from_unit)
                         converted_quantity = quantity.to(to_unit)
                         formatted_converted_quantity = f"{converted_quantity.magnitude:,.2f}"
                         await send_chat_message(f"{amount_str} {args[1]} in {args[2]} is {formatted_converted_quantity} {converted_quantity.units}")
