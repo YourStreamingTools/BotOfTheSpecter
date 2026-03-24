@@ -116,7 +116,10 @@ ob_start();
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</pre>
                     <p>If you wish to define a working category, add it like this:</p>
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;category=1</pre>
-                    <p style="font-size:0.8rem; margin-bottom:0;">(where ID 1 is called Default, defined on the <a href='categories.php' style="color:var(--accent-hover);" target="_blank">categories</a> page.)</p>
+                    <p style="font-size:0.8rem; margin-bottom:0.75rem;">(where ID 1 is called Default, defined on the <a href='categories.php' style="color:var(--accent-hover);" target="_blank">categories</a> page.)</p>
+                    <p>To add a styled box around your list (useful if your stream overlay makes it hard to read), add <code>&amp;theme=true</code>:</p>
+                    <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;theme=true</pre>
+                    <p style="font-size:0.8rem; margin-bottom:0;">This wraps the list in a dark semi-transparent box with rounded corners, helping it stand out over any stream overlay. You can combine it with a category too: <code>&amp;category=1&amp;theme=true</code></p>
                 </div>
                 <div class="db-modal-foot">
                     <button class="sp-btn sp-btn-danger" onclick="closeOBSInfoModal()">Close</button>
