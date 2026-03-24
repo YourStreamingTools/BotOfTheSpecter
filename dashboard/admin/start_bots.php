@@ -795,6 +795,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                             if ($connection) {
                                 SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
                                 client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
+                                // Clean up the tmux session so the restart creates a fresh one
+                                $restartTmuxSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
+                                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($restartTmuxSession) . ' 2>/dev/null; true');
                                 // Give it a moment to stop
                                 sleep(1);
                             }

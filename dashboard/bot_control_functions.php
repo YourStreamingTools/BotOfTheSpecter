@@ -195,6 +195,8 @@ function performBotAction($action, $botType, $params) {
         $botScriptPath = "/home/botofthespecter/bot.py";
         $versionFilePath = "/home/botofthespecter/logs/version/{$username}_version_control.txt";
     }
+    // Build a consistent tmux session name for this bot instance (safe chars only)
+    $tmuxSessionName = "specter_" . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
     // Get version information from API
     $versionApiUrl = 'https://api.botofthespecter.com/versions';
     $versionInfo = json_decode(@file_get_contents($versionApiUrl), true);
@@ -300,7 +302,7 @@ function performBotAction($action, $botType, $params) {
                     // Use escapeshellarg for safety on dynamic fields
                     // V6 uses venv, beta and others use regular python
                     $pythonCmd = ($botType === 'v6') ? '/home/botofthespecter/beta_env/bin/python' : 'python';
-                    $startCommand = "nohup " . $pythonCmd . " " . escapeshellarg($botScriptPath) .
+                    $botArgs = $pythonCmd . " " . escapeshellarg($botScriptPath) .
                                     " -channel " . escapeshellarg($username) .
                                     " -channelid " . escapeshellarg($twitchUserId) .
                                     " -token " . escapeshellarg($authToken) .
@@ -308,13 +310,14 @@ function performBotAction($action, $botType, $params) {
                                     " -apitoken " . escapeshellarg($apiKey);
                     // Add custom bot parameters if enabled (beta only)
                     if ($useCustomBot && $customBotUsername && $botType === 'beta') {
-                        $startCommand .= " -custom -botusername " . escapeshellarg($customBotUsername);
+                        $botArgs .= " -custom -botusername " . escapeshellarg($customBotUsername);
                     }
                     // Add self flag if requested (beta only)
                     if ($useSelf && $botType === 'beta') {
-                        $startCommand .= " -self";
+                        $botArgs .= " -self";
                     }
-                    $startCommand .= " > /dev/null 2>&1 &";
+                    // Launch inside a named tmux session so the console can be attached later
+                    $startCommand = "tmux new-session -d -s " . escapeshellarg($tmuxSessionName) . " " . $botArgs;
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
                     if ($startOutput === false || $startOutput === null) {
@@ -370,6 +373,8 @@ function performBotAction($action, $botType, $params) {
                         }
                     }
                     if (!empty($killedPids)) {
+                        // Also clean up the tmux session
+                        SSHConnectionManager::executeCommand($connection, "tmux kill-session -t " . escapeshellarg($tmuxSessionName) . " 2>/dev/null; true");
                         $result['message'] = 'Bot stopped successfully.';
                         $result['success'] = true;
                     } else {
@@ -382,6 +387,8 @@ function performBotAction($action, $botType, $params) {
                         $killCommand = "kill -s kill $currentPid";
                         $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
                         $killOutput = sanitizeSSHOutput($killOutput);
+                        // Also clean up the tmux session
+                        SSHConnectionManager::executeCommand($connection, "tmux kill-session -t " . escapeshellarg($tmuxSessionName) . " 2>/dev/null; true");
                         $result['message'] = 'Bot stop command sent.';
                         $result['success'] = true;
                     } else {
