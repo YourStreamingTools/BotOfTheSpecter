@@ -544,6 +544,7 @@ ob_start();
         </div>
     </div>
 </div>
+<script>
 document.addEventListener('DOMContentLoaded', function () {
     var container = document.getElementById('remote-files-container');
     if (!container) {
