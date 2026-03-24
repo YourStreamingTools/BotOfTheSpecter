@@ -95,6 +95,9 @@ function listRemoteDirectoryFiles($sftp, $directoryPath) {
         if (substr($fileName, -10) === '.ytdlp.log') {
             continue;
         }
+        if (substr($fileName, -8) === '.fwd.log') {
+            continue;
+        }
         $fullPath = rtrim($directoryPath, '/') . '/' . $fileName;
         $stat = @ssh2_sftp_stat($sftp, $fullPath);
         if (!$stat) {
@@ -138,6 +141,37 @@ if ($loadStmt) {
     $loadStmt->close();
 }
 
+// Load stream forwarding settings
+$allowedForwardServices = ['youtube', 'kick', 'trovo'];
+$forwardServiceLabels = [
+    'youtube' => 'YouTube',
+    'kick'    => 'Kick.com',
+    'trovo'   => 'Trovo.live',
+];
+$forwardServiceIcons = [
+    'youtube' => ['type' => 'img', 'value' => 'https://cdn.brandfetch.io/idVfYwcuQz/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1728452988041'],
+    'kick'    => ['type' => 'img', 'value' => 'https://cdn.brandfetch.io/id3gkQXO6j/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1752548681236'],
+    'trovo'   => ['type' => 'img', 'value' => 'https://cdn.brandfetch.io/idiHGB0VOK/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1772202851934'],
+];
+$forwardSettings = [];
+$loadFwdStmt = $db->prepare("SELECT service, stream_key, enabled FROM stream_forward_settings WHERE service IN ('youtube', 'kick', 'trovo')");
+if ($loadFwdStmt) {
+    $loadFwdStmt->execute();
+    $loadFwdResult = $loadFwdStmt->get_result();
+    while ($fwdRow = $loadFwdResult->fetch_assoc()) {
+        $forwardSettings[$fwdRow['service']] = [
+            'stream_key' => $fwdRow['stream_key'] ?? '',
+            'enabled'    => (int)($fwdRow['enabled'] ?? 0),
+        ];
+    }
+    $loadFwdStmt->close();
+}
+foreach ($allowedForwardServices as $svc) {
+    if (!isset($forwardSettings[$svc])) {
+        $forwardSettings[$svc] = ['stream_key' => '', 'enabled' => 0];
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_recording_settings'])) {
     $autoRecordEnabled = isset($_POST['auto_record']) ? 1 : 0;
     $saveStmt = $db->prepare("REPLACE INTO auto_record_settings (id, enabled) VALUES (1, ?)");
@@ -161,6 +195,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_recording_settin
             'message' => 'Unable to prepare recording setting update.'
         ];
     }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_forward_settings'])) {
+    $fwdSaveOk = true;
+    foreach ($allowedForwardServices as $svc) {
+        $rawKey     = $_POST["forward_{$svc}_key"] ?? '';
+        $streamKey  = trim(strip_tags($rawKey));
+        $fwdEnabled = isset($_POST["forward_{$svc}_enabled"]) ? 1 : 0;
+        $fwdStmt = $db->prepare(
+            "INSERT INTO stream_forward_settings (service, stream_key, enabled)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE stream_key = VALUES(stream_key), enabled = VALUES(enabled)"
+        );
+        if ($fwdStmt) {
+            $fwdStmt->bind_param("ssi", $svc, $streamKey, $fwdEnabled);
+            if (!$fwdStmt->execute()) {
+                $fwdSaveOk = false;
+            }
+            $fwdStmt->close();
+        } else {
+            $fwdSaveOk = false;
+        }
+        $forwardSettings[$svc] = ['stream_key' => $streamKey, 'enabled' => $fwdEnabled];
+    }
+    $saveStatus = $fwdSaveOk
+        ? ['success' => true,  'message' => 'Stream forwarding settings saved successfully.']
+        : ['success' => false, 'message' => 'One or more forwarding settings could not be saved.'];
 }
 
 $recorderHost = $recorder_ssh_host ?? '';
@@ -408,7 +469,81 @@ ob_start();
         </div>
     </div>
 </div>
-<script>
+<div class="sp-card" style="margin-top:1.5rem;">
+    <header class="sp-card-header">
+        <p class="sp-card-title">
+            <span class="icon mr-2"><i class="fas fa-broadcast-tower"></i></span>
+            Stream Forwarding
+        </p>
+    </header>
+    <div class="sp-card-body">
+        <div class="content mb-5">
+            <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
+                <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
+                About Stream Forwarding
+            </h2>
+            <p>Stream forwarding re-streams your Twitch broadcast live to one or more external platforms at the same time as it is being recorded. This works independently from the recording setting above — you can forward without recording, or do both simultaneously.</p>
+            <ul>
+                <li>Enter the stream key from each platform you want to forward to.</li>
+                <li>Enable the toggle for each service you want active.</li>
+                <li>More platforms are coming soon.</li>
+            </ul>
+            <p><strong>Note:</strong> Stream keys are sensitive — treat them like passwords and do not share them.</p>
+            <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
+            <form method="post" action="">
+                <?php foreach ($allowedForwardServices as $svc): ?>
+                    <?php
+                        $svcLabel   = $forwardServiceLabels[$svc];
+                        $svcIcon    = $forwardServiceIcons[$svc];
+                        $svcKey     = htmlspecialchars($forwardSettings[$svc]['stream_key'] ?? '');
+                        $svcEnabled = (int)($forwardSettings[$svc]['enabled'] ?? 0);
+                    ?>
+                    <div class="sp-form-group" style="border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;">
+                        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.75rem;">
+                            <?php if ($svcIcon['type'] === 'img'): ?>
+                                <img src="<?= htmlspecialchars($svcIcon['value']) ?>" alt="<?= htmlspecialchars($svcLabel) ?>" style="width:1.1em;height:1.1em;border-radius:3px;vertical-align:middle;">
+                            <?php else: ?>
+                                <span class="icon"><i class="<?= htmlspecialchars($svcIcon['value']) ?>"></i></span>
+                            <?php endif; ?>
+                            <strong><?= htmlspecialchars($svcLabel) ?></strong>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                            <div style="position:relative;flex:1;min-width:220px;">
+                                <input
+                                    type="password"
+                                    id="forward_<?= $svc ?>_key_input"
+                                    name="forward_<?= $svc ?>_key"
+                                    value="<?= $svcKey ?>"
+                                    placeholder="Stream key"
+                                    autocomplete="off"
+                                    style="width:100%;padding-right:2.5rem;"
+                                    class="sp-input"
+                                >
+                                <button
+                                    type="button"
+                                    onclick="(function(btn){var inp=document.getElementById('forward_<?= $svc ?>_key_input');inp.type=inp.type==='password'?'text':'password';btn.querySelector('i').className=inp.type==='password'?'fas fa-eye':'fas fa-eye-slash';})(this)"
+                                    style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:0;"
+                                    title="Toggle stream key visibility"
+                                    aria-label="Toggle stream key visibility"
+                                ><i class="fas fa-eye"></i></button>
+                            </div>
+                            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;white-space:nowrap;margin:0;">
+                                <input type="checkbox" name="forward_<?= $svc ?>_enabled" <?= $svcEnabled ? 'checked' : '' ?>>
+                                Enable forwarding
+                            </label>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                <div style="margin-top:0.75rem;">
+                    <button type="submit" name="save_forward_settings" class="sp-btn sp-btn-primary sp-btn-sm">
+                        <span class="icon"><i class="fas fa-save"></i></span>
+                        <span>Save Forwarding Settings</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 document.addEventListener('DOMContentLoaded', function () {
     var container = document.getElementById('remote-files-container');
     if (!container) {

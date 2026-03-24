@@ -33,6 +33,15 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 enabled TINYINT(1) DEFAULT 0
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'stream_forward_settings' => "
+            CREATE TABLE IF NOT EXISTS stream_forward_settings (
+                id INT NOT NULL AUTO_INCREMENT,
+                service VARCHAR(50) NOT NULL,
+                stream_key TEXT DEFAULT NULL,
+                enabled TINYINT(1) DEFAULT 0,
+                PRIMARY KEY (id),
+                UNIQUE KEY service_unique (service)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'everyone' => "
             CREATE TABLE IF NOT EXISTS everyone (
                 username VARCHAR(255),

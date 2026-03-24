@@ -65,6 +65,14 @@ RETRY_BASE = 2
 RETRY_JITTER = 0.01
 LIVE_FROM_START_UNSUPPORTED_TEXT = "no formats that can be downloaded from the start"
 
+# RTMP ingest endpoints for supported forwarding services.
+# {stream_key} is replaced at runtime with the user's configured key.
+RTMP_ENDPOINTS: Dict[str, str] = {
+    'youtube': 'rtmp://a.rtmp.youtube.com/live2/{stream_key}',
+    'kick':    'rtmps://fa723fc1b171.global-contribute.live-video.net/app/{stream_key}',
+    'trovo':   'rtmp://livepush.trovo.live/live/{stream_key}',
+}
+
 # Custom formatter that stamps log entries in Sydney, Australia time
 class SydneyFormatter(logging.Formatter):
     _TZ = datetime.timezone(datetime.timedelta(hours=10))  # AEST base offset
@@ -288,6 +296,64 @@ class MySQLManager:
             if 'conn' in locals() and conn:
                 conn.close()
 
+    async def get_forwarding_settings(self, channel_name: str) -> List[Dict[str, Any]]:
+        try:
+            conn = await self.get_connection(channel_name)
+            if not conn:
+                return []
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT service, stream_key FROM stream_forward_settings "
+                    "WHERE enabled = 1 AND stream_key IS NOT NULL AND stream_key != ''"
+                )
+                results = await cursor.fetchall()
+                # Only return services whose keys are present in our known endpoints
+                return [r for r in results if r['service'] in RTMP_ENDPOINTS]
+        except Exception as e:
+            self.logger.debug(f"Error getting forwarding settings for {channel_name}: {e}")
+            return []
+        finally:
+            if 'conn' in locals() and conn:
+                conn.close()
+
+    async def get_users_to_monitor(self) -> List[str]:
+        try:
+            conn = await self.get_connection('website')
+            if not conn:
+                return []
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT username FROM users WHERE username IS NOT NULL AND username != ''"
+                )
+                user_rows = await cursor.fetchall()
+                usernames = [row['username'] for row in user_rows]
+            conn.close()
+            users_to_monitor = []
+            for username in usernames:
+                try:
+                    user_conn = await self.get_connection(username)
+                    if not user_conn:
+                        continue
+                    async with user_conn.cursor(aiomysql.DictCursor) as cursor:
+                        await cursor.execute(
+                            "SELECT enabled FROM auto_record_settings WHERE enabled = 1 LIMIT 1"
+                        )
+                        record_result = await cursor.fetchone()
+                        await cursor.execute(
+                            "SELECT 1 FROM stream_forward_settings "
+                            "WHERE enabled = 1 AND stream_key IS NOT NULL AND stream_key != '' LIMIT 1"
+                        )
+                        forward_result = await cursor.fetchone()
+                        if record_result or forward_result:
+                            users_to_monitor.append(username)
+                    user_conn.close()
+                except Exception:
+                    continue
+            return users_to_monitor
+        except Exception as e:
+            self.logger.error(f"Error getting users to monitor: {e}")
+            return []
+
 class TwitchRecorderThread(threading.Thread):
     def __init__(self, username, mysql_manager, root_path="", refresh=10.0):
         super().__init__()
@@ -387,6 +453,7 @@ class RecordChecker:
         self.file_retention_seconds = FILE_RETENTION_SECONDS
         self.mysql_manager = MySQLManager(logger=logging.getLogger("RecordChecker"))
         self.active_recordings = {}  # username: subprocess or recording info
+        self.forwarding_processes: Dict[str, Dict[str, Any]] = {}  # username -> {service: {procs, log}}
         self.logger = logging.getLogger("RecordChecker")
         self.running = False
         self.last_enabled_users = set()
@@ -448,28 +515,38 @@ class RecordChecker:
                 self.logger.warning("yt-dlp not found or not working")
         except (subprocess.TimeoutExpired, FileNotFoundError):
             self.logger.warning("yt-dlp not found in PATH")
+        # Check if ffmpeg is installed (required for stream forwarding)
+        try:
+            result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                self.logger.info(f"ffmpeg found: {result.stdout.splitlines()[0].strip()}")
+            else:
+                self.logger.warning("ffmpeg not found or not working — stream forwarding will be unavailable")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            self.logger.warning("ffmpeg not found in PATH — stream forwarding will be unavailable")
 
     async def check_channels_loop(self):
         self.logger.info("Starting channel checking loop...")
         while self.running:
             try:
-                # Get all users with auto_record enabled for this server
-                users_with_auto_record = await self.mysql_manager.get_users_with_auto_record()
-                current_enabled_users = set(users_with_auto_record)
+                # Get all users with recording or forwarding enabled
+                users_to_monitor = await self.mysql_manager.get_users_to_monitor()
+                current_enabled_users = set(users_to_monitor)
                 newly_enabled = sorted(current_enabled_users - self.last_enabled_users)
                 newly_disabled = sorted(self.last_enabled_users - current_enabled_users)
                 if newly_enabled:
-                    self.logger.info(f"Auto-record enabled: {', '.join(newly_enabled)}")
+                    self.logger.info(f"Now monitoring: {', '.join(newly_enabled)}")
                 if newly_disabled:
-                    self.logger.info(f"Auto-record disabled: {', '.join(newly_disabled)}")
+                    self.logger.info(f"No longer monitoring: {', '.join(newly_disabled)}")
                 self.last_enabled_users = current_enabled_users
-                # Stop recordings for users who disabled auto_record
-                await self.stop_disabled_recordings(users_with_auto_record)
-                # For each enabled user, check if they're live and start/continue recording
-                for username in users_with_auto_record:
+                # Stop recordings/forwarding for users who disabled everything
+                await self.stop_disabled_recordings(users_to_monitor)
+                # For each enabled user, check if they're live and start/continue activity
+                for username in users_to_monitor:
                     await self.check_and_record_user(username)
-                # Clean up finished recordings
+                # Clean up finished recordings and forwarders
                 await self.cleanup_finished_recordings()
+                await self.cleanup_finished_forwarders()
                 # Delete old files from server storage
                 await self.cleanup_old_files()
             except Exception as e:
@@ -503,6 +580,11 @@ class RecordChecker:
         for username in users_to_stop:
             self.logger.info(f"User {username} disabled auto_record, stopping recording")
             await self.stop_recording_for_user(username)
+        # Also stop forwarding for users that are no longer being monitored
+        for username in list(self.forwarding_processes.keys()):
+            if username not in enabled_users:
+                self.logger.info(f"User {username} disabled, stopping all forwarding")
+                await self.stop_forwarding_for_user(username)
 
     async def check_and_record_user(self, username):
         try:
@@ -512,18 +594,39 @@ class RecordChecker:
                 self.logger.warning(f"Could not determine stream status for {username}")
                 return
             if is_live:
-                # Start recording if not already recording
+                # --- Recording ---
                 if username not in self.active_recordings:
-                    self.logger.info(f"Starting new recording for {username}")
-                    await self.start_recording_for_user(username, stream_info)
+                    should_record = await self.mysql_manager.should_auto_record(username)
+                    if should_record:
+                        self.logger.info(f"Starting new recording for {username}")
+                        await self.start_recording_for_user(username, stream_info)
                 else:
                     self.logger.debug(f"Already recording {username}")
+                # --- Forwarding ---
+                forward_settings = await self.mysql_manager.get_forwarding_settings(username)
+                enabled_services = {fwd['service'] for fwd in forward_settings}
+                # Stop services that have been disabled since last check
+                user_forwarders = self.forwarding_processes.get(username, {})
+                for running_service in list(user_forwarders.keys()):
+                    if running_service not in enabled_services:
+                        self.logger.info(f"Stopping {running_service} forwarding for {username} (disabled)")
+                        await self.stop_forwarding_for_service(username, running_service)
+                # Start services that aren't running yet
+                for fwd in forward_settings:
+                    service = fwd['service']
+                    stream_key = fwd['stream_key']
+                    if service not in self.forwarding_processes.get(username, {}):
+                        await self.start_forwarding_for_service(username, service, stream_key)
             else:
                 self.logger.debug(f"{username} is offline")
                 # Stop recording if currently recording
                 if username in self.active_recordings:
                     self.logger.info(f"User {username} went offline, stopping recording")
                     await self.stop_recording_for_user(username)
+                # Stop all forwarding
+                if username in self.forwarding_processes:
+                    self.logger.info(f"User {username} went offline, stopping all forwarding")
+                    await self.stop_forwarding_for_user(username)
         except Exception as e:
             self.logger.error(f"Error checking user {username}: {e}", exc_info=True)
 
@@ -651,6 +754,112 @@ class RecordChecker:
             self.logger.info(f"Cleaning up recording for {username}")
             del self.active_recordings[username]
 
+    async def start_forwarding_for_service(self, username: str, service: str, stream_key: str):
+        """Use yt-dlp to resolve the authenticated HLS URL, then launch ffmpeg to re-stream it."""
+        log_file = None
+        try:
+            rtmp_url = RTMP_ENDPOINTS[service].format(stream_key=stream_key)
+            user_storage_path = os.path.join(self.root_path, username)
+            os.makedirs(user_storage_path, exist_ok=True)
+            log_path = os.path.join(user_storage_path, f"{username}-fwd-{service}.fwd.log")
+            log_file = open(log_path, 'a', encoding='utf-8')
+            # Resolve the authenticated HLS manifest URL via yt-dlp
+            get_url_cmd = ['yt-dlp', '--get-url', '-f', 'best', f'https://www.twitch.tv/{username}']
+            resolved_cookies = resolve_cookies_path(YT_DLP_COOKIES_FILE)
+            if resolved_cookies:
+                get_url_cmd.extend(['--cookies', resolved_cookies])
+            url_result = subprocess.run(get_url_cmd, capture_output=True, text=True, timeout=30)
+            if url_result.returncode != 0 or not url_result.stdout.strip():
+                self.logger.error(
+                    f"yt-dlp could not resolve HLS URL for {username} ({service}): "
+                    f"{url_result.stderr.strip()}"
+                )
+                log_file.close()
+                return
+            hls_url = url_result.stdout.strip().splitlines()[0]
+            # Launch ffmpeg: read HLS stream and push to RTMP destination
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-re',
+                '-i', hls_url,
+                '-c', 'copy',
+                '-f', 'flv',
+                rtmp_url,
+            ]
+            self.logger.info(f"Starting {service} forwarding for {username}")
+            ffmpeg_proc = subprocess.Popen(ffmpeg_cmd, stdout=log_file, stderr=log_file)
+            if username not in self.forwarding_processes:
+                self.forwarding_processes[username] = {}
+            self.forwarding_processes[username][service] = {
+                'ffmpeg_proc': ffmpeg_proc,
+                'log_file': log_file,
+            }
+            self.logger.info(
+                f"Started {service} forwarding for {username} [ffmpeg PID={ffmpeg_proc.pid}]"
+            )
+        except Exception as e:
+            if log_file:
+                try:
+                    log_file.close()
+                except Exception:
+                    pass
+            self.logger.error(f"Error starting {service} forwarding for {username}: {e}", exc_info=True)
+
+    async def stop_forwarding_for_service(self, username: str, service: str):
+        if username not in self.forwarding_processes:
+            return
+        if service not in self.forwarding_processes[username]:
+            return
+        fwd_info = self.forwarding_processes[username][service]
+        self.logger.info(f"Stopping {service} forwarding for {username}")
+        try:
+            ffmpeg_proc = fwd_info.get('ffmpeg_proc')
+            log_file = fwd_info.get('log_file')
+            if ffmpeg_proc and ffmpeg_proc.poll() is None:
+                ffmpeg_proc.terminate()
+                try:
+                    ffmpeg_proc.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    ffmpeg_proc.kill()
+                    ffmpeg_proc.wait()
+            if log_file:
+                try:
+                    log_file.close()
+                except Exception:
+                    pass
+        except Exception as e:
+            self.logger.error(f"Error stopping {service} forwarding for {username}: {e}")
+        finally:
+            del self.forwarding_processes[username][service]
+            if not self.forwarding_processes[username]:
+                del self.forwarding_processes[username]
+
+    async def stop_forwarding_for_user(self, username: str):
+        if username not in self.forwarding_processes:
+            return
+        for service in list(self.forwarding_processes[username].keys()):
+            await self.stop_forwarding_for_service(username, service)
+
+    async def cleanup_finished_forwarders(self):
+        for username in list(self.forwarding_processes.keys()):
+            for service in list(self.forwarding_processes[username].keys()):
+                fwd_info = self.forwarding_processes[username][service]
+                ffmpeg_proc = fwd_info.get('ffmpeg_proc')
+                if ffmpeg_proc and ffmpeg_proc.poll() is not None:
+                    rc = ffmpeg_proc.returncode
+                    self.logger.info(
+                        f"{service} forwarding ended for {username} (exit code {rc})"
+                    )
+                    log_file = fwd_info.get('log_file')
+                    if log_file:
+                        try:
+                            log_file.close()
+                        except Exception:
+                            pass
+                    del self.forwarding_processes[username][service]
+            if username in self.forwarding_processes and not self.forwarding_processes[username]:
+                del self.forwarding_processes[username]
+
     def stop_checker(self):
         self.logger.info("Stopping RecordChecker...")
         self.running = False
@@ -678,6 +887,28 @@ class RecordChecker:
             except Exception as e:
                 self.logger.error(f"Error stopping recording for {username}: {e}")
         self.active_recordings.clear()
+        # Stop all active forwarding processes
+        for username in list(self.forwarding_processes.keys()):
+            for service, fwd_info in list(self.forwarding_processes[username].items()):
+                self.logger.info(f"Stopping {service} forwarding for {username}")
+                try:
+                    ffmpeg_proc = fwd_info.get('ffmpeg_proc')
+                    log_file = fwd_info.get('log_file')
+                    if ffmpeg_proc and ffmpeg_proc.poll() is None:
+                        ffmpeg_proc.terminate()
+                        try:
+                            ffmpeg_proc.wait(timeout=15)
+                        except subprocess.TimeoutExpired:
+                            ffmpeg_proc.kill()
+                            ffmpeg_proc.wait()
+                    if log_file:
+                        try:
+                            log_file.close()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    self.logger.error(f"Error stopping {service} forwarding for {username}: {e}")
+        self.forwarding_processes.clear()
         self.logger.info("RecordChecker stopped")
 
 # Function to run the recorder
