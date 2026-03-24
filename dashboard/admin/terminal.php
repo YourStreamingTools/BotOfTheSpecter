@@ -79,6 +79,10 @@ ob_start();
                 <span class="icon"><i class="fas fa-stop"></i></span>
                 <span>Interrupt</span>
             </button>
+            <button class="sp-btn sp-btn-danger" id="tmux-detach-btn" style="display:none;" title="Detach all clients from the active tmux session (Ctrl+B then D)">
+                <span class="icon"><i class="fas fa-unlink"></i></span>
+                <span>Detach (Ctrl+B D)</span>
+            </button>
             <button class="sp-btn sp-btn-info" id="copy-output-btn">
                 <span class="icon"><i class="fas fa-copy"></i></span>
                 <span>Copy Output</span>
@@ -96,6 +100,7 @@ ob_start();
             <span class="sp-badge sp-badge-grey" id="last-command">Last command: none</span>
             <span class="sp-badge sp-badge-grey" id="runtime-stat">Runtime: 00:00</span>
             <span class="sp-badge sp-badge-grey" id="line-count-stat">Lines: 0</span>
+            <span class="sp-badge sp-badge-amber" id="tmux-session-badge" style="display:none;">tmux: none</span>
         </div>
     </div>
     <div class="sp-form-group">
@@ -180,6 +185,7 @@ let snippets = loadSnippets();
 let lineCount = 0;
 let executionStartTime = null;
 let executionTimer = null;
+let tmuxSessionActive = null;
 
 const serverSelect = document.getElementById('server-select');
 const commandInput = document.getElementById('command-input');
@@ -201,6 +207,8 @@ const currentServerTag = document.getElementById('current-server');
 const lastCommandTag = document.getElementById('last-command');
 const runtimeStatTag = document.getElementById('runtime-stat');
 const lineCountStatTag = document.getElementById('line-count-stat');
+const tmuxDetachBtn = document.getElementById('tmux-detach-btn');
+const tmuxSessionBadge = document.getElementById('tmux-session-badge');
 
 autoScrollCheckbox.checked = true;
 
@@ -543,14 +551,37 @@ interruptBtn.addEventListener('click', function() {
     finalizeExecution('Command interrupted by user', 'danger', 'Command interrupted');
 });
 
+tmuxDetachBtn.addEventListener('click', async function() {
+    if (!tmuxSessionActive || isExecuting) return;
+    const session = tmuxSessionActive;
+    tmuxSessionActive = null;
+    tmuxDetachBtn.style.display = 'none';
+    tmuxSessionBadge.style.display = 'none';
+    appendToTerminal(`Sending detach to tmux session: ${session}`, 'info');
+    commandInput.value = `tmux detach-client -s ${session}`;
+    await executeCommand();
+});
+
 async function executeCommand() {
     const server = serverSelect.value;
-    const command = commandInput.value.trim();
+    let command = commandInput.value.trim();
     if (!server || !command) return;
     if (command === 'clear') {
         clearBtn.click();
         commandInput.value = '';
         return;
+    }
+    // Detect tmux attach command and convert to capture-pane (attach requires an interactive TTY)
+    const tmuxAttachMatch = command.match(/^tmux\s+(?:attach(?:-session)?|a)\b.*?-t[= ]([a-zA-Z0-9_\-]+)/i);
+    if (tmuxAttachMatch) {
+        const session = tmuxAttachMatch[1];
+        tmuxSessionActive = session;
+        tmuxDetachBtn.style.display = '';
+        tmuxSessionBadge.style.display = '';
+        tmuxSessionBadge.textContent = `tmux: ${session}`;
+        command = `tmux capture-pane -t ${session} -p -S -2000`;
+        appendToTerminal(`Viewing tmux session: ${session}`, 'info');
+        appendToTerminal(`Tip: Click "Detach (Ctrl+B D)" to detach all clients from this session.`, 'info');
     }
     const safetyDecision = await confirmCommandSafety(command);
     if (!safetyDecision.proceed) {
@@ -626,6 +657,8 @@ document.addEventListener('DOMContentLoaded', function() {
     appendToTerminal('  - Use output filter, copy output, or download log anytime', 'info');
     appendToTerminal('  - Safe mode warns on risky commands', 'info');
     appendToTerminal('  - Press Ctrl+C or click Interrupt to stop running commands', 'info');
+    appendToTerminal('  - Type "tmux attach -t <session>" to view a tmux session (e.g. specter_username)', 'info');
+    appendToTerminal('  - Use the "Detach (Ctrl+B D)" button to detach all clients from the active tmux session', 'info');
     appendToTerminal('='.repeat(60), 'info');
     appendToTerminal('Command history restored: ' + commandHistory.length + ' entries', 'info');
     appendToTerminal('Saved snippets restored: ' + snippets.length + ' entries', 'info');
