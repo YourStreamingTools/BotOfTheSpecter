@@ -1117,6 +1117,12 @@ ob_start();
                                     <span class="icon"><i class="fas fa-user-astronaut"></i></span>
                                     <span>Switch to Custom</span>
                                 </button>
+                                <button class="sp-btn sp-btn-dark attach-console-btn"
+                                    onclick="attachConsole('<?php echo htmlspecialchars($user['username']); ?>')"
+                                    style="display: none;" disabled title="View tmux attach command for this bot's console">
+                                    <span class="icon"><i class="fas fa-terminal"></i></span>
+                                    <span>Attach Console</span>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -1272,6 +1278,12 @@ ob_start();
                                 restartBtn.disabled = false;
                                 restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`);
                             }
+                            // Show attach console button
+                            const attachConsoleBtn = row.querySelector('.attach-console-btn');
+                            if (attachConsoleBtn) {
+                                attachConsoleBtn.style.display = 'inline-flex';
+                                attachConsoleBtn.disabled = false;
+                            }
                             // Show switch button with opposite bot type
                             if (switchBtn) {
                                 const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta');
@@ -1306,6 +1318,9 @@ ob_start();
                                 validateDelay += 200;
                             }
                         } else {
+                            // Hide attach console button when not running
+                            const attachConsoleBtnOff = row.querySelector('.attach-console-btn');
+                            if (attachConsoleBtnOff) { attachConsoleBtnOff.style.display = 'none'; attachConsoleBtnOff.disabled = true; }
                             // Update bot status tag for not running
                             if (botTag) {
                                 botTag.className = 'sp-badge sp-badge-red bot-status-tag';
@@ -1427,6 +1442,8 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
+                            const attachConsoleBtnR = row.querySelector('.attach-console-btn');
+                            if (attachConsoleBtnR) { attachConsoleBtnR.style.display = 'inline-flex'; attachConsoleBtnR.disabled = false; }
                             if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? 'Switch to Stable' : (isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
                             if (switchCustomBtn) { if (runningType === 'custom') { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'beta')`); switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Beta'; } else { const canSwitchToCustom = canStartCustom && runningType !== 'custom'; if (canSwitchToCustom) { switchCustomBtn.style.display = 'inline-flex'; switchCustomBtn.disabled = false; switchCustomBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', 'custom')`); switchCustomBtn.querySelector('span:last-child').textContent = 'Switch to Custom'; } else { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; } } }
                         } else {
@@ -1437,6 +1454,8 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
                             if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
                             if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
+                            const attachConsoleBtnOff2 = row.querySelector('.attach-console-btn');
+                            if (attachConsoleBtnOff2) { attachConsoleBtnOff2.style.display = 'none'; attachConsoleBtnOff2.disabled = true; }
                             if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
                             if (switchCustomBtn) { switchCustomBtn.style.display = 'none'; switchCustomBtn.disabled = true; }
                         }
@@ -1880,6 +1899,20 @@ ob_start();
             // Use the existing startUserBot function which handles stopping and switching
             await startUserBot(username, twitchUserId, targetType);
         }
+    };
+    // Function to show tmux attach command for a running bot
+    window.attachConsole = function (username) {
+        const sessionName = 'specter_' + username.replace(/[^a-zA-Z0-9_]/g, '_');
+        Swal.fire({
+            title: '<i class="fas fa-terminal"></i> Attach to Bot Console',
+            html: '<p style="margin-bottom:0.75rem;">Run the following command on the bot server to attach to the tmux session:</p>'
+                + '<pre style="background:#1e1e1e;color:#d4d4d4;padding:0.75rem 1rem;border-radius:6px;text-align:left;font-size:0.9rem;overflow-x:auto;user-select:all;">'
+                + 'tmux attach -t ' + sessionName + '</pre>'
+                + '<p style="margin-top:0.75rem;font-size:0.85rem;color:#888;">Detach without stopping the bot: <kbd>Ctrl+B</kbd> then <kbd>D</kbd></p>',
+            icon: 'info',
+            confirmButtonText: 'Close',
+            confirmButtonColor: '#3085d6'
+        });
     };
     // Function to restart bot
     window.restartBot = function (username, botType, pid, element) {
