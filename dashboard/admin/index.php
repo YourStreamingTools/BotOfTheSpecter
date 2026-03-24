@@ -547,6 +547,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['refresh_discord_tokens
 // Handle bot stop action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($_POST['pid'])) {
     $pid = intval($_POST['pid']);
+    $stopUsername = preg_replace('/[^a-zA-Z0-9_]/', '_', trim($_POST['username'] ?? ''));
     $stopSuccess = false;
     $stopError = '';
     if ($pid > 0) {
@@ -555,6 +556,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($
                 if ($connection) {
                     // Use SIGKILL explicitly to force-stop the process on the bots server
                     SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
+                    // Also clean up the tmux session for this user
+                    if (!empty($stopUsername)) {
+                        $tmuxSession = 'specter_' . $stopUsername;
+                        SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($tmuxSession) . ' 2>/dev/null; true');
+                    }
                     $stopSuccess = true;
                 } else {
                     $stopError = 'Connection failed';
@@ -621,6 +627,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                             if ($connection) {
                                 SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
                                 client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
+                                // Clean up the tmux session so the restart creates a fresh one
+                                $restartTmuxSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
+                                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($restartTmuxSession) . ' 2>/dev/null; true');
                                 // Give it a moment to stop
                                 sleep(1);
                             }
@@ -2390,7 +2399,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
     // Function to stop bot
-    window.stopBot = function(pid, element) {
+    window.stopBot = function(pid, element, username) {
         Swal.fire({
             title: 'Are you sure?',
             text: 'Do you want to stop this bot?',
@@ -2404,6 +2413,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData();
                 formData.append('stop_bot', '1');
                 formData.append('pid', pid);
+                if (username) { formData.append('username', username); }
                 fetch(window.location.href, {
                     method: 'POST',
                     body: formData
@@ -2732,7 +2742,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         html += '</div>';
         html += '<div style="display: flex; gap: 0.5rem;">';
-        html += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm bot-stop-button" data-pid="' + bot.pid + '" title="Stop Bot">';
+        html += '<button type="button" class="sp-btn sp-btn-danger sp-btn-sm bot-stop-button" data-pid="' + bot.pid + '" data-username="' + bot.channel + '" title="Stop Bot">';
         html += '<span class="icon"><i class="fas fa-stop"></i></span>';
         html += '</button>';
         html += '<button type="button" class="sp-btn sp-btn-info sp-btn-sm bot-restart-button" data-username="' + bot.channel + '" data-bot-type="' + bot.type + '" data-pid="' + bot.pid + '" title="Restart Bot">';
@@ -2848,13 +2858,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         const stopBtn = existingEl.querySelector('.bot-stop-button');
                         if (stopBtn) {
                             stopBtn.setAttribute('data-pid', bot.pid);
+                            stopBtn.setAttribute('data-username', bot.channel);
                             // Remove existing listeners to prevent duplicates
                             const newStopBtn = stopBtn.cloneNode(true);
                             stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
                             newStopBtn.addEventListener('click', function() {
                                 const pid = this.getAttribute('data-pid');
+                                const username = this.getAttribute('data-username');
                                 const element = this.closest('.admin-bot-card');
-                                stopBot(pid, element);
+                                stopBot(pid, element, username);
                             });
                         }
                         // update restart button attributes
@@ -2886,8 +2898,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (stopButton) {
                                     stopButton.addEventListener('click', function() {
                                         const pid = this.getAttribute('data-pid');
+                                        const username = this.getAttribute('data-username');
                                         const element = this.closest('.admin-bot-card');
-                                        stopBot(pid, element);
+                                        stopBot(pid, element, username);
                                     });
                                 }
                                 const restartButton = newEl.querySelector('.bot-restart-button');
