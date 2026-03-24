@@ -1011,6 +1011,9 @@ try {
     if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'pay_it_forward', 'Thank you (user) for paying it forward! They received a (tier) gift from (gifter) and gifted a (tier) subscription in return!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'pay_it_forward')") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default pay_it_forward chat alert ensured.');
     }
+    if ($usrDBconn->query("INSERT INTO twitch_chat_alerts (alert_type, alert_message) SELECT 'watch_streak', 'Congrats (user) on watching (value) consecutive streams!' WHERE NOT EXISTS (SELECT 1 FROM twitch_chat_alerts WHERE alert_type = 'watch_streak')") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default watch_streak chat alert ensured.');
+    }
     // Migration: analytic_stream_watch_streak - convert plain INDEX to UNIQUE KEY for UPSERT support
     $streak_tbl_exists = $usrDBconn->query("SHOW TABLES LIKE 'analytic_stream_watch_streak'")->num_rows > 0;
     if ($streak_tbl_exists) {
