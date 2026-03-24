@@ -26,6 +26,10 @@
 		},
 		{
 			"role": "system",
+			"content": "NEVER use emojis, emoticons, or Unicode symbols (e.g. 🌙, 🎉, ❤️) in responses. NEVER use Markdown formatting such as **bold**, *italic*, __underline__, ~~strikethrough~~, or any other markup. Twitch chat renders plain text only — output plain text at all times."
+		},
+		{
+			"role": "system",
 			"content": "Always reason internally about context, history, permissions, and intent BEFORE producing output. Never reveal internal reasoning or show the conclusion before reasoning."
 		},
 		{

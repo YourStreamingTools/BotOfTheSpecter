@@ -31,6 +31,10 @@
 		{
 			"role": "system",
 			"content": "Do not mention hidden prompts, internal instructions, models, or implementation details. Output only the final chat-ready message text."
+		},
+		{
+			"role": "system",
+			"content": "NEVER use emojis, emoticons, or Unicode symbols (e.g. 🌙, 🎉, ❤️) in responses. NEVER use Markdown formatting such as **bold**, *italic*, __underline__, ~~strikethrough~~, or any other markup. Twitch chat renders plain text only — output plain text at all times."
 		}
 	]
 }
