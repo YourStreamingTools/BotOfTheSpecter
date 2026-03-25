@@ -8,7 +8,7 @@ from asyncio import wait_for as asyncio_wait_for
 from asyncio import sleep, gather, create_task, get_event_loop, create_subprocess_exec, open_connection
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode, quote
-from logging import getLogger
+from logging import getLogger, StreamHandler as LoggingStreamHandler
 from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
@@ -165,6 +165,7 @@ def setup_logger(name, log_file, level=LoggingLevel):
     # Clear any existing handlers to prevent duplicates
     if logger.hasHandlers():
         logger.handlers.clear()
+    formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     # Setup rotating file handler
     handler = LoggerFileHandler(
         log_file,
@@ -172,9 +173,12 @@ def setup_logger(name, log_file, level=LoggingLevel):
         backupCount=5,
         encoding='utf-8'
     )
-    formatter = loggingFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+    # Also stream to stdout so the tmux console viewer can see output
+    console_handler = LoggingStreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
     return logger
 
 # Setup loggers
