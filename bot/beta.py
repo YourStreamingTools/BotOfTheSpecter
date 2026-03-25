@@ -3174,7 +3174,7 @@ class TwitchBot(commands.Bot):
                                 if calling_match:
                                     match_call = calling_match.group(1)
                                     response = response.replace(f"(call.{match_call})", "").strip()
-                                    await self.call_command(match_call, message)
+                                    await self.call_command(match_call, message, arg)
                             # Extract user mention
                             user_mention = re.search(r'@(\w+)', messageContent)
                             user_name = user_mention.group(1) if user_mention else messageAuthor
@@ -3745,7 +3745,7 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"[USER GROUP] An error occurred in user_grouping: {e}")
 
-    async def call_command(self, command_name, ctx):
+    async def call_command(self, command_name, ctx, arg=None):
         if command_name in self.running_commands:
             bot_logger.error(f"[CALL COMMAND] Command '{command_name}' is already running, skipping.")
             return
@@ -3758,10 +3758,13 @@ class TwitchBot(commands.Bot):
             if callback is None and callable(command_obj):
                 callback = command_obj
             if callback:
-                bot_logger.info(f"[CALL COMMAND] Calling command: {command_name}")
+                bot_logger.info(f"[CALL COMMAND] Calling command: {command_name}, arg: {arg}")
                 self.running_commands.add(command_name)
                 try:
-                    await callback(self, ctx)
+                    if arg is not None:
+                        await callback(self, ctx, arg)
+                    else:
+                        await callback(self, ctx)
                 except Exception as e:
                     bot_logger.error(f"[CALL COMMAND] Error executing command '{command_name}': {e}")
                 finally:
