@@ -1119,7 +1119,7 @@ ob_start();
                                 </button>
                                 <button class="sp-btn sp-btn-dark attach-console-btn"
                                     onclick="attachConsole('<?php echo htmlspecialchars($user['username']); ?>')"
-                                    style="display: none;" disabled title="View tmux attach command for this bot's console">
+                                    style="display: none;" disabled title="Stream live bot console output">
                                     <span class="icon"><i class="fas fa-terminal"></i></span>
                                     <span>Attach Console</span>
                                 </button>
@@ -1130,6 +1130,23 @@ ob_start();
             </tbody>
         </table>
     </div>
+    </div>
+</div>
+<!-- Bot Console Viewer Modal -->
+<div id="console-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;justify-content:center;align-items:center;padding:1rem;" onclick="consoleModalBackdropClick(event)">
+    <div style="background:var(--card-bg,#1a1a2e);border-radius:var(--radius,8px);width:100%;max-width:960px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.6);" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+                <span class="icon"><i class="fas fa-terminal"></i></span>
+                <span id="console-modal-title" style="font-weight:700;">Bot Console</span>
+                <span id="console-modal-status" class="sp-badge sp-badge-blue">Connecting...</span>
+            </div>
+            <button class="sp-btn sp-btn-danger" onclick="closeConsoleModal()" title="Close console view">
+                <span class="icon"><i class="fas fa-times"></i></span>
+                <span>Close</span>
+            </button>
+        </div>
+        <pre id="console-modal-output" style="background:#1e1e1e;color:#d4d4d4;font-family:'Courier New',monospace;flex:1;overflow-y:auto;white-space:pre-wrap;word-break:break-all;padding:1rem;margin:0;min-height:420px;max-height:calc(90vh - 60px);"></pre>
     </div>
 </div>
 <script>
@@ -1901,18 +1918,78 @@ ob_start();
         }
     };
     // Function to show tmux attach command for a running bot
-    window.attachConsole = function (username) {
-        const sessionName = 'specter_' + username.replace(/[^a-zA-Z0-9_]/g, '_');
-        Swal.fire({
-            title: '<i class="fas fa-terminal"></i> Attach to Bot Console',
-            html: '<p style="margin-bottom:0.75rem;">Run the following command on the bot server to attach to the tmux session:</p>'
-                + '<pre style="background:#1e1e1e;color:#d4d4d4;padding:0.75rem 1rem;border-radius:6px;text-align:left;font-size:0.9rem;overflow-x:auto;user-select:all;">'
-                + 'tmux attach -t ' + sessionName + '</pre>'
-                + '<p style="margin-top:0.75rem;font-size:0.85rem;color:#888;">Detach without stopping the bot: <kbd>Ctrl+B</kbd> then <kbd>D</kbd></p>',
-            icon: 'info',
-            confirmButtonText: 'Close',
-            confirmButtonColor: '#3085d6'
+    // Console viewer state
+    let _consolePollTimer = null;
+    let _consoleEventSource = null;
+
+    function _setConsoleStatus(msg, type) {
+        const el = document.getElementById('console-modal-status');
+        if (!el) return;
+        const classes = { info: 'sp-badge-blue', success: 'sp-badge-green', warning: 'sp-badge-amber', danger: 'sp-badge-red' };
+        el.textContent = msg;
+        el.className = 'sp-badge ' + (classes[type] || 'sp-badge-blue');
+    }
+
+    function _fetchConsoleSnapshot(sessionName) {
+        if (_consoleEventSource) {
+            _consoleEventSource.close();
+            _consoleEventSource = null;
+        }
+        const cmd = 'tmux capture-pane -t ' + sessionName + ' -p -S -500';
+        const url = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(cmd) + '&safe=0';
+        let buf = '';
+        _consoleEventSource = new EventSource(url);
+        _consoleEventSource.onmessage = function(e) {
+            if (e.data && !e.data.startsWith('Executing on ')) {
+                buf += e.data + '\n';
+            }
+        };
+        _consoleEventSource.addEventListener('done', function() {
+            if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
+            const out = document.getElementById('console-modal-output');
+            if (!out) return;
+            if (buf.trim()) {
+                out.textContent = buf;
+                out.scrollTop = out.scrollHeight;
+                _setConsoleStatus('Live — refreshed ' + new Date().toLocaleTimeString(), 'success');
+            } else {
+                _setConsoleStatus('Session empty or not found', 'warning');
+            }
         });
+        _consoleEventSource.addEventListener('error', function() {
+            if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
+            _setConsoleStatus('Stream error — retrying...', 'danger');
+        });
+        _consoleEventSource.onerror = function() {
+            if (_consoleEventSource && _consoleEventSource.readyState === EventSource.CLOSED) {
+                _consoleEventSource = null;
+            }
+        };
+    }
+
+    window.attachConsole = function(username) {
+        const sessionName = 'specter_' + username.replace(/[^a-zA-Z0-9_]/g, '_');
+        const modal = document.getElementById('console-modal');
+        document.getElementById('console-modal-title').textContent = 'Bot Console: ' + username;
+        document.getElementById('console-modal-output').textContent = '';
+        _setConsoleStatus('Connecting...', 'info');
+        modal.style.display = 'flex';
+        // Initial fetch then poll every 3 seconds
+        _fetchConsoleSnapshot(sessionName);
+        _consolePollTimer = setInterval(function() { _fetchConsoleSnapshot(sessionName); }, 3000);
+    };
+
+    window.closeConsoleModal = function() {
+        if (_consolePollTimer) { clearInterval(_consolePollTimer); _consolePollTimer = null; }
+        if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
+        document.getElementById('console-modal').style.display = 'none';
+        document.getElementById('console-modal-output').textContent = '';
+    };
+
+    window.consoleModalBackdropClick = function(e) {
+        if (e.target === document.getElementById('console-modal')) {
+            closeConsoleModal();
+        }
     };
     // Function to restart bot
     window.restartBot = function (username, botType, pid, element) {
