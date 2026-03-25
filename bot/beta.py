@@ -1,5 +1,5 @@
 ﻿# Standard library imports
-import os, re, sys, ast, signal, argparse, traceback, math, ssl
+import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
 from asyncio import CancelledError as asyncioCancelledError
@@ -2947,6 +2947,52 @@ async def cleanup_idle_db_pools():
             bot_logger.error(f"[DB CONNECTION] Error in cleanup_idle_db_pools: {e}")
             await sleep(300)  # Wait 5 minutes before retrying on error
 
+def _build_command_args(callback, arg_str):
+    if not arg_str:
+        return (), {}
+    sig = inspect.signature(callback)
+    params = [
+        p for p in sig.parameters.values()
+        if p.name not in ('self', 'ctx')
+    ]
+    if not params:
+        return (), {}
+    parts = arg_str.split()
+    has_var_positional = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
+    positional_params = [
+        p for p in params
+        if p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+    ]
+    kw_only_params = [
+        p for p in params
+        if p.kind == inspect.Parameter.KEYWORD_ONLY
+    ]
+    call_args = []
+    call_kwargs = {}
+    if has_var_positional:
+        # *args: spread every word individually
+        call_args = parts
+    else:
+        # Assign one word per positional param, coercing int when annotated
+        for i, param in enumerate(positional_params):
+            if i >= len(parts):
+                break
+            value = parts[i]
+            if param.annotation is int:
+                try:
+                    value = int(value)
+                except (ValueError, TypeError):
+                    pass
+            call_args.append(value)
+        # Keyword-only params (after bare *) get the full remainder as one string
+        if kw_only_params:
+            consumed = min(len(positional_params), len(parts))
+            remainder_parts = parts[consumed:]
+            remainder = ' '.join(remainder_parts) if remainder_parts else (arg_str if not positional_params else None)
+            if remainder:
+                call_kwargs[kw_only_params[0].name] = remainder
+    return tuple(call_args), call_kwargs
+
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -3100,6 +3146,7 @@ class TwitchBot(commands.Bot):
                 command_parts = messageContent.split()
                 command = command_parts[0][1:]  # Extract the command without '!'
                 arg = command_parts[1] if len(command_parts) > 1 else None
+                arg_str = ' '.join(command_parts[1:]) if len(command_parts) > 1 else None
                 # Check if it's a built-in command/alias, but also check if it's disabled
                 if command in builtin_commands or command in mod_commands or command in builtin_aliases:
                     # Check if the built-in command is disabled
@@ -3174,7 +3221,7 @@ class TwitchBot(commands.Bot):
                                 if calling_match:
                                     match_call = calling_match.group(1)
                                     response = response.replace(f"(call.{match_call})", "").strip()
-                                    await self.call_command(match_call, message, arg)
+                                    await self.call_command(match_call, message, arg_str)
                             # Extract user mention
                             user_mention = re.search(r'@(\w+)', messageContent)
                             user_name = user_mention.group(1) if user_mention else messageAuthor
@@ -3745,7 +3792,7 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"[USER GROUP] An error occurred in user_grouping: {e}")
 
-    async def call_command(self, command_name, ctx, arg=None):
+    async def call_command(self, command_name, ctx, arg_str=None):
         if command_name in self.running_commands:
             bot_logger.error(f"[CALL COMMAND] Command '{command_name}' is already running, skipping.")
             return
@@ -3758,13 +3805,11 @@ class TwitchBot(commands.Bot):
             if callback is None and callable(command_obj):
                 callback = command_obj
             if callback:
-                bot_logger.info(f"[CALL COMMAND] Calling command: {command_name}, arg: {arg}")
+                bot_logger.info(f"[CALL COMMAND] Calling command: {command_name}, arg_str: {arg_str}")
+                call_args, call_kwargs = _build_command_args(callback, arg_str)
                 self.running_commands.add(command_name)
                 try:
-                    if arg is not None:
-                        await callback(self, ctx, arg)
-                    else:
-                        await callback(self, ctx)
+                    await callback(self, ctx, *call_args, **call_kwargs)
                 except Exception as e:
                     bot_logger.error(f"[CALL COMMAND] Error executing command '{command_name}': {e}")
                 finally:
