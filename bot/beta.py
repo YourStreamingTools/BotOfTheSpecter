@@ -3173,13 +3173,14 @@ class TwitchBot(commands.Bot):
                                 calling_match = re.search(r'\(call\.(\w+)\)', response)
                                 if calling_match:
                                     match_call = calling_match.group(1)
-                                    response = response.replace(f"(call.{match_call})", "")
+                                    response = response.replace(f"(call.{match_call})", "").strip()
                                     await self.call_command(match_call, message)
                             # Extract user mention
                             user_mention = re.search(r'@(\w+)', messageContent)
                             user_name = user_mention.group(1) if user_mention else messageAuthor
                             # Process variables (SAFE now - connection released)
-                            await process_dynamic_message_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                            if response.strip():
+                                await process_dynamic_message_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
                             # Record usage
                             add_usage(command, 'global', 'default')
                         else:
@@ -3751,16 +3752,22 @@ class TwitchBot(commands.Bot):
         # If ctx doesn't have 'view', it's a Message, create a Context
         if not hasattr(ctx, 'view'):
             ctx = Context(message=ctx, bot=self, prefix='!')
-        command_method = getattr(self, f"{command_name}_command", None)
-        if command_method:
-            bot_logger.info(f"[CALL COMMAND] Calling command: {command_name}")
-            self.running_commands.add(command_name)
-            try:
-                await command_method(ctx)
-            except Exception as e:
-                bot_logger.error(f"[CALL COMMAND] Error executing command '{command_name}': {e}")
-            finally:
-                self.running_commands.discard(command_name)
+        command_obj = getattr(self, f"{command_name}_command", None)
+        if command_obj is not None:
+            callback = getattr(command_obj, '_callback', None)
+            if callback is None and callable(command_obj):
+                callback = command_obj
+            if callback:
+                bot_logger.info(f"[CALL COMMAND] Calling command: {command_name}")
+                self.running_commands.add(command_name)
+                try:
+                    await callback(self, ctx)
+                except Exception as e:
+                    bot_logger.error(f"[CALL COMMAND] Error executing command '{command_name}': {e}")
+                finally:
+                    self.running_commands.discard(command_name)
+            else:
+                bot_logger.error(f"[CALL COMMAND] Command '{command_name}' has no callable implementation.")
         else:
             bot_logger.error(f"[CALL COMMAND] Command '{command_name}' not found.")
             await send_chat_message(f"Command '{command_name}' not found.")
