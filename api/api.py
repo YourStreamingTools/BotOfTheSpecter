@@ -3865,6 +3865,285 @@ async def bot_status(api_key: str = Query(..., description="Your API key for aut
     bot_status_info = await get_bot_status_via_ssh(username)
     return BotStatusResponse(**bot_status_info)
 
+# ─── Twitch Extension Endpoints ──────────────────────────────────────────────
+# Read-only, no API key required. Uses the broadcaster's Twitch channel ID
+# (auth.channelId from the Twitch Extension Helper) to identify the channel.
+
+async def get_username_by_channel_id(channel_id: str):
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT username FROM users WHERE twitch_user_id = %s LIMIT 1",
+                (channel_id,)
+            )
+            result = await cur.fetchone()
+            return result["username"] if result else None
+    finally:
+        conn.close()
+
+@app.get("/extension/commands", tags=["Extension"], summary="Get custom commands for a channel")
+async def extension_commands(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT command, response, status FROM custom_commands WHERE status = 'enabled' ORDER BY command ASC"
+                )
+                rows = await cur.fetchall()
+            return {"channel": username, "commands": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension commands error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving commands")
+
+@app.get("/extension/deaths", tags=["Extension"], summary="Get death counts for a channel")
+async def extension_deaths(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT death_count FROM total_deaths LIMIT 1")
+                total_row = await cur.fetchone()
+                await cur.execute("SELECT game_name, death_count FROM game_deaths ORDER BY death_count DESC")
+                game_rows = await cur.fetchall()
+            return {
+                "channel": username,
+                "total_deaths": total_row["death_count"] if total_row else 0,
+                "game_deaths": game_rows
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension deaths error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving deaths")
+
+@app.get("/extension/quotes", tags=["Extension"], summary="Get quotes for a channel")
+async def extension_quotes(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT id, quote, author FROM quotes ORDER BY id DESC")
+                rows = await cur.fetchall()
+            return {"channel": username, "quotes": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension quotes error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving quotes")
+
+@app.get("/extension/typos", tags=["Extension"], summary="Get typo counts for a channel")
+async def extension_typos(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT username, typo_count FROM user_typos ORDER BY typo_count DESC")
+                rows = await cur.fetchall()
+            return {"channel": username, "typos": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension typos error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving typos")
+
+@app.get("/extension/lurkers", tags=["Extension"], summary="Get current lurkers for a channel")
+async def extension_lurkers(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT user_id, start_time FROM lurk_times ORDER BY start_time ASC")
+                rows = await cur.fetchall()
+            return {"channel": username, "lurkers": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension lurkers error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving lurkers")
+
+@app.get("/extension/hugs", tags=["Extension"], summary="Get hug counts for a channel")
+async def extension_hugs(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT SUM(hug_count) AS total FROM hug_counts")
+                total_row = await cur.fetchone()
+                await cur.execute("SELECT username, hug_count FROM hug_counts ORDER BY hug_count DESC")
+                rows = await cur.fetchall()
+            return {
+                "channel": username,
+                "total_hugs": total_row["total"] if total_row and total_row["total"] else 0,
+                "hug_counts": rows
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension hugs error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving hugs")
+
+@app.get("/extension/kisses", tags=["Extension"], summary="Get kiss counts for a channel")
+async def extension_kisses(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT SUM(kiss_count) AS total FROM kiss_counts")
+                total_row = await cur.fetchone()
+                await cur.execute("SELECT username, kiss_count FROM kiss_counts ORDER BY kiss_count DESC")
+                rows = await cur.fetchall()
+            return {
+                "channel": username,
+                "total_kisses": total_row["total"] if total_row and total_row["total"] else 0,
+                "kiss_counts": rows
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension kisses error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving kisses")
+
+@app.get("/extension/highfives", tags=["Extension"], summary="Get high-five counts for a channel")
+async def extension_highfives(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT username, highfive_count FROM highfive_counts ORDER BY highfive_count DESC")
+                rows = await cur.fetchall()
+            return {"channel": username, "highfive_counts": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension highfives error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving highfives")
+
+@app.get("/extension/custom-counts", tags=["Extension"], summary="Get custom counts for a channel")
+async def extension_custom_counts(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT command, count FROM custom_counts ORDER BY count DESC")
+                rows = await cur.fetchall()
+            return {"channel": username, "custom_counts": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension custom-counts error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving custom counts")
+
+@app.get("/extension/user-counts", tags=["Extension"], summary="Get per-user counts for a channel")
+async def extension_user_counts(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT command, user, count FROM user_counts ORDER BY count DESC")
+                rows = await cur.fetchall()
+            return {"channel": username, "user_counts": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension user-counts error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving user counts")
+
+@app.get("/extension/reward-counts", tags=["Extension"], summary="Get reward redemption counts for a channel")
+async def extension_reward_counts(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT rc.reward_id, rc.user, rc.count, c.reward_title "
+                    "FROM reward_counts AS rc "
+                    "LEFT JOIN channel_point_rewards AS c ON rc.reward_id = c.reward_id "
+                    "ORDER BY rc.count DESC"
+                )
+                rows = await cur.fetchall()
+            return {"channel": username, "reward_counts": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension reward-counts error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving reward counts")
+
+@app.get("/extension/watch-time", tags=["Extension"], summary="Get watch time leaderboard for a channel")
+async def extension_watch_time(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT username, total_watch_time_live, total_watch_time_offline "
+                    "FROM watch_time ORDER BY total_watch_time_live DESC LIMIT 50"
+                )
+                rows = await cur.fetchall()
+            return {"channel": username, "watch_time": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension watch-time error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving watch time")
+
+@app.get("/extension/todos", tags=["Extension"], summary="Get to-do items for a channel")
+async def extension_todos(channel_id: str = Query(..., description="Broadcaster's Twitch user ID")):
+    username = await get_username_by_channel_id(channel_id)
+    if not username:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT id, task, status FROM todos ORDER BY id DESC")
+                rows = await cur.fetchall()
+            return {"channel": username, "todos": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Extension todos error for channel_id {channel_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving todos")
+
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():
