@@ -407,7 +407,9 @@ if (isset($_GET['admin_log_user']) && isset($_GET['admin_log_type'])) {
     ob_clean();
     $selectedUser = $_GET['admin_log_user'];
     $logType = $_GET['admin_log_type'];
-    $logPath = "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
+    $logPath = ($logType === 'crash')
+        ? "/home/botofthespecter/logs/{$selectedUser}_crash.log"
+        : "/home/botofthespecter/logs/logs/$logType/$selectedUser.txt";
     $result = read_bot_log_over_ssh($logPath);
     if (isset($result['error'])) {
         // If file not found, return empty log message
@@ -861,6 +863,7 @@ ob_start();
                             <option value="websocket">Websocket Log</option>
                             <option value="system">System Log</option>
                             <option value="integrations">Integrations Log</option>
+                            <option value="crash">Crash Log</option>
                         </select>
         </div><!-- /user-log-type-control -->
         <div id="system-log-type-control" style="display: none;">

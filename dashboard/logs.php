@@ -160,7 +160,10 @@ if (isset($_GET['download_log'])) {
   $rotation = isset($_GET['rotation']) ? (int)$_GET['rotation'] : 0;
   $currentUser = $_SESSION['username'];
   // Build file path with rotation
-  if ($rotation === 0) {
+  if ($logType === 'crash') {
+    $log = "/home/botofthespecter/logs/{$currentUser}_crash.log";
+    $downloadFileName = "{$currentUser}_crash.log";
+  } elseif ($rotation === 0) {
     $log = "$logPath/$logType/$currentUser.txt";
     $downloadFileName = "{$currentUser}_{$logType}_current.txt";
   } else {
@@ -209,7 +212,9 @@ if (isset($_GET['log'])) {
   $rotation = isset($_GET['rotation']) ? (int)$_GET['rotation'] : 0;
   $currentUser = $_SESSION['username'];
   // Build file path with rotation
-  if ($rotation === 0) {
+  if ($logType === 'crash') {
+    $log = "/home/botofthespecter/logs/{$currentUser}_crash.log";
+  } elseif ($rotation === 0) {
     $log = "$logPath/$logType/$currentUser.txt";
   } else {
     $log = "$logPath/$logType/$currentUser.txt.$rotation";
@@ -238,7 +243,9 @@ if (isset($_GET['log'])) {
 if (isset($_GET['logType'])) {
   $logType = $_GET['logType'];
   $currentUser = $_SESSION['username'];
-  $log = "$logPath/$logType/$currentUser.txt";
+  $log = ($logType === 'crash')
+    ? "/home/botofthespecter/logs/{$currentUser}_crash.log"
+    : "$logPath/$logType/$currentUser.txt";
   // Read the log file via SSH
   $result = read_log_file($log);
   if (isset($result['error'])) {
@@ -287,6 +294,7 @@ ob_start();
           <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
           <option value="system" <?php echo $logType === 'system' ? 'selected' : ''; ?>><?php echo t('logs_type_system'); ?></option>
           <option value="integrations" <?php echo $logType === 'integrations' ? 'selected' : ''; ?>><?php echo t('logs_type_integrations'); ?></option>
+          <option value="crash" <?php echo $logType === 'crash' ? 'selected' : ''; ?>>Crash Log</option>
         </select>
       </div>
       <div class="sp-form-group" id="rotation-selector" style="display:none;">

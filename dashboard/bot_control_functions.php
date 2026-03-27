@@ -316,8 +316,9 @@ function performBotAction($action, $botType, $params) {
                     if ($useSelf && $botType === 'beta') {
                         $botArgs .= " -self";
                     }
-                    // Launch inside a named tmux session so the console can be attached later
-                    $startCommand = "tmux new-session -d -s " . escapeshellarg($tmuxSessionName) . " " . $botArgs;
+                    $crashLog = "/home/botofthespecter/logs/" . $username . "_crash.log";
+                    $wrappedArgs = "bash -c " . escapeshellarg($botArgs . " >> " . $crashLog . " 2>&1");
+                    $startCommand = "tmux new-session -d -s " . escapeshellarg($tmuxSessionName) . " " . $wrappedArgs;
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
                     if ($startOutput === false || $startOutput === null) {
