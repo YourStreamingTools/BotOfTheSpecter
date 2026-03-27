@@ -1,5 +1,7 @@
 # Standard library
+import ast
 import asyncio
+import functools
 import json
 import logging
 import os
@@ -10,7 +12,7 @@ import tempfile
 import time
 import traceback
 import urllib.parse
-from datetime import datetime, timezone, timedelta, timezone as dt_timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import random
 
@@ -101,6 +103,7 @@ rate_limit_tracker = RateLimitTracker()
 # Rate limit handler decorator
 def handle_rate_limit(max_retries=3):
     def decorator(func):
+        @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             retries = 0
             backoff = 1
@@ -186,6 +189,21 @@ def ensure_directory_exists(directory_path, description=""):
     except Exception as e:
         print(f"Error creating {description} directory {directory_path}: {e}")
         return False
+
+def _safe_eval_math(expression: str):
+    _ALLOWED_NODES = (
+        ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+        ast.UAdd, ast.USub,
+    )
+    try:
+        tree = ast.parse(expression, mode='eval')
+    except SyntaxError as e:
+        raise ValueError(f"Invalid expression: {e}") from e
+    for node in ast.walk(tree):
+        if not isinstance(node, _ALLOWED_NODES):
+            raise ValueError(f"Disallowed expression node: {type(node).__name__}")
+    return eval(compile(tree, '<math>', 'eval'))  # noqa: S307 — AST-validated, safe
 
 def split_message_preserve_markdown(text: str, max_len: int):
     if not text:
@@ -2130,7 +2148,7 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ I don't have permission to manage this role.", ephemeral=True)
-                    except:
+                    except Exception:
                         pass
                     self.logger.error(f"[PERSISTENT_ROLE] Permission denied when managing role")
                 except Exception as e:
@@ -2139,7 +2157,7 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ An error occurred. Please try again.", ephemeral=True)
-                    except:
+                    except Exception:
                         pass
             # Handle persistent rules buttons
             elif custom_id.startswith('rules_accept_'):
@@ -2164,7 +2182,7 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ I don't have permission to assign this role.", ephemeral=True)
-                    except:
+                    except Exception:
                         pass
                     self.logger.error(f"[PERSISTENT_RULES] Permission denied when assigning role")
                 except Exception as e:
@@ -2173,7 +2191,7 @@ class BotOfTheSpecter(commands.Bot):
                         if not interaction.response.is_done():
                             await interaction.response.defer(ephemeral=True)
                         await self.send_interaction_response(interaction, content="❌ An error occurred. Please try again.", ephemeral=True)
-                    except:
+                    except Exception:
                         pass
 
     async def on_member_join(self, member):
@@ -2657,19 +2675,6 @@ class BotOfTheSpecter(commands.Bot):
                                     await self.mysql_helper.track_message('discordbot')
                                 else:
                                     self.logger.error("AI response chunk was empty, not sending.")
-                    except Exception as stream_exc:
-                        self.logger.error(f"Streaming failed: {stream_exc}; falling back to non-streaming send")
-                        # Fallback: call the non-streaming API and send chunks as before
-                        ai_responses = await self.get_ai_response(message.content, channel_name)
-                        if ai_responses:
-                            for ai_response in ai_responses:
-                                if ai_response:
-                                    typing_delay = len(ai_response) / self.typing_speed
-                                    await asyncio.sleep(typing_delay)
-                                    await message.author.send(ai_response)
-                                    await self.mysql_helper.track_message('discordbot')
-                                else:
-                                    self.logger.error("AI response chunk was empty, not sending.")
             except discord.HTTPException as e:
                 self.logger.error(f"Failed to send message: {e}")
             except Exception as e:
@@ -3037,7 +3042,7 @@ class BotOfTheSpecter(commands.Bot):
                 if math_match:
                     math_expression = math_match.group(1)
                     try:
-                        math_result = eval(math_expression)
+                        math_result = _safe_eval_math(math_expression)
                         response = response.replace(f'(math.{math_expression})', str(math_result))
                     except Exception as e:
                         self.logger.error(f"Math expression error: {e}")
@@ -7724,7 +7729,7 @@ class ServerManagement(commands.Cog, name='Server Management'):
                 try:
                     color_int = int(color_hex.replace('#', ''), 16)
                     embed_color = discord.Color(color_int)
-                except:
+                except Exception:
                     embed_color = discord.Color.blurple()
                 # Create embed
                 embed = discord.Embed(color=embed_color)
@@ -9221,7 +9226,7 @@ class AdminCog(commands.Cog, name='Admin'):
                     try:
                         progress_text = f"🔍 Checking linked users and assigning roles... ({i}/{total_users} processed)"
                         await status_msg.edit(content=progress_text)
-                    except:
+                    except Exception:
                         pass  # Ignore edit failures
                 # Check each user in the batch
                 tasks = []
@@ -9315,7 +9320,7 @@ class AdminCog(commands.Cog, name='Admin'):
             # Delete status message and send results
             try:
                 await status_msg.delete()
-            except:
+            except Exception:
                 pass  # Ignore delete failures
             await ctx.send(embed=embed)
             completion_msg = f"Link check completed: {len(linked_users)} linked, {len(unlinked_users)} unlinked, {len(error_users)} errors, {roles_assigned} roles assigned"
@@ -9324,7 +9329,7 @@ class AdminCog(commands.Cog, name='Admin'):
             self.logger.error(f"Error in check_linked_users command: {e}")
             try:
                 await status_msg.edit(content=f"❌ An error occurred while checking users: {e}")
-            except:
+            except Exception:
                 await ctx.send(f"❌ An error occurred while checking users: {e}")
 
     async def check_user_link_status(self, member):
