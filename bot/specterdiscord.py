@@ -1550,6 +1550,9 @@ class LiveChannelManager:
             # Ask the bot to get stream info via Helix
             try:
                 results = await self.twitch_get_streams_by_logins([str(username).lower()])
+                if results is None:
+                    self.logger.debug(f"Twitch API error in fallback check for {username}, skipping offline update")
+                    return
                 if results:
                     stream_info = results[0]
                     # If this channel isn't already marked online, post to the channel's announcement
@@ -1695,7 +1698,10 @@ class LiveChannelManager:
                     for i in range(0, len(batch), chunk_size):
                         chunk = batch[i:i+chunk_size]
                         head = await self.twitch_get_streams_by_logins(chunk)
-                        live_logins = {s['user_login'].lower(): s for s in head} if head else {}
+                        if head is None:
+                            self.logger.debug("Twitch API error in periodic validation, skipping batch to avoid false offline marks")
+                            continue
+                        live_logins = {s['user_login'].lower(): s for s in head}
                         # Mark or unmark
                         for uname in chunk:
                             # The record_map maps username -> online_stream row
@@ -1832,7 +1838,10 @@ class LiveChannelManager:
             self.logger.info(f"Checking stream status for {len(usernames_to_check)} channels via Twitch API...")
             # Batch fetch current live status from Twitch API
             live_streams = await self.twitch_get_streams_by_logins(usernames_to_check)
-            live_usernames = {s['user_login'].lower(): s for s in live_streams} if live_streams else {}
+            if live_streams is None:
+                self.logger.warning("Twitch API unreachable during boot sync — skipping channel updates to avoid falsely marking live streams as offline")
+                return
+            live_usernames = {s['user_login'].lower(): s for s in live_streams}
             self.logger.info(f"Found {len(live_usernames)} live streams from Twitch API")
             # Track actions for summary
             updated_voice_channels = 0
@@ -1953,13 +1962,14 @@ class LiveChannelManager:
         client_id = config.twitch_client_id
         if not client_id:
             self.logger.debug("Missing twitch client id for Helix API call")
-            return []
+            return None
         # Fetch bot access token from database
         bearer = await self.mysql.get_bot_access_token()
         if not bearer:
             self.logger.debug("Missing bearer token for Helix API call")
-            return []
+            return None
         results = []
+        api_error = False
         # Normalize and ensure we only pass valid lower-case login names. Helix expects lowercase user_login values.
         user_logins = [str(u).strip().lower() for u in user_logins if u]
         # Helix supports up to 100 logins per request
@@ -1983,11 +1993,13 @@ class LiveChannelManager:
                             results.extend(streams)
                         else:
                             self.logger.debug(f"Twitch Helix streams request failed: {resp.status} - {await resp.text()}")
+                            api_error = True
                 except Exception as e:
                     self.logger.debug(f"Twitch Helix request exception: {e}")
+                    api_error = True
                 # small sleep to avoid bursting if many chunks
                 await asyncio.sleep(0.5)
-        return results
+        return None if api_error else results
 
 # Bot class
 class BotOfTheSpecter(commands.Bot):
