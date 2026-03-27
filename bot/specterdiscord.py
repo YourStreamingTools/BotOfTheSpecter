@@ -752,7 +752,7 @@ class ChannelMapping:
         asyncio.create_task(self._init_and_start_refresh())
 
     async def _init_and_start_refresh(self):
-        await self.refresh_mappings()
+        await self.refresh_mappings(is_initial_load=True)
         self._ready.set()
         self._refresh_task = asyncio.create_task(self._periodic_refresh())
 
@@ -761,13 +761,13 @@ class ChannelMapping:
             await asyncio.sleep(300)  # Refresh every 5 minutes
             await self.refresh_mappings()
 
-    async def refresh_mappings(self):
+    async def refresh_mappings(self, is_initial_load=False):
         try:
             # Since we ensure schema exists, always try enhanced schema first
             old_keys = set(self.mappings.keys()) if self.mappings else set()
             rows = await self.mysql.fetchall(
                 """SELECT channel_code, user_id, username, twitch_display_name, twitch_user_id,
-                          guild_id, guild_name, channel_id, channel_name, 
+                          guild_id, guild_name, channel_id, channel_name,
                           stream_alert_channel_id, moderation_channel_id, alert_channel_id,
                           online_text, offline_text, is_active, event_count, last_event_type,
                           last_seen_at, created_at, updated_at
@@ -776,9 +776,9 @@ class ChannelMapping:
             )
             new_mappings = {row['channel_code']: dict(row) for row in rows}
             self.mappings = new_mappings
-            # Detect newly discovered mappings (e.g., added via web dashboard) and trigger immediate fallback checks
+            # fallback checks here would race against it (both make independent API calls concurrently).
             added_keys = set(self.mappings.keys()) - old_keys
-            if added_keys and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+            if added_keys and not is_initial_load and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                 for added_code in added_keys:
                     try:
                         asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
@@ -796,7 +796,7 @@ class ChannelMapping:
                 new_mappings = {row['channel_code']: dict(row) for row in rows}
                 self.mappings = new_mappings
                 added_keys = set(self.mappings.keys()) - old_keys
-                if added_keys and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                if added_keys and not is_initial_load and hasattr(self, 'bot') and self.bot and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
                     for added_code in added_keys:
                         try:
                             asyncio.create_task(self.bot.live_channel_manager.fallback_check_and_mark(added_code))
