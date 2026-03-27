@@ -2010,6 +2010,7 @@ class BotOfTheSpecter(commands.Bot):
         self.mysql_helper = MySQLHelper(logger=discord_logger)
         self.cooldowns = {}
         self._stream_alert_locks = {}
+        self._stream_alert_posted_at: dict = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
             # Voice commands
@@ -3576,6 +3577,12 @@ class BotOfTheSpecter(commands.Bot):
                             self.logger.info("No discord_info found for guild")
                         self.logger.info(f"Final mention text for {account_username}: '{mention_text}'")
                         skip_post = False
+                        cooldown_key = (guild.id, str(account_username).lower())
+                        _last_posted = self._stream_alert_posted_at.get(cooldown_key)
+                        if _last_posted is not None:
+                            _cooldown_diff = datetime.now(timezone.utc) - _last_posted
+                            if _cooldown_diff < timedelta(hours=2):
+                                skip_post = True
                         try:
                             # Check if we've already posted a live notification for this user in THIS specific guild
                             existing_notification = await mysql_helper.fetchone(
@@ -3692,6 +3699,7 @@ class BotOfTheSpecter(commands.Bot):
                                 await self._send_failure_dm(guild, "Stream alert post", account_username, f"Unexpected error ({type(e).__name__}) when posting to #{stream_channel.name}: {e}")
                             # After send attempt, if successful persist the live notification and mark online
                             if sent_success:
+                                self._stream_alert_posted_at[cooldown_key] = datetime.now(timezone.utc)
                                 try:
                                     posted_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                                     started_at = posted_at
