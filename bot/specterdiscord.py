@@ -2010,6 +2010,7 @@ class BotOfTheSpecter(commands.Bot):
         self.mysql_helper = MySQLHelper(logger=discord_logger)
         self.cooldowns = {}
         self._stream_alert_locks = {}
+        self._stream_online_in_flight: set = set()
         self._stream_alert_posted_at: dict = {}
         # Define internal commands that should never be overridden by custom commands
         self.internal_commands = {
@@ -3503,6 +3504,10 @@ class BotOfTheSpecter(commands.Bot):
         if not channel:
             self.logger.warning(f"Channel {mapping['channel_id']} not found in guild {guild.name}")
             return
+        if event_type == "ONLINE":
+            if code in self._stream_online_in_flight:
+                return
+            self._stream_online_in_flight.add(code)
         # Update Discord info in cache
         await self.channel_mapping.update_discord_info(code, guild.name, channel.name)
         # Use cached message text or defaults
@@ -3814,6 +3819,7 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.info(f"Cleared live notifications for {code} on OFFLINE event")
             except Exception as e:
                 self.logger.error(f"Error clearing live notifications on OFFLINE for {code}: {e}")
+        self._stream_online_in_flight.discard(code)
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
 
     async def _send_failure_dm(self, guild, action, username, reason):
