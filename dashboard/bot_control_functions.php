@@ -195,8 +195,8 @@ function performBotAction($action, $botType, $params) {
         $botScriptPath = "/home/botofthespecter/bot.py";
         $versionFilePath = "/home/botofthespecter/logs/version/{$username}_version_control.txt";
     }
-    // Build a consistent tmux session name for this bot instance (safe chars only)
-    $tmuxSessionName = "specter_" . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
+    // Build a consistent screen session name for this bot instance (safe chars only)
+    $screenSessionName = "specter_" . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
     // Get version information from API
     $versionApiUrl = 'https://api.botofthespecter.com/versions';
     $versionInfo = json_decode(@file_get_contents($versionApiUrl), true);
@@ -318,7 +318,7 @@ function performBotAction($action, $botType, $params) {
                     }
                     $crashLog = "/home/botofthespecter/logs/" . $username . "_crash.log";
                     $wrappedArgs = "bash -c " . escapeshellarg($botArgs . " >> " . $crashLog . " 2>&1");
-                    $startCommand = "tmux new-session -d -s " . escapeshellarg($tmuxSessionName) . " " . $wrappedArgs;
+                    $startCommand = "screen -dmS " . escapeshellarg($screenSessionName) . " " . $wrappedArgs;
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
                     if ($startOutput === false || $startOutput === null) {
@@ -375,7 +375,7 @@ function performBotAction($action, $botType, $params) {
                     }
                     if (!empty($killedPids)) {
                         // Also clean up the tmux session
-                        SSHConnectionManager::executeCommand($connection, "tmux kill-session -t " . escapeshellarg($tmuxSessionName) . " 2>/dev/null; true");
+                        SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSessionName) . " -X quit 2>/dev/null; true");
                         $result['message'] = 'Bot stopped successfully.';
                         $result['success'] = true;
                     } else {
@@ -389,7 +389,7 @@ function performBotAction($action, $botType, $params) {
                         $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
                         $killOutput = sanitizeSSHOutput($killOutput);
                         // Also clean up the tmux session
-                        SSHConnectionManager::executeCommand($connection, "tmux kill-session -t " . escapeshellarg($tmuxSessionName) . " 2>/dev/null; true");
+                        SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSessionName) . " -X quit 2>/dev/null; true");
                         $result['message'] = 'Bot stop command sent.';
                         $result['success'] = true;
                     } else {
