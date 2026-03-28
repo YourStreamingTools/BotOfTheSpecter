@@ -1936,7 +1936,7 @@ ob_start();
             _consoleEventSource.close();
             _consoleEventSource = null;
         }
-        const cmd = 'screen -S ' + sessionName + ' -X hardcopy -h /tmp/screen_cap.txt; cat /tmp/screen_cap.txt';
+        const cmd = 'screen -S ' + sessionName + ' -X hardcopy -h /tmp/screen_cap_' + sessionName + '.txt; cat /tmp/screen_cap_' + sessionName + '.txt';
         const url = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(cmd) + '&safe=0';
         let buf = '';
         _consoleEventSource = new EventSource(url);
