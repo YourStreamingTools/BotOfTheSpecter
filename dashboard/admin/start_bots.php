@@ -747,6 +747,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_bot_mod'])) {
     exit;
 }
 
+// Handle AJAX request to stop bot
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
+    require_once __DIR__ . '/../bot_control_functions.php';
+    while (ob_get_level())
+        ob_end_clean();
+    ob_start();
+    header('Content-Type: application/json');
+    $username = trim($_POST['username'] ?? '');
+    $pid = intval($_POST['pid'] ?? 0);
+    $success = false;
+    $message = '';
+    if (empty($username)) {
+        $message = 'Username is required';
+    } elseif ($pid <= 0) {
+        $message = 'No PID provided';
+    } else {
+        try {
+            $connection = SSHConnectionManager::getConnection($bots_ssh_host, $bots_ssh_username, $bots_ssh_password);
+            if ($connection) {
+                SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
+                $screenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
+                SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($screenSession) . ' -X quit 2>/dev/null; true');
+                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($screenSession) . ' 2>/dev/null; true');
+                $success = true;
+                $message = 'Bot stopped successfully';
+            } else {
+                $message = 'Could not connect to bot server';
+            }
+        } catch (Exception $e) {
+            $message = 'Error stopping bot: ' . $e->getMessage();
+        }
+    }
+    admin_audit_log(
+        'start_bots_stop_bot',
+        $success ? 'success' : 'failed',
+        ['username' => $username, 'pid' => $pid, 'message' => $message],
+        'username',
+        $username
+    );
+    $debug = ob_get_clean();
+    echo json_encode(['success' => $success, 'message' => $message, 'debug' => $debug]);
+    exit;
+}
+
 // Handle AJAX request to restart bot
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
     require_once __DIR__ . '/../bot_control_functions.php';
@@ -1118,6 +1162,12 @@ ob_start();
                                     <span class="icon"><i class="fas fa-user-astronaut"></i></span>
                                     <span>Switch to Custom</span>
                                 </button>
+                                <button class="sp-btn sp-btn-danger stop-bot-btn"
+                                    onclick="stopBot('<?php echo htmlspecialchars($user['username']); ?>', 0, this)"
+                                    style="display: none;" disabled>
+                                    <span class="icon"><i class="fas fa-stop"></i></span>
+                                    <span>Stop Bot</span>
+                                </button>
                                 <button class="sp-btn sp-btn-dark attach-console-btn"
                                     onclick="attachConsole('<?php echo htmlspecialchars($user['username']); ?>')"
                                     style="display: none;" disabled title="Stream live bot console output">
@@ -1296,6 +1346,12 @@ ob_start();
                                 restartBtn.disabled = false;
                                 restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`);
                             }
+                            // Show stop button with current PID
+                            if (stopBotBtn) {
+                                stopBotBtn.style.display = 'inline-flex';
+                                stopBotBtn.disabled = false;
+                                stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this)`);
+                            }
                             // Show attach console button
                             const attachConsoleBtn = row.querySelector('.attach-console-btn');
                             if (attachConsoleBtn) {
@@ -1370,6 +1426,10 @@ ob_start();
                                 restartBtn.style.display = 'none';
                                 restartBtn.disabled = true;
                             }
+                            if (stopBotBtn) {
+                                stopBotBtn.style.display = 'none';
+                                stopBotBtn.disabled = true;
+                            }
                             if (switchBtn) {
                                 switchBtn.style.display = 'none';
                                 switchBtn.disabled = true;
@@ -1425,6 +1485,7 @@ ob_start();
                         const startBetaBtn = row.querySelector('.start-beta-btn');
                         const startCustomBtn = row.querySelector('.start-custom-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
+                        const stopBotBtn = row.querySelector('.stop-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
                         const switchCustomBtn = row.querySelector('.switch-custom-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
@@ -1460,6 +1521,7 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = true; startBetaBtn.style.display = 'none'; }
                             if (startCustomBtn) { startCustomBtn.disabled = true; startCustomBtn.style.display = 'none'; }
                             if (restartBtn) { restartBtn.style.display = 'inline-flex'; restartBtn.disabled = false; restartBtn.setAttribute('onclick', `restartBot('${uname}', '${isRunning.bot_type}', ${isRunning.pid}, this)`); }
+                            if (stopBotBtn) { stopBotBtn.style.display = 'inline-flex'; stopBotBtn.disabled = false; stopBotBtn.setAttribute('onclick', `stopBot('${uname}', ${isRunning.pid}, this)`); }
                             const attachConsoleBtnR = row.querySelector('.attach-console-btn');
                             if (attachConsoleBtnR) { attachConsoleBtnR.style.display = 'inline-flex'; attachConsoleBtnR.disabled = false; }
                             if (switchBtn) { const targetType = runningType === 'custom' ? 'stable' : (isBetaFamily ? 'stable' : 'beta'); const btnText = runningType === 'custom' ? 'Switch to Stable' : (isBetaFamily ? 'Switch to Stable' : 'Switch to Beta'); switchBtn.style.display = 'inline-flex'; switchBtn.disabled = false; switchBtn.setAttribute('onclick', `switchBotType('${uname}', '${twitchId}', '${targetType}')`); switchBtn.querySelector('span:last-child').textContent = btnText; }
@@ -1472,6 +1534,7 @@ ob_start();
                             if (startBetaBtn) { startBetaBtn.disabled = false; startBetaBtn.style.display = 'inline-flex'; }
                             if (startCustomBtn) { startCustomBtn.disabled = !canStartCustom; startCustomBtn.style.display = 'inline-flex'; }
                             if (restartBtn) { restartBtn.style.display = 'none'; restartBtn.disabled = true; }
+                            if (stopBotBtn) { stopBotBtn.style.display = 'none'; stopBotBtn.disabled = true; }
                             const attachConsoleBtnOff2 = row.querySelector('.attach-console-btn');
                             if (attachConsoleBtnOff2) { attachConsoleBtnOff2.style.display = 'none'; attachConsoleBtnOff2.disabled = true; }
                             if (switchBtn) { switchBtn.style.display = 'none'; switchBtn.disabled = true; }
@@ -2063,6 +2126,70 @@ ob_start();
                             position: 'top-end',
                             icon: 'error',
                             title: 'Network error restarting ' + username,
+                            showConfirmButton: false,
+                            timer: 3000
+                        });
+                    });
+            }
+        });
+    };
+    window.stopBot = function(username, pid, element) {
+        Swal.fire({
+            title: 'Stop bot?',
+            text: 'Are you sure you want to stop the bot for ' + username + '?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: 'Yes, stop it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Stopping bot for ' + username + '...',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+                const formData = new FormData();
+                formData.append('stop_bot', '1');
+                formData.append('username', username);
+                formData.append('pid', pid);
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: username + ': Bot stopped successfully',
+                                html: 'Click "Refresh Status" to update',
+                                showConfirmButton: false,
+                                timer: 3000
+                            });
+                        } else {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'error',
+                                title: username + ': ' + (data.message || 'Failed to stop bot'),
+                                showConfirmButton: false,
+                                timer: 3000
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error stopping bot:', error);
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: 'Network error stopping ' + username,
                             showConfirmButton: false,
                             timer: 3000
                         });
