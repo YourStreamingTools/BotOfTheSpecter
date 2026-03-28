@@ -374,8 +374,9 @@ function performBotAction($action, $botType, $params) {
                         }
                     }
                     if (!empty($killedPids)) {
-                        // Also clean up the tmux session
+                        // Clean up screen session (and any leftover tmux session from before migration)
                         SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSessionName) . " -X quit 2>/dev/null; true");
+                        SSHConnectionManager::executeCommand($connection, "tmux kill-session -t " . escapeshellarg($screenSessionName) . " 2>/dev/null; true");
                         $result['message'] = 'Bot stopped successfully.';
                         $result['success'] = true;
                     } else {
@@ -388,8 +389,9 @@ function performBotAction($action, $botType, $params) {
                         $killCommand = "kill -s kill $currentPid";
                         $killOutput = SSHConnectionManager::executeCommand($connection, $killCommand);
                         $killOutput = sanitizeSSHOutput($killOutput);
-                        // Also clean up the tmux session
+                        // Clean up screen session (and any leftover tmux session from before migration)
                         SSHConnectionManager::executeCommand($connection, "screen -S " . escapeshellarg($screenSessionName) . " -X quit 2>/dev/null; true");
+                        SSHConnectionManager::executeCommand($connection, "tmux kill-session -t " . escapeshellarg($screenSessionName) . " 2>/dev/null; true");
                         $result['message'] = 'Bot stop command sent.';
                         $result['success'] = true;
                     } else {

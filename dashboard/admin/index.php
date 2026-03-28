@@ -556,10 +556,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($
                 if ($connection) {
                     // Use SIGKILL explicitly to force-stop the process on the bots server
                     SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
-                    // Also clean up the screen session for this user
+                    // Clean up screen session (and any leftover tmux session from before migration)
                     if (!empty($stopUsername)) {
                         $screenSession = 'specter_' . $stopUsername;
                         SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($screenSession) . ' -X quit 2>/dev/null; true');
+                        SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($screenSession) . ' 2>/dev/null; true');
                     }
                     $stopSuccess = true;
                 } else {
@@ -627,9 +628,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                             if ($connection) {
                                 SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
                                 client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
-                                // Clean up the screen session so the restart creates a fresh one
+                                // Clean up screen session (and any leftover tmux session from before migration)
                                 $restartScreenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
                                 SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($restartScreenSession) . ' -X quit 2>/dev/null; true');
+                                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($restartScreenSession) . ' 2>/dev/null; true');
                                 // Give it a moment to stop
                                 sleep(1);
                             }
