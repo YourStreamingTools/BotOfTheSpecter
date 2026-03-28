@@ -795,9 +795,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
                             if ($connection) {
                                 SSHConnectionManager::executeCommand($connection, "kill -s kill $pid");
                                 client_console_log("RESTART DEBUG - Kill command sent for PID {$pid}");
-                                // Clean up the tmux session so the restart creates a fresh one
-                                $restartTmuxSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
-                                SSHConnectionManager::executeCommand($connection, 'tmux kill-session -t ' . escapeshellarg($restartTmuxSession) . ' 2>/dev/null; true');
+                                // Clean up the screen session so the restart creates a fresh one
+                                $restartScreenSession = 'specter_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $username);
+                                SSHConnectionManager::executeCommand($connection, 'screen -S ' . escapeshellarg($restartScreenSession) . ' -X quit 2>/dev/null; true');
                                 // Give it a moment to stop
                                 sleep(1);
                             }
@@ -1917,7 +1917,7 @@ ob_start();
             await startUserBot(username, twitchUserId, targetType);
         }
     };
-    // Function to show tmux attach command for a running bot
+    // Function to show screen attach command for a running bot
     // Console viewer state
     let _consolePollTimer = null;
     let _consoleEventSource = null;
@@ -1935,7 +1935,7 @@ ob_start();
             _consoleEventSource.close();
             _consoleEventSource = null;
         }
-        const cmd = 'tmux capture-pane -t ' + sessionName + ' -p -S -500';
+        const cmd = 'screen -S ' + sessionName + ' -X hardcopy -h /tmp/screen_cap.txt; cat /tmp/screen_cap.txt';
         const url = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(cmd) + '&safe=0';
         let buf = '';
         _consoleEventSource = new EventSource(url);
