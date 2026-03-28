@@ -9,6 +9,72 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
+// Handle POST requests before any includes that may produce output
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    require_once "/var/www/config/db_connect.php";
+    $moderator_id = isset($_POST['moderator_id']) ? $_POST['moderator_id'] : null;
+    $broadcaster_id = isset($_SESSION['twitchUserId']) ? $_SESSION['twitchUserId'] : null;
+    $action = isset($_POST['action']) ? $_POST['action'] : null;
+    $isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
+    if (!$moderator_id || !$broadcaster_id || !$action) {
+        echo json_encode(['status' => 'error', 'message' => 'missing_parameters']);
+        exit();
+    }
+    if ($isActingAs && in_array($action, ['add', 'remove'], true)) {
+        echo json_encode(['status' => 'error', 'message' => 'Managing dashboard access is disabled while acting as another channel.']);
+        exit();
+    }
+    if ($action === 'add') {
+        $stmt = $conn->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (?, ?)');
+        if ($stmt === false) {
+            $err = $conn->error;
+            error_log('mods.php PREPARE ADD FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        if (!$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php BIND ADD FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        $res = $stmt->execute();
+        if ($res) {
+            echo json_encode(['status' => 'ok', 'action' => 'add', 'moderator_id' => $moderator_id]);
+        } else {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php EXECUTE ADD FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+        }
+    } elseif ($action === 'remove') {
+        $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
+        if ($stmt === false) {
+            $err = $conn->error;
+            error_log('mods.php PREPARE REMOVE FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        if (!@$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php BIND REMOVE FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+            exit();
+        }
+        $res = $stmt->execute();
+        if ($res) {
+            echo json_encode(['status' => 'ok', 'action' => 'remove', 'moderator_id' => $moderator_id]);
+        } else {
+            $err = $stmt->error ?: $conn->error;
+            error_log('mods.php EXECUTE REMOVE FAILED: ' . $err);
+            echo json_encode(['status' => 'error', 'message' => $err]);
+        }
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'invalid_action']);
+    }
+    exit();
+}
+
 // Page Title
 $pageTitle = t('mods_page_title');
 
@@ -111,69 +177,6 @@ $endIndex = $startIndex + $moderatorsPerPage;
 
 // Get moderators for the current page
 $moderatorsForCurrentPage = array_slice($allModerators, $startIndex, $moderatorsPerPage);
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    $moderator_id = isset($_POST['moderator_id']) ? $_POST['moderator_id'] : null;
-    $broadcaster_id = isset($_SESSION['twitchUserId']) ? $_SESSION['twitchUserId'] : null;
-    $action = isset($_POST['action']) ? $_POST['action'] : null;
-    if (!$moderator_id || !$broadcaster_id || !$action) {
-        echo json_encode(['status' => 'error', 'message' => 'missing_parameters']);
-        exit();
-    }
-    if ($isActingAs && in_array($action, ['add', 'remove'], true)) {
-        echo json_encode(['status' => 'error', 'message' => 'Managing dashboard access is disabled while acting as another channel.']);
-        exit();
-    }
-    if ($action === 'add') {
-        $stmt = $conn->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (?, ?)');
-        if ($stmt === false) {
-            $err = $conn->error;
-            error_log('mods.php PREPARE ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-            exit();
-        }
-        if (!$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php BIND ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-            exit();
-        }
-        $res = $stmt->execute();
-        if ($res) {
-            echo json_encode(['status' => 'ok', 'action' => 'add', 'moderator_id' => $moderator_id]);
-        } else {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php EXECUTE ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-        }
-    } elseif ($action === 'remove') {
-        $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
-        if ($stmt === false) {
-            $err = $conn->error;
-            error_log('mods.php PREPARE REMOVE FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-            exit();
-        }
-        if (!@$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php BIND REMOVE FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-            exit();
-        }
-        $res = $stmt->execute();
-        if ($res) {
-            echo json_encode(['status' => 'ok', 'action' => 'remove', 'moderator_id' => $moderator_id]);
-        } else {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php EXECUTE REMOVE FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-        }
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'invalid_action']);
-    }
-    exit();
-}
 
 // Filter out common bot accounts
 $botAccounts = [
