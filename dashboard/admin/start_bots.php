@@ -1293,6 +1293,7 @@ ob_start();
                         const startBetaBtn = row.querySelector('.start-beta-btn');
                         const startCustomBtn = row.querySelector('.start-custom-btn');
                         const restartBtn = row.querySelector('.restart-bot-btn');
+                        const stopBotBtn = row.querySelector('.stop-bot-btn');
                         const switchBtn = row.querySelector('.switch-bot-btn');
                         const switchCustomBtn = row.querySelector('.switch-custom-btn');
                         const runningTimeTag = row.querySelector('.running-time-tag');
