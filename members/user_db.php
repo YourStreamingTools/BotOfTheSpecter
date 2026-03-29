@@ -106,7 +106,7 @@ try {
     if ($getChannelPointRewards) $channelPointRewards = $getChannelPointRewards->fetch_all(MYSQLI_ASSOC);
 
     // Fetch todos
-    $getTodos = $db->query("SELECT * FROM todos ORDER BY id DESC");
+    $getTodos = $db->query("SELECT * FROM todos WHERE private = 0 ORDER BY id DESC");
     if ($getTodos) $todos = $getTodos->fetch_all(MYSQLI_ASSOC);
 
     // Fetch todo categories
