@@ -21,7 +21,7 @@ include 'storage_used.php';
 $accessToken = $_SESSION['access_token'] ?? '';
 $channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ($broadcasterID ?? '')));
 $editorUserId = ($isActAs && !empty($originalContext['twitchUserId'])) ? (string) $originalContext['twitchUserId'] : $channelUserId;
-$allowedTabs = ['videos', 'clips'];
+$allowedTabs = ['videos', 'highlights', 'uploads', 'clips'];
 $requestedTab = isset($_GET['tab']) ? trim((string) $_GET['tab']) : '';
 $tab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'videos';
 
@@ -459,6 +459,12 @@ $clipsNextOffset = 0;
 $clipsHasMore = false;
 $clipDownloadUrls = [];
 
+$videoTypeMap = [
+	'videos'     => 'archive',
+	'highlights' => 'highlight',
+	'uploads'    => 'upload',
+];
+
 if ($channelUserId === '') {
 	$flashError = 'No Twitch channel ID is available for this login session.';
 } else {
@@ -484,17 +490,21 @@ if ($channelUserId === '') {
 			}
 		}
 	} else {
+		$videoTypeFilter = $videoTypeMap[$tab] ?? 'archive';
 		$allVideos = fetchAllTwitchItems('videos', [
 			'user_id' => $channelUserId,
-			'first' => 100,
+			'first'   => 100,
+			'type'    => $videoTypeFilter,
 		], $accessToken, $clientID, 1000);
 		$videos = $allVideos['items'];
 		$apiError = $allVideos['error'];
 	}
 }
 
-$videosTabLink = 'videos.php?tab=videos';
-$clipsTabLink = 'videos.php?tab=clips';
+$videosTabLink     = 'videos.php?tab=videos';
+$highlightsTabLink = 'videos.php?tab=highlights';
+$uploadsTabLink    = 'videos.php?tab=uploads';
+$clipsTabLink      = 'videos.php?tab=clips';
 
 ob_start();
 ?>
@@ -502,7 +512,14 @@ ob_start();
 	<div class="sp-card-header">
 		<span class="sp-card-title">
 			<span class="icon mr-2"><i class="fas fa-photo-video"></i></span>
-			Videos & Clips Analytics
+			<?php
+			echo match($tab) {
+				'highlights' => 'Highlighted Videos',
+				'uploads'    => 'Uploaded Videos',
+				'clips'      => 'Clips',
+				default      => 'Archive VODs',
+			};
+			?>
 		</span>
 	</div>
 	<div class="sp-card-body">
@@ -510,7 +527,19 @@ ob_start();
 			<li class="<?php echo $tab === 'videos' ? 'is-active' : ''; ?>">
 				<a href="<?php echo htmlspecialchars($videosTabLink, ENT_QUOTES, 'UTF-8'); ?>">
 					<span class="icon is-small"><i class="fas fa-photo-video"></i></span>
-					<span>Video Archive VODs</span>
+					<span>Archive VODs</span>
+				</a>
+			</li>
+			<li class="<?php echo $tab === 'highlights' ? 'is-active' : ''; ?>">
+				<a href="<?php echo htmlspecialchars($highlightsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
+					<span class="icon is-small"><i class="fas fa-star"></i></span>
+					<span>Highlights</span>
+				</a>
+			</li>
+			<li class="<?php echo $tab === 'uploads' ? 'is-active' : ''; ?>">
+				<a href="<?php echo htmlspecialchars($uploadsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
+					<span class="icon is-small"><i class="fas fa-upload"></i></span>
+					<span>Uploads</span>
 				</a>
 			</li>
 			<li class="<?php echo $tab === 'clips' ? 'is-active' : ''; ?>">
@@ -530,7 +559,15 @@ ob_start();
 			<div class="sp-alert sp-alert-danger"><?php echo htmlspecialchars($apiError, ENT_QUOTES, 'UTF-8'); ?></div>
 		<?php endif; ?>
 		<?php if (empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== ''): ?>
-			<div class="sp-alert sp-alert-info">No <?php echo $isClipsMode ? 'clips' : 'videos'; ?> found for this channel.</div>
+			<?php
+			$emptyLabel = match($tab) {
+				'clips'      => 'clips',
+				'highlights' => 'highlights',
+				'uploads'    => 'uploaded videos',
+				default      => 'archive VODs',
+			};
+			?>
+			<div class="sp-alert sp-alert-info">No <?php echo $emptyLabel; ?> found for this channel.</div>
 		<?php endif; ?>
 		<?php if ($isClipsMode): ?>
 			<div class="sp-card mb-4">
