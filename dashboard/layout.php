@@ -196,7 +196,8 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
         <!-- Main -->
         <div class="sp-main">
             <!-- Topbar -->
-            <header class="sp-topbar">
+            <?php $hasTopbarTags = ($layoutMode === 'admin') || ($layoutMode === 'default' && $devStreamOnline) || $isActingAsUser || $maintenanceMode; ?>
+            <header class="sp-topbar<?= $hasTopbarTags ? '' : ' sp-topbar-no-tags' ?>">
                 <button class="sp-hamburger" id="spHamburger" aria-label="Toggle navigation">
                     <i class="fas fa-bars"></i>
                 </button>
