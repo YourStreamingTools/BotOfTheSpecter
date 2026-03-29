@@ -328,9 +328,8 @@ hr {
 .sp-content {
     flex: 1;
     padding: 2rem 2.5rem;
-    max-width: 1200px;
     width: 100%;
-    margin: 0 auto;
+    min-width: 0;
 }
 
 /* Sidebar overlay (mobile) */
@@ -624,6 +623,10 @@ hr {
     text-align: center;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
+}
+
+#additional-column1 {
+    min-width: 100px;
 }
 
 .sp-table tbody td {
