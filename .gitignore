@@ -82,6 +82,7 @@ help/search_index.json
 *.exe
 *test*
 bot/export_user_data.log
+.claude/settings.local.json
 
 # Ignoring entire directories
 /app
