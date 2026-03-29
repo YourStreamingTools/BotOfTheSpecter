@@ -305,6 +305,7 @@ ul { list-style: none; margin: 0; padding: 0; }
     display: none;
     align-items: center;
     justify-content: center;
+    align-self: center;
     width: 36px;
     height: 36px;
     background: transparent;
@@ -396,6 +397,10 @@ ul { list-style: none; margin: 0; padding: 0; }
     gap: 0.5rem;
     flex-shrink: 0;
 }
+
+/* No notices/tags — center the title in available space */
+.sp-topbar-no-tags .sp-topbar-center { display: none; }
+.sp-topbar-no-tags .sp-topbar-title { flex: 1; text-align: center; }
 
 /* Content area */
 .sp-content {
