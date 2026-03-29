@@ -339,7 +339,7 @@ ob_start();
   </div>
 <?php endif; ?>
 <div class="bot-page-cols">
-  <div>
+  <div class="bot-col-sidebar bot-sidebar-status">
     <div class="sp-card">
       <div class="sp-card-header" style="justify-content:center;">
         <span class="sp-card-title"><?php echo t('bot_channel_status'); ?></span>
@@ -360,6 +360,8 @@ ob_start();
         </div>
       </div>
     </div>
+  </div>
+  <div class="bot-col-sidebar bot-sidebar-version">
     <!-- Version Info Card -->
     <div class="sp-card">
       <div class="sp-card-body">
@@ -406,6 +408,8 @@ ob_start();
         </p>
       </div>
     </div>
+  </div>
+  <div class="bot-col-sidebar bot-sidebar-api">
     <!-- API Limits Card -->
     <div class="sp-card">
       <div class="sp-card-header" style="justify-content:center;">
@@ -440,7 +444,7 @@ ob_start();
     </div>
   </div>
   <!-- Main Bot Management Card -->
-  <div>
+  <div class="bot-col-main">
     <div class="sp-card">
       <div class="sp-card-header">
         <div class="bot-header-wrapper">
@@ -565,6 +569,8 @@ ob_start();
         <?php endif; ?>
       </div>
     </div>
+  </div>
+  <div class="bot-col-system">
     <!-- System Status Card -->
     <div class="sp-card">
       <div class="sp-card-header">
