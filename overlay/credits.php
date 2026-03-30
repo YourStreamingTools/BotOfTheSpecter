@@ -144,6 +144,7 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 $columns .= build_event_column($user_db, 'raid', 'Raiders');
                 $columns .= build_event_column($user_db, 'bits', 'Cheers');
                 $columns .= build_event_column($user_db, 'subscriptions', 'Subscriptions');
+                $columns .= build_event_column($user_db, 'watch_streak', 'Watch Streaks');
                 $columns .= build_event_column($user_db, 'follow', 'Followers', true);
                 $columns .= build_chatters_column($user_db);
                 if ($columns !== '') {

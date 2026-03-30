@@ -2015,6 +2015,10 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                                             "ON DUPLICATE KEY UPDATE streak_value = %s, updated_at = NOW()",
                                             (un_display, un_value, un_value)
                                         )
+                                        await _wscur.execute(
+                                            'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
+                                            (un_display, "watch_streak", f"{un_value} streams")
+                                        )
                                         await _wsc.commit()
                                         await _wscur.execute(
                                             "SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s",
