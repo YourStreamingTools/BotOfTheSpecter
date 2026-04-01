@@ -94,7 +94,7 @@ function getMenuItems($role = 'default') {
     // todolist menu
     $todolist = [
         [ 'label' => 'View Tasks', 'icon' => 'fas fa-list-check', 'href' => 'index.php' ],
-        [ 'label' => 'Completed Tasks', 'icon' => 'fas fa-check-double', 'href' => 'completed.php' ],
+        [ 'label' => 'Mark Tasks as Completed', 'icon' => 'fas fa-check-double', 'href' => 'completed.php' ],
         [ 'divider' => true ],
         [ 'label' => 'Add Task', 'icon' => 'fas fa-plus', 'href' => 'insert.php' ],
         [ 'label' => 'Update Task', 'icon' => 'fas fa-edit', 'href' => 'update_objective.php' ],
