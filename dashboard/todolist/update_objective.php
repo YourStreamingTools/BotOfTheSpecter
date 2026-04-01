@@ -80,17 +80,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;">
           <?php foreach ($rows as $row): ?>
             <div class="sp-card" style="margin-bottom:0;">
-              <div class="sp-card-body">
-                <p style="margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem; font-size:0.9rem;">
-                  <i class="fas fa-tasks"></i>
-                  <strong>Current:</strong> <?= htmlspecialchars($row['objective']) ?>
-                </p>
-                <div class="sp-form-group">
-                  <label class="sp-label" for="objective_<?php echo $row['id']; ?>">Update Objective</label>
+              <div class="sp-card-body" style="display:flex; flex-direction:column; gap:0.75rem; height:100%;">
+                <div>
+                  <p style="font-weight:600; margin-bottom:0.2rem;"><?= htmlspecialchars($row['objective']) ?></p>
+                  <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0; display:flex; align-items:center; gap:0.3rem;">
+                    <i class="fas fa-folder"></i>
+                    <?php
+                      $catName = 'Uncategorized';
+                      foreach ($categories as $cat) {
+                        if ($cat['id'] == $row['category']) { $catName = $cat['category']; break; }
+                      }
+                      echo htmlspecialchars($catName);
+                    ?>
+                  </p>
+                </div>
+                <div class="sp-form-group" style="margin-bottom:0;">
+                  <label class="sp-label" for="objective_<?php echo $row['id']; ?>">Objective</label>
                   <input type="text" name="objective[<?php echo $row['id']; ?>]" id="objective_<?php echo $row['id']; ?>" class="sp-input" value="<?php echo htmlspecialchars($row['objective']); ?>">
                 </div>
-                <div class="sp-form-group">
-                  <label class="sp-label" for="category_<?php echo $row['id']; ?>">Update Category</label>
+                <div class="sp-form-group" style="margin-bottom:0;">
+                  <label class="sp-label" for="category_<?php echo $row['id']; ?>">Category</label>
                   <select name="category[<?php echo $row['id']; ?>]" id="category_<?php echo $row['id']; ?>" class="sp-select">
                     <?php foreach ($categories as $cat): ?>
                       <option value="<?= $cat['id'] ?>" <?php if ($cat['id'] == $row['category']) echo 'selected'; ?>>
@@ -99,10 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="sp-form-group" style="margin-bottom:0;">
-                  <label class="sp-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                <div style="margin-top:auto;">
+                  <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; color:var(--text-secondary);">
                     <input type="checkbox" name="private[<?php echo $row['id']; ?>]" value="1" <?php if (!empty($row['private']) && $row['private'] == 1) echo 'checked'; ?>>
-                    <i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i> Private (hide from OBS overlay)
+                    <i class="fas fa-eye-slash"></i> Private (hide from OBS overlay)
                   </label>
                 </div>
               </div>
