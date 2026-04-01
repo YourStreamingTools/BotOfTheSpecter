@@ -102,26 +102,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
         <?php foreach ($result as $row): ?>
           <div class="sp-card" style="margin-bottom:0;">
-            <div class="sp-card-body">
-              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.75rem;">
-                <div style="flex:1; min-width:0;">
-                  <p style="font-weight:600; margin-bottom:0.3rem;"><?= htmlspecialchars($row['objective']) ?></p>
-                  <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0; display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap;">
-                    <i class="fas fa-folder"></i>
-                    <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
-                    <?= ($row['completed'] === 'Yes')
-                      ? '<span class="sp-badge sp-badge-green">Completed</span>'
-                      : '<span class="sp-badge sp-badge-amber">Not completed</span>' ?>
-                  </p>
-                </div>
-                <div style="flex-shrink:0;">
-                  <form method="POST" style="margin-bottom:0;" class="remove-task-form">
-                    <input type="hidden" name="todo_id" value="<?= $row['id'] ?>">
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-task-btn">
-                      <i class="fas fa-trash"></i> Remove
-                    </button>
-                  </form>
-                </div>
+            <div class="sp-card-body" style="display:flex; flex-direction:column; gap:0.75rem; height:100%;">
+              <div style="flex:1;">
+                <p style="font-weight:600; margin-bottom:0.3rem;"><?= htmlspecialchars($row['objective']) ?></p>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.3rem; display:flex; align-items:center; gap:0.3rem;">
+                  <i class="fas fa-folder"></i>
+                  <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                </p>
+                <?= ($row['completed'] === 'Yes')
+                  ? '<span class="sp-badge sp-badge-green">Completed</span>'
+                  : '<span class="sp-badge sp-badge-amber">Not completed</span>' ?>
+              </div>
+              <div>
+                <form method="POST" style="margin-bottom:0;" class="remove-task-form">
+                  <input type="hidden" name="todo_id" value="<?= $row['id'] ?>">
+                  <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-task-btn" style="width:100%;">
+                    <i class="fas fa-trash"></i> Remove
+                  </button>
+                </form>
               </div>
             </div>
           </div>
