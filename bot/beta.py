@@ -2583,6 +2583,20 @@ async def stream_bingo_websocket():
                 continue
             # Credentials found — reset the flag so a reconnection is logged if creds are later removed
             _stream_bingo_no_creds_logged = False
+            # Recover game ID from DB if we were restarted mid-game
+            if _current_bingo_game_id is None:
+                try:
+                    async with await mysql_connection() as connection:
+                        async with connection.cursor(DictCursor) as cursor:
+                            await cursor.execute("SELECT game_id FROM bingo_games WHERE status = 'active' ORDER BY start_time DESC LIMIT 1")
+                            active_game = await cursor.fetchone()
+                            if active_game:
+                                _current_bingo_game_id = active_game['game_id']
+                                integrations_logger.info(f"[STREAM BINGO] Recovered active game ID from DB after restart: {_current_bingo_game_id}")
+                                websocket_logger.info(f"[STREAM BINGO] Recovered active game ID from DB after restart: {_current_bingo_game_id}")
+                except Exception as recover_err:
+                    integrations_logger.error(f"[STREAM BINGO] Error recovering active game ID from DB: {recover_err}")
+                    websocket_logger.error(f"[STREAM BINGO] Error recovering active game ID from DB: {recover_err}")
             # Construct WebSocket URL
             websocket_url = f"wss://api.stream-bingo.com/games/{CHANNEL_ID}/{stream_bingo_api_key}/notifications"
             integrations_logger.info("[STREAM BINGO] Attempting to connect to Stream Bingo WebSocket")
