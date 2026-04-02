@@ -576,21 +576,45 @@ class MySQLHelper:
             if conn:
                 conn.close()
 
+    _app_creds_cache: dict = {"loaded_at": 0.0, "access_token": None, "client_id": None}
+    _APP_CREDS_TTL = 60  # seconds
+
     async def get_bot_access_token(self):
+        import time as _time
+        now = _time.time()
+        if (
+            (now - MySQLHelper._app_creds_cache["loaded_at"]) < MySQLHelper._APP_CREDS_TTL
+            and MySQLHelper._app_creds_cache["access_token"]
+        ):
+            return MySQLHelper._app_creds_cache["access_token"], MySQLHelper._app_creds_cache["client_id"]
+        access_token = None
+        client_id = None
         try:
-            token_row = await self.fetchone(
-                "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
-                ('971436498',), database_name='website', dict_cursor=True
+            row = await self.fetchone(
+                "SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1",
+                database_name='website', dict_cursor=True
             )
-            if token_row and token_row.get('twitch_access_token'):
-                return token_row['twitch_access_token']
-            if self.logger:
-                self.logger.warning("No access token found in database for bot user")
-            return None
+            if row:
+                for key in ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token", "twitch_access_token", "bot_oauth_token"):
+                    if row.get(key):
+                        access_token = str(row[key]).strip()
+                        break
+                for key in ("twitch_client_id", "client_id", "clientID"):
+                    if row.get(key):
+                        client_id = str(row[key]).strip()
+                        break
         except Exception as e:
             if self.logger:
-                self.logger.error(f"Error fetching bot access token from database: {e}")
-            return None
+                self.logger.error(f"Error fetching app token from bot_chat_token: {e}")
+        if not access_token:
+            if self.logger:
+                self.logger.warning("No app access token found in bot_chat_token")
+            return None, None
+        # Fall back to env CLIENT_ID if table has no client_id column
+        if not client_id:
+            client_id = os.getenv('CLIENT_ID')
+        MySQLHelper._app_creds_cache = {"loaded_at": now, "access_token": access_token, "client_id": client_id}
+        return access_token, client_id
 
 # Setup websocket listener for global actions
 class WebsocketListener:
@@ -1959,15 +1983,13 @@ class LiveChannelManager:
     async def twitch_get_streams_by_logins(self, user_logins: list):
         if not user_logins:
             return []
-        # Use config client id and fetch fresh token from database
-        client_id = config.twitch_client_id
-        if not client_id:
-            self.logger.debug("Missing twitch client id for Helix API call")
-            return None
-        # Fetch bot access token from database
-        bearer = await self.mysql.get_bot_access_token()
+        # Fetch app token + client_id from bot_chat_token
+        bearer, client_id = await self.mysql.get_bot_access_token()
         if not bearer:
             self.logger.debug("Missing bearer token for Helix API call")
+            return None
+        if not client_id:
+            self.logger.debug("Missing twitch client id for Helix API call")
             return None
         results = []
         api_error = False
