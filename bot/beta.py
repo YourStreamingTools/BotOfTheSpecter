@@ -8964,8 +8964,6 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             bot_logger.error(f"[DRAW LOTTO] Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
-
-    # Raffle commands
         finally:
             if connection:
                 await connection.close()
