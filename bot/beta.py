@@ -2598,6 +2598,9 @@ async def stream_bingo_websocket():
                         # Parse JSON message
                         try:
                             data = json.loads(message)
+                            # Normalize top-level keys to lowercase — the real API sends PascalCase
+                            # (e.g. "Type", "Events", "IsSubOnly") rather than the camelCase shown in docs
+                            data = {k.lower(): v for k, v in data.items()}
                             # Process bingo events here
                             await process_stream_bingo_message(data)
                         except json.JSONDecodeError as e:
