@@ -155,6 +155,7 @@ def handle_rate_limit(max_retries=3):
 
 # OpenAI / AI system configuration
 OPENAI_API_KEY = os.getenv("OPENAI_KEY")
+OPENAI_MODEL = "gpt-5.4-nano"
 OPENAI_INSTRUCTIONS_ENDPOINT = 'https://api.botofthespecter.com/chat-instructions'
 INSTRUCTIONS_CACHE_TTL = 300  # seconds
 _cached_instructions = None
@@ -2324,7 +2325,7 @@ class BotOfTheSpecter(commands.Bot):
                 ai_text = None
                 resp = None
                 if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model="gpt-5.4-nano", messages=messages)
+                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
                     if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                         choice = resp['choices'][0]
                         if 'message' in choice and 'content' in choice['message']:
@@ -2336,7 +2337,7 @@ class BotOfTheSpecter(commands.Bot):
                         if choices and len(choices) > 0:
                             ai_text = getattr(choices[0].message, 'content', None)
                 elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model="gpt-5.4-nano", messages=messages)
+                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
                     if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                         ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
                     else:
@@ -2478,7 +2479,7 @@ class BotOfTheSpecter(commands.Bot):
                 if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'stream'):
                     self.logger.debug("Using openai_client.chat.completions.stream for streaming response")
                     try:
-                        async with chat_client.completions.stream(model="gpt-5.4-nano", messages=messages) as stream:
+                        async with chat_client.completions.stream(model=OPENAI_MODEL, messages=messages) as stream:
                             async for chunk in stream:
                                 # chunk shapes vary; try common fields
                                 delta = ""
@@ -2503,7 +2504,7 @@ class BotOfTheSpecter(commands.Bot):
                 elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'stream'):
                     self.logger.debug("Using openai_client.chat_completions.stream for streaming response")
                     try:
-                        async with openai_client.chat_completions.stream(model="gpt-5.4-nano", messages=messages) as stream:
+                        async with openai_client.chat_completions.stream(model=OPENAI_MODEL, messages=messages) as stream:
                             async for chunk in stream:
                                 delta = ""
                                 try:
@@ -2530,7 +2531,7 @@ class BotOfTheSpecter(commands.Bot):
                     resp = None
                     ai_text = None
                     if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                        resp = await chat_client.completions.create(model="gpt-5.4-nano", messages=messages)
+                        resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
                         if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                             choice = resp['choices'][0]
                             if 'message' in choice and 'content' in choice['message']:
@@ -2542,7 +2543,7 @@ class BotOfTheSpecter(commands.Bot):
                             if choices and len(choices) > 0:
                                 ai_text = getattr(choices[0].message, 'content', None)
                     elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                        resp = await openai_client.chat_completions.create(model="gpt-5.4-nano", messages=messages)
+                        resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
                         if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
                             ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
                         else:
