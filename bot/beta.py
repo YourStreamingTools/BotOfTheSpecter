@@ -2830,8 +2830,8 @@ async def process_stream_bingo_message(data):
                 # so we generate one internally to track this game across all subsequent events.
                 _current_bingo_game_id = str(uuid.uuid4())
                 events = data.get('events', [])
-                is_sub_only = data.get('isSubOnly', False)
-                random_call_only = data.get('randomCallOnly', True)
+                is_sub_only = data.get('issubonly', False)
+                random_call_only = data.get('randomcallonly', True)
                 # Save game data to database
                 async with user_db.cursor() as cursor:
                     await cursor.execute("""
@@ -2856,29 +2856,28 @@ async def process_stream_bingo_message(data):
                     integrations_logger.warning("[STREAM BINGO] Stream Bingo: Received GAME_ENDED but no active game was being tracked")
                 await send_chat_message("The Stream Bingo game has ended! Thanks for playing!")
             elif event_type in ['number_called', 'EVENT_CALLED']:
-                # Handle number called
-                display_number = data.get('displayNumber')
-                event_id = data.get('eventId')
-                event_name = data.get('eventName')
-                if event_name:
-                    integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - Event: {event_name} (ID: {event_id})")
-                    await send_chat_message(f"Bingo event called: {event_name}!")
-                elif display_number:
-                    integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Display number called - {display_number}")
-                    await send_chat_message(f"Bingo number called: {display_number}!")
-                else:
-                    integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - ID: {event_id}")
+                # Handle number called — keys are fully lowercased after normalization
+                display_number = data.get('displaynumber')
+                event_id = data.get('eventid')
+                event_name = data.get('eventname')
+                integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - Event: {event_name} (#{display_number}, ID: {event_id})")
+                await send_chat_message(f"Event {display_number} called: \"{event_name}\"")
             elif event_type == 'PLAYER_JOINED':
-                # Handle player joined
-                player_name = data.get('playerName')
-                player_id = data.get('playerId')
+                # Handle player joined — log to database only, no chat notice
+                player_name = data.get('playername')
+                player_id = data.get('playerid')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Player joined - {player_name} (ID: {player_id})")
-                await send_chat_message(f"@{player_name} has joined the bingo game!")
+                if _current_bingo_game_id:
+                    async with user_db.cursor() as cursor:
+                        await cursor.execute("""
+                            INSERT IGNORE INTO bingo_players (game_id, player_name, player_id)
+                            VALUES (%s, %s, %s)
+                        """, (_current_bingo_game_id, player_name, player_id))
             elif event_type == 'BINGO_REGISTERED':
                 # Handle bingo registered (player got bingo)
                 # The API does not include a game_id; use the internally tracked game ID.
-                player_name = data.get('playerName')
-                player_id = data.get('playerId')
+                player_name = data.get('playername')
+                player_id = data.get('playerid')
                 rank = data.get('rank')
                 rank_suffixes = {1: "1st", 2: "2nd", 3: "3rd"}
                 rank_text = rank_suffixes.get(rank, f"{rank}th")
@@ -2894,8 +2893,8 @@ async def process_stream_bingo_message(data):
                 await send_chat_message(f"BINGO! @{player_name} got {rank_text} place! Congratulations!")
             elif event_type == 'EXTRA_CARD_WITH_BITS':
                 # Handle extra card purchased with bits
-                player_name = data.get('playerName')
-                player_id = data.get('playerId')
+                player_name = data.get('playername')
+                player_id = data.get('playerid')
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
                 await send_chat_message(f"@{player_name} grabbed an extra bingo card with {bits} bits!")
@@ -2905,8 +2904,8 @@ async def process_stream_bingo_message(data):
                 await send_chat_message("Bingo voting has started! Cast your vote now!")
             elif event_type == 'EXTRA_VOTE_WITH_BITS':
                 # Handle extra vote purchased with bits
-                player_name = data.get('playerName')
-                player_id = data.get('playerId')
+                player_name = data.get('playername')
+                player_id = data.get('playerid')
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
                 await send_chat_message(f"@{player_name} got an extra bingo vote with {bits} bits!")

@@ -614,6 +614,16 @@ try {
                 INDEX idx_rank (`rank`),
                 FOREIGN KEY (game_id) REFERENCES bingo_games(game_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'bingo_players' => "
+            CREATE TABLE IF NOT EXISTS bingo_players (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                game_id VARCHAR(36) NOT NULL,
+                player_name VARCHAR(255) NOT NULL,
+                player_id VARCHAR(50) NOT NULL,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_game_player (game_id, player_id),
+                INDEX idx_game_id (game_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'tanggle_room_completions' => "
             CREATE TABLE IF NOT EXISTS tanggle_room_completions (
                 id INT PRIMARY KEY AUTO_INCREMENT,
