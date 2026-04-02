@@ -1980,11 +1980,11 @@ ob_start();
             await startUserBot(username, twitchUserId, targetType);
         }
     };
-    // Function to show screen attach command for a running bot
     // Console viewer state
     let _consolePollTimer = null;
     let _consoleEventSource = null;
-
+    let _activeConsoleSession = null;
+    let _activeConsoleLogFile = null;
     function _setConsoleStatus(msg, type) {
         const el = document.getElementById('console-modal-status');
         if (!el) return;
@@ -1992,63 +1992,81 @@ ob_start();
         el.textContent = msg;
         el.className = 'sp-badge ' + (classes[type] || 'sp-badge-blue');
     }
-
-    function _fetchConsoleSnapshot(sessionName) {
+    // Enable screen logging to a temp file, then call onReady()
+    function _startConsoleLogging(sessionName, logFile, onReady) {
+        const setupCmd = 'touch ' + logFile + ' 2>/dev/null; screen -S ' + sessionName + ' -X logfile ' + logFile + ' 2>/dev/null; screen -S ' + sessionName + ' -X log on 2>/dev/null; echo ready';
+        const setupUrl = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(setupCmd) + '&safe=0';
+        const setupSrc = new EventSource(setupUrl);
+        const timeout = setTimeout(function() { setupSrc.close(); onReady(); }, 5000);
+        setupSrc.addEventListener('done', function() { clearTimeout(timeout); setupSrc.close(); onReady(); });
+        setupSrc.onerror = function() { clearTimeout(timeout); setupSrc.close(); onReady(); };
+    }
+    // Open a persistent tail -f stream on the log file
+    function _startConsoleTailStream(logFile) {
         if (_consoleEventSource) {
             _consoleEventSource.close();
             _consoleEventSource = null;
         }
-        const cmd = 'screen -S ' + sessionName + ' -X hardcopy -h /tmp/screen_cap_' + sessionName + '.txt 2>/dev/null; sleep 0.3; cat /tmp/screen_cap_' + sessionName + '.txt 2>/dev/null; rm -f /tmp/screen_cap_' + sessionName + '.txt 2>/dev/null';
-        const url = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(cmd) + '&safe=0';
-        let buf = '';
-        _consoleEventSource = new EventSource(url);
+        const out = document.getElementById('console-modal-output');
+        const tailCmd = 'tail -f ' + logFile + ' 2>/dev/null';
+        const tailUrl = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(tailCmd) + '&safe=0';
+        _consoleEventSource = new EventSource(tailUrl);
         _consoleEventSource.onmessage = function(e) {
             if (e.data && !e.data.startsWith('Executing on ')) {
-                buf += e.data + '\n';
+                if (out) {
+                    out.textContent += e.data + '\n';
+                    out.scrollTop = out.scrollHeight;
+                }
             }
         };
         _consoleEventSource.addEventListener('done', function() {
             if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
-            const out = document.getElementById('console-modal-output');
-            if (!out) return;
-            if (buf.trim()) {
-                out.textContent = buf;
-                out.scrollTop = out.scrollHeight;
-                _setConsoleStatus('Live — refreshed ' + new Date().toLocaleTimeString(), 'success');
-            } else {
-                _setConsoleStatus('Session empty or not found', 'warning');
-            }
+            _setConsoleStatus('Stream ended', 'warning');
         });
         _consoleEventSource.addEventListener('error', function() {
             if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
-            _setConsoleStatus('Stream error — retrying...', 'danger');
+            _setConsoleStatus('Stream disconnected — close and reopen to reconnect', 'danger');
         });
         _consoleEventSource.onerror = function() {
             if (_consoleEventSource && _consoleEventSource.readyState === EventSource.CLOSED) {
                 _consoleEventSource = null;
             }
         };
+        _setConsoleStatus('Live', 'success');
     }
-
     window.attachConsole = function(username) {
         const sessionName = 'specter_' + username.replace(/[^a-zA-Z0-9_]/g, '_');
+        const logFile = '/tmp/screen_log_' + sessionName + '.txt';
         const modal = document.getElementById('console-modal');
         document.getElementById('console-modal-title').textContent = 'Bot Console: ' + username;
         document.getElementById('console-modal-output').textContent = '';
         _setConsoleStatus('Connecting...', 'info');
         modal.style.display = 'flex';
-        // Initial fetch then poll every 3 seconds
-        _fetchConsoleSnapshot(sessionName);
-        _consolePollTimer = setInterval(function() { _fetchConsoleSnapshot(sessionName); }, 3000);
+        _activeConsoleSession = sessionName;
+        _activeConsoleLogFile = logFile;
+        // Enable screen logging then tail the log file live
+        _startConsoleLogging(sessionName, logFile, function() {
+            _startConsoleTailStream(logFile);
+        });
     };
-
     window.closeConsoleModal = function() {
         if (_consolePollTimer) { clearInterval(_consolePollTimer); _consolePollTimer = null; }
         if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
+        // Disable screen logging and clean up the temp log file
+        if (_activeConsoleSession) {
+            const sess = _activeConsoleSession;
+            const lf = _activeConsoleLogFile;
+            const cleanCmd = 'screen -S ' + sess + ' -X log off 2>/dev/null; rm -f ' + lf + ' 2>/dev/null; echo done';
+            const cleanUrl = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(cleanCmd) + '&safe=0';
+            const cleanSrc = new EventSource(cleanUrl);
+            cleanSrc.addEventListener('done', function() { cleanSrc.close(); });
+            setTimeout(function() { cleanSrc.close(); }, 5000);
+            _activeConsoleSession = null;
+            _activeConsoleLogFile = null;
+        }
         document.getElementById('console-modal').style.display = 'none';
         document.getElementById('console-modal-output').textContent = '';
     };
-
     window.consoleModalBackdropClick = function(e) {
         if (e.target === document.getElementById('console-modal')) {
             closeConsoleModal();
