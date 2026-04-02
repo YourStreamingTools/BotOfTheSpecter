@@ -1933,8 +1933,6 @@ ob_start();
                 runningBots = runningBots.filter(bot => bot.username !== username);
                 // Add to runningBots array optimistically
                 runningBots.push({ username: username, bot_type: botType, pid: 0 });
-                // Hide the row since bot is now running
-                row.style.display = 'none';
                 // Non-blocking toast notification only
                 const startedTypeLabel = botType === 'beta' ? 'beta' : (botType === 'custom' ? 'custom' : 'stable');
                 Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Started ${startedTypeLabel} bot for ${username}`, showConfirmButton: false, timer: 1500 });
