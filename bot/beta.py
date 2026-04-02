@@ -8539,13 +8539,12 @@ class TwitchBot(commands.Bot):
             action = action.lower()
             bot_logger.info(f"[TODO] Action: {action}, Params: {params}")
             actions = {
-                'add': add_task,
-                'edit': edit_task,
-                'remove': remove_task,
-                'complete': complete_task,
-                'done': complete_task,
-                'confirm': confirm_removal,
-                'view': view_task,
+                'add': todo_command_add_task,
+                'edit': todo_command_edit_task,
+                'remove': todo_command_remove_task,
+                'complete': todo_command_complete_task,
+                'done': todo_command_complete_task,
+                'confirm': todo_command_confirm_removal,
             }
             if action in actions:
                 if action in ['add', 'edit', 'remove', 'complete', 'done']:
@@ -8558,7 +8557,7 @@ class TwitchBot(commands.Bot):
                 # Record usage
                 add_usage('todo', bucket_key, cooldown_bucket)
             else:
-                await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, Confirm, or View.")
+                await send_chat_message(f"{user.name}, unrecognized action. Please use Add, Edit, Remove, Complete, or Confirm.")
                 chat_logger.error(f"[TODO] {user.name} used an unrecognized action: {action}.")
         except Exception as e:
             bot_logger.error(f"[TODO] An error occurred in todo_command: {e}")
@@ -12896,7 +12895,7 @@ async def tell_fortune():
 
 # Functions for the ToDo List
 # ToDo List Function - Add Task
-async def add_task(ctx, params, user_id, connection):
+async def todo_command_add_task(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
         if params:
@@ -12930,7 +12929,7 @@ async def add_task(ctx, params, user_id, connection):
             chat_logger.error(f"[TODO] {user.name} did not provide any task to add.")
 
 # ToDo List Function - Edit Task
-async def edit_task(ctx, params, user_id, connection):
+async def todo_command_edit_task(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
         if params:
@@ -12954,7 +12953,7 @@ async def edit_task(ctx, params, user_id, connection):
             chat_logger.error(f"[TODO] {user.name} did not provide task ID and new description for editing.")
 
 # ToDo List Function - Remove Task
-async def remove_task(ctx, params, user_id, connection):
+async def todo_command_remove_task(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
         if params:
@@ -12976,7 +12975,7 @@ async def remove_task(ctx, params, user_id, connection):
             chat_logger.error(f"[TODO] {user.name} did not provide task ID for removal.")
 
 # ToDo List Function - Complete Task
-async def complete_task(ctx, params, user_id, connection):
+async def todo_command_complete_task(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
         if params:
@@ -12998,7 +12997,7 @@ async def complete_task(ctx, params, user_id, connection):
             chat_logger.error(f"[TODO] {user.name} did not provide task ID for completion.")
 
 # ToDo List Function - Confirm Removal
-async def confirm_removal(ctx, params, user_id, connection):
+async def todo_command_confirm_removal(ctx, params, user_id, connection):
     user = ctx.author
     async with connection.cursor(DictCursor) as cursor:
         if user_id in pending_removals:
@@ -13010,34 +13009,6 @@ async def confirm_removal(ctx, params, user_id, connection):
         else:
             await send_chat_message(f"{user.name}, you have no pending task removal to confirm.")
             chat_logger.error(f"[TODO] {user.name} tried to confirm removal without pending task.")
-
-# ToDo List Function - View Task
-async def view_task(ctx, params, user_id, connection):
-    user = ctx.author
-    async with connection.cursor(DictCursor) as cursor:
-        if params:
-            try:
-                todo_id = int(params[0].strip())
-                await cursor.execute("SELECT objective, category, completed, private FROM todos WHERE id = %s", (todo_id,))
-                result = await cursor.fetchone()
-                if result:
-                    objective = result.get("objective")
-                    category_id = result.get("category")
-                    completed = result.get("completed")
-                    private = result.get("private", 0)
-                    category_name = await fetch_category_name(cursor, category_id)
-                    private_note = ' [Private - not shown on overlay]' if private else ''
-                    await send_chat_message(f"Task ID {todo_id}: Description: {objective} Category: {category_name or 'Unknown'} Completed: {completed}{private_note}")
-                    chat_logger.info(f"[TODO] {user.name} viewed task ID {todo_id}.")
-                else:
-                    await send_chat_message(f"{user.name}, task ID {todo_id} does not exist.")
-                    chat_logger.error(f"[TODO] {user.name} tried to view non-existing task ID {todo_id}.")
-            except ValueError:
-                await send_chat_message(f"{user.name}, please provide a valid task ID to view.")
-                chat_logger.error(f"[TODO] {user.name} provided invalid task ID for viewing.")
-        else:
-            await send_chat_message(f"{user.name}, please provide the task ID to view.")
-            chat_logger.error(f"[TODO] {user.name} did not provide task ID for viewing.")
 
 # ToDo List Function - Todolist (view top 5 public tasks)
 async def todolist_command_handler(ctx, connection):
