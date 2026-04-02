@@ -58,6 +58,10 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
 ADMIN_KEY = os.getenv('ADMIN_KEY')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
+TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
+TWITCH_OAUTH_API_CLIENT_ID = os.getenv('TWITCH_OAUTH_API_CLIENT_ID')
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 DISCORD_TWITCH_LINK_BASE_URL = os.getenv('DISCORD_TWITCH_LINK_BASE_URL', 'https://botofthespecter.com/discord_twitch_link.php')
 DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES = int(os.getenv('DISCORD_TWITCH_LINK_TOKEN_TTL_MINUTES', '30'))
 
@@ -191,6 +195,47 @@ def _read_uptime_marker_via_ssh(host: str, username: str, password: str, marker_
                 pass
     logging.error(f"Error fetching {server_label} uptime via SSH ({host}): {last_error}")
     return None
+
+# In-memory cache for the Twitch app token from bot_chat_token
+_twitch_app_creds_cache: dict = {"loaded_at": 0.0, "access_token": None, "client_id": None}
+_TWITCH_APP_CREDS_TTL = 60  # seconds
+
+async def get_twitch_app_credentials() -> dict | None:
+    global _twitch_app_creds_cache
+    import time as _time
+    now = _time.time()
+    if (now - _twitch_app_creds_cache["loaded_at"]) < _TWITCH_APP_CREDS_TTL and _twitch_app_creds_cache["access_token"]:
+        return _twitch_app_creds_cache
+    access_token = None
+    client_id = None
+    try:
+        conn = await get_mysql_connection()
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1")
+                row = await cur.fetchone()
+                if row:
+                    for key in ("twitch_oauth_api_token", "oauth", "chat_oauth_token", "twitch_oauth_token", "twitch_access_token", "bot_oauth_token"):
+                        if row.get(key):
+                            access_token = str(row[key]).strip()
+                            break
+                    for key in ("twitch_client_id", "client_id", "clientID"):
+                        if row.get(key):
+                            client_id = str(row[key]).strip()
+                            break
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"Failed to fetch Twitch app credentials from bot_chat_token: {e}")
+    if not access_token:
+        return None
+    # bot_chat_token may not have a client_id column; fall back to CLIENT_ID env var
+    if not client_id:
+        client_id = CLIENT_ID
+    if not client_id:
+        return None
+    _twitch_app_creds_cache = {"loaded_at": now, "access_token": access_token, "client_id": client_id}
+    return _twitch_app_creds_cache
 
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
@@ -3446,26 +3491,12 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
         stream_title = None
         game_name = None
         if is_online:
-            twitch_token = None
-            website_conn = await get_mysql_connection()
-            try:
-                async with website_conn.cursor(aiomysql.DictCursor) as cur:
-                    await cur.execute("""
-                        SELECT t.twitch_access_token
-                        FROM users u
-                        LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
-                        WHERE u.username = %s
-                    """, (username,))
-                    token_row = await cur.fetchone()
-                    if token_row and token_row.get("twitch_access_token"):
-                        twitch_token = token_row["twitch_access_token"]
-            finally:
-                website_conn.close()
-            if twitch_token:
+            twitch_creds = await get_twitch_app_credentials()
+            if twitch_creds:
                 helix_url = "https://api.twitch.tv/helix/streams"
                 headers = {
-                    "Client-ID": "mrjucsmsnri89ifucl66jj1n35jkj8",
-                    "Authorization": f"Bearer {twitch_token}"
+                    "Client-ID": twitch_creds["client_id"],
+                    "Authorization": f"Bearer {twitch_creds['access_token']}"
                 }
                 params = {"user_login": username}
                 try:
