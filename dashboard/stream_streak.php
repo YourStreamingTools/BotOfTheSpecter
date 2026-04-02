@@ -34,16 +34,16 @@ $milestoneBreakdown = [];
 
 try {
     // Most recently updated streaks (one row per user - ordered by last milestone hit)
-    $recentRes = $db->query("SELECT user_name, streak_value, updated_at FROM analytic_stream_watch_streak ORDER BY updated_at DESC LIMIT 25");
+    $recentRes = $db->query("SELECT user_name, streak_value, highest_streak, total_streams_watched, updated_at FROM analytic_stream_watch_streak ORDER BY updated_at DESC LIMIT 25");
     if ($recentRes) {
         $recentStreaks = $recentRes->fetch_all(MYSQLI_ASSOC);
     }
-    // Top users by highest current streak
-    $topRes = $db->query("SELECT user_name, streak_value AS highest_streak FROM analytic_stream_watch_streak ORDER BY streak_value DESC LIMIT 10");
+    // Top users by highest all-time streak
+    $topRes = $db->query("SELECT user_name, highest_streak, total_streams_watched FROM analytic_stream_watch_streak ORDER BY highest_streak DESC LIMIT 10");
     if ($topRes) {
         $topStreakers = $topRes->fetch_all(MYSQLI_ASSOC);
     }
-    // Breakdown: how many viewers are at each streak level
+    // Breakdown: how many viewers are at each current streak level
     $milestoneRes = $db->query("SELECT streak_value, COUNT(*) AS user_count FROM analytic_stream_watch_streak GROUP BY streak_value ORDER BY streak_value ASC");
     if ($milestoneRes) {
         $milestoneBreakdown = $milestoneRes->fetch_all(MYSQLI_ASSOC);
@@ -79,7 +79,9 @@ ob_start();
                             <thead>
                                 <tr>
                                     <th>Viewer</th>
-                                    <th>Streak</th>
+                                    <th>Current Streak</th>
+                                    <th>Best Streak</th>
+                                    <th>Total Watched</th>
                                     <th>Last Milestone</th>
                                 </tr>
                             </thead>
@@ -88,6 +90,8 @@ ob_start();
                                     <tr>
                                         <td><?php echo htmlspecialchars($row['user_name']); ?></td>
                                         <td><?php echo htmlspecialchars($row['streak_value']); ?> streams</td>
+                                        <td><?php echo htmlspecialchars($row['highest_streak'] ?? $row['streak_value']); ?> streams</td>
+                                        <td><?php echo htmlspecialchars($row['total_streams_watched'] ?? $row['streak_value']); ?> streams</td>
                                         <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -97,7 +101,7 @@ ob_start();
                 <?php endif; ?>
             </div>
             <div>
-                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">Highest Current Streaks</h3>
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">All-Time Highest Streaks</h3>
                 <?php if (empty($topStreakers)): ?>
                     <p class="sp-text-muted">No data yet.</p>
                 <?php else: ?>
@@ -105,7 +109,8 @@ ob_start();
                         <?php foreach ($topStreakers as $t): ?>
                             <li style="margin-bottom:0.5rem;">
                                 <strong><?php echo htmlspecialchars($t['user_name']); ?></strong>
-                                - <?php echo htmlspecialchars($t['highest_streak']); ?> streams
+                                &mdash; best: <?php echo htmlspecialchars($t['highest_streak']); ?> streams
+                                &bull; total: <?php echo htmlspecialchars($t['total_streams_watched']); ?> streams
                             </li>
                         <?php endforeach; ?>
                     </ul>
