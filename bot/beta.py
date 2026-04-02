@@ -9348,14 +9348,15 @@ class TwitchBot(commands.Bot):
         except Exception as e:
             chat_logger.error(f"[OBS] Error in obs_command: {e}")
             await send_chat_message("An error occurred while sending OBS event.")
-
-# Functions for all the commands
-##
-# Function to format lurk time duration
         finally:
             if connection:
                 await connection.close()
 
+##### END OF COMMANDS #####
+##
+# Functions for all the commands
+##
+# Function to format lurk time duratio
 def format_lurk_time(elapsed_time):
     total_seconds = int(elapsed_time.total_seconds())
     years = total_seconds // (365 * 24 * 3600)
