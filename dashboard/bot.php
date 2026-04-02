@@ -444,276 +444,278 @@ ob_start();
     </div>
   </div>
   <!-- Main Bot Management Card -->
-  <div class="bot-col-main">
-    <div class="sp-card">
-      <div class="sp-card-header">
-        <div class="bot-header-wrapper">
-          <span class="sp-card-title" style="font-size:1.15rem;">
-            <?php echo t('bot_management_title'); ?>
-          </span>
-          <div class="bot-header-controls">
-            <!-- Custom Bot Name Toggle (Verified Custom Bot Required) -->
-            <?php if ($hasVerifiedCustomBot): ?>
-            <div id="custom-bot-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
-              <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch">
-              <label for="custom-bot-toggle" style="white-space:nowrap; display:flex; flex-direction:column; line-height:1.2;">
-                <span>Custom Bot Name</span>
-                <span style="color:var(--text-muted); font-size:0.75rem; margin-top:2px;"><?php echo htmlspecialchars($customBotUsername); ?></span>
-              </label>
+  <div class="bot-col-right">
+    <div class="bot-col-main">
+      <div class="sp-card">
+        <div class="sp-card-header">
+          <div class="bot-header-wrapper">
+            <span class="sp-card-title" style="font-size:1.15rem;">
+              <?php echo t('bot_management_title'); ?>
+            </span>
+            <div class="bot-header-controls">
+              <!-- Custom Bot Name Toggle (Verified Custom Bot Required) -->
+              <?php if ($hasVerifiedCustomBot): ?>
+              <div id="custom-bot-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
+                <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch">
+                <label for="custom-bot-toggle" style="white-space:nowrap; display:flex; flex-direction:column; line-height:1.2;">
+                  <span>Custom Bot Name</span>
+                  <span style="color:var(--text-muted); font-size:0.75rem; margin-top:2px;"><?php echo htmlspecialchars($customBotUsername); ?></span>
+                </label>
+              </div>
+              <?php endif; ?>
+              <!-- Use Self Toggle -->
+              <div id="use-self-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
+                <input id="use-self-toggle" type="checkbox" name="use-self-toggle" class="switch" <?php echo ($use_self ? 'checked' : ''); ?>>
+                <label for="use-self-toggle" title="Send messages as your connected account when enabled" style="white-space:nowrap; display:flex; align-items:center;">
+                  <span>Use Self</span>
+                </label>
+              </div>
+              <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;">
+                  <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
+                    <?php echo t('bot_stable_bot'); ?>
+                  </option>
+                  <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
+                    <?php echo t('bot_beta_bot'); ?>
+                  </option>
+                  <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
+                    Version 6
+                  </option>
+                </select>
             </div>
-            <?php endif; ?>
-            <!-- Use Self Toggle -->
-            <div id="use-self-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
-              <input id="use-self-toggle" type="checkbox" name="use-self-toggle" class="switch" <?php echo ($use_self ? 'checked' : ''); ?>>
-              <label for="use-self-toggle" title="Send messages as your connected account when enabled" style="white-space:nowrap; display:flex; align-items:center;">
-                <span>Use Self</span>
-              </label>
+          </div>
+        </div>
+        <div class="sp-card-body">
+          <?php if ($selectedBot === 'stable'): ?>
+            <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
+              <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" style="color:var(--blue);">(v<?php echo $versionRunning ?: $newVersion; ?>)</span>
+            </h3>
+            <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
+              <?php echo t('bot_stable_description'); ?>
+            </p>
+          <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
+            <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
+              <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
+            </h3>
+            <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
+              <?php echo t('bot_beta_description'); ?>
+            </p>
+            <!-- Custom Bot Name -->
+            <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <strong>Important:</strong> When using a custom bot name, BotOfTheSpecter must still remain a moderator in your channel. Many bot features require the Specter account to maintain mod permissions to function properly.
             </div>
-            <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;">
-                <option value="stable" <?php if($selectedBot === 'stable') echo 'selected'; ?>>
-                  <?php echo t('bot_stable_bot'); ?>
-                </option>
-                <option value="beta" <?php if($selectedBot === 'beta') echo 'selected'; ?>>
-                  <?php echo t('bot_beta_bot'); ?>
-                </option>
-                <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
-                  Version 6
-                </option>
-              </select>
-          </div>
-        </div>
-      </div>
-      <div class="sp-card-body">
-        <?php if ($selectedBot === 'stable'): ?>
-          <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-            <?php echo t('bot_stable_controls'); ?> <span id="bot-controls-version" style="color:var(--blue);">(v<?php echo $versionRunning ?: $newVersion; ?>)</span>
-          </h3>
-          <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
-            <?php echo t('bot_stable_description'); ?>
-          </p>
-        <?php elseif ($selectedBot === 'beta' && $betaAccess): ?>
-          <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-            <?php echo t('bot_beta_controls') . " (v{$betaNewVersion} B)"; ?>
-          </h3>
-          <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
-            <?php echo t('bot_beta_description'); ?>
-          </p>
-          <!-- Custom Bot Name -->
-          <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
-            <i class="fas fa-info-circle"></i>
-            <strong>Important:</strong> When using a custom bot name, BotOfTheSpecter must still remain a moderator in your channel. Many bot features require the Specter account to maintain mod permissions to function properly.
-          </div>
-          <!-- Use Self -->
-          <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
-            <i class="fas fa-info-circle"></i>
-            <strong>Note:</strong> When Use Self is enabled the bot will send messages using your connected Twitch account. The Specter account must still be a moderator for some features to work.
-          </div>
-        <?php elseif ($selectedBot === 'v6'): ?>
-          <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-            Version 6 Controls (v<?php echo $v6NewVersion; ?>)
-          </h3>
-          <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
-            Version 6 is a complete rewrite and is currently in early development.
-          </p>
-          <div class="sp-alert sp-alert-danger" style="text-align:center;">
-            A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
-          </div>
-        <?php endif; ?>
-        <?php 
-        // Only show bot status and controls if the bot is properly configured
-        $showBotControls = false;
-        if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6') {
-          $showBotControls = true;
-        } 
-        ?>
-        <?php if ($showBotControls): ?>
-        <div style="display:flex; justify-content:center; align-items:center; gap:2rem; margin-bottom:1rem;">
-          <span style="font-size:2rem;" id="botStatusIcon">
-            <?php
-              $isRunning = false;
-              if ($selectedBot === 'stable') {
-                $isRunning = $stableRunning;
-              } elseif ($selectedBot === 'beta') {
-                $isRunning = $betaRunning;
-              } elseif ($selectedBot === 'v6') {
-                $isRunning = $v6Running;
-              }
-              $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x" style="color:var(--blue);"></i>';
-              echo $heartIcon;
-            ?>
-          </span>
-          <span style="font-size:1rem; font-weight:600;">
-            <?php echo t('bot_status_label'); ?> <span id="bot-status-text" style="color:var(--blue);">Fetching status...</span>
-            <?php if ($isTechnical): ?>
-            <div id="bot-pid-display" style="color:var(--text-muted); font-size:0.75rem; margin-top:0.25rem; display:none;">
-              PID: <span id="bot-pid-value">--</span>
+            <!-- Use Self -->
+            <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <strong>Note:</strong> When Use Self is enabled the bot will send messages using your connected Twitch account. The Specter account must still be a moderator for some features to work.
             </div>
-            <?php endif; ?>
-          </span>
+          <?php elseif ($selectedBot === 'v6'): ?>
+            <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
+              Version 6 Controls (v<?php echo $v6NewVersion; ?>)
+            </h3>
+            <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
+              Version 6 is a complete rewrite and is currently in early development.
+            </p>
+            <div class="sp-alert sp-alert-danger" style="text-align:center;">
+              A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
+            </div>
+          <?php endif; ?>
+          <?php 
+          // Only show bot status and controls if the bot is properly configured
+          $showBotControls = false;
+          if ($selectedBot === 'stable' || $selectedBot === 'beta' || $selectedBot === 'v6') {
+            $showBotControls = true;
+          } 
+          ?>
+          <?php if ($showBotControls): ?>
+          <div style="display:flex; justify-content:center; align-items:center; gap:2rem; margin-bottom:1rem;">
+            <span style="font-size:2rem;" id="botStatusIcon">
+              <?php
+                $isRunning = false;
+                if ($selectedBot === 'stable') {
+                  $isRunning = $stableRunning;
+                } elseif ($selectedBot === 'beta') {
+                  $isRunning = $betaRunning;
+                } elseif ($selectedBot === 'v6') {
+                  $isRunning = $v6Running;
+                }
+                $heartIcon = '<i class="fas fa-spinner fa-spin fa-2x" style="color:var(--blue);"></i>';
+                echo $heartIcon;
+              ?>
+            </span>
+            <span style="font-size:1rem; font-weight:600;">
+              <?php echo t('bot_status_label'); ?> <span id="bot-status-text" style="color:var(--blue);">Fetching status...</span>
+              <?php if ($isTechnical): ?>
+              <div id="bot-pid-display" style="color:var(--text-muted); font-size:0.75rem; margin-top:0.25rem; display:none;">
+                PID: <span id="bot-pid-value">--</span>
+              </div>
+              <?php endif; ?>
+            </span>
+          </div>
+          <?php if ($BotModMessage): ?>
+          <p style="color:var(--red); text-align:center; margin-bottom:0.5rem;"><?php echo $BotModMessage; ?></p>
+          <?php endif; ?>
+          <?php if ($selectedBot === 'beta' && !$betaAccess): ?>
+          <div class="sp-alert sp-alert-warning" style="text-align:center;">
+            <?php echo t('bot_beta_subscription_warning', ['premium_url' => 'premium.php']); ?>
+          </div>
+          <?php else: ?>
+          <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;">
+            <button class="sp-btn sp-btn-primary" disabled>
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Checking status...</span>
+            </button>
+          </div>
+          <?php endif; ?>
+          <?php endif; ?>
         </div>
-        <?php if ($BotModMessage): ?>
-        <p style="color:var(--red); text-align:center; margin-bottom:0.5rem;"><?php echo $BotModMessage; ?></p>
-        <?php endif; ?>
-        <?php if ($selectedBot === 'beta' && !$betaAccess): ?>
-        <div class="sp-alert sp-alert-warning" style="text-align:center;">
-          <?php echo t('bot_beta_subscription_warning', ['premium_url' => 'premium.php']); ?>
-        </div>
-        <?php else: ?>
-        <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;">
-          <button class="sp-btn sp-btn-primary" disabled>
-            <i class="fas fa-spinner fa-spin"></i>
-            <span>Checking status...</span>
-          </button>
-        </div>
-        <?php endif; ?>
-        <?php endif; ?>
       </div>
     </div>
-  </div>
-  <div class="bot-col-system">
-    <!-- System Status Card -->
-    <div class="sp-card">
-      <div class="sp-card-header">
-        <!-- Left side: Uptime Monitors button -->
-        <div class="header-left">
-          <a href="https://uptime.botofthespecter.com/" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
-            <i class="fas fa-chart-line"></i>
-            <span><?php echo t('bot_view_detailed_uptime'); ?></span>
-          </a>
-        </div>
-        <!-- Center: Title -->
-        <span class="sp-card-title" style="flex:1; justify-content:center;">
-          <?php echo t('bot_system_status'); ?>
-        </span>
-        <!-- Right side: Network Status -->
-        <?php if ($isTechnical): ?>
-        <div class="header-right">
-          <div class="network-status-container">
-            <div class="network-status-inner" style="font-family:monospace; font-size:0.75rem;">
-              <div style="font-weight:600; margin-bottom:2px; color:var(--text-primary);">
-                <i class="fas fa-network-wired"></i> Network Status
-              </div>
-              <div style="color:var(--text-muted);">
-                <span style="color:var(--text-muted);">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
-              </div>
-              <div style="color:var(--text-muted);">
-                <span style="color:var(--text-muted);">Services Up:</span> <span id="services-up-count">--/--</span>
+    <div class="bot-col-system">
+      <!-- System Status Card -->
+      <div class="sp-card">
+        <div class="sp-card-header">
+          <!-- Left side: Uptime Monitors button -->
+          <div class="header-left">
+            <a href="https://uptime.botofthespecter.com/" target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
+              <i class="fas fa-chart-line"></i>
+              <span><?php echo t('bot_view_detailed_uptime'); ?></span>
+            </a>
+          </div>
+          <!-- Center: Title -->
+          <span class="sp-card-title" style="flex:1; justify-content:center;">
+            <?php echo t('bot_system_status'); ?>
+          </span>
+          <!-- Right side: Network Status -->
+          <?php if ($isTechnical): ?>
+          <div class="header-right">
+            <div class="network-status-container">
+              <div class="network-status-inner" style="font-family:monospace; font-size:0.75rem;">
+                <div style="font-weight:600; margin-bottom:2px; color:var(--text-primary);">
+                  <i class="fas fa-network-wired"></i> Network Status
+                </div>
+                <div style="color:var(--text-muted);">
+                  <span style="color:var(--text-muted);">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
+                </div>
+                <div style="color:var(--text-muted);">
+                  <span style="color:var(--text-muted);">Services Up:</span> <span id="services-up-count">--/--</span>
+                </div>
               </div>
             </div>
           </div>
+          <?php else: ?>
+          <div class="header-right header-placeholder"></div>
+          <?php endif; ?>
         </div>
-        <?php else: ?>
-        <div class="header-right header-placeholder"></div>
+        <?php if ($isTechnical): ?>
+          <div class="sp-alert sp-alert-info" style="text-align:center; border-radius:0; margin:0; border-left:none; border-right:none;">
+            All latency and service status results below are measured from our Australian datacenter.
+          </div>
         <?php endif; ?>
-      </div>
-      <?php if ($isTechnical): ?>
-        <div class="sp-alert sp-alert-info" style="text-align:center; border-radius:0; margin:0; border-left:none; border-right:none;">
-          All latency and service status results below are measured from our Australian datacenter.
+        <div class="sp-card-body" style="padding-top:0;">
+          <h4 style="font-size:1rem; font-weight:700; text-align:center; margin:1rem 0; color:var(--text-primary);">
+            <?php echo t('bot_generic_services'); ?>
+          </h4>
+          <!-- Service Health Meters -->
+          <div class="service-grid">
+            <div class="service-box">
+              <div class="service-icon"><i id="apiService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name"><?php echo t('bot_api_service'); ?></h4>
+              <p id="api-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="api-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="api-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="service-box">
+              <div class="service-icon"><i id="databaseService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name"><?php echo t('bot_database_service'); ?></h4>
+              <p id="db-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="db-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="db-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="service-box">
+              <div class="service-icon"><i id="notificationService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name"><?php echo t('bot_notification_service'); ?></h4>
+              <p id="notif-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="notif-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="notif-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="service-box">
+              <div class="service-icon"><i id="botsService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name">BOT Server</h4>
+              <p id="bots-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="bots-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="bots-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="service-box">
+              <div class="service-icon"><i id="discordService" class="fab fa-discord fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name">Discord Bot Service</h4>
+              <p id="discord-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">PID:</span> <span id="discord-service-pid">--</span></div>
+                  <div><span class="service-tech-label">Latency:</span> <span id="discord-service-latency">Not Recorded</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="discord-service-lastcheck">Not Recorded</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php if (false): // Streaming services disabled - hidden but code preserved for future use ?>
+          <h4 style="font-size:1rem; font-weight:700; text-align:center; margin:1.25rem 0; color:var(--text-primary);">
+            <?php echo t('bot_streaming_service_status'); ?>
+          </h4>
+          <div class="service-grid">
+            <div class="service-box">
+              <div class="service-icon"><i id="auEast1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name">AU-EAST-1</h4>
+              <p id="auEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="auEast1-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="auEast1-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="service-box">
+              <div class="service-icon"><i id="usWest1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name">US-WEST-1</h4>
+              <p id="usWest1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="usWest1-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="usWest1-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+            <div class="service-box">
+              <div class="service-icon"><i id="usEast1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
+              <h4 class="service-name">US-EAST-1</h4>
+              <p id="usEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
+              <?php if ($isTechnical): ?>
+                <div class="service-tech">
+                  <div><span class="service-tech-label">Latency:</span> <span id="usEast1-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label">Last Check:</span> <span id="usEast1-service-lastcheck">--</span></div>
+                </div>
+              <?php endif; ?>
+            </div>
+          </div>
+          <?php endif; // End streaming services section ?>
         </div>
-      <?php endif; ?>
-      <div class="sp-card-body" style="padding-top:0;">
-        <h4 style="font-size:1rem; font-weight:700; text-align:center; margin:1rem 0; color:var(--text-primary);">
-          <?php echo t('bot_generic_services'); ?>
-        </h4>
-        <!-- Service Health Meters -->
-        <div class="service-grid">
-          <div class="service-box">
-            <div class="service-icon"><i id="apiService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name"><?php echo t('bot_api_service'); ?></h4>
-            <p id="api-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="api-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="api-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-          <div class="service-box">
-            <div class="service-icon"><i id="databaseService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name"><?php echo t('bot_database_service'); ?></h4>
-            <p id="db-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="db-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="db-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-          <div class="service-box">
-            <div class="service-icon"><i id="notificationService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name"><?php echo t('bot_notification_service'); ?></h4>
-            <p id="notif-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="notif-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="notif-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-          <div class="service-box">
-            <div class="service-icon"><i id="botsService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name">BOT Server</h4>
-            <p id="bots-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="bots-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="bots-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-          <div class="service-box">
-            <div class="service-icon"><i id="discordService" class="fab fa-discord fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name">Discord Bot Service</h4>
-            <p id="discord-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">PID:</span> <span id="discord-service-pid">--</span></div>
-                <div><span class="service-tech-label">Latency:</span> <span id="discord-service-latency">Not Recorded</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="discord-service-lastcheck">Not Recorded</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-        </div>
-        <?php if (false): // Streaming services disabled - hidden but code preserved for future use ?>
-        <h4 style="font-size:1rem; font-weight:700; text-align:center; margin:1.25rem 0; color:var(--text-primary);">
-          <?php echo t('bot_streaming_service_status'); ?>
-        </h4>
-        <div class="service-grid">
-          <div class="service-box">
-            <div class="service-icon"><i id="auEast1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name">AU-EAST-1</h4>
-            <p id="auEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="auEast1-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="auEast1-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-          <div class="service-box">
-            <div class="service-icon"><i id="usWest1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name">US-WEST-1</h4>
-            <p id="usWest1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="usWest1-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="usWest1-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-          <div class="service-box">
-            <div class="service-icon"><i id="usEast1Service" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-            <h4 class="service-name">US-EAST-1</h4>
-            <p id="usEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
-            <?php if ($isTechnical): ?>
-              <div class="service-tech">
-                <div><span class="service-tech-label">Latency:</span> <span id="usEast1-service-latency">--ms</span></div>
-                <div><span class="service-tech-label">Last Check:</span> <span id="usEast1-service-lastcheck">--</span></div>
-              </div>
-            <?php endif; ?>
-          </div>
-        </div>
-        <?php endif; // End streaming services section ?>
       </div>
     </div>
   </div>
