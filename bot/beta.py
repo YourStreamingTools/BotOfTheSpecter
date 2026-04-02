@@ -232,6 +232,7 @@ gift_sub_recipients = {}                                                        
 GIFT_SUB_TRACKING_DURATION = 30                                                         # Seconds to track gift recipients
 _tanggle_no_creds_logged = False                                                        # Tracks whether the "no credentials" message has been logged for Tanggle
 _stream_bingo_no_creds_logged = False                                                   # Tracks whether the "no credentials" message has been logged for Stream Bingo
+_streak_schema_ready = False                                                            # Tracks whether highest_streak/total_streams_watched columns have been verified
 
 # Initialize global variables
 specterSocket = AsyncClient()                                                           # Specter Socket Client instance
@@ -2000,6 +2001,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     if un_msg_id == "viewermilestone":
                         un_category = un_tags.get("msg-param-category", "")
                         if un_category == "watch-streak":
+                            global _streak_schema_ready
                             un_value = int(un_tags.get("msg-param-value", 0) or 0)
                             un_login = un_tags.get("login", "")
                             un_display = un_tags.get("display-name", un_login)
@@ -2007,14 +2009,58 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                                 f"[IRC PRESENCE] IRC watch-streak: {un_display} has watched {un_value} consecutive streams"
                             )
                             streak_result = None
+                            streak_lost = False
+                            old_streak = 0
+                            new_total = un_value
                             try:
                                 async with await mysql_connection(db_name=CHANNEL_NAME) as _wsc:
                                     async with _wsc.cursor(DictCursor) as _wscur:
+                                        # One-time schema migration: add highest_streak and total_streams_watched columns
+                                        if not _streak_schema_ready:
+                                            await _wscur.execute(
+                                                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS "
+                                                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'analytic_stream_watch_streak' AND COLUMN_NAME = 'highest_streak'"
+                                            )
+                                            col_check = await _wscur.fetchone()
+                                            if col_check and col_check['cnt'] == 0:
+                                                await _wscur.execute(
+                                                    "ALTER TABLE analytic_stream_watch_streak "
+                                                    "ADD COLUMN highest_streak INT NOT NULL DEFAULT 0, "
+                                                    "ADD COLUMN total_streams_watched INT NOT NULL DEFAULT 0"
+                                                )
+                                                await _wsc.commit()
+                                                event_logger.info("[IRC PRESENCE] analytic_stream_watch_streak: added highest_streak and total_streams_watched columns")
+                                            _streak_schema_ready = True
+                                        # Fetch existing row for this user
                                         await _wscur.execute(
-                                            "INSERT INTO analytic_stream_watch_streak (user_name, streak_value) VALUES (%s, %s) "
-                                            "ON DUPLICATE KEY UPDATE streak_value = %s, updated_at = NOW()",
-                                            (un_display, un_value, un_value)
+                                            "SELECT streak_value, highest_streak, total_streams_watched FROM analytic_stream_watch_streak WHERE user_name = %s",
+                                            (un_display,)
                                         )
+                                        existing = await _wscur.fetchone()
+                                        if existing:
+                                            old_streak = existing['streak_value']
+                                            old_highest = existing['highest_streak'] or old_streak
+                                            old_total = existing['total_streams_watched'] or old_streak
+                                            if un_value < old_streak:
+                                                # Streak was reset — viewer missed a stream
+                                                streak_lost = True
+                                                new_total = old_total + un_value
+                                                new_highest = max(old_highest, old_streak)
+                                            else:
+                                                # Continuing streak milestone
+                                                new_total = old_total + (un_value - old_streak)
+                                                new_highest = max(old_highest, un_value)
+                                            await _wscur.execute(
+                                                "UPDATE analytic_stream_watch_streak SET streak_value = %s, highest_streak = %s, total_streams_watched = %s, updated_at = NOW() WHERE user_name = %s",
+                                                (un_value, new_highest, new_total, un_display)
+                                            )
+                                        else:
+                                            # First ever milestone for this viewer
+                                            new_total = un_value
+                                            await _wscur.execute(
+                                                "INSERT INTO analytic_stream_watch_streak (user_name, streak_value, highest_streak, total_streams_watched) VALUES (%s, %s, %s, %s)",
+                                                (un_display, un_value, un_value, un_value)
+                                            )
                                         await _wscur.execute(
                                             'INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)',
                                             (un_display, "watch_streak", f"{un_value} streams")
@@ -2027,11 +2073,17 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                                         streak_result = await _wscur.fetchone()
                             except Exception as _wse:
                                 event_logger.error(f"[IRC PRESENCE] IRC watch-streak DB error for {un_display}: {_wse}")
-                            if streak_result and streak_result.get("alert_message"):
-                                streak_msg = streak_result.get("alert_message")
+                            if streak_lost:
+                                streak_msg = (
+                                    f"We're sorry you lost your {old_streak} stream streak, {un_display}! "
+                                    f"You have now watched {un_value} streams in a row — total streams watched: {new_total}."
+                                )
                             else:
-                                streak_msg = "Congrats (user) on watching (value) consecutive streams!"
-                            streak_msg = streak_msg.replace("(user)", un_display).replace("(value)", str(un_value))
+                                if streak_result and streak_result.get("alert_message"):
+                                    streak_msg = streak_result.get("alert_message")
+                                else:
+                                    streak_msg = "Congrats (user) on watching (value) consecutive streams!"
+                                streak_msg = streak_msg.replace("(user)", un_display).replace("(value)", str(un_value))
                             create_task(send_chat_message(streak_msg))
                         else:
                             bot_logger.info(f"[IRC PRESENCE] IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")

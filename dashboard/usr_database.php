@@ -200,7 +200,9 @@ try {
             CREATE TABLE IF NOT EXISTS analytic_stream_watch_streak (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 user_name VARCHAR(255) NOT NULL,
-                streak_value INT NOT NULL,
+                streak_value INT NOT NULL DEFAULT 0,
+                highest_streak INT NOT NULL DEFAULT 0,
+                total_streams_watched INT NOT NULL DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_user_name (user_name)
@@ -1029,6 +1031,24 @@ try {
             // Add the UNIQUE key
             if ($usrDBconn->query("ALTER TABLE analytic_stream_watch_streak ADD UNIQUE KEY uq_user_name (user_name)") === TRUE) {
                 async_log('analytic_stream_watch_streak: converted to UNIQUE key on user_name.');
+            }
+        }
+        // Migration: add highest_streak column if missing
+        $check_highest = $usrDBconn->query("SHOW COLUMNS FROM analytic_stream_watch_streak LIKE 'highest_streak'");
+        if ($check_highest && $check_highest->num_rows == 0) {
+            if ($usrDBconn->query("ALTER TABLE analytic_stream_watch_streak ADD COLUMN highest_streak INT NOT NULL DEFAULT 0") === TRUE) {
+                // Seed highest_streak from existing streak_value for all current rows
+                $usrDBconn->query("UPDATE analytic_stream_watch_streak SET highest_streak = streak_value WHERE highest_streak = 0");
+                async_log('analytic_stream_watch_streak: added highest_streak column.');
+            }
+        }
+        // Migration: add total_streams_watched column if missing
+        $check_total = $usrDBconn->query("SHOW COLUMNS FROM analytic_stream_watch_streak LIKE 'total_streams_watched'");
+        if ($check_total && $check_total->num_rows == 0) {
+            if ($usrDBconn->query("ALTER TABLE analytic_stream_watch_streak ADD COLUMN total_streams_watched INT NOT NULL DEFAULT 0") === TRUE) {
+                // Seed total_streams_watched from existing streak_value for all current rows
+                $usrDBconn->query("UPDATE analytic_stream_watch_streak SET total_streams_watched = streak_value WHERE total_streams_watched = 0");
+                async_log('analytic_stream_watch_streak: added total_streams_watched column.');
             }
         }
     }
