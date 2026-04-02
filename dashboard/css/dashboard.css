@@ -1332,8 +1332,6 @@ input[type="range"].modern-volume::-webkit-slider-thumb {
 }
 .bot-col-sidebar { grid-column: 1; }
 .bot-col-right   { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; gap: 1.5rem; }
-.bot-col-main    { }
-.bot-col-system  { }
 
 /* Stream / channel status badge */
 .bot-stream-status {
@@ -1618,12 +1616,14 @@ input[type="checkbox"].switch:disabled + label {
 
 /* Responsive breakpoints */
 @media (max-width: 1100px) {
-    .bot-page-cols { grid-template-columns: 1fr; }
-    .bot-col-sidebar, .bot-col-right { grid-column: auto; grid-row: auto; }
-    .bot-col-right          { order: 1; }
+    .bot-page-cols          { grid-template-columns: 1fr; }
+    .bot-col-sidebar        { grid-column: auto; grid-row: auto; }
+    .bot-col-right          { display: contents; }
+    .bot-col-main           { order: 1; }
     .bot-sidebar-version    { order: 2; }
     .bot-sidebar-status     { order: 3; }
     .bot-sidebar-api        { order: 4; }
+    .bot-col-system         { order: 5; }
 }
 @media (max-width: 768px) {
     .service-grid { grid-template-columns: repeat(2, 1fr); }
