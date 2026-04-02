@@ -27,7 +27,8 @@
 			"aliases": ["sr"]
 		},
 		"songqueue": {
-			"description": "This command will show the current Spotify song request queue (if your account is linked)."
+			"description": "This command will show the current Spotify song request queue (if your account is linked).",
+			"aliases": ["sq", "queue"]
 		},
 		"skipsong": {
 			"description": "This command allows users to skip the currently playing song in the queue.",
