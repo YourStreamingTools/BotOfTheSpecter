@@ -1644,7 +1644,7 @@ class LiveChannelManager:
                     # Update voice channel to show offline status
                     try:
                         mapping = await self.bot.channel_mapping.get_mapping(channel_code)
-                        if mapping:
+                        if mapping and mapping.get("guild_id") and mapping.get("channel_id"):
                             guild = self.bot.get_guild(int(mapping["guild_id"]))
                             if guild:
                                 channel = guild.get_channel(int(mapping["channel_id"]))
@@ -1682,7 +1682,7 @@ class LiveChannelManager:
                 # Update voice channel to show offline status
                 try:
                     mapping = await self.bot.channel_mapping.get_mapping(channel_code)
-                    if mapping:
+                    if mapping and mapping.get("guild_id") and mapping.get("channel_id"):
                         guild = self.bot.get_guild(int(mapping["guild_id"]))
                         if guild:
                             channel = guild.get_channel(int(mapping["channel_id"]))
