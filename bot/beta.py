@@ -141,7 +141,7 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle"
+    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -4117,6 +4117,7 @@ class TwitchBot(commands.Bot):
             api_logger.info("[AI] AI access denied due to lack of premium.")
             return False
 
+##### START OF COMMANDS #####
     @commands.command(name='commands', aliases=['cmds'])
     async def commands_command(self, ctx):
         global bot_owner
