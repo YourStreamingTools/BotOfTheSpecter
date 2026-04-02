@@ -34,12 +34,12 @@ $milestoneBreakdown = [];
 
 try {
     // Most recently updated streaks (one row per user - ordered by last milestone hit)
-    $recentRes = $db->query("SELECT user_name, streak_value, highest_streak, total_streams_watched, updated_at FROM analytic_stream_watch_streak ORDER BY updated_at DESC LIMIT 25");
+    $recentRes = $db->query("SELECT user_name, streak_value, GREATEST(highest_streak, streak_value) AS highest_streak, GREATEST(total_streams_watched, highest_streak, streak_value) AS total_streams_watched, updated_at FROM analytic_stream_watch_streak ORDER BY updated_at DESC LIMIT 25");
     if ($recentRes) {
         $recentStreaks = $recentRes->fetch_all(MYSQLI_ASSOC);
     }
     // Top users by highest all-time streak
-    $topRes = $db->query("SELECT user_name, highest_streak, total_streams_watched FROM analytic_stream_watch_streak ORDER BY highest_streak DESC LIMIT 10");
+    $topRes = $db->query("SELECT user_name, GREATEST(highest_streak, streak_value) AS highest_streak, GREATEST(total_streams_watched, highest_streak, streak_value) AS total_streams_watched FROM analytic_stream_watch_streak ORDER BY GREATEST(highest_streak, streak_value) DESC LIMIT 10");
     if ($topRes) {
         $topStreakers = $topRes->fetch_all(MYSQLI_ASSOC);
     }
@@ -90,8 +90,8 @@ ob_start();
                                     <tr>
                                         <td><?php echo htmlspecialchars($row['user_name']); ?></td>
                                         <td><?php echo htmlspecialchars($row['streak_value']); ?> streams</td>
-                                        <td><?php echo htmlspecialchars($row['highest_streak'] ?? $row['streak_value']); ?> streams</td>
-                                        <td><?php echo htmlspecialchars($row['total_streams_watched'] ?? $row['streak_value']); ?> streams</td>
+                                        <td><?php echo htmlspecialchars(max((int)$row['highest_streak'], (int)$row['streak_value'])); ?> streams</td>
+                                        <td><?php echo htmlspecialchars(max((int)$row['total_streams_watched'], (int)$row['streak_value'])); ?> streams</td>
                                         <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
