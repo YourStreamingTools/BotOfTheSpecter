@@ -3447,12 +3447,12 @@ class BotOfTheSpecter(commands.Bot):
             return "Unknown Game", "No Title"
         twitch_user_id = twitch_user_id_row["twitch_user_id"]
         # Use bot's access token
-        auth_token = await mysql_helper.get_bot_access_token()
-        if not auth_token:
+        auth_token, client_id = await mysql_helper.get_bot_access_token()
+        if not auth_token or not client_id:
             self.logger.error(f"No bot access token available for get_stream_info")
             return "Unknown Game", "No Title"
         async with aiohttp.ClientSession() as session:
-            headers = {"Client-ID": config.twitch_client_id,"Authorization": f"Bearer {auth_token}"}
+            headers = {"Client-ID": client_id, "Authorization": f"Bearer {auth_token}"}
             async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -3485,13 +3485,9 @@ class BotOfTheSpecter(commands.Bot):
     async def get_user_profile_image_from_twitch(self, username):
         try:
             mysql_helper = MySQLHelper(self.logger)
-            client_id = config.twitch_client_id
-            if not client_id:
-                self.logger.debug(f"Missing Twitch client ID, cannot fetch profile for {username}")
-                return None
             # Use the helper method to fetch bot's access token
-            bearer = await mysql_helper.get_bot_access_token()
-            if not bearer:
+            bearer, client_id = await mysql_helper.get_bot_access_token()
+            if not bearer or not client_id:
                 self.logger.debug(f"No access token available, cannot fetch profile for {username}")
                 return None
             url = f"https://api.twitch.tv/helix/users?login={urllib.parse.quote_plus(str(username).strip().lower())}"
@@ -3662,10 +3658,10 @@ class BotOfTheSpecter(commands.Bot):
                                 if is_stale:
                                     try:
                                         still_live = False
-                                        auth_token = await mysql_helper.get_bot_access_token()
-                                        if auth_token:
+                                        auth_token, client_id = await mysql_helper.get_bot_access_token()
+                                        if auth_token and client_id:
                                             async with aiohttp.ClientSession() as check_session:
-                                                headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
+                                                headers = {"Client-ID": client_id, "Authorization": f"Bearer {auth_token}"}
                                                 async with check_session.get(
                                                     f"https://api.twitch.tv/helix/streams?user_login={account_username}&type=live&first=1",
                                                     headers=headers
@@ -3755,10 +3751,10 @@ class BotOfTheSpecter(commands.Bot):
                                         if user_row and user_row.get('twitch_user_id'):
                                             twitch_user_id = user_row['twitch_user_id']
                                             # Use bot's access token
-                                            auth_token = await mysql_helper.get_bot_access_token()
-                                            if auth_token:
+                                            auth_token, client_id = await mysql_helper.get_bot_access_token()
+                                            if auth_token and client_id:
                                                 async with aiohttp.ClientSession() as session:
-                                                    headers = {"Client-ID": config.twitch_client_id, "Authorization": f"Bearer {auth_token}"}
+                                                    headers = {"Client-ID": client_id, "Authorization": f"Bearer {auth_token}"}
                                                     async with session.get(f"https://api.twitch.tv/helix/streams?user_id={twitch_user_id}&type=live&first=1", headers=headers) as resp:
                                                         if resp.status == 200:
                                                             data = await resp.json()
@@ -6418,14 +6414,10 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
             return []
         
         # Fetch bot's access token from database (always use bot token for reliability)
-        bot_token_row = await self.mysql.fetchone(
-            "SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_user_id = %s",
-            ('971436498',), database_name='website', dict_cursor=True
-        )
-        if not bot_token_row or not bot_token_row.get('twitch_access_token'):
+        auth_token, client_id = await self.mysql.get_bot_access_token()
+        if not auth_token or not client_id:
             self.logger.error(f"No bot access token found in database for guild {guild_id}")
             return []
-        auth_token = bot_token_row['twitch_access_token']
         
         # Only include usernames that match Twitch login format: lowercase, no spaces, only underscores, numbers, and letters
         twitch_login_regex = re.compile(r'^[a-z0-9_]+$')
@@ -6439,7 +6431,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 async with aiohttp.ClientSession() as session:
                     url = "https://api.twitch.tv/helix/streams"
                     headers = {
-                        "Client-ID": config.twitch_client_id,
+                        "Client-ID": client_id,
                         "Authorization": f"Bearer {auth_token}"
                     }
                     # Build params as a list of tuples for multiple user_login
@@ -6465,7 +6457,7 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                 async with aiohttp.ClientSession() as session:
                     url = "https://api.twitch.tv/helix/streams"
                     headers = {
-                        "Client-ID": config.twitch_client_id,
+                        "Client-ID": client_id,
                         "Authorization": f"Bearer {auth_token}"
                     }
                     for chunk_index, username_chunk in enumerate(username_chunks):
