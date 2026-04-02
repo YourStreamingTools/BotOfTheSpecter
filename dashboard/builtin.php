@@ -110,32 +110,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header('Content-Type: application/json');
         if ($_POST['action'] === 'get_command_options') {
             $command_name = $_POST['command_name'];
+            $options = [];
             // Get cooldown options from builtin_commands table
             $cooldown_stmt = $db->prepare("SELECT cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command = ?");
-            $cooldown_stmt->bind_param('s', $command_name);
-            $cooldown_stmt->execute();
-            $cooldown_result = $cooldown_stmt->get_result();
-            $cooldown_row = $cooldown_result->fetch_assoc();
-            $cooldown_stmt->close();
-            $options = [];
-            if ($cooldown_row) {
-                $options['cooldown_rate'] = (int)$cooldown_row['cooldown_rate'];
-                $options['cooldown_time'] = (int)$cooldown_row['cooldown_time'];
-                $options['cooldown_bucket'] = $cooldown_row['cooldown_bucket'];
+            if ($cooldown_stmt) {
+                $cooldown_stmt->bind_param('s', $command_name);
+                $cooldown_stmt->execute();
+                $cooldown_result = $cooldown_stmt->get_result();
+                $cooldown_row = $cooldown_result->fetch_assoc();
+                $cooldown_stmt->close();
+                if ($cooldown_row) {
+                    $options['cooldown_rate'] = (int)$cooldown_row['cooldown_rate'];
+                    $options['cooldown_time'] = (int)$cooldown_row['cooldown_time'];
+                    $options['cooldown_bucket'] = $cooldown_row['cooldown_bucket'];
+                }
             }
             // Get command-specific options from command_options table
             $stmt = $db->prepare("SELECT options FROM command_options WHERE command = ?");
-            $stmt->bind_param('s', $command_name);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $row = $result->fetch_assoc();
-            $stmt->close();
-            if ($row && $row['options']) {
-                $command_options = json_decode($row['options'], true);
-                if (is_array($command_options)) {
-                    $options = array_merge($options, $command_options);
+            if ($stmt) {
+                $stmt->bind_param('s', $command_name);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $row = $result->fetch_assoc();
+                $stmt->close();
+                if ($row && $row['options']) {
+                    $command_options = json_decode($row['options'], true);
+                    if (is_array($command_options)) {
+                        $options = array_merge($options, $command_options);
+                    }
                 }
             }
+            while (ob_get_level()) ob_end_clean();
             echo json_encode(['success' => true, 'options' => $options]);
             exit();
         }
@@ -145,6 +150,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Validate JSON
             $decoded_options = json_decode($options, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
+                while (ob_get_level()) ob_end_clean();
                 echo json_encode(['success' => false, 'message' => 'Invalid JSON options: ' . json_last_error_msg()]);
                 exit();
             }
@@ -154,13 +160,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $cooldown_time = $decoded_options['cooldown_time'] ?? 15;
                 $cooldown_bucket = $decoded_options['cooldown_bucket'] ?? 'default';
                 $cooldown_stmt = $db->prepare("UPDATE builtin_commands SET cooldown_rate = ?, cooldown_time = ?, cooldown_bucket = ? WHERE command = ?");
-                $cooldown_stmt->bind_param('iiss', $cooldown_rate, $cooldown_time, $cooldown_bucket, $command_name);
-                if (!$cooldown_stmt->execute()) {
-                    echo json_encode(['success' => false, 'message' => 'Database error updating cooldown: ' . $cooldown_stmt->error]);
+                if ($cooldown_stmt) {
+                    $cooldown_stmt->bind_param('iiss', $cooldown_rate, $cooldown_time, $cooldown_bucket, $command_name);
+                    if (!$cooldown_stmt->execute()) {
+                        while (ob_get_level()) ob_end_clean();
+                        echo json_encode(['success' => false, 'message' => 'Database error updating cooldown: ' . $cooldown_stmt->error]);
+                        $cooldown_stmt->close();
+                        exit();
+                    }
                     $cooldown_stmt->close();
-                    exit();
                 }
-                $cooldown_stmt->close();
             }
             // Save command-specific options to command_options table (excluding cooldown options)
             $command_specific_options = array_diff_key($decoded_options, array_flip(['cooldown_rate', 'cooldown_time', 'cooldown_bucket']));
@@ -168,20 +177,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $command_options_json = json_encode($command_specific_options);
                 // Insert or update command options
                 $stmt = $db->prepare("INSERT INTO command_options (command, options) VALUES (?, ?) ON DUPLICATE KEY UPDATE options = ?");
-                $stmt->bind_param('sss', $command_name, $command_options_json, $command_options_json);
-                if (!$stmt->execute()) {
-                    echo json_encode(['success' => false, 'message' => 'Database error saving command options: ' . $stmt->error]);
+                if ($stmt) {
+                    $stmt->bind_param('sss', $command_name, $command_options_json, $command_options_json);
+                    if (!$stmt->execute()) {
+                        while (ob_get_level()) ob_end_clean();
+                        echo json_encode(['success' => false, 'message' => 'Database error saving command options: ' . $stmt->error]);
+                        $stmt->close();
+                        exit();
+                    }
                     $stmt->close();
-                    exit();
                 }
-                $stmt->close();
             } else {
                 // If no command-specific options, remove from command_options table
                 $stmt = $db->prepare("DELETE FROM command_options WHERE command = ?");
-                $stmt->bind_param('s', $command_name);
-                $stmt->execute();
-                $stmt->close();
+                if ($stmt) {
+                    $stmt->bind_param('s', $command_name);
+                    $stmt->execute();
+                    $stmt->close();
+                }
             }
+            while (ob_get_level()) ob_end_clean();
             echo json_encode(['success' => true, 'debug' => 'Options saved successfully']);
             exit();
         }
