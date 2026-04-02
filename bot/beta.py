@@ -139,7 +139,7 @@ builtin_commands = {
     "deaths", "heartrate", "gamble", "joinraffle", "leaveraffle", "puzzles"
 }
 mod_commands = {
-    "addcommand", "removecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
+    "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
     "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle"
 }
@@ -7892,7 +7892,6 @@ class TwitchBot(commands.Bot):
                     else:
                         # Command doesn't exist in either table
                         await send_chat_message(f"Command !{command} not found.")
-
                 # Record usage
                 add_usage('enablecommand', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -7927,7 +7926,6 @@ class TwitchBot(commands.Bot):
                     if not await command_permissions(permissions, ctx.author):
                         await send_chat_message("You do not have the required permissions to use this command.")
                         return
-
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('disablecommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
