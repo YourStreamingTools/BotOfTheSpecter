@@ -95,7 +95,8 @@
 			"description": "This command will translate text into a specified language."
 		},
 		"cheerleader": {
-			"description": "This command will show the top user that has cheered the most in my channel."
+			"description": "This command will show the top user that has cheered the most in my channel.",
+			"aliases": ["bitsleader"]
 		},
 		"steam": {
 			"description": "This command will display information about the current playing game if it's on Steam."
