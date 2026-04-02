@@ -425,9 +425,7 @@ async def mysql_connection(db_name=None):
         password=SQL_PASSWORD,
         db=db_name,
         autocommit=True,
-        connect_timeout=10,
-        read_timeout=MYSQL_QUERY_TIMEOUT,
-        write_timeout=MYSQL_QUERY_TIMEOUT
+        connect_timeout=10
     )
     return DirectConnection(conn)
 
