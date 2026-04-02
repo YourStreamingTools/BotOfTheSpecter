@@ -1,4 +1,5 @@
-<?php 
+<?php
+ob_start();
 // Initialize the session
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -172,6 +173,7 @@ if (isset($_GET['download_log'])) {
   }
   // Read the log file via SSH
   $result = read_log_file($log);
+  ob_clean();
   if (isset($result['error'])) {
     // If file not found or error, send empty file
     header('Content-Type: text/plain');
@@ -192,10 +194,11 @@ if (isset($_GET['download_log'])) {
 
 // AJAX handler to list available rotated log files
 if (isset($_GET['list_rotations'])) {
-  header('Content-Type: application/json');
   $logType = $_GET['list_rotations'];
   $currentUser = $_SESSION['username'];
   $rotatedLogs = list_rotated_logs($logType, $currentUser);
+  ob_clean();
+  header('Content-Type: application/json');
   echo json_encode(['rotations' => $rotatedLogs]);
   exit();
 }
@@ -203,11 +206,6 @@ if (isset($_GET['list_rotations'])) {
 if (isset($_GET['log'])) {
   // Suppress warnings/notices for clean JSON output
   error_reporting(E_ERROR | E_PARSE);
-  header('Content-Type: application/json');
-  // Prevent browser/proxy caching
-  header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-  header('Expires: 0');
-  header('Pragma: no-cache');
   $logType = $_GET['log'];
   $rotation = isset($_GET['rotation']) ? (int)$_GET['rotation'] : 0;
   $currentUser = $_SESSION['username'];
@@ -221,6 +219,12 @@ if (isset($_GET['log'])) {
   }
   // Read the log file via SSH
   $result = read_log_file($log);
+  ob_clean();
+  header('Content-Type: application/json');
+  // Prevent browser/proxy caching
+  header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+  header('Expires: 0');
+  header('Pragma: no-cache');
   if (isset($result['error'])) {
     // If file not found, treat as empty log
     if ($result['error'] === 'Log file not found: ' . $log || strpos($result['error'], 'not found') !== false) {
