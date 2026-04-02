@@ -2559,6 +2559,7 @@ async def stream_bingo_websocket():
 async def connect_to_tanggle():
     global CHANNEL_NAME, _tanggle_no_creds_logged
     integrations_logger.info("[TANGGLE] ===== Tanggle =====")
+    websocket_logger.info("[TANGGLE PUZZLES] Tanggle Puzzles WebSocket task started")
     while True:
         try:
             # Retrieve Tanggle credentials from database
@@ -2574,9 +2575,11 @@ async def connect_to_tanggle():
                             tanggle_community_uuid = result.get('tanggle_community_uuid')
             except Exception as tg_db_err:
                 integrations_logger.error(f"[TANGGLE] Tanggle: DB error retrieving credentials: {tg_db_err}")
+                websocket_logger.error(f"[TANGGLE PUZZLES] DB error retrieving credentials: {tg_db_err}")
             if not tanggle_api_token or not tanggle_community_uuid:
                 if not _tanggle_no_creds_logged:
                     integrations_logger.info("[TANGGLE] No Tanggle credentials found, skipping connection")
+                    websocket_logger.info("[TANGGLE PUZZLES] No credentials found, waiting 5 minutes before retrying")
                     _tanggle_no_creds_logged = True
                 await sleep(300)  # Wait 5 minutes before checking again
                 continue
@@ -2586,8 +2589,10 @@ async def connect_to_tanggle():
             websocket_url = f"wss://api.tanggle.io/ws/communities/{tanggle_community_uuid}?events=queue+rooms"
             headers = {"Authorization": f"Bearer {tanggle_api_token}"}
             integrations_logger.info("[TANGGLE] Attempting to connect to Tanggle WebSocket")
+            websocket_logger.info("[TANGGLE PUZZLES] Attempting to connect to Tanggle WebSocket")
             async with WebSocketConnect(websocket_url, additional_headers=headers) as tanggle_ws:
                 integrations_logger.info("[TANGGLE] Successfully connected to Tanggle WebSocket")
+                websocket_logger.info("[TANGGLE PUZZLES] Successfully connected to Tanggle WebSocket")
                 while True:
                     try:
                         message = await tanggle_ws.recv()
@@ -2598,21 +2603,27 @@ async def connect_to_tanggle():
                             # Log the event type and data
                             event_type = data.get('type', 'unknown')
                             if event_type == 'room.complete':
+                                websocket_logger.info(f"[TANGGLE PUZZLES] Received room.complete event for room {data.get('data', {}).get('room', {}).get('uuid', 'unknown')}")
                                 await process_tanggle_room_complete(data)
                                 continue
                             integrations_logger.info(f"[TANGGLE] Tanggle Event Type: {event_type}, Data: {data}")
                         except json.JSONDecodeError as e:
                             integrations_logger.error(f"[TANGGLE] Tanggle: Failed to parse JSON message: {e}")
+                            websocket_logger.error(f"[TANGGLE PUZZLES] Failed to parse JSON message: {e}")
                         except Exception as e:
                             integrations_logger.error(f"[TANGGLE] Tanggle: Error processing message: {e}")
+                            websocket_logger.error(f"[TANGGLE PUZZLES] Error processing message: {e}")
                     except WebSocketConnectionClosed:
                         integrations_logger.error("[TANGGLE] Tanggle: WebSocket connection closed, reconnecting...")
+                        websocket_logger.error("[TANGGLE PUZZLES] WebSocket connection closed, reconnecting...")
                         break
                     except Exception as e:
                         integrations_logger.error(f"[TANGGLE] Tanggle: Error receiving message: {e}")
+                        websocket_logger.error(f"[TANGGLE PUZZLES] Error receiving message: {e}")
                         break
         except Exception as e:
             integrations_logger.error(f"[TANGGLE] Tanggle: WebSocket connection error: {e}")
+            websocket_logger.error(f"[TANGGLE PUZZLES] WebSocket connection error: {e}")
             await sleep(10)  # Wait before retrying
 
 def parse_tanggle_datetime(value):
@@ -2718,11 +2729,11 @@ async def process_tanggle_room_complete(data):
                     await cursor.execute(
                         """
                         INSERT INTO tanggle_puzzle_stats (id, completed_count, last_completed_room_uuid, last_completed_at)
-                        VALUES (1, 1, %s, %s) AS new_row
+                        VALUES (1, 1, %s, %s)
                         ON DUPLICATE KEY UPDATE
                             completed_count = completed_count + 1,
-                            last_completed_room_uuid = new_row.last_completed_room_uuid,
-                            last_completed_at = new_row.last_completed_at,
+                            last_completed_room_uuid = VALUES(last_completed_room_uuid),
+                            last_completed_at = VALUES(last_completed_at),
                             updated_at = CURRENT_TIMESTAMP
                         """,
                         (room_uuid, completed_at)
@@ -2759,11 +2770,11 @@ async def process_stream_bingo_message(data):
                 async with user_db.cursor() as cursor:
                     await cursor.execute("""
                         INSERT INTO bingo_games (game_id, events_count, is_sub_only, random_call_only, status)
-                        VALUES (%s, %s, %s, %s, 'active') AS new_row
+                        VALUES (%s, %s, %s, %s, 'active')
                         ON DUPLICATE KEY UPDATE
-                        events_count = new_row.events_count,
-                        is_sub_only = new_row.is_sub_only,
-                        random_call_only = new_row.random_call_only,
+                        events_count = VALUES(events_count),
+                        is_sub_only = VALUES(is_sub_only),
+                        random_call_only = VALUES(random_call_only),
                         status = 'active'
                     """, (game_id, len(events), is_sub_only, random_call_only))
                     await user_db.commit()
@@ -12682,7 +12693,7 @@ async def process_channel_point_rewards(event_data, event_type):
                                             # If vip.today, record the user so we can remove at stream end
                                             if '(vip.today)' in custom_message:
                                                 try:
-                                                    await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) AS new_row ON DUPLICATE KEY UPDATE username = new_row.username", (user_id, user_name))
+                                                    await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (user_id, user_name))
                                                     await connection.commit()
                                                 except Exception as _e:
                                                     chat_logger.error(f"[CHANNEL POINTS] Failed to record vip_today for {user_name}: {_e}")
