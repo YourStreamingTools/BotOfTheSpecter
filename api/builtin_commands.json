@@ -112,7 +112,8 @@
 			"description": "This command will mark you as lurking."
 		},
 		"unlurk": {
-			"description": "This command will remove your lurking status."
+			"description": "This command will remove your lurking status.",
+			"aliases": ["back"]
 		},
 		"lurking": {
 			"description": "This command will notify that you are currently lurking."
