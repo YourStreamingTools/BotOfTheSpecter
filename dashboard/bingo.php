@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const apiKey = '<?php echo addslashes($current_api_key); ?>';
     const twitchUserId = '<?php echo addslashes($twitchUserId); ?>';
     function callRandom() {
-        fetch('https://api.stream-bounty.com/games/events/' + twitchUserId + '/' + apiKey + '/callrandom', {
+        fetch('https://api.stream-bingo.com/games/events/' + twitchUserId + '/' + apiKey + '/callrandom', {
             method: 'POST'
         })
         .then(response => {
