@@ -425,7 +425,9 @@ async def mysql_connection(db_name=None):
         password=SQL_PASSWORD,
         db=db_name,
         autocommit=True,
-        connect_timeout=10
+        connect_timeout=10,
+        read_timeout=MYSQL_QUERY_TIMEOUT,
+        write_timeout=MYSQL_QUERY_TIMEOUT
     )
     return DirectConnection(conn)
 
@@ -3138,7 +3140,11 @@ class TwitchBot(commands.Bot):
             AuthorMessage = str(message.content) if message.content else ""
             create_task(self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContentRaw))
             # Check if the message matches the spam pattern (Has its own DB logic internally)
-            spam_pattern = await get_spam_patterns()
+            try:
+                spam_pattern = await get_spam_patterns()
+            except Exception as spam_err:
+                bot_logger.warning(f"[EVENT MESSAGE] Failed to load spam patterns, skipping check: {spam_err}")
+                spam_pattern = []
             if spam_pattern:  # Check if spam_pattern is not empty
                 for pattern in spam_pattern:
                     if pattern.search(messageContent):
@@ -3155,12 +3161,15 @@ class TwitchBot(commands.Bot):
                 if command in builtin_commands or command in mod_commands or command in builtin_aliases:
                     # Check if the built-in command is disabled
                     builtin_disabled = False
-                    async with await mysql_connection() as connection:
-                        async with connection.cursor(DictCursor) as cursor:
-                            await cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", (command,))
-                            builtin_result = await cursor.fetchone()
-                            if builtin_result and builtin_result.get("status") == 'Disabled':
-                                builtin_disabled = True
+                    try:
+                        async with await mysql_connection() as connection:
+                            async with connection.cursor(DictCursor) as cursor:
+                                await asyncio_wait_for(cursor.execute("SELECT status FROM builtin_commands WHERE command=%s", (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                builtin_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                                if builtin_result and builtin_result.get("status") == 'Disabled':
+                                    builtin_disabled = True
+                    except Exception as builtin_check_err:
+                        bot_logger.warning(f"[EVENT MESSAGE] Failed to check builtin command status for '{command}', treating as enabled: {builtin_check_err}")
                     # If built-in is enabled, process as built-in and return
                     if not builtin_disabled:
                         chat_logger.info(f"[EVENT MESSAGE] {messageAuthor} used a built-in command called: {command}")
@@ -3169,41 +3178,45 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[EVENT MESSAGE] {messageAuthor} attempted to use disabled built-in command '{command}', checking for custom override")
                 # Store results in variables to use outside the connection block
                 command_data = None 
-                async with await mysql_connection() as connection:
-                    async with connection.cursor(DictCursor) as cursor:
-                        # Fetch timezone (used for logging only?)
-                        await cursor.execute("SELECT timezone FROM profile")
-                        tz_result = await cursor.fetchone()
-                        if tz_result and tz_result.get("timezone"):
-                            timezone = tz_result.get("timezone")
-                            tz = pytz_timezone(timezone)
-                            chat_logger.info(f"[EVENT MESSAGE] TZ: {tz} | Timezone: {timezone}")
-                        else:
-                            tz = set_timezone.UTC
-                            chat_logger.info("[EVENT MESSAGE] Timezone not set, defaulting to UTC")
-                        # Lookup Custom Command
-                        await cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,))
-                        cc_result = await cursor.fetchone()
-                        if cc_result:
-                            command_data = {
-                                'type': 'custom',
-                                'response': cc_result.get("response"),
-                                'status': cc_result.get("status"),
-                                'cooldown': cc_result.get("cooldown"),
-                                'permission': cc_result.get("permission")
-                            }
-                        else:
-                            # Check Custom User Command
-                            await cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,))
-                            custom_user_command = await cursor.fetchone()
-                            if custom_user_command:
+                try:
+                    async with await mysql_connection() as connection:
+                        async with connection.cursor(DictCursor) as cursor:
+                            # Fetch timezone (used for logging only?)
+                            await asyncio_wait_for(cursor.execute("SELECT timezone FROM profile"), timeout=MYSQL_QUERY_TIMEOUT)
+                            tz_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                            if tz_result and tz_result.get("timezone"):
+                                timezone = tz_result.get("timezone")
+                                tz = pytz_timezone(timezone)
+                                chat_logger.info(f"[EVENT MESSAGE] TZ: {tz} | Timezone: {timezone}")
+                            else:
+                                tz = set_timezone.UTC
+                                chat_logger.info("[EVENT MESSAGE] Timezone not set, defaulting to UTC")
+                            # Lookup Custom Command
+                            await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, permission FROM custom_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                            cc_result = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                            if cc_result:
                                 command_data = {
-                                    'type': 'user',
-                                    'response': custom_user_command['response'],
-                                    'status': custom_user_command['status'],
-                                    'cooldown': custom_user_command['cooldown'],
-                                    'user_id': custom_user_command['user_id']
+                                    'type': 'custom',
+                                    'response': cc_result.get("response"),
+                                    'status': cc_result.get("status"),
+                                    'cooldown': cc_result.get("cooldown"),
+                                    'permission': cc_result.get("permission")
                                 }
+                            else:
+                                # Check Custom User Command
+                                await asyncio_wait_for(cursor.execute('SELECT response, status, cooldown, user_id FROM custom_user_commands WHERE command = %s', (command,)), timeout=MYSQL_QUERY_TIMEOUT)
+                                custom_user_command = await asyncio_wait_for(cursor.fetchone(), timeout=MYSQL_QUERY_TIMEOUT)
+                                if custom_user_command:
+                                    command_data = {
+                                        'type': 'user',
+                                        'response': custom_user_command['response'],
+                                        'status': custom_user_command['status'],
+                                        'cooldown': custom_user_command['cooldown'],
+                                        'user_id': custom_user_command['user_id']
+                                    }
+                except Exception as cmd_lookup_err:
+                    bot_logger.error(f"[EVENT MESSAGE] DB error during custom command lookup for '!{command}': {cmd_lookup_err}")
+                    return
                 # Process Command Logic (Using captured data)
                 if command_data:
                     if command_data['type'] == 'custom':
@@ -3381,7 +3394,7 @@ class TwitchBot(commands.Bot):
                     return
         except Exception as e:
             if isinstance(e, AttributeError) and "NoneType" in str(e):
-                pass
+                bot_logger.warning(f"[EVENT MESSAGE] NoneType AttributeError swallowed: {e}")
             else:
                 bot_logger.error(f"[EVENT MESSAGE] An error occurred in event_message: {e}")
 
