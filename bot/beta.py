@@ -2557,7 +2557,7 @@ async def join_channel(hyperate_websocket, heartrate_code):
 
 # Stream Bingo WebSocket integration
 async def stream_bingo_websocket():
-    global CHANNEL_ID, _stream_bingo_no_creds_logged
+    global CHANNEL_ID, _stream_bingo_no_creds_logged, _current_bingo_game_id
     integrations_logger.info("[STREAM BINGO] ===== Stream Bingo =====")
     websocket_logger.info("[STREAM BINGO] Stream Bingo WebSocket task started")
     while True:
