@@ -91,46 +91,93 @@ if (!empty($vipUserIds)) {
 foreach ($allVIPs as &$vip) { $vip['profile_image_url'] = $vipProfileImages[$vip['user_id']] ?? null; }
 unset($vip);
 
-// Check if the form has been submitted for adding or removing VIPs from the list
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  // Extract the username and action from the form submission
+// Handle AJAX form submission for adding/removing VIPs
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
   $VIPusername = trim($_POST['vip-username']);
   $action = $_POST['action'];
-  // Fetch the user ID using the external API
-  $userID = file_get_contents("https://decapi.me/twitch/id/$VIPusername");
-  if ($userID) {
-    // Set up the Twitch API endpoint and headers
-    $addVIP = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&user_id=$userID";
+  $ajaxStatus = '';
+  $ajaxSuccess = false;
+  $userID = file_get_contents("https://decapi.me/twitch/id/" . urlencode($VIPusername));
+  if ($userID && !str_contains($userID, 'User not found')) {
+    $vipEndpoint = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&user_id=" . urlencode(trim($userID));
     $headers = [
       "Client-ID: $clientID",
       'Authorization: Bearer ' . $authToken,
       "Content-Type: application/json"
     ];
-    // Initialize cURL session
     $ch = curl_init();
-    // Set cURL options for adding or removing VIP
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     if ($action === 'add') {
-      curl_setopt($ch, CURLOPT_URL, $addVIP);
+      curl_setopt($ch, CURLOPT_URL, $vipEndpoint);
       curl_setopt($ch, CURLOPT_POST, true);
     } elseif ($action === 'remove') {
-      curl_setopt($ch, CURLOPT_URL, $addVIP);
-      curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
+      curl_setopt($ch, CURLOPT_URL, $vipEndpoint);
+      curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
     }
-    // Execute the API request
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    // Handle API response
     if ($httpcode == 204) {
-      $VIPUserStatus = "Operation successful: User '$VIPusername' has been $action" . "ed as a VIP.";
+      $ajaxSuccess = true;
+      $ajaxStatus = "Operation successful: User '$VIPusername' has been " . ($action === 'add' ? 'added' : 'removed') . " as a VIP.";
     } else {
-      $VIPUserStatus = "Operation failed: Unable to $action user '$VIPusername' as a VIP. Response code: $httpcode";
+      $ajaxStatus = "Operation failed: Unable to $action user '$VIPusername' as a VIP. Response code: $httpcode";
     }
   } else {
-    $VIPUserStatus = "Could not retrieve user ID for username: $VIPusername";
+    $ajaxStatus = "Could not retrieve user ID for username: $VIPusername";
   }
+  // Re-fetch the full VIP list to return the updated data
+  $freshVIPs = [];
+  $freshVIPsURL = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID";
+  do {
+    $curl = curl_init($freshVIPsURL);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, [
+      'Authorization: Bearer ' . $authToken,
+      'Client-ID: ' . $clientID
+    ]);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    $freshResponse = curl_exec($curl);
+    curl_close($curl);
+    if ($freshResponse !== false) {
+      $freshData = json_decode($freshResponse, true);
+      $freshVIPs = array_merge($freshVIPs, $freshData['data'] ?? []);
+      $freshCursor = $freshData['pagination']['cursor'] ?? null;
+      $freshVIPsURL = "https://api.twitch.tv/helix/channels/vips?broadcaster_id=$broadcasterID&after=$freshCursor";
+    } else {
+      $freshCursor = null;
+    }
+  } while ($freshCursor);
+  // Fetch profile images for the fresh VIP list
+  $freshUserIds = array_column($freshVIPs, 'user_id');
+  $freshProfileImages = [];
+  if (!empty($freshUserIds)) {
+    foreach (array_chunk($freshUserIds, 100) as $chunk) {
+      $idsParam = implode('&id=', $chunk);
+      $usersUrl = "https://api.twitch.tv/helix/users?id=" . $idsParam;
+      $curl = curl_init($usersUrl);
+      curl_setopt($curl, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $authToken,
+        'Client-ID: ' . $clientID
+      ]);
+      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+      $usersResponse = curl_exec($curl);
+      curl_close($curl);
+      if ($usersResponse !== false) {
+        $usersData = json_decode($usersResponse, true);
+        if (isset($usersData['data'])) {
+          foreach ($usersData['data'] as $u) {
+            $freshProfileImages[$u['id']] = $u['profile_image_url'];
+          }
+        }
+      }
+    }
+  }
+  foreach ($freshVIPs as &$v) { $v['profile_image_url'] = $freshProfileImages[$v['user_id']] ?? null; }
+  unset($v);
+  header('Content-Type: application/json');
+  echo json_encode(['success' => $ajaxSuccess, 'message' => $ajaxStatus, 'vips' => $freshVIPs]);
+  exit;
 }
 
 ob_start();
@@ -154,12 +201,10 @@ ob_start();
     </div>
   </header>
   <div class="sp-card-body">
-          <?php if (!empty($VIPUserStatus)): ?>
-            <div class="sp-alert sp-alert-info mb-4">
-              <span class="icon"><i class="fas fa-info-circle"></i></span>
-              <?php echo $VIPUserStatus; ?>
-            </div>
-          <?php endif; ?>
+          <div id="vip-status-msg" class="sp-alert sp-alert-info mb-4" style="display:none;">
+            <span class="icon"><i class="fas fa-info-circle"></i></span>
+            <span id="vip-status-text"></span>
+          </div>
           <?php if (empty($allVIPs)): ?>
             <div style="text-align:center;padding:3rem 0;">
               <span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;">
@@ -237,12 +282,60 @@ ob_start();
 <script>
 $(document).ready(function() {
     // Fade in all VIP cards
-    $('.follower-box').each(function(index) {
-        var $el = $(this);
-        setTimeout(function() {
-            $el.addClass('visible');
-        }, index * 40);
-    });
+    function fadeInCards() {
+        $('.follower-box').each(function(index) {
+            var $el = $(this);
+            setTimeout(function() {
+                $el.addClass('visible');
+            }, index * 40);
+        });
+    }
+    fadeInCards();
+
+    // Build a VIP card HTML string from a VIP object returned by the API
+    function buildVIPCard(vip) {
+        var name = $('<div>').text(vip.user_name).html();
+        var avatar = vip.profile_image_url
+            ? '<img src="' + $('<div>').text(vip.profile_image_url).html() + '" alt="' + name + '" class="follower-avatar-img">'
+            : '<span class="follower-avatar-initials">' + vip.user_name.charAt(0).toUpperCase() + '</span>';
+        return '<div class="follower-card-col follower-box visible">' +
+            '<div class="sp-card">' +
+              '<div class="follower-card-media sp-card-body">' +
+                '<div class="follower-card-avatar">' + avatar + '</div>' +
+                '<div class="follower-card-content">' +
+                  '<span class="vip-name">' + name + '</span>' +
+                  '<div style="margin-top:0.35rem;">' +
+                    '<span class="sp-badge sp-badge-accent">' +
+                      '<span class="icon is-small"><i class="fas fa-star"></i></span>' +
+                      '<span>VIP</span>' +
+                    '</span>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+    }
+
+    function renderVIPGrid(vips) {
+        var $body = $('.sp-card-body').first();
+        var $existing = $body.find('.followers-grid, [style*="text-align:center"]');
+        $existing.remove();
+        if (!vips || vips.length === 0) {
+            $body.append(
+                '<div style="text-align:center;padding:3rem 0;">' +
+                  '<span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;"><i class="fas fa-star fa-3x"></i></span>' +
+                  '<p class="sp-text-muted" style="font-size:1.1rem;">No VIPs found</p>' +
+                '</div>'
+            );
+        } else {
+            var $grid = $('<div class="followers-grid"></div>');
+            $.each(vips, function(i, vip) {
+                $grid.append(buildVIPCard(vip));
+            });
+            $body.append($grid);
+        }
+    }
+
     $('#vip-search').on('input', function() {
         var searchTerm = $(this).val().toLowerCase();
         $('.follower-box').each(function() {
@@ -254,6 +347,7 @@ $(document).ready(function() {
             }
         });
     });
+
     // Modal functionality
     $('#manage-vip-btn').on('click', function() {
         $('#vip-modal').addClass('is-active');
@@ -266,11 +360,46 @@ $(document).ready(function() {
             $('#vip-modal').removeClass('is-active');
         }
     });
-    // Close modal on escape key
     $(document).on('keyup', function(e) {
         if (e.key === 'Escape') {
             $('#vip-modal').removeClass('is-active');
         }
+    });
+
+    // AJAX form submission — update list without page reload
+    $('#vip-modal form').on('submit', function(e) {
+        e.preventDefault();
+    });
+    $('#vip-modal form button[type="submit"]').on('click', function(e) {
+        e.preventDefault();
+        var action = $(this).val();
+        var username = $('#vip-username').val().trim();
+        if (!username) return;
+        var $btn = $(this);
+        $btn.prop('disabled', true);
+        $.ajax({
+            url: 'vips.php',
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            data: { 'vip-username': username, action: action },
+            dataType: 'json',
+            success: function(data) {
+                $('#vip-status-text').text(data.message);
+                $('#vip-status-msg').show();
+                if (data.success) {
+                    renderVIPGrid(data.vips);
+                    $('#vip-username').val('');
+                    $('#vip-modal').removeClass('is-active');
+                }
+            },
+            error: function() {
+                $('#vip-status-text').text('An error occurred. Please try again.');
+                $('#vip-status-msg').show();
+            },
+            complete: function() {
+                $btn.prop('disabled', false);
+            }
+        });
     });
 });
 </script>
