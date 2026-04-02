@@ -1,4 +1,5 @@
 <?php
+ob_start();
 session_start();
 require_once __DIR__ . '/admin_access.php';
 header('Content-Type: text/html; charset=utf-8');
@@ -32,10 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_pattern'])) {
                 $message = 'Failed to add pattern: ' . $stmt->error;
             }
             $stmt->close();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $message = 'Error: ' . $e->getMessage();
         }
     }
+    ob_clean();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => $success, 'message' => $message, 'id' => $success ? $new_id : null], JSON_UNESCAPED_UNICODE);
     exit;
@@ -61,10 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_pattern'])) {
                 $message = 'Failed to update pattern or no changes made';
             }
             $stmt->close();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $message = 'Error: ' . $e->getMessage();
         }
     }
+    ob_clean();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => $success, 'message' => $message], JSON_UNESCAPED_UNICODE);
     exit;
@@ -87,10 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_pattern'])) {
                 $message = 'Failed to delete pattern: ' . $stmt->error;
             }
             $stmt->close();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $message = 'Error: ' . $e->getMessage();
         }
     }
+    ob_clean();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => $success, 'message' => $message], JSON_UNESCAPED_UNICODE);
     exit;
@@ -123,10 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['check_duplicates'])) {
             $success = false;
             $message = "Database error: " . $spam_conn->error;
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         $success = false;
         $message = 'Error: ' . $e->getMessage();
     }
+    ob_clean();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => $success, 'message' => $message, 'duplicates' => $duplicates], JSON_UNESCAPED_UNICODE);
     exit;
@@ -185,11 +190,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cleanup_duplicates']))
             $success = false;
             $message = "Database error: " . $spam_conn->error;
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         $spam_conn->rollback();
         $success = false;
         $message = 'Error: ' . $e->getMessage();
     }
+    ob_clean();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => $success, 'message' => $message, 'deleted_count' => $deleted_count, 'kept_count' => $kept_count], JSON_UNESCAPED_UNICODE);
     exit;
@@ -467,28 +473,28 @@ ob_start();
                         showConfirmButton: false
                     });
                     let tableBody = document.getElementById('patternsTable');
-                    const noPatternNotification = document.querySelector('.sp-alert.sp-alert-info');
-                    if (noPatternNotification && noPatternNotification.textContent.includes('No spam patterns found')) {
-                        const box = noPatternNotification.closest('.sp-card');
-                        noPatternNotification.remove();
-                        box.innerHTML = `
-                        <div class="sp-card-header"><h2 class="sp-card-title">Spam Patterns (1)</h2></div>
-                        <div class="sp-card-body">
-                        <div class="sp-table-wrap">
-                            <table class="sp-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 80px;">ID</th>
-                                        <th>Spam Pattern</th>
-                                        <th style="width: 200px;">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="patternsTable"></tbody>
-                            </table>
-                        </div>
-                        </div>
-                    `;
-                        tableBody = document.getElementById('patternsTable');
+                    if (!tableBody) {
+                        const box = document.querySelector('.sp-card:last-of-type');
+                        if (box) {
+                            box.innerHTML = `
+                            <div class="sp-card-header"><h2 class="sp-card-title">Spam Patterns (1)</h2></div>
+                            <div class="sp-card-body">
+                            <div class="sp-table-wrap">
+                                <table class="sp-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 80px;">ID</th>
+                                            <th>Spam Pattern</th>
+                                            <th style="width: 200px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="patternsTable"></tbody>
+                                </table>
+                            </div>
+                            </div>
+                        `;
+                            tableBody = document.getElementById('patternsTable');
+                        }
                     }
                     const newRow = document.createElement('tr');
                     newRow.setAttribute('data-id', result.id);
@@ -526,7 +532,9 @@ ob_start();
                     addForm.reset();
                     const titleElement = document.querySelector('.sp-card:last-of-type .sp-card-title');
                     const currentCount = tableBody.children.length;
-                    titleElement.textContent = `Spam Patterns (${currentCount})`;
+                    if (titleElement) {
+                        titleElement.textContent = `Spam Patterns (${currentCount})`;
+                    }
                 } else {
                     Swal.fire({
                         icon: 'error',
