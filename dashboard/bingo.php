@@ -171,11 +171,16 @@ ob_start();
                                                 <?php echo htmlspecialchars(ucfirst($game['status'])); ?>
                                             </span>
                                         </td>
-                                        <td>
+                                        <td style="display:flex; gap:0.4rem; flex-wrap:wrap;">
                                             <button class="sp-btn sp-btn-info sp-btn-sm view-winners-btn"
                                                     data-game-id="<?php echo htmlspecialchars($game['game_id']); ?>">
                                                 <i class="fas fa-trophy"></i>
                                                 View Winners
+                                            </button>
+                                            <button class="sp-btn sp-btn-secondary sp-btn-sm view-players-btn"
+                                                    data-game-id="<?php echo htmlspecialchars($game['game_id']); ?>">
+                                                <i class="fas fa-users"></i>
+                                                View Players
                                             </button>
                                         </td>
                                     </tr>
@@ -185,6 +190,25 @@ ob_start();
                     </table>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Players Modal -->
+<div class="db-modal-backdrop hidden" id="players-modal">
+    <div class="db-modal">
+        <div class="db-modal-head" style="background:var(--bg-surface);">
+            <div class="db-modal-title" style="color:var(--text-primary);">
+                <i class="fas fa-users"></i>
+                Game Players &ndash; <span id="modal-players-game-id"></span>
+            </div>
+            <button class="db-modal-close" id="players-modal-close" aria-label="close">&times;</button>
+        </div>
+        <div class="db-modal-body" id="players-content">
+            <!-- Players will be loaded here -->
+        </div>
+        <div class="db-modal-foot">
+            <button class="sp-btn sp-btn-secondary" id="close-players-modal-btn">Close</button>
         </div>
     </div>
 </div>
@@ -294,6 +318,69 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalCloseBtn = winnersModal.querySelector('.db-modal-close');
     const winnersContent = document.getElementById('winners-content');
     const modalGameId = document.getElementById('modal-game-id');
+
+    // View players buttons
+    const playersModal = document.getElementById('players-modal');
+    const closePlayersModalBtn = document.getElementById('close-players-modal-btn');
+    const playersModalCloseBtn = document.getElementById('players-modal-close');
+    const playersContent = document.getElementById('players-content');
+    const modalPlayersGameId = document.getElementById('modal-players-game-id');
+
+    document.querySelectorAll('.view-players-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const gameId = this.getAttribute('data-game-id');
+            loadPlayers(gameId);
+        });
+    });
+
+    function loadPlayers(gameId) {
+        modalPlayersGameId.textContent = gameId;
+        playersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading players...</div>';
+
+        fetch('bingo_players.php?game_id=' + encodeURIComponent(gameId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayPlayers(data.players);
+                } else {
+                    playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading players</div>';
+                }
+            })
+            .catch(error => {
+                playersContent.innerHTML = '<div class="sp-alert sp-alert-danger">Error loading players: ' + error.message + '</div>';
+            });
+
+        playersModal.classList.remove('hidden');
+    }
+
+    function displayPlayers(players) {
+        if (players.length === 0) {
+            playersContent.innerHTML = '<div class="sp-alert sp-alert-info">No players joined this game</div>';
+            return;
+        }
+
+        let html = '<div style="margin-bottom:0.5rem; color:var(--text-muted); font-size:0.875rem;">' + players.length + ' player' + (players.length !== 1 ? 's' : '') + '</div>';
+        players.forEach(function(player, index) {
+            html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0; border-bottom:1px solid var(--border);">';
+            html += '<div style="display:flex; align-items:center; gap:0.75rem;">';
+            html += '<span class="sp-badge sp-badge-blue">' + (index + 1) + '</span>';
+            html += '<strong>' + player.player_name + '</strong>';
+            html += '</div>';
+            html += '<small style="color:var(--text-muted);">' + player.joined_at + '</small>';
+            html += '</div>';
+        });
+        playersContent.innerHTML = html;
+    }
+
+    function closePlayersModal() {
+        playersModal.classList.add('hidden');
+    }
+
+    closePlayersModalBtn.addEventListener('click', closePlayersModal);
+    playersModalCloseBtn.addEventListener('click', closePlayersModal);
+    playersModal.addEventListener('click', function(e) {
+        if (e.target === playersModal) closePlayersModal();
+    });
 
     // View winners buttons
     document.querySelectorAll('.view-winners-btn').forEach(btn => {
