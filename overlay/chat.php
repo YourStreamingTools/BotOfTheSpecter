@@ -3,6 +3,7 @@ require_once "/var/www/config/database.php";
 
 // Load yourchat settings for this API key so filters/nicknames work without a login
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
+$twitchUserId = '';
 $injectedSettings = [
     'filters_usernames' => [],
     'filters_messages'  => [],
@@ -47,8 +48,117 @@ if ($code !== '') {
     }
 }
 
+// Fetch Twitch badge data (global + channel-specific) using the bot's API credentials.
+// Results are cached for 1 hour in a JSON file to avoid hitting the API on every page load.
+$overlayBadgeCache = [];
+if ($twitchUserId !== '') {
+    $badgeCacheFile = '/var/www/yourchat/chat-logs/' . $twitchUserId . '_badge_cache.json';
+    $badgeNeedsFetch = true;
+    if (is_readable($badgeCacheFile) && (time() - filemtime($badgeCacheFile)) < 3600) {
+        $raw = file_get_contents($badgeCacheFile);
+        $cacheParsed = json_decode($raw, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($cacheParsed)) {
+            $overlayBadgeCache = $cacheParsed;
+            $badgeNeedsFetch = false;
+        }
+    }
+    if ($badgeNeedsFetch) {
+        $botClientId = '';
+        $botOauth    = '';
+        $bconn = @new mysqli($db_servername, $db_username, $db_password, 'website');
+        if (!$bconn->connect_error) {
+            $bres = $bconn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
+            if ($bres) {
+                $brow = $bres->fetch_assoc();
+                if ($brow) {
+                    foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
+                        if (!empty($brow[$k])) { $botClientId = trim($brow[$k]); break; }
+                    }
+                    foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $k) {
+                        if (!empty($brow[$k])) { $botOauth = trim($brow[$k]); break; }
+                    }
+                }
+            }
+            $bconn->close();
+        }
+        if ($botClientId !== '' && $botOauth !== '') {
+            $ctx = stream_context_create(['http' => [
+                'method'        => 'GET',
+                'header'        => "Authorization: Bearer $botOauth\r\nClient-Id: $botClientId\r\n",
+                'timeout'       => 5,
+                'ignore_errors' => true,
+            ]]);
+            $cache = [];
+            $badgeEndpoints = [
+                'https://api.twitch.tv/helix/chat/badges/global',
+                "https://api.twitch.tv/helix/chat/badges?broadcaster_id=$twitchUserId",
+            ];
+            foreach ($badgeEndpoints as $endpoint) {
+                $raw = @file_get_contents($endpoint, false, $ctx);
+                if (!$raw) continue;
+                $data = json_decode($raw, true);
+                if (!is_array($data['data'] ?? null)) continue;
+                foreach ($data['data'] as $set) {
+                    $setId = $set['set_id'];
+                    if (!isset($cache[$setId])) $cache[$setId] = [];
+                    foreach ($set['versions'] as $ver) {
+                        $cache[$setId][$ver['id']] = $ver['image_url_1x'];
+                    }
+                }
+            }
+            $overlayBadgeCache = $cache;
+            $logsDir = '/var/www/yourchat/chat-logs';
+            if (!is_dir($logsDir)) mkdir($logsDir, 0755, true);
+            @file_put_contents($badgeCacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE));
+        }
+    }
+}
+
+// Handle overlay history save — called periodically by the overlay JS via POST
+if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'save_history' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $logsDir = '/var/www/yourchat/chat-logs';
+    $historyFile = $logsDir . '/' . $twitchUserId . '_overlay_chat_history.json';
+    $jsonInput = file_get_contents('php://input');
+    $messages = json_decode($jsonInput, true);
+    if (json_last_error() === JSON_ERROR_NONE && is_array($messages)) {
+        if (!is_dir($logsDir)) {
+            mkdir($logsDir, 0755, true);
+        }
+        file_put_contents($historyFile, json_encode($messages, JSON_UNESCAPED_UNICODE));
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Invalid JSON']);
+    }
+    exit;
+}
+
+// Load today's overlay history to embed in the page (no client-side AJAX needed)
+$overlayHistory = [];
+if ($twitchUserId !== '') {
+    $historyFile = '/var/www/yourchat/chat-logs/' . $twitchUserId . '_overlay_chat_history.json';
+    if (is_readable($historyFile)) {
+        // Discard history from a previous day (same behaviour as yourchat)
+        if (date('Y-m-d', filemtime($historyFile)) === date('Y-m-d')) {
+            $raw = file_get_contents($historyFile);
+            $msgs = json_decode($raw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($msgs)) {
+                $overlayHistory = array_slice($msgs, -50); // at most 50 recent messages
+            }
+        }
+    }
+}
+
 $settingsJson = json_encode(
     $injectedSettings,
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
+);
+$historyJson = json_encode(
+    $overlayHistory,
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
+);
+$badgeCacheJson = json_encode(
+    empty($overlayBadgeCache) ? (object)[] : $overlayBadgeCache,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
 );
 ?>
@@ -63,7 +173,7 @@ $settingsJson = json_encode(
         body {
             background: transparent;
             font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-            font-size: 15px;
+            font-size: 16px;
             overflow: hidden;
             width: 100vw;
             height: 100vh;
@@ -127,6 +237,9 @@ $settingsJson = json_encode(
         .chat-message.removing {
             animation: msgOut 0.3s ease-in forwards;
         }
+        .chat-message.no-anim {
+            animation: none;
+        }
         @keyframes msgOut {
             from { opacity: 1; max-height: 200px; }
             to   { opacity: 0; max-height: 0; padding: 0; margin: 0; }
@@ -139,6 +252,10 @@ $settingsJson = json_encode(
     // Settings injected server-side from the user's yourchat configuration.
     // Filters and nicknames are shared between yourchat and this overlay.
     const OVERLAY_SETTINGS = <?php echo $settingsJson; ?>;
+    const OVERLAY_HISTORY = <?php echo $historyJson; ?>;
+    // Badge image URLs fetched from Twitch Helix API (global + channel-specific).
+    // Structure: { set_id: { version_id: image_url } }
+    const OVERLAY_BADGE_CACHE = <?php echo $badgeCacheJson; ?>;
 </script>
 <script>
     (function () {
@@ -153,6 +270,17 @@ $settingsJson = json_encode(
         const container = document.getElementById('chat-container');
         let reconnectAttempts = 0;
         let socket;
+        let messageBuffer = Array.isArray(OVERLAY_HISTORY) ? OVERLAY_HISTORY.slice() : [];
+        async function saveHistory() {
+            if (!code || messageBuffer.length === 0) return;
+            try {
+                await fetch('?action=save_history&code=' + encodeURIComponent(code), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(messageBuffer.slice(-100)),
+                });
+            } catch (_) { /* best-effort — overlay still works if save fails */ }
+        }
         // Filtering
         // Returns true if the message should be hidden (matches a username or
         // phrase filter set by the streamer in yourchat).
@@ -204,21 +332,8 @@ $settingsJson = json_encode(
             const toHex = n => { const h = Math.round(n).toString(16); return h.length === 1 ? '0' + h : h; };
             return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
         }
-        // Badge rendering
-        const TWITCH_BADGE_CDN = 'https://static-cdn.jtvnw.net/badges/v1/';
-        const KNOWN_BADGE_IDS = {
-            'broadcaster': '5527c58c-fb7d-422d-b71b-f309dcb85cc1',
-            'moderator':   '3267646d-33f0-4b17-b3df-f923a41db1d0',
-            'subscriber':  '5d9f2208-5dd8-11e7-8513-2ff4adfae661',
-            'vip':         'b817aba4-fad8-49e2-b88a-7cc744dfa6ec',
-            'staff':       'd97c37be-a963-4a4e-9b73-3a1fc1a0a5ec',
-            'admin':       '9ef7e029-4cdf-4d4d-a0d5-e2b3fb2583fe',
-            'global_mod':  '9384c37d-8d78-4225-8f73-bf3c5cb80d37',
-            'partner':     'd12a2e27-16f6-41d0-ab77-b780518f00a3',
-            'premium':     'a1dd5073-19c3-4911-8cb4-c464a7bc1510',
-            'bits':        '09d93036-e7ce-431c-9a9e-7044297133f2',
-            'turbo':       'bd444ec6-8f34-4bf9-91f4-af1e3428d80f',
-        };
+        // Badge rendering — uses the server-injected Helix API cache
+        // (global badges + channel-specific subscriber/bits tiers for this streamer)
         function parseBadges(badgeStr) {
             if (!badgeStr) return [];
             return badgeStr.split(',').map(b => {
@@ -228,9 +343,9 @@ $settingsJson = json_encode(
         }
         function buildBadgeHtml(badgeStr) {
             return parseBadges(badgeStr).map(b => {
-                const id = KNOWN_BADGE_IDS[b.name];
-                if (!id) return '';
-                return `<img class="badge-img" src="${TWITCH_BADGE_CDN}${id}/1" alt="${b.name}" title="${b.name}" onerror="this.style.display='none'">`;
+                const url = (OVERLAY_BADGE_CACHE[b.name] || {})[b.version];
+                if (!url) return '';
+                return `<img class="badge-img" src="${url}" alt="${b.name}" title="${b.name}" onerror="this.style.display='none'">`;
             }).join('');
         }
         // Emote rendering
@@ -275,7 +390,8 @@ $settingsJson = json_encode(
                 .replace(/"/g, '&quot;');
         }
         // Message rendering
-        function addMessage(data) {
+        // isHistory = true: render without slide-in animation and skip buffering
+        function addMessage(data, isHistory) {
             // Apply username / phrase filters shared with yourchat
             if (isMessageFiltered(data.username, data.display_name, data.message)) return;
             // Use custom nickname if the streamer has set one for this user
@@ -285,7 +401,7 @@ $settingsJson = json_encode(
             const badgeHtml = buildBadgeHtml(data.badges || '');
             const msgHtml   = buildMessageHtml(data.message || '', data.emotes || '');
             const el = document.createElement('div');
-            el.className = 'chat-message';
+            el.className = 'chat-message' + (isHistory ? ' no-anim' : '');
             el.dataset.msgId = data.message_id || '';
             el.innerHTML = `
                 <div class="msg-inner">
@@ -293,6 +409,11 @@ $settingsJson = json_encode(
                     <span class="msg-text">${msgHtml}</span>
                 </div>`;
             container.appendChild(el);
+            if (!isHistory) {
+                // Track live messages for history persistence
+                messageBuffer.push(data);
+                if (messageBuffer.length > 100) messageBuffer.shift();
+            }
             enforceMax();
         }
         function enforceMax() {
@@ -316,6 +437,12 @@ $settingsJson = json_encode(
         function clearChat() {
             container.innerHTML = '';
         }
+        // Render today's chat history before connecting so the overlay is populated immediately
+        if (messageBuffer.length > 0) {
+            messageBuffer.forEach(msg => addMessage(msg, true));
+        }
+        // Save history to the server every 60 s (best-effort, keeps history fresh across reloads)
+        setInterval(saveHistory, 60000);
         // WebSocket connection
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
@@ -325,7 +452,7 @@ $settingsJson = json_encode(
             });
             socket.on('disconnect',    () => attemptReconnect());
             socket.on('connect_error', () => attemptReconnect());
-            socket.on('CHAT_MESSAGE', data => addMessage(data));
+            socket.on('CHAT_MESSAGE', data => addMessage(data, false));
             socket.on('CHAT_CLEAR', () => clearChat());
             socket.on('CHAT_MESSAGE_DELETE', data => {
                 if (data && data.message_id) removeMessage(data.message_id);
