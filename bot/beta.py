@@ -112,6 +112,7 @@ _cached_ad_instructions_time = 0
 _cached_home_instructions = None
 _cached_home_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
+MEDIA_MIGRATED = False  # Loaded from profile.media_migrated at startup; enables unified /var/www/media/ library
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
 BOT_HOME_CHANNEL_NAME = 'botofthespecter'
 BOT_HOME_AI_HISTORY_DIR = '/home/botofthespecter/ai/bot-channel-chat-history'
@@ -1419,7 +1420,7 @@ async def process_twitch_eventsub_message(message):
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train Start",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
-                        sound_file = "twitch/" + result.get("sound_mapping")
+                        sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                         create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Hype Train End Event
                 elif event_type == "channel.hype_train.end":
@@ -1436,7 +1437,7 @@ async def process_twitch_eventsub_message(message):
                     await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Hype Train End",))
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
-                        sound_file = "twitch/" + result.get("sound_mapping")
+                        sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                         create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Channel Update Event
                 elif event_type == 'channel.update':
@@ -3132,6 +3133,7 @@ class TwitchBot(commands.Bot):
         bot_logger.info(f'[BOT READY] Logged in as "{self.nick}"')
         await update_version_control()
         await builtin_commands_creation()
+        await load_media_settings()
         await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         looped_tasks["periodic_stream_metadata_refresh"] = create_task(periodic_stream_metadata_refresh())
@@ -3256,6 +3258,26 @@ class TwitchBot(commands.Bot):
             if await self.should_block_first_message_command(messageAuthor, messageAuthorID, messageContentRaw, message.author):
                 return
             await self.send_first_command_welcome_if_needed(messageAuthor, messageAuthorID, messageContentRaw)
+            # Relay chat message to websocket server for the chat overlay (no new Twitch connection needed)
+            if websocket_connected and specterSocket and specterSocket.connected:
+                try:
+                    tags = message.tags or {}
+                    chat_payload = {
+                        'user_id': str(message.author.id) if message.author else '',
+                        'username': message.author.name if message.author else '',
+                        'display_name': tags.get('display-name', message.author.name if message.author else ''),
+                        'color': tags.get('color', ''),
+                        'badges': tags.get('badges', ''),
+                        'message': message.content or '',
+                        'message_id': tags.get('id', ''),
+                        'emotes': tags.get('emotes', ''),
+                    }
+                    await specterSocket.emit('CHAT_MESSAGE', chat_payload)
+                    websocket_logger.debug(f"[CHAT OVERLAY] CHAT_MESSAGE relayed for {chat_payload['username']}: {chat_payload['message'][:60]}")
+                except Exception as chat_relay_err:
+                    websocket_logger.error(f"[CHAT OVERLAY] CHAT_MESSAGE relay error: {chat_relay_err}")
+            else:
+                websocket_logger.debug(f"[CHAT OVERLAY] Skipped CHAT_MESSAGE relay (websocket_connected={websocket_connected}, socket={specterSocket is not None}, socket.connected={getattr(specterSocket, 'connected', False)})")
             # Handle commands
             await self.handle_commands(message)
             messageContent = messageContentRaw.lower()
@@ -11654,7 +11676,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Raid",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
+                sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
@@ -11762,7 +11784,7 @@ async def process_cheer_event(user_id, user_name, bits):
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Cheer",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
+                sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
@@ -11883,7 +11905,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Subscription",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
+                sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"[SUB EVENT] Error processing subscription event for user {user_name} ({user_id}): {e}")
@@ -12006,7 +12028,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Subscription",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
+                sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"[SUB MESSAGE] Error processing subscription message event for user {user_name} ({user_id}): {e}")
@@ -12065,7 +12087,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Gift Subscription",))
                 result = await cursor.fetchone()
                 if result and result.get("sound_mapping"):
-                    sound_file = "twitch/" + result.get("sound_mapping")
+                    sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                     create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
@@ -12157,7 +12179,7 @@ async def process_followers_event(user_id, user_name):
             await cursor.execute("SELECT * FROM twitch_sound_alerts WHERE twitch_alert_id = %s", ("Follow",))
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
-                sound_file = "twitch/" + result.get("sound_mapping")
+                sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                 create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
@@ -12295,7 +12317,10 @@ async def websocket_notice(
                     params['raffle_name'] = additional_data.get('raffle_name')
                     params['winner'] = additional_data.get('winner')
                 elif event == "SOUND_ALERT" and sound:
-                    params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
+                    if MEDIA_MIGRATED:
+                        params['sound'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{sound}"
+                    else:
+                        params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
                 elif event == "VIDEO_ALERT" and video:
                     params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
                 elif event == "MODERATION":
@@ -12348,6 +12373,19 @@ async def websocket_notice(
     finally:
         if connection:
             await connection.close()
+
+# Function to load media settings (unified media library migration flag) from the profile table
+async def load_media_settings():
+    global MEDIA_MIGRATED
+    try:
+        async with await mysql_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT media_migrated FROM profile LIMIT 1")
+                result = await cursor.fetchone()
+                MEDIA_MIGRATED = bool(result.get("media_migrated")) if result else False
+                bot_logger.info(f"[MEDIA] Unified media library: {'enabled' if MEDIA_MIGRATED else 'disabled'}")
+    except Exception as e:
+        bot_logger.error(f"[MEDIA] Failed to load media settings: {e}")
 
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():

@@ -263,6 +263,11 @@ class BotOfTheSpecter_WebsocketServer:
             # OBS commands: FROM Specter TO OBS (outgoing commands to control OBS)
             ("OBS_REQUEST", self.obs_handler.handle_obs_request),
             ("MUSIC_COMMAND", self.music_handler.music_command),
+            # Chat overlay relay
+            ("CHAT_MESSAGE", self.handle_chat_message),
+            # Chat moderation events (from bot, relayed to overlay)
+            ("CHAT_CLEAR", self.handle_chat_clear),
+            ("CHAT_MESSAGE_DELETE", self.handle_chat_message_delete),
             ("*", self.event)
         ]
         for event, handler in event_handlers:
@@ -319,6 +324,33 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def handle_specter_stats_request(self, sid, data):
         await self._route_timer_event("SPECTER_STATS_REQUEST", sid, data)
+
+    async def handle_chat_message(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        self.logger.info(f"CHAT_MESSAGE from [{sid}] (code: {code}): user={payload.get('username', '?')} msg={str(payload.get('message', ''))[:80]}")
+        if not code:
+            self.logger.warning(f"CHAT_MESSAGE from [{sid}]: could not resolve code, message dropped")
+            return
+        await self.broadcast_event_with_globals("CHAT_MESSAGE", payload, code=code, source_sid=sid)
+
+    async def handle_chat_clear(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        self.logger.info(f"CHAT_CLEAR from [{sid}] (code: {code})")
+        if not code:
+            self.logger.warning(f"CHAT_CLEAR from [{sid}]: could not resolve code, event dropped")
+            return
+        await self.broadcast_event_with_globals("CHAT_CLEAR", payload, code=code, source_sid=sid)
+
+    async def handle_chat_message_delete(self, sid, data):
+        payload = data if isinstance(data, dict) else {}
+        code = self.get_code_by_sid(sid)
+        self.logger.info(f"CHAT_MESSAGE_DELETE from [{sid}] (code: {code}): message_id={payload.get('message_id', '?')}")
+        if not code:
+            self.logger.warning(f"CHAT_MESSAGE_DELETE from [{sid}]: could not resolve code, event dropped")
+            return
+        await self.broadcast_event_with_globals("CHAT_MESSAGE_DELETE", payload, code=code, source_sid=sid)
 
     async def handle_task_create(self, sid, data):
         payload = data if isinstance(data, dict) else {}
