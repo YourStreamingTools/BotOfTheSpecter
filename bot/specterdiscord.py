@@ -6346,6 +6346,9 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="realtime", aliases=["talk", "voiceai", "gptvoice"])
     async def start_realtime(self, ctx):
+        await ctx.send("⚠️ The Realtime Voice AI feature is temporarily disabled while maintenance is being performed. Please check back later.")
+        return
+        # --- DISABLED --- original code below preserved for re-enabling later ---
         if ctx.author.voice is None:
             await ctx.send("❌ You must be in a voice channel first!")
             return
@@ -6538,6 +6541,9 @@ class VoiceCog(commands.Cog, name='Voice'):
 
     @commands.command(name="stoprealtime")
     async def stop_realtime(self, ctx):
+        await ctx.send("⚠️ The Realtime Voice AI feature is temporarily disabled while maintenance is being performed.")
+        return
+        # --- DISABLED --- original code below preserved for re-enabling later ---
         guild_id = ctx.guild.id
         if guild_id not in self.realtime_tasks:
             await ctx.send("No realtime session is running.")
