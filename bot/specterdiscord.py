@@ -1854,14 +1854,15 @@ class LiveChannelManager:
                 self.logger.info("No channel mappings found, skipping boot sync")
                 return
             # Collect all usernames to check
-            username_to_code = {}
-            usernames_to_check = []
+            username_to_codes = {}  # username -> list of channel codes (multiple guilds may track same streamer)
             for code, mapping in mappings.items():
                 username = mapping.get('username')
                 if username:
                     username_lower = str(username).strip().lower()
-                    username_to_code[username_lower] = code
-                    usernames_to_check.append(username_lower)
+                    if username_lower not in username_to_codes:
+                        username_to_codes[username_lower] = []
+                    username_to_codes[username_lower].append(code)
+            usernames_to_check = list(username_to_codes.keys())  # deduplicated for API batch fetch
             if not usernames_to_check:
                 self.logger.info("No usernames to check, skipping boot sync")
                 return
@@ -1878,13 +1879,14 @@ class LiveChannelManager:
             prevented_duplicates = 0
             new_notifications = 0
             cleaned_stale = 0
-            # Process each username
-            for username_lower in usernames_to_check:
+            # Process each channel mapping by code so every guild is handled independently,
+            # even when multiple guilds track the same streamer.
+            for code, mapping in mappings.items():
                 try:
-                    code = username_to_code.get(username_lower)
-                    mapping = mappings.get(code)
-                    if not mapping:
+                    username = mapping.get('username')
+                    if not username:
                         continue
+                    username_lower = str(username).strip().lower()
                     guild_id = mapping.get('guild_id')
                     if not guild_id:
                         continue
@@ -1940,22 +1942,40 @@ class LiveChannelManager:
                             self.logger.info(f"Stream is live for {username_lower}, but notification already exists - preventing duplicate")
                             prevented_duplicates += 1
                         else:
-                            # No notification exists, trigger the announcement flow
-                            self.logger.info(f"Stream is live for {username_lower}, triggering new notification")
-                            event_data = {
-                                'channel_code': code,
-                                'twitch-username': stream_data.get('user_login'),
-                                'twitch_user_id': stream_data.get('user_id'),
-                                'twitch-stream-id': stream_data.get('id'),
-                                'started_at': stream_data.get('started_at'),
-                                'details': stream_data
-                            }
-                            try:
-                                if self.bot:
-                                    await self.bot.handle_stream_event('ONLINE', event_data)
-                                    new_notifications += 1
-                            except Exception as e:
-                                self.logger.error(f"Error sending stream notification for {username_lower}: {e}")
+                            # No notification exists — check if stream was already running before bot restarted
+                            started_at_str = stream_data.get('started_at')
+                            stream_age_minutes = None
+                            if started_at_str:
+                                try:
+                                    started_at_dt = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
+                                    stream_age_minutes = (datetime.now(timezone.utc) - started_at_dt).total_seconds() / 60
+                                except Exception:
+                                    pass
+                            # If the stream started more than 10 minutes ago, the bot restarted mid-stream.
+                            # Mark as online in our state but do NOT re-announce to avoid spamming.
+                            if stream_age_minutes is not None and stream_age_minutes > 10:
+                                self.logger.info(
+                                    f"Stream is live for {username_lower} (started {stream_age_minutes:.0f}m ago) "
+                                    f"but no DB notification found — bot restarted mid-stream, skipping re-announcement"
+                                )
+                                prevented_duplicates += 1
+                            else:
+                                # Stream recently started (or age unknown) — trigger announcement flow
+                                self.logger.info(f"Stream is live for {username_lower}, triggering new notification")
+                                event_data = {
+                                    'channel_code': code,
+                                    'twitch-username': stream_data.get('user_login'),
+                                    'twitch_user_id': stream_data.get('user_id'),
+                                    'twitch-stream-id': stream_data.get('id'),
+                                    'started_at': stream_data.get('started_at'),
+                                    'details': stream_data
+                                }
+                                try:
+                                    if self.bot:
+                                        await self.bot.handle_stream_event('ONLINE', event_data)
+                                        new_notifications += 1
+                                except Exception as e:
+                                    self.logger.error(f"Error sending stream notification for {username_lower}: {e}")
                     else:
                         # Stream is offline
                         # Clean up online_streams if present
@@ -1974,7 +1994,7 @@ class LiveChannelManager:
                             except Exception as e:
                                 self.logger.debug(f"Error cleaning notification for {username_lower}: {e}")
                 except Exception as e:
-                    self.logger.error(f"Error processing boot sync for {username_lower}: {e}")
+                    self.logger.error(f"Error processing boot sync for {code} ({mapping.get('username', 'unknown')}): {e}")
             # Log summary
             self.logger.info(
                 f"Boot sync complete: {updated_voice_channels} voice channels updated, "
@@ -3593,7 +3613,12 @@ class BotOfTheSpecter(commands.Bot):
                     self.logger.info(f"Stream channel found: {stream_channel.name}")
                     mysql_helper = MySQLHelper(self.logger)
                     user_row = await mysql_helper.fetchone("SELECT username FROM users WHERE api_key = %s", (code,), database_name='website', dict_cursor=True)
-                    account_username = user_row['username'] if user_row else "Unknown User"
+                    account_username = (
+                        (user_row['username'] if user_row else None)
+                        or data.get('twitch-username')
+                        or (data.get('details') or {}).get('user_login')
+                        or "Unknown User"
+                    )
                     alert_lock_key = (guild.id, str(account_username).lower())
                     if alert_lock_key not in self._stream_alert_locks:
                         self._stream_alert_locks[alert_lock_key] = asyncio.Lock()
@@ -3698,8 +3723,16 @@ class BotOfTheSpecter(commands.Bot):
                             self.logger.info(f"Fetching user profile image and stream info for {account_username}")
                             profile_image_url = await self.get_user_profile_image(account_username)
                             self.logger.info(f"User profile image - {profile_image_url}")
-                            game_name, stream_title = await self.get_stream_info(account_username)
-                            self.logger.info(f"Stream info - Game: {game_name}, Title: {stream_title}")
+                            _pre_details = data.get('details') or {}
+                            _pre_game = _pre_details.get('game_name')
+                            _pre_title = _pre_details.get('title')
+                            if _pre_game or _pre_title:
+                                game_name = _pre_game or "Unknown Game"
+                                stream_title = _pre_title or "No Title"
+                                self.logger.info(f"Stream info (from event data) - Game: {game_name}, Title: {stream_title}")
+                            else:
+                                game_name, stream_title = await self.get_stream_info(account_username)
+                                self.logger.info(f"Stream info - Game: {game_name}, Title: {stream_title}")
                             # Get current date for footer
                             self.logger.info(f"Getting timestamp for embed footer...")
                             current_date = await self.format_discord_embed_timestamp(code)
