@@ -6383,6 +6383,25 @@ class VoiceCog(commands.Cog, name='Voice'):
                         },
                     },
                 }))
+                while True:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
+                    event = json.loads(raw)
+                    if event.get("type") == "session.updated":
+                        self.logger.info("[REALTIME] Session confirmed ready")
+                        break
+                    if event.get("type") == "error":
+                        self.logger.error(f"[REALTIME] Session setup error: {event.get('error', {})}")
+                        return
+                await ws.send(json.dumps({
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "Please greet me."}],
+                    },
+                }))
+                await ws.send(json.dumps({"type": "response.create"}))
+                self.logger.info("[REALTIME] Greeting request sent — waiting for spoken response")
                 async def audio_sender():
                     nonlocal packet_count
                     self.logger.info("[REALTIME] Audio sender started — waiting for packets...")
