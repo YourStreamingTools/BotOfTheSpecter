@@ -1,4 +1,5 @@
 <?php
+ob_start();
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -11,66 +12,91 @@ if (!isset($_SESSION['access_token'])) {
 
 // Handle POST requests before any includes that may produce output
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    ob_end_clean(); // Discard any output accumulated so far (i18n, session, etc.)
+    ini_set('display_errors', 0); // Prevent PHP error HTML from corrupting JSON
     header('Content-Type: application/json');
-    require_once "/var/www/config/db_connect.php";
-    $moderator_id = isset($_POST['moderator_id']) ? $_POST['moderator_id'] : null;
-    $broadcaster_id = isset($_SESSION['twitchUserId']) ? $_SESSION['twitchUserId'] : null;
-    $action = isset($_POST['action']) ? $_POST['action'] : null;
-    $isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
-    if (!$moderator_id || !$broadcaster_id || !$action) {
-        echo json_encode(['status' => 'error', 'message' => 'missing_parameters']);
-        exit();
-    }
-    if ($isActingAs && in_array($action, ['add', 'remove'], true)) {
-        echo json_encode(['status' => 'error', 'message' => 'Managing dashboard access is disabled while acting as another channel.']);
-        exit();
-    }
-    if ($action === 'add') {
-        $stmt = $conn->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (?, ?)');
-        if ($stmt === false) {
-            $err = $conn->error;
-            error_log('mods.php PREPARE ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
+    // Catch any PHP fatal error and return it as JSON instead of a blank 500
+    register_shutdown_function(function() {
+        $error = error_get_last();
+        if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR])) {
+            while (ob_get_level()) ob_end_clean();
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => $error['message'],
+                'file' => basename($error['file']),
+                'line' => $error['line'],
+            ]);
+        }
+    });
+    try {
+        ob_start(); // Buffer the DB include output
+        require_once "/var/www/config/db_connect.php";
+        ob_end_clean(); // Discard DB setup messages before sending JSON
+        $moderator_id = isset($_POST['moderator_id']) ? $_POST['moderator_id'] : null;
+        $broadcaster_id = isset($_SESSION['twitchUserId']) ? $_SESSION['twitchUserId'] : null;
+        $action = isset($_POST['action']) ? $_POST['action'] : null;
+        $isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
+        $isActingAsAdmin = $isActingAs && isset($_SESSION['admin_act_as_actor_role']) && $_SESSION['admin_act_as_actor_role'] === 'admin';
+        if (!$moderator_id || !$broadcaster_id || !$action) {
+            echo json_encode(['status' => 'error', 'message' => 'missing_parameters']);
             exit();
         }
-        if (!$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php BIND ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
+        if ($isActingAs && !$isActingAsAdmin && in_array($action, ['add', 'remove'], true)) {
+            echo json_encode(['status' => 'error', 'message' => 'Managing dashboard access is disabled while acting as another channel.']);
             exit();
         }
-        $res = $stmt->execute();
-        if ($res) {
-            echo json_encode(['status' => 'ok', 'action' => 'add', 'moderator_id' => $moderator_id]);
+        if ($action === 'add') {
+            $stmt = $conn->prepare('INSERT INTO moderator_access (moderator_id, broadcaster_id) VALUES (?, ?)');
+            if ($stmt === false) {
+                $err = $conn->error;
+                error_log('mods.php PREPARE ADD FAILED: ' . $err);
+                echo json_encode(['status' => 'error', 'message' => $err]);
+                exit();
+            }
+            if (!$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+                $err = $stmt->error ?: $conn->error;
+                error_log('mods.php BIND ADD FAILED: ' . $err);
+                echo json_encode(['status' => 'error', 'message' => $err]);
+                exit();
+            }
+            $res = $stmt->execute();
+            if ($res) {
+                echo json_encode(['status' => 'ok', 'action' => 'add', 'moderator_id' => $moderator_id]);
+            } else {
+                $err = $stmt->error ?: $conn->error;
+                error_log('mods.php EXECUTE ADD FAILED: ' . $err);
+                echo json_encode(['status' => 'error', 'message' => $err]);
+            }
+        } elseif ($action === 'remove') {
+            $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
+            if ($stmt === false) {
+                $err = $conn->error;
+                error_log('mods.php PREPARE REMOVE FAILED: ' . $err);
+                echo json_encode(['status' => 'error', 'message' => $err]);
+                exit();
+            }
+            if (!$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
+                $err = $stmt->error ?: $conn->error;
+                error_log('mods.php BIND REMOVE FAILED: ' . $err);
+                echo json_encode(['status' => 'error', 'message' => $err]);
+                exit();
+            }
+            $res = $stmt->execute();
+            if ($res) {
+                echo json_encode(['status' => 'ok', 'action' => 'remove', 'moderator_id' => $moderator_id]);
+            } else {
+                $err = $stmt->error ?: $conn->error;
+                error_log('mods.php EXECUTE REMOVE FAILED: ' . $err);
+                echo json_encode(['status' => 'error', 'message' => $err]);
+            }
         } else {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php EXECUTE ADD FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
+            echo json_encode(['status' => 'error', 'message' => 'invalid_action']);
         }
-    } elseif ($action === 'remove') {
-        $stmt = $conn->prepare('DELETE FROM moderator_access WHERE moderator_id = ? AND broadcaster_id = ?');
-        if ($stmt === false) {
-            $err = $conn->error;
-            error_log('mods.php PREPARE REMOVE FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-            exit();
-        }
-        if (!@$stmt->bind_param('ss', $moderator_id, $broadcaster_id)) {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php BIND REMOVE FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-            exit();
-        }
-        $res = $stmt->execute();
-        if ($res) {
-            echo json_encode(['status' => 'ok', 'action' => 'remove', 'moderator_id' => $moderator_id]);
-        } else {
-            $err = $stmt->error ?: $conn->error;
-            error_log('mods.php EXECUTE REMOVE FAILED: ' . $err);
-            echo json_encode(['status' => 'error', 'message' => $err]);
-        }
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'invalid_action']);
+    } catch (\Throwable $e) {
+        error_log('mods.php throwable: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage(), 'file' => basename($e->getFile()), 'line' => $e->getLine()]);
     }
     exit();
 }
@@ -94,6 +120,8 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 $isActingAs = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true;
+$isActingAsAdmin = $isActingAs && isset($_SESSION['admin_act_as_actor_role']) && $_SESSION['admin_act_as_actor_role'] === 'admin';
+$disableModActions = $isActingAs && !$isActingAsAdmin;
 
 // Fetch all moderators and their access status (requires $conn from db_connect.php)
 $stmt = $conn->prepare('SELECT * FROM moderator_access WHERE broadcaster_id = ?');
@@ -203,7 +231,8 @@ $botAccounts = [
     'streamlooter',
     'revlobot',
     'scottybot',
-    'ai_licia'
+    'ai_licia',
+    'pokemoncommunitygame'
 ];
 
 $filteredModerators = array_filter($allModerators, function($moderator) use ($botAccounts) {
@@ -372,9 +401,9 @@ ob_start();
                                         <?php if (strtolower($modDisplayName) === 'botofthespecter') : ?>
                                             <button class="sp-btn sp-btn-success" disabled><?php echo t('mods_always_has_access'); ?></button>
                                         <?php elseif ($hasAccess) : ?>
-                                            <button class="sp-btn sp-btn-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
+                                            <button class="sp-btn sp-btn-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $disableModActions ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
                                         <?php else : ?>
-                                            <button class="sp-btn sp-btn-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $isActingAs ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
+                                            <button class="sp-btn sp-btn-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $disableModActions ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -393,7 +422,7 @@ ob_start();
 document.addEventListener('DOMContentLoaded', function() {
     var addText = <?php echo json_encode(t('mods_add_access')); ?>;
     var removeText = <?php echo json_encode(t('mods_remove_access')); ?>;
-    var isActingAs = <?php echo json_encode($isActingAs); ?>;
+    var disableModActions = <?php echo json_encode($disableModActions); ?>;
     function loadToastify() {
         return new Promise(function(resolve) {
             if (window.Toastify) return resolve();
@@ -426,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var btn = e.currentTarget;
         var twitchUserId = btn.getAttribute('data-user-id');
         var action = btn.getAttribute('data-action');
-        if (isActingAs && (action === 'add' || action === 'remove')) {
+        if (disableModActions && (action === 'add' || action === 'remove')) {
             loadToastify().then(function() { showToast('Managing dashboard access is disabled while acting as another channel.', false); });
             return;
         }
@@ -456,7 +485,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     btn.setAttribute('data-action', 'add');
                     btn.textContent = addText;
                 }
-                if (isActingAs) {
+                if (disableModActions) {
                     btn.disabled = true;
                     btn.setAttribute('title', 'Disabled while acting as another channel');
                 } else {
@@ -471,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error updating mod access:', err);
             loadToastify().then(function() { showToast('Failed to update access', false); });
         }).finally(function() {
-            if (!isActingAs) {
+            if (!disableModActions) {
                 btn.disabled = false;
             }
             btn.classList.remove('sp-btn-loading');
