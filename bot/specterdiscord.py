@@ -6372,6 +6372,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                         "modalities": ["text", "audio"],
                         "instructions": (
                             "You are a friendly, helpful Discord voice assistant. "
+                            "Always respond in English. "
                             "Speak naturally and keep answers short."
                         ),
                         "voice": "alloy",
@@ -6436,8 +6437,11 @@ class VoiceCog(commands.Cog, name='Voice'):
                 async def listener_guardian():
                     while True:
                         await asyncio.sleep(5)
-                        reader = getattr(vc, '_reader', None)
-                        if reader is not None and not reader.is_alive() and vc.is_listening():
+                        audio_reader = getattr(vc, '_reader', None)
+                        if audio_reader is None or not hasattr(audio_reader, '_router'):
+                            continue
+                        router_thread = getattr(audio_reader, '_router', None)
+                        if router_thread is not None and not router_thread.is_alive() and vc.is_listening():
                             self.logger.warning(
                                 "[REALTIME] PacketRouter thread died (likely OpusError: corrupted stream) "
                                 "— restarting listener"
