@@ -12652,17 +12652,14 @@ async def process_channel_point_rewards(event_data, event_type):
                         # Handle (usercount)
                         if '(usercount)' in custom_message:
                             try:
-                                await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
+                                await cursor.execute(
+                                    'INSERT INTO reward_counts (reward_id, user, `count`) VALUES (%s, %s, 1) '
+                                    'ON DUPLICATE KEY UPDATE `count` = `count` + 1',
+                                    (reward_id, user_name)
+                                )
+                                await cursor.execute('SELECT `count` FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
                                 result = await cursor.fetchone()
-                                if result:
-                                    user_count = result.get("count")
-                                else:
-                                    user_count = 0
-                                    await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
-                                    await connection.commit()
-                                user_count += 1
-                                await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
-                                await connection.commit()
+                                user_count = result.get("count", 1) if result else 1
                                 replacements['(usercount)'] = str(user_count)
                             except Exception as e:
                                 chat_logger.error(f"[CHANNEL POINTS] Error while handling (usercount): {e}")
@@ -12670,23 +12667,16 @@ async def process_channel_point_rewards(event_data, event_type):
                         # Handle (userstreak)
                         if '(userstreak)' in custom_message:
                             try:
-                                await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
+                                await cursor.execute(
+                                    'INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, 1) '
+                                    'ON DUPLICATE KEY UPDATE '
+                                    'streak = IF(LOWER(`current_user`) = LOWER(%s), streak + 1, 1), '
+                                    '`current_user` = %s',
+                                    (reward_id, user_name, user_name, user_name)
+                                )
+                                await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
                                 streak_row = await cursor.fetchone()
-                                if streak_row:
-                                    current_user_from_db = streak_row['current_user']
-                                    current_streak = streak_row['streak']
-                                    if current_user_from_db and current_user_from_db.lower() == user_name.lower():
-                                        current_user = user_name
-                                        current_streak += 1
-                                    else:
-                                        current_user = user_name
-                                        current_streak = 1
-                                    await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
-                                else:
-                                    current_user = user_name
-                                    current_streak = 1
-                                    await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
-                                await connection.commit()
+                                current_streak = streak_row['streak'] if streak_row else 1
                                 replacements['(userstreak)'] = str(current_streak)
                             except Exception as e:
                                 chat_logger.error(f"[CHANNEL POINTS] Error while handling (userstreak): {e}\n{traceback.format_exc()}")
