@@ -457,6 +457,7 @@ socket.on('disconnect', () => {
     <script>console.log('Your Twitch username is: <?php echo $twitchUsername; ?>');</script>
     <script>console.log('User database status: <?php echo $userDatabaseExists; ?>');</script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-markup-templating.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-php.min.js"></script>
 </body>
 
