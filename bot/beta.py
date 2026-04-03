@@ -2825,6 +2825,20 @@ async def process_tanggle_room_complete(data):
         if is_new_completion:
             integrations_logger.info(f"[TANGGLE] Tanggle: Recorded new room completion {room_uuid}. Total completed puzzles: {completed_count}")
             await send_chat_message(f"We've completed another puzzle! That's {completed_count} puzzles completed.")
+            create_task(websocket_notice(
+                event="TANNGLE_COMPLETE",
+                additional_data={
+                    "room_uuid": room_uuid,
+                    "room_title": room.get('title'),
+                    "winner_name": winner_name,
+                    "winner_twitch_name": winner_twitch_name,
+                    "winner_score": winner_score,
+                    "winner_timer": winner_timer,
+                    "completed_count": completed_count,
+                    "piece_count": pieces.get('count'),
+                    "piece_completed": pieces.get('completed'),
+                }
+            ))
         else:
             integrations_logger.info(f"[TANGGLE] Tanggle: Duplicate room.complete event ignored for room {room_uuid}. Total remains: {completed_count}")
     except Exception as e:
@@ -2855,6 +2869,10 @@ async def process_stream_bingo_message(data):
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Bingo game started - Game ID: {_current_bingo_game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
                 sub_notice = " (Sub-only)" if is_sub_only else ""
                 await send_chat_message(f"A new Stream Bingo game has started{sub_notice}! Get your cards ready chat!")
+                create_task(websocket_notice(
+                    event="STREAM_BINGO_STARTED",
+                    additional_data={"is_sub_only": is_sub_only, "events_count": len(events), "game_id": _current_bingo_game_id}
+                ))
             elif event_type in ['bingo_ended', 'GAME_ENDED']:
                 # Mark the current tracked game as completed
                 if _current_bingo_game_id:
@@ -2869,6 +2887,7 @@ async def process_stream_bingo_message(data):
                 else:
                     integrations_logger.warning("[STREAM BINGO] Stream Bingo: Received GAME_ENDED but no active game was being tracked")
                 await send_chat_message("The Stream Bingo game has ended! Thanks for playing!")
+                create_task(websocket_notice(event="STREAM_BINGO_ENDED"))
             elif event_type in ['number_called', 'EVENT_CALLED']:
                 # Handle number called — keys are fully lowercased after normalization
                 display_number = data.get('displaynumber')
@@ -2876,6 +2895,10 @@ async def process_stream_bingo_message(data):
                 event_name = data.get('eventname')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - Event: {event_name} (#{display_number}, ID: {event_id})")
                 await send_chat_message(f"Event {display_number} called: \"{event_name}\"")
+                create_task(websocket_notice(
+                    event="STREAM_BINGO_EVENT_CALLED",
+                    additional_data={"display_number": display_number, "event_name": event_name, "event_id": event_id}
+                ))
             elif event_type == 'PLAYER_JOINED':
                 # Handle player joined — log to database only, no chat notice
                 player_name = data.get('playername')
@@ -2905,6 +2928,10 @@ async def process_stream_bingo_message(data):
                 else:
                     integrations_logger.warning(f"[STREAM BINGO] Stream Bingo: Received BINGO_REGISTERED for {player_name} but no active game is being tracked")
                 await send_chat_message(f"BINGO! @{player_name} got {rank_text} place! Congratulations!")
+                create_task(websocket_notice(
+                    event="STREAM_BINGO_WINNER",
+                    additional_data={"player_name": player_name, "rank": rank, "rank_text": rank_text}
+                ))
             elif event_type == 'EXTRA_CARD_WITH_BITS':
                 # Handle extra card purchased with bits
                 player_name = data.get('playername')
@@ -2912,10 +2939,15 @@ async def process_stream_bingo_message(data):
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
                 await send_chat_message(f"@{player_name} grabbed an extra bingo card with {bits} bits!")
+                create_task(websocket_notice(
+                    event="STREAM_BINGO_EXTRA_CARD",
+                    additional_data={"player_name": player_name, "bits": bits}
+                ))
             elif event_type == 'VOTE_STARTED':
                 # Handle vote started
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: Voting has started")
                 await send_chat_message("Bingo voting has started! Cast your vote now!")
+                create_task(websocket_notice(event="STREAM_BINGO_VOTE_STARTED"))
             elif event_type == 'EXTRA_VOTE_WITH_BITS':
                 # Handle extra vote purchased with bits
                 player_name = data.get('playername')
@@ -2923,14 +2955,20 @@ async def process_stream_bingo_message(data):
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
                 await send_chat_message(f"@{player_name} got an extra bingo vote with {bits} bits!")
+                create_task(websocket_notice(
+                    event="STREAM_BINGO_EXTRA_CARD",
+                    additional_data={"player_name": player_name, "bits": bits, "is_vote": True}
+                ))
             elif event_type == 'VOTE_ENDED':
                 # Handle vote ended
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: Voting has ended")
                 await send_chat_message("Bingo voting has ended!")
+                create_task(websocket_notice(event="STREAM_BINGO_VOTE_ENDED"))
             elif event_type == 'ALL_EVENTS_CALLED':
                 # Handle all events called
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: All events have been called")
                 await send_chat_message("All bingo events have been called!")
+                create_task(websocket_notice(event="STREAM_BINGO_ALL_CALLED"))
             else:
                 integrations_logger.debug(f"[STREAM BINGO] Stream Bingo: Unhandled event type: {event_type}")
         finally:
@@ -12266,6 +12304,14 @@ async def websocket_notice(
                     else:
                         websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters.")
                         return
+                elif event in [
+                    "TANNGLE_COMPLETE",
+                    "STREAM_BINGO_STARTED", "STREAM_BINGO_ENDED", "STREAM_BINGO_EVENT_CALLED",
+                    "STREAM_BINGO_WINNER", "STREAM_BINGO_EXTRA_CARD",
+                    "STREAM_BINGO_VOTE_STARTED", "STREAM_BINGO_VOTE_ENDED", "STREAM_BINGO_ALL_CALLED"
+                ]:
+                    if additional_data:
+                        params.update(additional_data)
                 else:
                     websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters or is not recognized")
                     return
