@@ -1257,7 +1257,7 @@ async def process_twitch_eventsub_message(message):
                         create_task(process_giftsub_event(
                             event_data["chatter_user_name"],
                             tier_name,
-                            community_gift_data.get("count", 0),
+                            community_gift_data.get("total", 0),
                             event_data.get("chatter_is_anonymous", False),
                             community_gift_data.get("cumulative_total")
                         ))
