@@ -211,7 +211,8 @@ ob_start();
                 https://overlay.botofthespecter.com/chat.php?code=API_KEY_HERE
             </div>
             <p style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); margin-bottom:0;">
-                Customize the message cap with <code>&amp;max=30</code> (default: 20).</p>
+                Customize the message cap with <code>&amp;max=30</code> (default: 20).<br>
+                Use <code>&amp;count=2</code> (default: 1) to run multiple Chat Overlay sources at the same time across different OBS scenes.</p>
         </div>
     </div>
     <!-- Music Overlay -->

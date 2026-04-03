@@ -77,6 +77,7 @@ $settingsJson = json_encode(
             gap: 4px;
             padding: 8px;
             overflow: hidden;
+            max-height: 100vh;
         }
         .chat-message {
             display: flex;
@@ -144,6 +145,7 @@ $settingsJson = json_encode(
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const maxMessages = parseInt(params.get('max') || '20', 10);
+        const count = parseInt(params.get('count') || '1', 10);
         if (!code) {
             document.body.innerHTML = '<p style="color:red;padding:10px;">Missing ?code= in URL</p>';
             return;
@@ -319,7 +321,7 @@ $settingsJson = json_encode(
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
             socket.on('connect', () => {
                 reconnectAttempts = 0;
-                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Chat Overlay' });
+                socket.emit('REGISTER', { code: code, channel: 'Overlay', name: 'Chat Overlay ' + count });
             });
             socket.on('disconnect',    () => attemptReconnect());
             socket.on('connect_error', () => attemptReconnect());
