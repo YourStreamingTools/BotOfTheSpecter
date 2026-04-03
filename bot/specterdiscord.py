@@ -6479,9 +6479,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                         router_thread = getattr(audio_reader, '_router', None)
                         if router_thread is None or router_thread.is_alive():
                             continue
-                        # Thread is dead — restart the listener
-                        if not vc.is_listening():
-                            continue
+                        # Thread is dead (OpusError: corrupted stream).
+                        # NOTE: do NOT check vc.is_listening() here — when the PacketRouter
+                        # crashes, voice_recv tears down the listener internally, so
+                        # is_listening() returns False and we'd incorrectly skip the restart.
                         self.logger.warning(
                             "[REALTIME] PacketRouter thread died (OpusError: corrupted stream) "
                             "— restarting listener"
@@ -6517,14 +6518,23 @@ class VoiceCog(commands.Cog, name='Voice'):
         return struct.pack(f"<{len(decimated)}h", *decimated)
 
     def _play_pcm_in_vc(self, vc, pcm_24k_mono: bytes):
+        # If already playing, wait for it to finish then play this chunk.
+        # Discord's vc.play() is not re-entrant; calling it while playing raises an error.
+        def _after(_error):
+            if _error:
+                self.logger.error(f"[REALTIME] Playback error: {_error}")
         if vc.is_playing():
-            return
+            vc.stop()
         source = discord.FFmpegPCMAudio(
             io.BytesIO(pcm_24k_mono),
             pipe=True,
+            # Tell ffmpeg the exact format of the raw PCM bytes coming from OpenAI
+            # (signed 16-bit LE, 24 kHz, mono) so it can correctly resample to
+            # Discord's expected 48 kHz stereo output.  Without these options
+            # ffmpeg has to guess the format and produces a corrupted stream.
             before_options="-f s16le -ar 24000 -ac 1",
         )
-        vc.play(source)
+        vc.play(source, after=_after)
 
     @commands.command(name="stoprealtime")
     async def stop_realtime(self, ctx):
