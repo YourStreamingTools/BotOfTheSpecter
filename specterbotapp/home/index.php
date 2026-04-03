@@ -263,91 +263,110 @@ socket.on('disconnect', () => {
                 </div>
             </div>
             <?php if (isset($_SESSION['access_token'])): ?>
-                <div class="box columns is-desktop is-multiline" id="file-uploads">
-                    <div class="column is-3">
-                        <div id="specterbot-upload" style="position: relative;">
-                            <h1 class="title is-4">Upload Your Files:</h1>
+            <?php
+            $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
+            // Handle file deletion
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_file'])) {
+                $delFile = basename($_POST['delete_file']);
+                if ($delFile !== '' && $delFile !== 'index.php' && pathinfo($delFile, PATHINFO_EXTENSION) === 'php') {
+                    $delPath = $userFolder . '/' . $delFile;
+                    if (file_exists($delPath)) {
+                        unlink($delPath);
+                    }
+                }
+            }
+            $userFiles = array_values(array_filter(
+                array_diff(scandir($userFolder), ['.', '..']),
+                fn($f) => pathinfo($f, PATHINFO_EXTENSION) === 'php'
+            ));
+            function formatFileName($fn) { return basename($fn, '.php'); }
+            ?>
+                <div class="box" id="file-uploads">
+                    <div class="file-uploads-layout">
+                        <!-- Upload panel -->
+                        <div class="upload-panel">
+                            <h3 class="title is-4">Upload Your Files</h3>
+                            <p class="upload-hint">Only <code>.php</code> files are accepted. The filename becomes your overlay URL.</p>
                             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                                 <label for="filesToUpload" class="drag-area" id="drag-area">
-                                    <span>Drag & Drop files here</span>
-                                    <input class="is-hidden" type="file" name="filesToUpload[]" id="filesToUpload" multiple
-                                        accept=".php">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <span>Drag &amp; Drop files here</span>
+                                    <span class="upload-hint-sub">or click to browse</span>
+                                    <input class="is-hidden" type="file" name="filesToUpload[]" id="filesToUpload" multiple accept=".php">
                                 </label>
-                                <br>
                                 <div id="file-list"></div>
-                                <input type="submit" value="Upload Files" name="submit" class="button is-primary">
+                                <input type="submit" value="Upload Files" name="submit" class="button is-primary upload-submit">
                             </form>
-                            <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
-                        </div>
-                        <?php
-                        $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
-                        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
-                            $uploadedFiles = $_FILES['filesToUpload'];
-                            foreach ($uploadedFiles['name'] as $key => $name) {
-                                if (!empty($name) && strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'php') {
-                                    if (basename($name, '.php') === 'index') {
-                                        echo '<p class="has-text-danger">Error: "index" cannot be used as a file name.</p>';
-                                        continue;
-                                    }
-                                    $targetDir = $userFolder . '/';
-                                    $targetFile = $targetDir . basename($name);
-                                    if (move_uploaded_file($uploadedFiles['tmp_name'][$key], $targetFile)) {
-                                        echo '<p class="has-text-success">File uploaded successfully: ' . htmlspecialchars($name) . '</p>';
+                            <?php
+                            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['filesToUpload'])) {
+                                foreach ($_FILES['filesToUpload']['name'] as $key => $name) {
+                                    if (!empty($name) && strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'php') {
+                                        if (basename($name, '.php') === 'index') {
+                                            echo '<p class="has-text-danger">Error: &ldquo;index&rdquo; cannot be used as a filename.</p>';
+                                            continue;
+                                        }
+                                        $targetFile = $userFolder . '/' . basename($name);
+                                        if (move_uploaded_file($_FILES['filesToUpload']['tmp_name'][$key], $targetFile)) {
+                                            echo '<p class="has-text-success">Uploaded: ' . htmlspecialchars($name) . '</p>';
+                                        } else {
+                                            echo '<p class="has-text-danger">Upload failed: ' . htmlspecialchars($name) . '</p>';
+                                        }
                                     } else {
-                                        echo '<p class="has-text-danger">Error uploading file: ' . htmlspecialchars($name) . '</p>';
+                                        echo '<p class="has-text-warning">Only .php files are allowed.</p>';
                                     }
-                                } else {
-                                    echo '<p class="has-text-warning">Only .php files are allowed.</p>';
                                 }
                             }
-                        }
-                        ?>
-                    </div>
-                    <div class="column is-7">
-                        <?php
-                        $userFiles = array_diff(scandir($userFolder), array('.', '..'));
-                        function formatFileName($fileName)
-                        {
-                            return basename($fileName, '.php');
-                        }
-                        if (!empty($userFiles)): ?>
-                            <h1 class="title is-4">Your custom API Files:</h1>
-                            <form action="" method="POST" id="deleteForm">
-                                <table class="table is-striped" style="width: 100%; text-align: center;">
-                                    <thead>
-                                        <tr>
-                                            <th></th>
-                                            <th>File Name</th>
-                                            <th>Link</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($userFiles as $file): ?>
-                                            <?php if (pathinfo($file, PATHINFO_EXTENSION) === 'php'): ?>
+                            ?>
+                        </div>
+                        <!-- Vertical divider -->
+                        <div class="upload-divider"></div>
+                        <!-- Files panel -->
+                        <div class="files-panel">
+                            <?php if (!empty($userFiles)): ?>
+                                <h3 class="title is-4">Your Custom API Files</h3>
+                                <div class="table-wrap">
+                                    <table class="table is-striped">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:36px;"></th>
+                                                <th>File Name</th>
+                                                <th>Link</th>
+                                                <th style="width:100px;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($userFiles as $file): ?>
                                                 <tr>
-                                                    <td style="vertical-align: middle;"><i class="fas fa-copy copy-link"
+                                                    <td>
+                                                        <i class="fas fa-copy copy-link"
                                                             data-link="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>"
-                                                            style="cursor: pointer;"></i></td>
-                                                    <td style="text-align: left; vertical-align: middle;">
-                                                        <?php echo htmlspecialchars(formatFileName($file)); ?>
+                                                            title="Copy link" style="cursor:pointer; color:var(--text-muted);"></i>
                                                     </td>
-                                                    <td style="text-align: left; vertical-align: middle;"><a
-                                                            href="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>"
-                                                            target="_blank">https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?></a>
+                                                    <td><?php echo htmlspecialchars(formatFileName($file)); ?></td>
+                                                    <td>
+                                                        <a href="https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>" target="_blank">
+                                                            https://<?php echo $twitchUsername; ?>.specterbot.app/<?php echo htmlspecialchars($file); ?>
+                                                        </a>
                                                     </td>
-                                                    <td style="vertical-align: middle;"><button type="button"
-                                                            class="delete-single button is-danger"
-                                                            data-file="<?php echo htmlspecialchars($file); ?>">Delete</button></td>
+                                                    <td>
+                                                        <form action="" method="POST" style="margin:0;">
+                                                            <input type="hidden" name="delete_file" value="<?php echo htmlspecialchars($file); ?>">
+                                                            <button type="submit" class="button is-danger delete-single"
+                                                                data-filename="<?php echo htmlspecialchars(formatFileName($file)); ?>">Delete</button>
+                                                        </form>
+                                                    </td>
                                                 </tr>
-                                            <?php endif; ?>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </form>
-                        <?php else: ?>
-                            <h1 class="title is-4">A list of files will appear here.</h1>
-                        <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="no-files-msg">
+                                    <i class="fas fa-folder-open"></i>
+                                    <p>No files uploaded yet.<br>Upload a <code>.php</code> file to get started.</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             <?php endif; ?>
@@ -387,6 +406,16 @@ socket.on('disconnect', () => {
                     }).catch(err => {
                         console.error('Failed to copy link: ', err);
                     });
+                });
+            });
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.delete-single').forEach(function (btn) {
+                btn.addEventListener('click', function (e) {
+                    const name = this.dataset.filename || 'this file';
+                    if (!confirm('Delete "' + name + '"? This cannot be undone.')) {
+                        e.preventDefault();
+                    }
                 });
             });
         });
