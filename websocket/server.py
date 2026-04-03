@@ -834,6 +834,15 @@ class BotOfTheSpecter_WebsocketServer:
             # Handle stream status events, reaction roles message, rules message, and stream schedule message with proper global broadcasting
             count = await self.broadcast_event_with_globals(event, data, code)
             self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
+        elif event in [
+            "TANNGLE_COMPLETE",
+            "STREAM_BINGO_STARTED", "STREAM_BINGO_ENDED", "STREAM_BINGO_EVENT_CALLED",
+            "STREAM_BINGO_WINNER", "STREAM_BINGO_EXTRA_CARD",
+            "STREAM_BINGO_VOTE_STARTED", "STREAM_BINGO_VOTE_ENDED", "STREAM_BINGO_ALL_CALLED"
+        ]:
+            # Handle Tanngle puzzle and Stream Bingo events
+            count = await self.broadcast_event_with_globals(event, data, code)
+            self.logger.info(f"Broadcasted {event} event to {count} clients (including global listeners)")
         else:
             # Broadcast other events to connected clients
             if code in self.registered_clients:
