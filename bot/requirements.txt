@@ -39,6 +39,10 @@ pint
 # Discord bot integration (async)
 discord.py
 
+# Discord voice receive extension
+# Enables the bot to receive and process incoming audio from voice channels
+discord-ext-voice-recv
+
 # Joke API
 # Fetches jokes from JokeAPI
 jokeapi
