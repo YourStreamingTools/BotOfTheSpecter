@@ -117,6 +117,7 @@ return [
     'navbar_view_custom_commands' => 'Voir les commandes personnalisées',
     'navbar_stream_recording' => 'Enregistrement du stream',
     'navbar_stream_overlays' => 'Overlays de stream',
+    'navbar_media' => 'Médias',
     'navbar_sound_alerts' => 'Alertes sonores',
     'navbar_video_alerts' => 'Alertes vidéo',
     'navbar_walkon_alerts' => 'Alertes Walk-On',
@@ -872,6 +873,8 @@ return [
     'overlays_sound_alerts_only' => 'Alertes sonores uniquement',
     'overlays_sound_alerts_only_desc' => 'N\'entendre que les alertes sonores pour chaque récompense de points de chaîne.',
     'overlays_video_alerts_desc' => 'Pour voir les alertes vidéo pour chaque récompense de points de chaîne, utilisez le lien suivant.',
+    'overlays_chat_overlay' => 'Overlay de chat',
+    'overlays_chat_overlay_desc' => 'Affichez votre chat Twitch en stream comme source navigateur OBS transparente.',
     'overlays_music_overlay' => 'Overlay musique',
     'overlays_music_overlay_desc' => 'Diffusez de la musique sans DMCA pour vos diffusions Twitch et VODs.',
     'overlays_fourthwall' => 'Fourthwall',
@@ -881,6 +884,8 @@ return [
     'overlays_kofi_desc' => 'Affichez vos événements Ko-Fi sur votre stream.',
     'overlays_patreon' => 'Patreon',
     'overlays_patreon_desc' => 'Affichez vos informations de soutien sur votre stream.',
+    // Media Page
+    'media_page_title' => 'Médias',
     // Sound Alerts Page
     'sound_alerts_page_title' => 'Alertes sonores',
     'sound_alerts_setup_title' => 'Configurer les alertes sonores via points de chaîne',

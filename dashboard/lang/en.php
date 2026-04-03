@@ -145,6 +145,7 @@ return [
     'navbar_overlays' => 'Overlays',
     'navbar_counter_stats' => 'Counter Stats',
     'navbar_stream_tools' => 'Stream Tools',
+    'navbar_media' => 'Media',
     'navbar_sound_alerts' => 'Sound Alerts',
     'navbar_video_alerts' => 'Video Alerts',
     'navbar_walkon_alerts' => 'Walk-On Alerts',
@@ -929,6 +930,8 @@ return [
     'overlays_sound_alerts_only' => 'Sound Alerts Only',
     'overlays_sound_alerts_only_desc' => 'Only hear the sound alerts for each channel point reward.',
     'overlays_video_alerts_desc' => 'To see the video alerts for each channel point reward use the following link.',
+    'overlays_chat_overlay' => 'Chat Overlay',
+    'overlays_chat_overlay_desc' => 'Display your Twitch chat on stream as a transparent OBS browser source.',
     'overlays_music_overlay' => 'Music Overlay',
     'overlays_music_overlay_desc' => 'Stream DMCA-free music for your Twitch broadcasts and VODs.',
     'overlays_fourthwall' => 'Fourthwall',
@@ -938,6 +941,8 @@ return [
     'overlays_kofi_desc' => 'Display your Ko-Fi events on your stream.',
     'overlays_patreon' => 'Patreon',
     'overlays_patreon_desc' => 'Display your pledge information on your stream.',
+    // Media Page
+    'media_page_title' => 'Media',
     // Sound Alerts Page
     'sound_alerts_page_title' => 'Sound Alerts',
     'sound_alerts_setup_title' => 'Setting up Channel Point Sound Alerts',
