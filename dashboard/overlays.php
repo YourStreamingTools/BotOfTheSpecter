@@ -200,6 +200,20 @@ ob_start();
             </div>
         </div>
     </div>
+    <!-- Chat Overlay -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header">
+            <div class="sp-card-title"><i class="fas fa-comments"></i> <?= t('overlays_chat_overlay') ?></div>
+        </div>
+        <div class="sp-card-body">
+            <?= t('overlays_chat_overlay_desc') ?>
+            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0.5rem;">
+                https://overlay.botofthespecter.com/chat.php?code=API_KEY_HERE
+            </div>
+            <p style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); margin-bottom:0;">
+                Customize the message cap with <code>&amp;max=30</code> (default: 20).</p>
+        </div>
+    </div>
     <!-- Music Overlay -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
