@@ -205,7 +205,7 @@ require_once __DIR__ . '/x9k2m7p_config.php';  // use your actual random filenam
 $apiCode = BOTOFTHE_SPECTER_CODE;
 ?&gt;</code></pre>
                 <p><strong>3. Include the Socket.IO client library and pass your code into JavaScript:</strong></p>
-                <pre><code class="language-php">&lt;script src="https://cdn.socket.io/4.8.1/socket.io.min.js"&gt;&lt;/script&gt;
+                <pre><code class="language-php">&lt;script src="https://cdn.socket.io/4.8.3/socket.io.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
     const code = '&lt;?php echo htmlspecialchars($apiCode, ENT_QUOTES); ?&gt;';
 &lt;/script&gt;</code></pre>
