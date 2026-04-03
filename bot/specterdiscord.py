@@ -6335,17 +6335,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         # Pause music so the AI response can be heard
         if vc.is_playing():
             vc.stop()
-        # Bridge: sink callback (non-async thread) → asyncio queue
         audio_queue: asyncio.Queue = asyncio.Queue()
         self.realtime_queues[guild_id] = audio_queue
-        loop = asyncio.get_running_loop()
-        bot_user_id = self.bot.user.id
-        def _sink_callback(user, data: voice_recv.VoiceData):
-            if user is None or user.id == bot_user_id:
-                return
-            if data.pcm:
-                loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(data.pcm))
-        vc.listen(voice_recv.BasicSink(_sink_callback))
         await ctx.send(
             "🎙️ **Realtime GPT Voice AI started**\n"
             "I am now listening. Speak naturally!\n"
@@ -6361,6 +6352,17 @@ class VoiceCog(commands.Cog, name='Voice'):
             "OpenAI-Beta": "realtime=v1",
         }
         packet_count = 0
+        # Build the sink here so listener_guardian can recreate it on restart.
+        loop = asyncio.get_running_loop()
+        bot_user_id = self.bot.user.id
+        def _sink_callback(user, data: voice_recv.VoiceData):
+            if user is None or user.id == bot_user_id:
+                return
+            if data.pcm:
+                loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(data.pcm))
+        def _make_listener():
+            return voice_recv.BasicSink(_sink_callback)
+        vc.listen(_make_listener())
         try:
             async with websockets.connect(url, additional_headers=headers) as ws:
                 self.logger.info("[REALTIME] Connected to OpenAI Realtime API")
@@ -6431,7 +6433,25 @@ class VoiceCog(commands.Cog, name='Voice'):
                                 playback_buffer.clear()
                         elif event_type == "error":
                             self.logger.error(f"[REALTIME] OpenAI error: {data.get('error', {})}")
-                await asyncio.gather(audio_sender(), audio_receiver())
+                async def listener_guardian():
+                    while True:
+                        await asyncio.sleep(5)
+                        reader = getattr(vc, '_reader', None)
+                        if reader is not None and not reader.is_alive() and vc.is_listening():
+                            self.logger.warning(
+                                "[REALTIME] PacketRouter thread died (likely OpusError: corrupted stream) "
+                                "— restarting listener"
+                            )
+                            try:
+                                vc.stop_listening()
+                            except Exception:
+                                pass
+                            try:
+                                vc.listen(_make_listener())
+                                self.logger.info("[REALTIME] Listener restarted successfully")
+                            except Exception as restart_err:
+                                self.logger.error(f"[REALTIME] Failed to restart listener: {restart_err}")
+                await asyncio.gather(audio_sender(), audio_receiver(), listener_guardian())
         except asyncio.CancelledError:
             self.logger.info("[REALTIME] Session cancelled.")
         except Exception as e:
