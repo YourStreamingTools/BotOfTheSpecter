@@ -131,7 +131,12 @@ function calculateStorageUsed($directories) {
 }
 
 // Calculate the current storage used directly from directories (includes user uploads)
-$current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path, $user_music_path]);
+// If the user has migrated to the unified media library, use that dir instead of old audio dirs
+if (is_dir($media_path)) {
+    $current_storage_used = calculateStorageUsed([$walkon_path, $media_path, $videoalert_path, $user_music_path]);
+} else {
+    $current_storage_used = calculateStorageUsed([$walkon_path, $soundalert_path, $videoalert_path, $twitch_sound_alert_path, $user_music_path]);
+}
 
 // Calculate percentage for progress bar
 $storage_percentage = ($current_storage_used / $max_storage_size) * 100;

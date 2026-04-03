@@ -48,6 +48,8 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
             [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
             [ 'label' => t('navbar_walkon_alerts'), 'icon' => 'fas fa-door-open', 'href' => 'walkons.php' ],
+            [ 'divider' => true ],
+            [ 'label' => t('navbar_media'), 'icon' => 'fas fa-photo-film', 'href' => 'media.php' ],
         ]],
         [ 'label' => t('navbar_vod_music'), 'icon' => 'fas fa-music', 'href' => 'music.php' ],
         [ 'divider' => true ],

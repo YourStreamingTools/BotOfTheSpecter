@@ -24,4 +24,7 @@ if (!is_dir($twitch_sound_alert_path)) {
 chmod($base_upload_path, 0755);
 chmod($soundalert_path, 0755);
 chmod($twitch_sound_alert_path, 0755);
+
+// New unified media library path (opt-in via migration)
+$media_path = "/var/www/media/" . $username;
 ?>

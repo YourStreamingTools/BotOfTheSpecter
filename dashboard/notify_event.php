@@ -8,6 +8,8 @@ if (!isset($_SESSION['access_token'])) {
     exit();
 }
 
+require_once '/var/www/config/database.php';
+
 // Prepare a response array
 $response = ['success' => false, 'message' => '', 'output' => ''];
 
@@ -56,7 +58,19 @@ try {
                 exit();
             }
         } elseif ($event === "SOUND_ALERT" && isset($_POST['sound'], $_POST['channel_name'])) {
-            $params['sound'] = "https://soundalerts.botofthespecter.com/" . $_POST['channel_name'] . "/" . $_POST['sound'];
+            // Check whether this channel has migrated to the new unified media library
+            $soundBase = 'soundalerts.botofthespecter.com';
+            $mnConn = new mysqli($db_servername, $db_username, $db_password, $_POST['channel_name']);
+            if (!$mnConn->connect_error) {
+                $mnRes = $mnConn->query("SELECT media_migrated FROM profile LIMIT 1");
+                if ($mnRes && $mnRow = $mnRes->fetch_assoc()) {
+                    if (!empty($mnRow['media_migrated'])) {
+                        $soundBase = 'media.botofthespecter.com';
+                    }
+                }
+                $mnConn->close();
+            }
+            $params['sound'] = "https://$soundBase/" . $_POST['channel_name'] . "/" . $_POST['sound'];
         } elseif ($event === "VIDEO_ALERT" && isset($_POST['video'], $_POST['channel_name'])) {
             $params['video'] = "https://videoalerts.botofthespecter.com/" . $_POST['channel_name'] . "/" . $_POST['video'];
         } else {

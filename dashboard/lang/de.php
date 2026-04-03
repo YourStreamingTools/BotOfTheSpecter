@@ -117,6 +117,7 @@ return [
     'navbar_view_custom_commands' => 'Benutzerdefinierte Befehle anzeigen',
     'navbar_stream_recording' => 'Stream-Aufzeichnung',
     'navbar_stream_overlays' => 'Stream-Overlays',
+    'navbar_media' => 'Medien',
     'navbar_sound_alerts' => 'Sound-Alerts',
     'navbar_video_alerts' => 'Video-Alerts',
     'navbar_walkon_alerts' => 'Walk-On-Alerts',
@@ -871,6 +872,8 @@ return [
     'overlays_sound_alerts_only' => 'Nur Sound-Alerts',
     'overlays_sound_alerts_only_desc' => 'Nur die Sound-Alerts für jede Kanalpunkte-Belohnung hören.',
     'overlays_video_alerts_desc' => 'Um die Video-Alerts für jede Kanalpunkte-Belohnung zu sehen, verwende folgenden Link.',
+    'overlays_chat_overlay' => 'Chat-Overlay',
+    'overlays_chat_overlay_desc' => 'Zeige deinen Twitch-Chat als transparente OBS-Browserquelle im Stream an.',
     'overlays_music_overlay' => 'Musik-Overlay',
     'overlays_music_overlay_desc' => 'Streame DMCA-freie Musik für deine Twitch-Übertragungen und VODs.',
     'overlays_fourthwall' => 'Fourthwall',
@@ -880,6 +883,8 @@ return [
     'overlays_kofi_desc' => 'Zeige deine Ko-Fi-Events im Stream an.',
     'overlays_patreon' => 'Patreon',
     'overlays_patreon_desc' => 'Zeige deine Unterstützerinformationen im Stream an.',
+    // Media Page
+    'media_page_title' => 'Medien',
     // Sound Alerts Page
     'sound_alerts_page_title' => 'Sound-Alerts',
     'sound_alerts_setup_title' => 'Channel Point Sound-Alerts einrichten',
