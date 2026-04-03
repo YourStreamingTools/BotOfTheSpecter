@@ -1,12 +1,15 @@
 # Standard library
 import ast
 import asyncio
+import base64
 import functools
+import io
 import json
 import logging
 import os
 import re
 import signal
+import struct
 import subprocess
 import tempfile
 import time
@@ -20,7 +23,9 @@ import random
 import aiohttp
 import aiomysql
 import discord
+import websockets
 from discord.ext import commands
+from discord.ext import voice_recv
 from discord import app_commands
 from dotenv import load_dotenv
 import pytz
@@ -5710,6 +5715,8 @@ class VoiceCog(commands.Cog, name='Voice'):
         self.voice_clients = {}  # Guild ID -> VoiceClient mapping
         self._connect_locks = {}
         self._connect_attempts = {}
+        self.realtime_tasks = {}   # Guild ID -> asyncio.Task
+        self.realtime_queues = {}  # Guild ID -> asyncio.Queue
         self.music_player = MusicPlayer(bot, logger)
         self.logger.info("VoiceCog initialized successfully")
 
@@ -5852,7 +5859,7 @@ class VoiceCog(commands.Cog, name='Voice'):
                     except KeyError:
                         pass
                 try:
-                    voice_client = await channel.connect()
+                    voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
                 except discord.errors.ConnectionClosed as e:
                     # update attempts info on failure
                     attempt_info = self._connect_attempts.get(guild_id, {'count': 0, 'first_attempt': now})
@@ -6093,6 +6100,10 @@ class VoiceCog(commands.Cog, name='Voice'):
                 del self.voice_clients[guild_id]
 
     def cog_unload(self):
+        for task in list(self.realtime_tasks.values()):
+            task.cancel()
+        self.realtime_tasks.clear()
+        self.realtime_queues.clear()
         for voice_client in self.voice_clients.values():
             if voice_client.is_connected():
                 asyncio.create_task(voice_client.disconnect())
@@ -6299,6 +6310,153 @@ class VoiceCog(commands.Cog, name='Voice'):
             await ctx.message.delete()
         except Exception:
             pass
+
+    @commands.command(name="realtime", aliases=["talk", "voiceai", "gptvoice"])
+    async def start_realtime(self, ctx):
+        if ctx.author.voice is None:
+            await ctx.send("❌ You must be in a voice channel first!")
+            return
+        channel = ctx.author.voice.channel
+        guild_id = ctx.guild.id
+        # Cancel any existing session
+        if guild_id in self.realtime_tasks:
+            self.realtime_tasks[guild_id].cancel()
+            del self.realtime_tasks[guild_id]
+        # Ensure we are connected with VoiceRecvClient (required for receive)
+        vc = ctx.voice_client or self.voice_clients.get(guild_id)
+        if vc is None or not vc.is_connected():
+            vc = await channel.connect(cls=voice_recv.VoiceRecvClient)
+            self.voice_clients[guild_id] = vc
+        elif not isinstance(vc, voice_recv.VoiceRecvClient):
+            # Regular VoiceClient can't receive audio — reconnect with VoiceRecvClient
+            await vc.disconnect()
+            vc = await channel.connect(cls=voice_recv.VoiceRecvClient)
+            self.voice_clients[guild_id] = vc
+        # Pause music so the AI response can be heard
+        if vc.is_playing():
+            vc.stop()
+        # Bridge: sink callback (non-async thread) → asyncio queue
+        audio_queue: asyncio.Queue = asyncio.Queue()
+        self.realtime_queues[guild_id] = audio_queue
+        loop = asyncio.get_running_loop()
+        bot_user_id = self.bot.user.id
+        def _sink_callback(user, data: voice_recv.VoiceData):
+            if user is None or user.id == bot_user_id:
+                return
+            if data.pcm:
+                loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(data.pcm))
+        vc.listen(voice_recv.BasicSink(_sink_callback))
+        await ctx.send(
+            "🎙️ **Realtime GPT Voice AI started**\n"
+            "I am now listening. Speak naturally!\n"
+            "Use `!stoprealtime` to end."
+        )
+        task = asyncio.create_task(self._realtime_session(ctx, vc, audio_queue))
+        self.realtime_tasks[guild_id] = task
+
+    async def _realtime_session(self, ctx, vc, audio_queue: asyncio.Queue):
+        url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview"
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "OpenAI-Beta": "realtime=v1",
+        }
+        packet_count = 0
+        try:
+            async with websockets.connect(url, additional_headers=headers) as ws:
+                self.logger.info("[REALTIME] Connected to OpenAI Realtime API")
+                await ws.send(json.dumps({
+                    "type": "session.update",
+                    "session": {
+                        "modalities": ["text", "audio"],
+                        "instructions": (
+                            "You are a friendly, helpful Discord voice assistant. "
+                            "Speak naturally and keep answers short."
+                        ),
+                        "voice": "alloy",
+                        "input_audio_format": "pcm16",
+                        "output_audio_format": "pcm16",
+                        "turn_detection": {
+                            "type": "server_vad",
+                            "threshold": 0.5,
+                            "prefix_padding_ms": 300,
+                            "silence_duration_ms": 500,
+                        },
+                    },
+                }))
+                async def audio_sender():
+                    nonlocal packet_count
+                    self.logger.info("[REALTIME] Audio sender started — waiting for packets...")
+                    while True:
+                        # Discord: 48 kHz, stereo, 16-bit LE → OpenAI: 24 kHz, mono, 16-bit LE
+                        pcm_48k_stereo = await audio_queue.get()
+                        pcm_24k_mono = self._resample_48k_stereo_to_24k_mono(pcm_48k_stereo)
+                        audio_b64 = base64.b64encode(pcm_24k_mono).decode()
+                        await ws.send(json.dumps({
+                            "type": "input_audio_buffer.append",
+                            "audio": audio_b64,
+                        }))
+                        packet_count += 1
+                        if packet_count % 50 == 0:
+                            self.logger.info(f"[REALTIME] 🔊 Sent {packet_count} audio packets to OpenAI")
+                async def audio_receiver():
+                    playback_buffer = bytearray()
+                    while True:
+                        message = await ws.recv()
+                        data = json.loads(message)
+                        event_type = data.get("type", "")
+                        if event_type == "response.audio.delta":
+                            playback_buffer.extend(base64.b64decode(data.get("delta", "")))
+                        elif event_type == "response.audio.done":
+                            if playback_buffer:
+                                self._play_pcm_in_vc(vc, bytes(playback_buffer))
+                                playback_buffer.clear()
+                        elif event_type == "error":
+                            self.logger.error(f"[REALTIME] OpenAI error: {data.get('error', {})}")
+                await asyncio.gather(audio_sender(), audio_receiver())
+        except asyncio.CancelledError:
+            self.logger.info("[REALTIME] Session cancelled.")
+        except Exception as e:
+            self.logger.error(f"[REALTIME] Session error: {e}", exc_info=True)
+            try:
+                await ctx.send(f"⚠️ Realtime session ended with an error.")
+            except Exception:
+                pass
+        finally:
+            if isinstance(vc, voice_recv.VoiceRecvClient) and vc.is_listening():
+                vc.stop_listening()
+
+    def _resample_48k_stereo_to_24k_mono(self, pcm_data: bytes) -> bytes:
+        count = len(pcm_data) // 2
+        samples = struct.unpack(f"<{count}h", pcm_data)
+        # Mix stereo L+R to mono, then decimate ×2 (48 kHz → 24 kHz)
+        mono = [(samples[i] + samples[i + 1]) // 2 for i in range(0, count - 1, 2)]
+        decimated = mono[::2]
+        return struct.pack(f"<{len(decimated)}h", *decimated)
+
+    def _play_pcm_in_vc(self, vc, pcm_24k_mono: bytes):
+        if vc.is_playing():
+            return
+        source = discord.FFmpegPCMAudio(
+            io.BytesIO(pcm_24k_mono),
+            pipe=True,
+            before_options="-f s16le -ar 24000 -ac 1",
+        )
+        vc.play(source)
+
+    @commands.command(name="stoprealtime")
+    async def stop_realtime(self, ctx):
+        guild_id = ctx.guild.id
+        if guild_id not in self.realtime_tasks:
+            await ctx.send("No realtime session is running.")
+            return
+        self.realtime_tasks[guild_id].cancel()
+        del self.realtime_tasks[guild_id]
+        if guild_id in self.realtime_queues:
+            del self.realtime_queues[guild_id]
+        vc = ctx.voice_client or self.voice_clients.get(guild_id)
+        if isinstance(vc, voice_recv.VoiceRecvClient) and vc.is_listening():
+            vc.stop_listening()
+        await ctx.send("⏹️ Realtime GPT Voice AI stopped.")
 
 # Twitch to Discord Streamer Posting
 class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
