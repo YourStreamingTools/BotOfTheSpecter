@@ -98,6 +98,7 @@ function fetchWebsocketClients($conn) {
 
 // Handle AJAX request for refreshing data
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['refresh_data'])) {
+    ob_clean();
     header('Content-Type: application/json');
     $data = fetchWebsocketClients($conn);
     echo json_encode($data);
@@ -121,6 +122,7 @@ if (empty($websocketData['registered_clients']) && empty($websocketData['global_
 
 // Handle AJAX request to get user clients
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_user_clients'])) {
+    ob_clean();
     header('Content-Type: application/json');
     $apiKey = $_GET['api_key'] ?? '';
     $data = fetchWebsocketClients($conn);
@@ -135,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_user_clients'])) {
 
 // Handle AJAX request to disconnect client
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['disconnect_client'])) {
+    ob_clean();
     header('Content-Type: application/json');
     $sid = $_POST['sid'] ?? '';
     if (empty($sid)) {
@@ -531,7 +534,6 @@ function updateClientsTable(registeredClients) {
         `;
         tbody.appendChild(row);
     }
-}
     // Re-run the filter to update the visible count and clear button state
     try {
         if (typeof filterClients === 'function') filterClients();
