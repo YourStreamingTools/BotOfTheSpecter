@@ -349,6 +349,7 @@ ob_start();
 ?>
 <script>
 var autoRefresh = false;
+var autoRefreshTimer = null;
 var currentLogName = ''; // Track the currently selected log
 var currentRotation = 0; // Track the currently selected rotation
 var logtext = document.getElementById("logs-log-textarea");
@@ -449,7 +450,7 @@ async function fetchLogData(logname, rotation = 0) {
 }
 
 async function autoUpdateLog() {
-  if (autoRefresh && currentLogName !== '') {
+  if (currentLogName !== '') {
     try {
       // Add cache-busting timestamp and rotation to URL
       const response = await fetch(`logs.php?log=${currentLogName}&rotation=${currentRotation}&_=${Date.now()}`);
@@ -513,10 +514,13 @@ autoRefreshButton.addEventListener('click', () => {
   autoRefresh = !autoRefresh;
   autoRefreshButton.innerText = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
   autoRefreshButton.classList.toggle('active', autoRefresh);
+  if (autoRefresh) {
+    autoRefreshTimer = setInterval(autoUpdateLog, autoRefreshInterval);
+  } else {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
 });
-
-// Auto-refresh interval (every 5 seconds)
-setInterval(autoUpdateLog, autoRefreshInterval);
 
 // Function to dynamically update current log time in 24-hour format with seconds
 function updateCurrentLogTime() {
