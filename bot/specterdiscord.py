@@ -6435,26 +6435,33 @@ class VoiceCog(commands.Cog, name='Voice'):
                         elif event_type == "error":
                             self.logger.error(f"[REALTIME] OpenAI error: {data.get('error', {})}")
                 async def listener_guardian():
+                    # Poll every second so a crashed PacketRouter is detected and
+                    # restarted within ~1 s rather than up to 5 s.
                     while True:
-                        await asyncio.sleep(5)
+                        await asyncio.sleep(1)
                         audio_reader = getattr(vc, '_reader', None)
+                        # Guard against discord.utils.MISSING (no _router attr) or None
                         if audio_reader is None or not hasattr(audio_reader, '_router'):
                             continue
                         router_thread = getattr(audio_reader, '_router', None)
-                        if router_thread is not None and not router_thread.is_alive() and vc.is_listening():
-                            self.logger.warning(
-                                "[REALTIME] PacketRouter thread died (likely OpusError: corrupted stream) "
-                                "— restarting listener"
-                            )
-                            try:
-                                vc.stop_listening()
-                            except Exception:
-                                pass
-                            try:
-                                vc.listen(_make_listener())
-                                self.logger.info("[REALTIME] Listener restarted successfully")
-                            except Exception as restart_err:
-                                self.logger.error(f"[REALTIME] Failed to restart listener: {restart_err}")
+                        if router_thread is None or router_thread.is_alive():
+                            continue
+                        # Thread is dead — restart the listener
+                        if not vc.is_listening():
+                            continue
+                        self.logger.warning(
+                            "[REALTIME] PacketRouter thread died (OpusError: corrupted stream) "
+                            "— restarting listener"
+                        )
+                        try:
+                            vc.stop_listening()
+                        except Exception:
+                            pass
+                        try:
+                            vc.listen(_make_listener())
+                            self.logger.info("[REALTIME] Listener restarted successfully")
+                        except Exception as restart_err:
+                            self.logger.error(f"[REALTIME] Failed to restart listener: {restart_err}")
                 await asyncio.gather(audio_sender(), audio_receiver(), listener_guardian())
         except asyncio.CancelledError:
             self.logger.info("[REALTIME] Session cancelled.")
