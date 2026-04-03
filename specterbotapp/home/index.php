@@ -118,7 +118,7 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
     <meta name="twitter:description"
         content="BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
-    <link rel="stylesheet" href="css/custom.css">
+    <link rel="stylesheet" href="css/custom.css?v=<?php echo filemtime(__DIR__ . '/css/custom.css'); ?>">
 </head>
 
 <body class="dark-mode">
@@ -181,14 +181,26 @@ require '/var/www/specterbotapp/database.php';</code></pre>
                     </li>
                 </ul>
             </div>
-            <div class="box" id="websocket-docs">
+            <div class="box" id="features-websocket">
                 <h3 class="title is-4">WebSocket Connection</h3>
                 <p>Connect to the BotOfTheSpecter WebSocket server to receive real-time events such as channel point redemptions, subscriptions, and more.</p>
-                <p>Your API code can be found in your <strong>BotOfTheSpecter Dashboard</strong>. Never paste it directly into your overlay file &mdash; store it securely in a separate config file instead.</p>
-                <p><strong>1. Create a secure config file for your API code:</strong></p>
-                <p>Use a random filename so it cannot be easily guessed (e.g. <code>x9k2m7p_config.php</code>). This file should <em>never</em> be your main overlay file.</p>
-                <p>Also choose a unique random string for the guard constant &mdash; something hard to guess. Generate one at <a href="https://www.uuidgenerator.net/" target="_blank">uuidgenerator.net</a> or just mash your keyboard. Both your config file and overlay file must use the <strong>same</strong> constant name.</p>
-                <pre><code class="language-php">&lt;?php
+                <button class="button is-info" id="open-websocket-docs">View WebSocket Documentation</button>
+            </div>
+            <!-- WebSocket Docs Modal -->
+            <div class="modal" id="websocket-docs-modal">
+                <div class="modal-background" id="websocket-modal-bg"></div>
+                <div class="modal-card" style="width: 90%; max-width: 860px;">
+                    <header class="modal-card-head">
+                        <p class="modal-card-title">WebSocket Connection</p>
+                        <button class="delete" aria-label="close" id="close-websocket-docs"></button>
+                    </header>
+                    <section class="modal-card-body">
+                        <p>Your API code can be found in your <strong>BotOfTheSpecter Dashboard</strong>. Never paste it directly into your overlay file &mdash; store it securely in a separate config file instead.</p>
+                        <br>
+                        <p><strong>1. Create a secure config file for your API code:</strong></p>
+                        <p>Use a random filename so it cannot be easily guessed (e.g. <code>x9k2m7p_config.php</code>). This file should <em>never</em> be your main overlay file.</p>
+                        <p>Also choose a unique random string for the guard constant &mdash; something hard to guess. Generate one at <a href="https://www.uuidgenerator.net/" target="_blank">uuidgenerator.net</a> or just mash your keyboard. Both your config file and overlay file must use the <strong>same</strong> constant name.</p>
+                        <pre><code class="language-php">&lt;?php
 if (!defined('j4iDSiaiuF3V')) {  // replace j4iDSiaiuF3V with your own unique string
     header('HTTP/1.0 403 Forbidden');
     exit('Access denied');
@@ -196,27 +208,30 @@ if (!defined('j4iDSiaiuF3V')) {  // replace j4iDSiaiuF3V with your own unique st
 
 define('BOTOFTHE_SPECTER_CODE', 'YOUR_ACTUAL_API_CODE_HERE');
 ?&gt;</code></pre>
-                <p>The guard at the top ensures this file cannot be accessed directly in a browser &mdash; it can only be loaded by your own overlay file.</p>
-                <p><strong>2. Load your config at the top of your overlay file:</strong></p>
-                <pre><code class="language-php">&lt;?php
+                        <p>The guard at the top ensures this file cannot be accessed directly in a browser &mdash; it can only be loaded by your own overlay file.</p>
+                        <br>
+                        <p><strong>2. Load your config at the top of your overlay file:</strong></p>
+                        <pre><code class="language-php">&lt;?php
 define('j4iDSiaiuF3V', true);            // must match the constant name in your config file
 require_once __DIR__ . '/x9k2m7p_config.php';  // use your actual random filename here
 
 $apiCode = BOTOFTHE_SPECTER_CODE;
 ?&gt;</code></pre>
-                <p><strong>3. Include the Socket.IO client library and pass your code into JavaScript:</strong></p>
-                <pre><code class="language-php">&lt;script src="https://cdn.socket.io/4.8.3/socket.io.min.js"&gt;&lt;/script&gt;
+                        <br>
+                        <p><strong>3. Include the Socket.IO client library and pass your code into JavaScript:</strong></p>
+                        <pre><code class="language-php">&lt;script src="https://cdn.socket.io/4.8.3/socket.io.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
     const code = '&lt;?php echo htmlspecialchars($apiCode, ENT_QUOTES); ?&gt;';
 &lt;/script&gt;</code></pre>
-                <p><strong>4. Connect and register your session:</strong></p>
-                <p>Once connected, emit a <code>REGISTER</code> event with three required fields:</p>
-                <ul>
-                    <li><code>code</code> &mdash; Your BotOfTheSpecter API code, securely loaded from your config file as shown above.</li>
-                    <li><code>channel</code> &mdash; The channel type. Use <code>'Custom Overlay'</code> for custom integrations built here.</li>
-                    <li><code>name</code> &mdash; A unique, descriptive name for this specific overlay or integration (e.g. <code>'Loyalty Card'</code>, <code>'My Alert Box'</code>). Each integration you build should use a different name.</li>
-                </ul>
-                <pre><code class="language-javascript">const socket = io('wss://websocket.botofthespecter.com', {
+                        <br>
+                        <p><strong>4. Connect and register your session:</strong></p>
+                        <p>Once connected, emit a <code>REGISTER</code> event with three required fields:</p>
+                        <ul>
+                            <li><code>code</code> &mdash; Your BotOfTheSpecter API code, securely loaded from your config file as shown above.</li>
+                            <li><code>channel</code> &mdash; The channel type. Use <code>'Custom Overlay'</code> for custom integrations built here.</li>
+                            <li><code>name</code> &mdash; A unique, descriptive name for this specific overlay or integration (e.g. <code>'Loyalty Card'</code>, <code>'My Alert Box'</code>). Each integration you build should use a different name.</li>
+                        </ul>
+                        <pre><code class="language-javascript">const socket = io('wss://websocket.botofthespecter.com', {
     reconnection: false
 });
 
@@ -227,8 +242,9 @@ socket.on('connect', () => {
         name: 'My Custom Integration'
     });
 });</code></pre>
-                <p><strong>5. Listen for server confirmation and events:</strong></p>
-                <pre><code class="language-javascript">socket.on('WELCOME', (data) => {
+                        <br>
+                        <p><strong>5. Listen for server confirmation and events:</strong></p>
+                        <pre><code class="language-javascript">socket.on('WELCOME', (data) => {
     console.log('Server welcome:', data);
 });
 
@@ -240,6 +256,11 @@ socket.on('disconnect', () => {
     // Implement your own reconnect logic here
     setTimeout(() => connectWebSocket(), 5000);
 });</code></pre>
+                    </section>
+                    <footer class="modal-card-foot">
+                        <button class="button" id="close-websocket-docs-footer">Close</button>
+                    </footer>
+                </div>
             </div>
             <?php if (isset($_SESSION['access_token'])): ?>
                 <div class="box columns is-desktop is-multiline" id="file-uploads">
@@ -459,6 +480,26 @@ socket.on('disconnect', () => {
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-markup-templating.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-php.min.js"></script>
+    <script>
+        (function () {
+            const modal = document.getElementById('websocket-docs-modal');
+            let highlighted = false;
+            function openModal() {
+                modal.classList.add('is-active');
+                if (!highlighted) {
+                    Prism.highlightAllUnder(modal);
+                    highlighted = true;
+                }
+            }
+            function closeModal() {
+                modal.classList.remove('is-active');
+            }
+            document.getElementById('open-websocket-docs').addEventListener('click', openModal);
+            document.getElementById('close-websocket-docs').addEventListener('click', closeModal);
+            document.getElementById('close-websocket-docs-footer').addEventListener('click', closeModal);
+            document.getElementById('websocket-modal-bg').addEventListener('click', closeModal);
+        })();
+    </script>
 </body>
 
 </html>

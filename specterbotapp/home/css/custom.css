@@ -422,3 +422,96 @@ input[type="submit"].button:hover { background: var(--accent-hover); border-colo
     .navbar-burger { display: flex; }
     .column.is-3, .column.is-7 { flex: 0 0 100%; max-width: 100%; }
 }
+
+/* ----------------------------------------------------------------
+   14. Modal
+   ---------------------------------------------------------------- */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.is-active {
+    display: flex;
+}
+
+.modal-background {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.modal-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modal-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.modal-card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-card-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1.5rem;
+    color: var(--text-secondary);
+}
+
+.modal-card-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem 1.25rem;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    justify-content: flex-end;
+}
+
+/* Bulma-style delete (×) button */
+.delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+}
+.delete::before { content: '×'; }
+.delete:hover { background: rgba(255,255,255,0.2); }
+
+@media (max-width: 768px) {
+    .modal-card { width: 95% !important; max-width: 95% !important; }
+}
