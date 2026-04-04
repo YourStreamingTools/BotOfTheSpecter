@@ -1,4 +1,5 @@
 <?php
+ob_start();
 session_start();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_key'])) {
             $message = 'Error: ' . $e->getMessage();
         }
     }
+    ob_end_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'message' => $message, 'api_key' => $success ? $api_key : null]);
     exit;
@@ -59,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_key'])) {
             $message = 'Error: ' . $e->getMessage();
         }
     }
+    ob_end_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'message' => $message]);
     exit;
@@ -89,6 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['regenerate_key'])) {
             $message = 'Error: ' . $e->getMessage();
         }
     }
+    ob_end_clean();
     header('Content-Type: application/json');
     echo json_encode(['success' => $success, 'message' => $message, 'api_key' => $success ? $api_key : null]);
     exit;
@@ -106,6 +110,7 @@ if ($conn) {
     }
 }
 
+ob_end_clean();
 ob_start();
 ?>
 <div class="sp-card">
