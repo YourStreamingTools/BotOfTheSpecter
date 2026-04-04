@@ -804,6 +804,7 @@ class BotOfTheSpecter_WebsocketServer:
         # Determine the service for admin key validation
         service_map = {
             'FREESTUFF': 'FreeStuff',
+            'GITHUB': 'GitHub',
         }
         required_service = service_map.get(event, None)
         # Verify the key - check admin keys first, then user keys
@@ -862,6 +863,9 @@ class BotOfTheSpecter_WebsocketServer:
         elif event == "FREESTUFF":
             # Handle FreeStuff-specific event (game announcements)
             await self.handle_freestuff_event(code, data)
+        elif event == "GITHUB":
+            # Handle GitHub webhook event
+            await self.handle_github_event(code, data)
         elif event in ["STREAM_ONLINE", "STREAM_OFFLINE", "POST_REACTION_ROLES_MESSAGE", "POST_RULES_MESSAGE", "POST_STREAM_SCHEDULE_MESSAGE"]:
             # Handle stream status events, reaction roles message, rules message, and stream schedule message with proper global broadcasting
             count = await self.broadcast_event_with_globals(event, data, code)
@@ -1028,6 +1032,40 @@ class BotOfTheSpecter_WebsocketServer:
                 'data': webhook_data.get('data')
             }, to=listener['sid'])
             self.logger.info(f"Sent FreeStuff event to global listener {listener['name']}")
+
+    async def handle_github_event(self, code, data):
+        # Handle GitHub webhook events - admin key validation done in notify_http
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                try:
+                    import ast
+                    data = ast.literal_eval(data)
+                except (ValueError, SyntaxError):
+                    self.logger.error(f"Failed to parse GitHub data: {data}")
+                    return
+        webhook_data = data.get('data', {})
+        if isinstance(webhook_data, str):
+            try:
+                webhook_data = json.loads(webhook_data)
+            except json.JSONDecodeError:
+                try:
+                    import ast
+                    webhook_data = ast.literal_eval(webhook_data)
+                except (ValueError, SyntaxError):
+                    self.logger.error(f"Failed to parse nested GitHub webhook_data: {webhook_data}")
+                    return
+        github_event = webhook_data.get('event', 'unknown')
+        self.logger.info(f"Broadcasting GitHub event: {github_event}")
+        # Broadcast to all global listeners (Discord bot)
+        for listener in self.global_listeners:
+            await self.sio.emit('GITHUB_EVENT', {
+                'event': github_event,
+                'delivery': webhook_data.get('delivery'),
+                'data': webhook_data.get('data')
+            }, to=listener['sid'])
+            self.logger.info(f"Sent GitHub event to global listener {listener['name']}")
 
     async def handle_obs_event(self, sid, data):
         # Redirect OBS events to the dedicated OBS handler
