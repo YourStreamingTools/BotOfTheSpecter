@@ -2607,3 +2607,159 @@ label.switch .check { display: none; }
     border-color: var(--red) !important;
     box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Media page
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ---- drop zone ---- */
+.media-drop-zone {
+    display: block;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    background: var(--bg-input);
+    transition: border-color var(--transition);
+    color: var(--text-secondary);
+}
+.media-drop-zone:hover {
+    border-color: var(--blue);
+}
+.media-drop-zone-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+.media-drop-zone-hint {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ---- storage bar ---- */
+.media-storage-bar {
+    margin-bottom: 1.25rem;
+}
+.media-storage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.media-storage-header .fa-database {
+    margin-right: 0.4rem;
+}
+.media-storage-bar .progress {
+    width: 100%;
+}
+
+/* ---- upload card ---- */
+.media-upload-card {
+    margin-bottom: 1.5rem;
+}
+.media-upload-hint {
+    color: var(--text-muted);
+    display: block;
+}
+.media-upload-status {
+    display: none;
+    margin-bottom: 1rem;
+}
+.media-upload-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.media-upload-progress-percent {
+    font-weight: 600;
+}
+.media-upload-progress {
+    width: 100%;
+}
+.media-upload-btn {
+    width: 100%;
+    font-size: 1.1rem;
+}
+
+/* ---- migration card ---- */
+.media-migrate-card {
+    margin-bottom: 1.5rem;
+    border-left: 4px solid var(--yellow);
+}
+.media-migrate-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.media-migrate-badge {
+    background: var(--yellow);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 2px 8px;
+    border-radius: 99px;
+    text-transform: uppercase;
+}
+.media-migrate-body h4 {
+    margin: 0 0 0.6rem;
+}
+.media-migrate-body p {
+    margin-bottom: 0.75rem;
+}
+.media-migrate-body ul {
+    margin: 0 0 1rem 1.25rem;
+    line-height: 1.8;
+}
+.media-migrate-body .sp-alert {
+    margin: 0 0 1.25rem;
+}
+.media-migrate-btn-disabled {
+    font-size: 1rem;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.media-migrated-notice {
+    margin-bottom: 1.25rem;
+}
+
+/* ---- media tables ---- */
+.media-table th,
+.media-table td {
+    text-align: center;
+}
+.media-table .col-select   { width: 70px; }
+.media-table .col-action   { width: 80px; }
+.media-table .col-test     { width: 120px; }
+.media-table .col-test-w   { width: 150px; }
+.media-table .col-action-w { width: 100px; }
+
+.media-mapping-form {
+    margin-top: 0.5rem;
+}
+.media-mapping-select {
+    font-size: 0.8rem;
+    padding: 0.35rem 2rem 0.35rem 0.6rem;
+}
+.media-empty-state {
+    text-align: center;
+    padding: 3rem 0;
+}
+.media-empty-state p {
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
+/* ---- tabs nav ---- */
+.media-tabs-nav {
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+/* ---- status notification ---- */
+.media-notif {
+    margin-bottom: 1.25rem;
+}

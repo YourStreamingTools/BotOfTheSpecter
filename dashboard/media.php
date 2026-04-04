@@ -35,6 +35,7 @@ $status = '';
 $activeTab = $_POST['media_type'] ?? 'sound-alerts';
 // Normalize active tab from media_type POST values to tab IDs
 $tabMap = [
+    'media_upload' => 'sound-alerts',
     'sound_alert' => 'sound-alerts',
     'sound_alert_mapping' => 'sound-alerts',
     'video_alert' => 'video-alerts',
@@ -97,11 +98,8 @@ foreach ($channelPointRewards as $reward) {
     $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
 }
 
-// ─── POST Handlers ───────────────────────────────────────────────────────────
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mediaType = $_POST['media_type'] ?? '';
-
     // Sound Alert mapping
     if ($mediaType === 'sound_alert_mapping' && isset($_POST['sound_file'], $_POST['reward_id'])) {
         $soundFile = htmlspecialchars($_POST['sound_file']);
@@ -155,7 +153,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $getSoundAlerts->close();
     }
-
     // Video Alert mapping
     if ($mediaType === 'video_alert_mapping' && isset($_POST['video_file'], $_POST['reward_id'])) {
         $videoFile = htmlspecialchars($_POST['video_file']);
@@ -209,7 +206,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $vResult->free();
         }
     }
-
     // Twitch Event mapping
     if ($mediaType === 'twitch_event_mapping' && isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
         $soundFile = htmlspecialchars($_POST['sound_file']);
@@ -259,36 +255,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
     }
-
     // File uploads
     if (isset($_FILES["filesToUpload"])) {
         $remaining_storage = $max_storage_size - $current_storage_used;
         $uploadStatus = "";
-        switch ($mediaType) {
-            case 'sound_alert':
-                $targetDir = $audio_path;
-                $allowedExts = ['mp3'];
-                $extLabel = 'MP3';
-                break;
-            case 'video_alert':
-                $targetDir = $videoalert_path;
-                $allowedExts = ['mp4'];
-                $extLabel = 'MP4';
-                break;
-            case 'walkon':
-                $targetDir = $walkon_path;
-                $allowedExts = ['mp3', 'mp4'];
-                $extLabel = 'MP3/MP4';
-                break;
-            case 'twitch_event':
-                $targetDir = $audio_path;
-                $allowedExts = ['mp3'];
-                $extLabel = 'MP3';
-                break;
-            default:
-                $targetDir = null;
-                break;
-        }
+        $targetDir = $media_path;
+        $allowedExts = ['mp3', 'mp4'];
+        $extLabel = 'MP3/MP4';
         if ($targetDir) {
             foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
                 if (empty($tmp_name)) continue;
@@ -332,7 +305,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-
     // File deletion
     if (isset($_POST['delete_files']) && is_array($_POST['delete_files'])) {
         $deleteStatus = "";
@@ -404,8 +376,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ─── Scan directories for file listings ──────────────────────────────────────
-
 $soundalert_files = $media_migrated
     ? array_diff(scandir($media_path), array('.', '..'))
     : array_diff(scandir($soundalert_path), array('.', '..', 'twitch'));
@@ -420,101 +390,87 @@ function formatFileNameWithExt($fileName) {
     return $name . " (" . $ext . ")";
 }
 
-// ─── HTML Output ─────────────────────────────────────────────────────────────
-
 ob_start();
 ?>
 <!-- Storage Usage (shared across all tabs) -->
-<div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-        <span><i class="fas fa-database" style="margin-right:0.4rem;"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
+<div class="sp-alert sp-alert-info media-storage-bar">
+    <div class="media-storage-header">
+        <span><i class="fas fa-database"></i> <strong><?php echo t('alerts_storage_usage'); ?>:</strong></span>
         <span><?php echo round($current_storage_used / 1024 / 1024, 2); ?>MB / <?php echo round($max_storage_size / 1024 / 1024, 2); ?>MB (<?php echo round($storage_percentage, 2); ?>%)</span>
     </div>
-    <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100" style="width:100%;"></progress>
+    <progress class="progress" value="<?php echo $storage_percentage; ?>" max="100"></progress>
 </div>
 <?php if (!empty($status)): ?>
-    <div class="sp-alert sp-alert-info sp-notif" style="margin-bottom:1.25rem;">
+    <div class="sp-alert sp-alert-info sp-notif media-notif">
         <?php echo $status; ?>
     </div>
 <?php endif; ?>
 <!-- Unified Upload Card -->
-<div class="sp-card" style="margin-bottom:1.5rem;">
+<div class="sp-card media-upload-card">
     <header class="sp-card-header">
         <span class="sp-card-title"><i class="fas fa-upload"></i> Upload Media</span>
     </header>
     <div class="sp-card-body">
         <form action="" method="POST" enctype="multipart/form-data" class="media-upload-form" id="unified-upload-form">
-            <input type="hidden" name="media_type" id="unified-media-type" value="sound_alert">
-            <div class="sp-form-group" style="margin-bottom:1rem;">
-                <label style="font-weight:600;display:block;margin-bottom:0.5rem;">File Type</label>
-                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-                    <button type="button" class="sp-btn sp-btn-primary upload-type-btn" data-type="sound_alert" data-accept=".mp3" data-label="Audio (MP3)">
-                        <i class="fas fa-volume-up"></i> Audio (MP3)
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-outline upload-type-btn" data-type="video_alert" data-accept=".mp4" data-label="Video (MP4)">
-                        <i class="fas fa-film"></i> Video (MP4)
-                    </button>
-                    <button type="button" class="sp-btn sp-btn-outline upload-type-btn" data-type="walkon" data-accept=".mp3,.mp4" data-label="Walk-on (MP3/MP4)">
-                        <i class="fas fa-door-open"></i> Walk-on (MP3/MP4)
-                    </button>
-                </div>
-                <small style="color:var(--text-muted);margin-top:0.5rem;display:block;"><i class="fas fa-info-circle"></i> Audio files are shared — once uploaded you can map the same file to a Channel Point reward and/or a Twitch Event from their tabs below.</small>
+            <input type="hidden" name="media_type" value="media_upload">
+            <div class="sp-form-group">
+                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> Upload MP3 or MP4 files to your media library. Once uploaded, you can map files to Channel Point rewards, Twitch Events, or Walk-ons from the tabs below.</small>
             </div>
             <div class="sp-form-group">
                 <label class="media-drop-zone" id="unified-drop-zone">
-                    <i class="fas fa-cloud-upload-alt" style="font-size:2rem;margin-bottom:0.5rem;display:block;"></i>
+                    <i class="fas fa-cloud-upload-alt media-drop-zone-icon"></i>
                     <span class="file-list-label">No files selected</span>
-                    <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-muted);">Click or drag files here</div>
-                    <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3" style="display:none;">
+                    <div class="media-drop-zone-hint">Click or drag files here</div>
+                    <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3,.mp4" hidden>
                 </label>
             </div>
-            <div class="upload-status-container" style="display:none;margin-bottom:1rem;">
+            <div class="upload-status-container media-upload-status">
                 <div class="sp-alert sp-alert-info">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                    <div class="media-upload-progress-header">
                         <strong class="upload-status-text">Preparing upload...</strong>
-                        <span class="upload-progress-percent" style="font-weight:600;">0%</span>
+                        <span class="upload-progress-percent media-upload-progress-percent">0%</span>
                     </div>
-                    <progress class="upload-progress" value="0" max="100" style="width:100%;">0%</progress>
+                    <progress class="upload-progress media-upload-progress" value="0" max="100">0%</progress>
                 </div>
             </div>
-            <button class="sp-btn sp-btn-primary upload-btn" type="submit" style="width:100%;font-size:1.1rem;">
+            <button class="sp-btn sp-btn-primary upload-btn media-upload-btn" type="submit">
                 <i class="fas fa-upload"></i>
-                <span class="upload-btn-text">Upload Audio (MP3)</span>
+                <span class="upload-btn-text">Upload Media (MP3/MP4)</span>
             </button>
         </form>
     </div>
 </div>
 <?php if (!$media_migrated): ?>
-<!-- Migrate to unified media library (Coming Soon in v5.8) -->
-<div class="sp-card" style="margin-bottom:1.5rem;border-left:4px solid var(--yellow);">
-    <header class="sp-card-header" style="display:flex;align-items:center;gap:0.6rem;">
+<!-- Migrate to unified media library (Coming Soon) -->
+<div class="sp-card media-migrate-card">
+    <header class="sp-card-header media-migrate-header">
         <span class="sp-card-title"><i class="fas fa-arrow-circle-up"></i> Upgrade to Unified Media Library</span>
-        <span style="background:var(--yellow);color:#000;font-size:0.7rem;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px;text-transform:uppercase;">Coming in v5.8</span>
+        <span class="media-migrate-badge">Coming Soon</span>
     </header>
-    <div class="sp-card-body">
-        <h4 style="margin:0 0 0.6rem;">How the New System Works</h4>
-        <p style="margin-bottom:0.75rem;">Starting in <strong>v5.8</strong>, BotOfTheSpecter introduces a unified media library. Instead of keeping separate folders for Sound Alerts, Channel Point sounds, and Twitch Event sounds, <strong>all audio files live in one shared pool</strong>. A single MP3 can be mapped to a Channel Point reward <em>and</em> a Twitch Event simultaneously &mdash; no more duplicating files.</p>
-        <ul style="margin:0 0 1rem 1.25rem;line-height:1.8;">
+    <div class="sp-card-body media-migrate-body">
+        <h4>How the New System Works</h4>
+        <p>BotOfTheSpecter is introducing a unified media library. Instead of keeping separate folders for Sound Alerts, Channel Point sounds, and Twitch Event sounds, <strong>all audio files live in one shared pool</strong>. A single MP3 can be mapped to a Channel Point reward <em>and</em> a Twitch Event simultaneously &mdash; no more duplicating files.</p>
+        <ul>
             <li><strong>One upload, any trigger</strong> &mdash; upload a file once and assign it to any Channel Point or Twitch Event.</li>
             <li><strong>Unified library</strong> &mdash; all audio files live in one shared pool, no matter which trigger you assign them to.</li>
             <li><strong>Non-destructive migration</strong> &mdash; your existing files are <em>copied</em> into the new library; nothing is deleted from the old locations.</li>
             <li><strong>Beta Bot required</strong> &mdash; after migration, the Stable Bot will no longer trigger audio files. You must run the Beta Bot for alerts to work.</li>
         </ul>
-        <div class="sp-alert sp-alert-info" style="margin:0 0 1.25rem;">
-            <i class="fas fa-info-circle"></i> The migration tool will be available when <strong>v5.8</strong> is released. No action is needed right now.
+        <div class="sp-alert sp-alert-info">
+            <i class="fas fa-info-circle"></i> The migration tool will be available soon. No action is needed right now.
         </div>
-        <button class="sp-btn sp-btn-warning" disabled style="font-size:1rem;opacity:0.5;cursor:not-allowed;">
+        <button class="sp-btn sp-btn-warning media-migrate-btn-disabled" disabled>
             <i class="fas fa-clock"></i> Migrate to New Media Library &mdash; Coming Soon
         </button>
     </div>
 </div>
 <?php else: ?>
-<div class="sp-alert sp-alert-success" style="margin-bottom:1.25rem;">
+<div class="sp-alert sp-alert-success media-migrated-notice">
     <i class="fas fa-check-circle"></i> <strong>Using Unified Media Library</strong> &mdash; Your audio files are managed through the new shared library. Requires Beta Bot.
 </div>
 <?php endif; ?>
 <!-- Tabs Navigation -->
-<ul class="sp-tabs-nav" style="flex-wrap:wrap; margin-bottom:1.25rem;">
+<ul class="sp-tabs-nav media-tabs-nav">
     <li class="<?php echo $activeTab === 'sound-alerts' ? 'is-active' : ''; ?>" data-tab="sound-alerts">
         <a><i class="fas fa-volume-up"></i><span><?php echo t('navbar_sound_alerts'); ?></span></a>
     </li>
@@ -546,14 +502,14 @@ ob_start();
             <form action="" method="POST" id="soundDeleteForm" class="media-delete-form">
                 <input type="hidden" name="media_type" value="sound_alert">
                 <div class="sp-table-wrap">
-                    <table class="sp-table">
+                    <table class="sp-table media-table">
                         <thead>
                             <tr>
-                                <th style="width:70px;text-align:center;"><?php echo t('sound_alerts_select'); ?></th>
-                                <th style="text-align:center;"><?php echo t('sound_alerts_file_name'); ?></th>
-                                <th style="text-align:center;"><?php echo t('sound_alerts_channel_point_reward'); ?></th>
-                                <th style="width:80px;text-align:center;"><?php echo t('sound_alerts_action'); ?></th>
-                                <th style="width:120px;text-align:center;"><?php echo t('sound_alerts_test_audio'); ?></th>
+                                <th class="col-select"><?php echo t('sound_alerts_select'); ?></th>
+                                <th><?php echo t('sound_alerts_file_name'); ?></th>
+                                <th><?php echo t('sound_alerts_channel_point_reward'); ?></th>
+                                <th class="col-action"><?php echo t('sound_alerts_action'); ?></th>
+                                <th class="col-test"><?php echo t('sound_alerts_test_audio'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -562,18 +518,18 @@ ob_start();
                                 $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id] ?? '') : t('sound_alerts_not_mapped');
                             ?>
                             <tr>
-                                <td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                                 <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td style="text-align:center;">
+                                <td>
                                     <?php if ($current_reward_id): ?>
                                         <em><?php echo $current_reward_title; ?></em>
                                     <?php else: ?>
                                         <em><?php echo t('sound_alerts_not_mapped'); ?></em>
                                     <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form" style="margin-top:0.5rem;">
+                                    <form action="" method="POST" class="mapping-form media-mapping-form">
                                         <input type="hidden" name="media_type" value="sound_alert_mapping">
                                         <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                        <select name="reward_id" class="sp-select mapping-select" style="font-size:0.8rem;padding:0.35rem 2rem 0.35rem 0.6rem;">
+                                        <select name="reward_id" class="sp-select mapping-select media-mapping-select">
                                             <?php if ($current_reward_id): ?>
                                                 <option value=""><?php echo t('sound_alerts_remove_mapping'); ?></option>
                                             <?php endif; ?>
@@ -590,12 +546,12 @@ ob_start();
                                         </select>
                                     </form>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="soundDeleteForm">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="SOUND_ALERT" data-param="sound" data-file="<?php echo htmlspecialchars($file); ?>">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -607,8 +563,8 @@ ob_start();
                 </div>
             </form>
             <?php else: ?>
-                <div style="text-align:center;padding:3rem 0;">
-                    <p style="color:var(--text-muted);font-size:1rem;"><?php echo t('sound_alerts_no_files_uploaded'); ?></p>
+                <div class="media-empty-state">
+                    <p><?php echo t('sound_alerts_no_files_uploaded'); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -632,14 +588,14 @@ ob_start();
             <form action="" method="POST" id="videoDeleteForm" class="media-delete-form">
                 <input type="hidden" name="media_type" value="video_alert">
                 <div class="sp-table-wrap">
-                    <table class="sp-table">
+                    <table class="sp-table media-table">
                         <thead>
                             <tr>
-                                <th style="width:70px;text-align:center;"><?php echo t('video_alerts_select'); ?></th>
-                                <th style="text-align:center;"><?php echo t('video_alerts_file_name'); ?></th>
-                                <th style="text-align:center;"><?php echo t('video_alerts_channel_point_reward'); ?></th>
-                                <th style="width:80px;text-align:center;"><?php echo t('video_alerts_action'); ?></th>
-                                <th style="width:120px;text-align:center;"><?php echo t('video_alerts_test_video'); ?></th>
+                                <th class="col-select"><?php echo t('video_alerts_select'); ?></th>
+                                <th><?php echo t('video_alerts_file_name'); ?></th>
+                                <th><?php echo t('video_alerts_channel_point_reward'); ?></th>
+                                <th class="col-action"><?php echo t('video_alerts_action'); ?></th>
+                                <th class="col-test"><?php echo t('video_alerts_test_video'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -648,18 +604,18 @@ ob_start();
                                 $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id] ?? '') : t('video_alerts_not_mapped');
                             ?>
                             <tr>
-                                <td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                                 <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td style="text-align:center;">
+                                <td>
                                     <?php if ($current_reward_id): ?>
                                         <em><?php echo $current_reward_title; ?></em>
                                     <?php else: ?>
                                         <em><?php echo t('video_alerts_not_mapped'); ?></em>
                                     <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form" style="margin-top:0.5rem;">
+                                    <form action="" method="POST" class="mapping-form media-mapping-form">
                                         <input type="hidden" name="media_type" value="video_alert_mapping">
                                         <input type="hidden" name="video_file" value="<?php echo htmlspecialchars($file); ?>">
-                                        <select name="reward_id" class="sp-select mapping-select" style="font-size:0.8rem;padding:0.35rem 2rem 0.35rem 0.6rem;">
+                                        <select name="reward_id" class="sp-select mapping-select media-mapping-select">
                                             <?php if ($current_reward_id): ?>
                                                 <option value=""><?php echo t('video_alerts_remove_mapping'); ?></option>
                                             <?php endif; ?>
@@ -676,12 +632,12 @@ ob_start();
                                         </select>
                                     </form>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="videoDeleteForm">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="VIDEO_ALERT" data-param="video" data-file="<?php echo htmlspecialchars($file); ?>">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -693,8 +649,8 @@ ob_start();
                 </div>
             </form>
             <?php else: ?>
-                <div style="text-align:center;padding:3rem 0;">
-                    <p style="color:var(--text-muted);font-size:1rem;"><?php echo t('video_alerts_no_files_uploaded'); ?></p>
+                <div class="media-empty-state">
+                    <p><?php echo t('video_alerts_no_files_uploaded'); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -718,26 +674,26 @@ ob_start();
             <form action="" method="POST" id="walkonDeleteForm" class="media-delete-form">
                 <input type="hidden" name="media_type" value="walkon">
                 <div class="sp-table-wrap">
-                    <table class="sp-table">
+                    <table class="sp-table media-table">
                         <thead>
                             <tr>
-                                <th style="width:70px;text-align:center;"><?php echo t('walkons_select'); ?></th>
-                                <th style="text-align:center;"><?php echo t('walkons_file_name'); ?></th>
-                                <th style="width:100px;text-align:center;"><?php echo t('walkons_action'); ?></th>
-                                <th style="width:150px;text-align:center;"><?php echo t('walkons_test_audio'); ?></th>
+                                <th class="col-select"><?php echo t('walkons_select'); ?></th>
+                                <th><?php echo t('walkons_file_name'); ?></th>
+                                <th class="col-action-w"><?php echo t('walkons_action'); ?></th>
+                                <th class="col-test-w"><?php echo t('walkons_test_audio'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($walkon_files as $file): ?>
                             <tr>
-                                <td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                                 <td><?php echo htmlspecialchars(formatFileNameWithExt($file)); ?></td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="walkonDeleteForm">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="WALKON" data-param="user" data-file="<?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -749,8 +705,8 @@ ob_start();
                 </div>
             </form>
             <?php else: ?>
-                <div style="text-align:center;padding:3rem 0;">
-                    <p style="color:var(--text-muted);font-size:1rem;"><?php echo t('walkons_no_files_uploaded'); ?></p>
+                <div class="media-empty-state">
+                    <p><?php echo t('walkons_no_files_uploaded'); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -776,14 +732,14 @@ ob_start();
             <form action="" method="POST" id="twitchDeleteForm" class="media-delete-form">
                 <input type="hidden" name="media_type" value="twitch_event">
                 <div class="sp-table-wrap">
-                    <table class="sp-table">
+                    <table class="sp-table media-table">
                         <thead>
                             <tr>
-                                <th style="width:70px;text-align:center;"><?php echo t('modules_select'); ?></th>
-                                <th style="text-align:center;"><?php echo t('modules_file_name'); ?></th>
-                                <th style="text-align:center;"><?php echo t('modules_twitch_event'); ?></th>
-                                <th style="width:80px;text-align:center;"><?php echo t('modules_action'); ?></th>
-                                <th style="width:120px;text-align:center;"><?php echo t('modules_test_audio'); ?></th>
+                                <th class="col-select"><?php echo t('modules_select'); ?></th>
+                                <th><?php echo t('modules_file_name'); ?></th>
+                                <th><?php echo t('modules_twitch_event'); ?></th>
+                                <th class="col-action"><?php echo t('modules_action'); ?></th>
+                                <th class="col-test"><?php echo t('modules_test_audio'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -798,15 +754,15 @@ ob_start();
                                 $availableEvents = array_diff($allEvents, $mappedEvents);
                             ?>
                             <tr>
-                                <td style="text-align:center;"><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
                                 <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td style="text-align:center;">
+                                <td>
                                     <?php if ($current_mapped): ?>
                                         <em><?php echo t('modules_event_' . strtolower(str_replace(' ', '_', $current_mapped))); ?></em>
                                     <?php else: ?>
                                         <em><?php echo t('modules_not_mapped'); ?></em>
                                     <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form" style="margin-top:0.5rem;">
+                                    <form action="" method="POST" class="mapping-form media-mapping-form">
                                         <input type="hidden" name="media_type" value="twitch_event_mapping">
                                         <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                         <select name="twitch_alert_id" class="sp-select mapping-select">
@@ -826,12 +782,12 @@ ob_start();
                                         </select>
                                     </form>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="twitchDeleteForm">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </td>
-                                <td style="text-align:center;">
+                                <td>
                                     <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="SOUND_ALERT" data-param="sound" data-file="twitch/<?php echo htmlspecialchars($file); ?>">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -843,8 +799,8 @@ ob_start();
                 </div>
             </form>
             <?php else: ?>
-                <div style="text-align:center;padding:3rem 0;">
-                    <p style="color:var(--text-muted);font-size:1rem;"><?php echo t('modules_no_sound_alert_files_uploaded'); ?></p>
+                <div class="media-empty-state">
+                    <p><?php echo t('modules_no_sound_alert_files_uploaded'); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -855,39 +811,8 @@ $content = ob_get_clean();
 
 ob_start();
 ?>
-<style>
-.media-drop-zone {
-    display:block;
-    border:2px dashed var(--border);
-    border-radius:var(--radius-lg);
-    padding:1.5rem;
-    text-align:center;
-    cursor:pointer;
-    background:var(--bg-input);
-    transition:border-color var(--transition);
-    color:var(--text-secondary);
-}
-.media-drop-zone:hover {
-    border-color:var(--blue);
-}
-</style>
 <script>
 $(document).ready(function() {
-    // Upload type selector for the unified upload card
-    $('.upload-type-btn').on('click', function() {
-        var type   = $(this).data('type');
-        var accept = $(this).data('accept');
-        var label  = $(this).data('label');
-        $('.upload-type-btn').removeClass('sp-btn-primary').addClass('sp-btn-outline');
-        $(this).removeClass('sp-btn-outline').addClass('sp-btn-primary');
-        $('#unified-media-type').val(type);
-        $('#unified-file-input').attr('accept', accept);
-        $('#unified-upload-form .upload-btn-text').text('Upload ' + label);
-        // Reset file selection display
-        $('#unified-drop-zone .file-list-label').text('No files selected');
-        $('#unified-file-input').val('');
-    });
-
     // Tab switching
     $('.sp-tabs-nav li').on('click', function() {
         var tab = $(this).data('tab');
