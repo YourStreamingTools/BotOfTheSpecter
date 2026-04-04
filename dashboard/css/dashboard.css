@@ -1994,19 +1994,6 @@ input[type="checkbox"].switch:disabled + label {
     border-top: 1px solid var(--border);
     background: var(--bg-surface);
 }
-/* Make inputs clearly visible inside modals */
-.cc-modal-body .sp-input,
-.cc-modal-body .sp-select,
-.cc-modal-body .sp-textarea {
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: var(--bg-surface);
-}
-.cc-modal-body .sp-input:focus,
-.cc-modal-body .sp-select:focus,
-.cc-modal-body .sp-textarea:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-glow);
-}
 
 @media (max-width: 768px) {
     .cc-form-grid { grid-template-columns: 1fr; }

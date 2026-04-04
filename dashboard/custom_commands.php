@@ -541,55 +541,6 @@ ob_start();
 <!-- Hidden fields for YourLinks API -->
 <input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
-<!-- YourLinks URL Shortener Modal -->
-<div id="yourlinksModal" class="cc-modal-backdrop">
-    <div class="cc-modal">
-        <div class="cc-modal-head">
-            <div class="cc-modal-title">
-                <i class="fas fa-link"></i>
-                Create Short Link with YourLinks.click
-            </div>
-            <button id="yourlinks_close_btn" class="sp-btn sp-btn-ghost sp-btn-sm" aria-label="close" style="font-size:1.2rem; line-height:1;">×</button>
-        </div>
-        <div class="cc-modal-body">
-            <div id="yourlinks_status" style="margin-bottom:1rem;"></div>
-            <div class="sp-form-group">
-                <label class="sp-label" for="yourlinks_destination">Destination URL</label>
-                <div class="sp-input-wrap">
-                    <i class="fas fa-globe sp-input-icon"></i>
-                    <input class="sp-input" type="url" id="yourlinks_destination" placeholder="https://example.com" readonly>
-                </div>
-                <small class="sp-help">The URL you entered in the message</small>
-            </div>
-            <div class="sp-form-group">
-                <label class="sp-label" for="yourlinks_link_name">Link Name <span style="color:var(--red);">*</span></label>
-                <div class="sp-input-wrap">
-                    <i class="fas fa-link sp-input-icon"></i>
-                    <input class="sp-input" type="text" id="yourlinks_link_name" placeholder="e.g., discord, youtube, twitch" maxlength="50">
-                </div>
-                <small class="sp-help">Alphanumeric characters, hyphens, and underscores only. Will be: <code><?php echo htmlspecialchars($twitchUsername); ?>.yourlinks.click/<strong>linkname</strong></code></small>
-            </div>
-            <div class="sp-form-group">
-                <label class="sp-label" for="yourlinks_title">Title (Optional)</label>
-                <div class="sp-input-wrap">
-                    <i class="fas fa-heading sp-input-icon"></i>
-                    <input class="sp-input" type="text" id="yourlinks_title" placeholder="e.g., Join My Discord Server" maxlength="100">
-                </div>
-                <small class="sp-help">Display name for the link (for your reference)</small>
-            </div>
-        </div>
-        <div class="cc-modal-foot">
-            <button id="yourlinks_cancel_btn" class="sp-btn sp-btn-secondary">
-                <i class="fas fa-times"></i>
-                <span>Cancel</span>
-            </button>
-            <button id="yourlinks_submit_btn" class="sp-btn sp-btn-primary">
-                <i class="fas fa-link"></i>
-                <span>Create Link</span>
-            </button>
-        </div>
-    </div>
-</div>
 <?php
 $content = ob_get_clean();
 

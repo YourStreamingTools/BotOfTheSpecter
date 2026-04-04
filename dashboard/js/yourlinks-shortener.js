@@ -22,12 +22,10 @@ class YourLinksShortener {
         });
     }
     isYourLinksUrl(url) {
-        // Check if URL matches https://yourlinks.click or https://*.yourlinks.click patterns
         const yourLinksPattern = /https?:\/\/([\w-]+\.)?yourlinks\.click/i;
         return yourLinksPattern.test(url);
     }
     isCustomVariable(url) {
-        // Check if URL starts with (customapi. - these are custom variables, not actual URLs
         return /^\(customapi\./i.test(url);
     }
     checkForUrl(fieldId) {
@@ -38,14 +36,10 @@ class YourLinksShortener {
         if (urls && urls.length > 0) {
             this.detectedUrl = urls[0];
             this.sourceFieldId = fieldId;
-            // Check if it's already a YourLinks.click URL
             if (this.isYourLinksUrl(this.detectedUrl)) {
-                // Skip silently - don't show any message
                 return;
             }
-            // Check if it's a custom variable like (customapi.*)
             if (this.isCustomVariable(this.detectedUrl)) {
-                // Skip silently - don't show any message
                 return;
             }
             this.showUrlDetectionConfirm();
@@ -67,9 +61,7 @@ class YourLinksShortener {
             cancelButtonText: 'No, keep original'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Delay opening the modal until SweetAlert2's close animation
-                // and focus trap are fully finished, otherwise inputs won't be clickable
-                setTimeout(() => this.openShorteningModal(), 300);
+                this.openShorteningModal();
                 return;
             }
             if (
@@ -91,76 +83,79 @@ class YourLinksShortener {
         });
     }
     openShorteningModal() {
-        const modal = document.getElementById('yourlinksModal');
-        if (!modal) {
-            console.error('YourLinks modal not found');
-            return;
-        }
-        // Pre-fill the destination URL
-        const destinationInput = document.getElementById('yourlinks_destination');
-        if (destinationInput) {
-            destinationInput.value = this.detectedUrl;
-        }
-        // Clear other fields
-        const linkNameInput = document.getElementById('yourlinks_link_name');
-        const titleInput = document.getElementById('yourlinks_title');
-        const statusDiv = document.getElementById('yourlinks_status');
-        if (linkNameInput) linkNameInput.value = '';
-        if (titleInput) titleInput.value = '';
-        if (statusDiv) statusDiv.innerHTML = '';
-        // Open modal
-        modal.classList.add('is-active');
-        // Focus the link name input so the user can start typing right away
-        if (linkNameInput) {
-            setTimeout(() => linkNameInput.focus(), 50);
-        }
+        const username = this.getUsername();
+        Swal.fire({
+            title: 'Create Short Link',
+            html:
+                `<div style="text-align:left;">` +
+                    `<label style="display:block; font-size:0.82rem; font-weight:600; color:#a8a8bc; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.05em;">Destination URL</label>` +
+                    `<input id="swal_yourlinks_destination" class="swal2-input" type="url" value="${this.escapeHtml(this.detectedUrl)}" readonly style="background:#1a1a20; color:#a8a8bc; cursor:not-allowed; margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
+                    `<small style="display:block; color:#6c6c84; font-size:0.78rem; margin-bottom:1rem;">The URL you entered in the message</small>` +
+                    `<label style="display:block; font-size:0.82rem; font-weight:600; color:#a8a8bc; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.05em;">Link Name <span style="color:#f87171;">*</span></label>` +
+                    `<input id="swal_yourlinks_link_name" class="swal2-input" type="text" placeholder="e.g., discord, youtube, twitch" maxlength="50" autocomplete="off" style="margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
+                    `<small id="swal_yourlinks_link_preview" style="display:block; color:#6c6c84; font-size:0.78rem; margin-bottom:1rem;">Alphanumeric characters, hyphens, and underscores only. Will be: <code>${username}.yourlinks.click/<strong>linkname</strong></code></small>` +
+                    `<label style="display:block; font-size:0.82rem; font-weight:600; color:#a8a8bc; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.05em;">Title (Optional)</label>` +
+                    `<input id="swal_yourlinks_title" class="swal2-input" type="text" placeholder="e.g., Join My Discord Server" maxlength="100" autocomplete="off" style="margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
+                    `<small style="display:block; color:#6c6c84; font-size:0.78rem;">Display name for the link (for your reference)</small>` +
+                `</div>`,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-link"></i> Create Link',
+            cancelButtonText: '<i class="fas fa-times"></i> Cancel',
+            confirmButtonColor: '#7c5cbf',
+            cancelButtonColor: '#6c757d',
+            width: '620px',
+            didOpen: () => {
+                const linkNameInput = document.getElementById('swal_yourlinks_link_name');
+                if (linkNameInput) {
+                    linkNameInput.focus();
+                    linkNameInput.addEventListener('input', () => {
+                        this.updateSwalLinkPreview(linkNameInput.value, username);
+                    });
+                }
+            },
+            preConfirm: () => {
+                const linkName = document.getElementById('swal_yourlinks_link_name').value.trim();
+                const title = document.getElementById('swal_yourlinks_title').value.trim();
+                const destination = document.getElementById('swal_yourlinks_destination').value.trim();
+                if (!linkName) {
+                    Swal.showValidationMessage('Link name is required');
+                    return false;
+                }
+                if (!this.validateLinkName(linkName)) {
+                    Swal.showValidationMessage('Link name can only contain alphanumeric characters, hyphens, and underscores');
+                    return false;
+                }
+                return { linkName, title, destination };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                this.submitShortLink(result.value.linkName, result.value.title, result.value.destination);
+            }
+        });
     }
-    closeModal() {
-        const modal = document.getElementById('yourlinksModal');
-        if (modal) {
-            modal.classList.remove('is-active');
-        }
+    updateSwalLinkPreview(linkName, username) {
+        const preview = document.getElementById('swal_yourlinks_link_preview');
+        if (!preview) return;
+        const display = linkName || 'linkname';
+        preview.innerHTML = `Alphanumeric characters, hyphens, and underscores only. Will be: <code>${username}.yourlinks.click/<strong>${this.escapeHtml(display)}</strong></code>`;
+    }
+    escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
     validateLinkName(name) {
         const linkNamePattern = /^[a-z0-9_-]+$/i;
         return linkNamePattern.test(name) && name.length > 0;
     }
-    async createShortLink() {
-        const linkNameInput = document.getElementById('yourlinks_link_name');
-        const titleInput = document.getElementById('yourlinks_title');
-        const destinationInput = document.getElementById('yourlinks_destination');
-        const statusDiv = document.getElementById('yourlinks_status');
-        const submitBtn = document.getElementById('yourlinks_submit_btn');
-        if (!linkNameInput || !destinationInput) {
-            this.showStatus('Missing required fields', 'danger', statusDiv);
-            return;
-        }
-        const linkName = linkNameInput.value.trim();
-        const title = titleInput ? titleInput.value.trim() : '';
-        const destination = destinationInput.value.trim();
-        // Validation
-        if (!linkName) {
-            this.showStatus('Link name is required', 'danger', statusDiv);
-            linkNameInput.classList.add('is-danger');
-            return;
-        }
-        if (!this.validateLinkName(linkName)) {
-            this.showStatus('Link name can only contain alphanumeric characters, hyphens, and underscores', 'danger', statusDiv);
-            linkNameInput.classList.add('is-danger');
-            return;
-        }
-        if (!destination) {
-            this.showStatus('Destination URL is required', 'danger', statusDiv);
-            destinationInput.classList.add('is-danger');
-            return;
-        }
-        // Show loading state
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="icon"><i class="fas fa-spinner fa-spin"></i></span><span>Creating...</span>';
-        }
+    async submitShortLink(linkName, title, destination) {
+        Swal.fire({
+            title: 'Creating Link...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
         try {
-            // Build request to our backend API endpoint
             const requestData = {
                 api: this.getApiKey(),
                 link_name: linkName,
@@ -171,31 +166,35 @@ class YourLinksShortener {
             }
             const response = await fetch('/api/yourlinks_create.php', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestData)
             });
             const data = await response.json();
             if (data.success) {
-                this.showStatus(`Link created successfully!`, 'success', statusDiv);
-                // Replace URL in source field immediately
                 this.replaceUrlInField(data.data.link_name);
-                // Close modal after 1.5 seconds to let user see the success message
-                setTimeout(() => {
-                    this.closeModal();
-                }, 1500);
+                Swal.fire({
+                    title: 'Link Created!',
+                    icon: 'success',
+                    confirmButtonColor: '#7c5cbf',
+                    timer: 2000,
+                    timerProgressBar: true
+                });
             } else {
-                this.showStatus(`Error: ${data.message}`, 'danger', statusDiv);
+                Swal.fire({
+                    title: 'Error',
+                    text: data.message,
+                    icon: 'error',
+                    confirmButtonColor: '#7c5cbf'
+                });
             }
         } catch (error) {
             console.error('Error creating short link:', error);
-            this.showStatus(`Error: ${error.message}`, 'danger', statusDiv);
-        } finally {
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<span class="icon"><i class="fas fa-link"></i></span><span>Create Link</span>';
-            }
+            Swal.fire({
+                title: 'Error',
+                text: error.message,
+                icon: 'error',
+                confirmButtonColor: '#7c5cbf'
+            });
         }
     }
     getApiKey() {
@@ -203,7 +202,6 @@ class YourLinksShortener {
         if (apiKeyElement) {
             return apiKeyElement.value;
         }
-        // Fallback: check if it's in a data attribute or meta tag
         const metaTag = document.querySelector('meta[name="yourlinks-api-key"]');
         if (metaTag) {
             return metaTag.getAttribute('content');
@@ -214,18 +212,13 @@ class YourLinksShortener {
         if (!this.sourceFieldId) return;
         const field = document.getElementById(this.sourceFieldId);
         if (!field) return;
-        // Get username from the API key or data attribute
         const username = this.getUsername();
         const shortUrl = `https://${username}.yourlinks.click/${linkName}`;
-        // Use regex to replace all occurrences of the detected URL
-        // Escape special regex characters in the URL
         const escapedUrl = this.detectedUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(escapedUrl, 'gi');
         const newValue = field.value.replace(regex, shortUrl);
-        // Only update if something actually changed
         if (newValue !== field.value) {
             field.value = newValue;
-            // Trigger input and change events to notify any listeners
             const inputEvent = new Event('input', { bubbles: true });
             const changeEvent = new Event('change', { bubbles: true });
             field.dispatchEvent(inputEvent);
@@ -237,100 +230,14 @@ class YourLinksShortener {
         if (usernameElement && usernameElement.value) {
             return usernameElement.value;
         }
-        // Fallback: check if it's in a data attribute
         const metaTag = document.querySelector('meta[name="twitch-username"]');
         if (metaTag) {
             return metaTag.getAttribute('content');
         }
         return 'user';
     }
-    showStatus(message, type = 'info', container = null) {
-        if (!container) {
-            container = document.getElementById('yourlinks_status');
-        }
-        if (!container) return;
-        const notificationClass = `notification is-${type} is-light`;
-        const iconClass = this.getIconClass(type);
-        container.innerHTML = `
-            <div class="${notificationClass}">
-                <span class="icon"><i class="${iconClass}"></i></span>
-                <span>${message}</span>
-            </div>
-        `;
-    }
-    getIconClass(type) {
-        const icons = {
-            'success': 'fas fa-check-circle',
-            'danger': 'fas fa-exclamation-circle',
-            'warning': 'fas fa-exclamation-triangle',
-            'info': 'fas fa-info-circle'
-        };
-        return icons[type] || icons['info'];
-    }
-    clearErrors() {
-        const inputs = [
-            document.getElementById('yourlinks_link_name'),
-            document.getElementById('yourlinks_destination'),
-            document.getElementById('yourlinks_title')
-        ];
-        inputs.forEach(input => {
-            if (input) {
-                input.classList.remove('is-danger');
-            }
-        });
-    }
-    setupModalHandling() {
-        const modal = document.getElementById('yourlinksModal');
-        const closeBtn = document.getElementById('yourlinks_close_btn');
-        const cancelBtn = document.getElementById('yourlinks_cancel_btn');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.closeModal());
-        }
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', () => this.closeModal());
-        }
-        if (modal) {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    this.closeModal();
-                }
-            });
-        }
-    }
-    setupSubmitButton() {
-        const submitBtn = document.getElementById('yourlinks_submit_btn');
-        if (submitBtn) {
-            submitBtn.addEventListener('click', () => this.createShortLink());
-        }
-    }
-    setupLinkNameValidation() {
-        const linkNameInput = document.getElementById('yourlinks_link_name');
-        if (!linkNameInput) return;
-        linkNameInput.addEventListener('input', () => {
-            if (linkNameInput.value && !this.validateLinkName(linkNameInput.value)) {
-                linkNameInput.classList.add('is-danger');
-            } else {
-                linkNameInput.classList.remove('is-danger');
-            }
-            // Update the preview of the final URL in real time
-            this.updateLinkPreview();
-        });
-    }
-    
-    updateLinkPreview() {
-        const linkNameInput = document.getElementById('yourlinks_link_name');
-        const helpText = document.querySelector('#yourlinks_link_name').parentElement.nextElementSibling;
-        if (!linkNameInput || !helpText) return;
-        
-        const username = this.getUsername();
-        const linkName = linkNameInput.value || 'linkname';
-        
-        helpText.innerHTML = `Alphanumeric characters, hyphens, and underscores only. Will be: <code>${username}.yourlinks.click/<strong>${linkName}</strong></code>`;
-    }
     initialize() {
-        this.setupModalHandling();
-        this.setupSubmitButton();
-        this.setupLinkNameValidation();
+        // No custom modal setup needed - everything uses SweetAlert2
     }
 }
 
