@@ -102,12 +102,6 @@ try {
     // Silently fail - don't display errors to end users
 }
 
-// Function to generate a UUID v4 for cache busting
-function uuidv4()
-{
-    return bin2hex(random_bytes(4));
-}
-
 $isAdminCssPage = isset($layoutMode) && $layoutMode === 'admin';
 if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     $cssPath = strtolower((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
@@ -123,9 +117,9 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <!-- Dashboard CSS -->
-    <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo uuidv4(); ?>">
+    <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo filemtime(__DIR__ . '/css/dashboard.css'); ?>">
     <?php if ($isAdminCssPage): ?>
-        <link rel="stylesheet" href="/css/admin.css?v=<?php echo uuidv4(); ?>">
+        <link rel="stylesheet" href="/css/admin.css?v=<?php echo filemtime(__DIR__ . '/css/admin.css'); ?>">
     <?php endif; ?>
     <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" type="image/png" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
@@ -270,8 +264,8 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
     <!-- Custom Uptime Script -->
     <script src="https://uptime.botofthespecter.com/en/cca64861/widget/script.js"></script>
     <!-- Custom JS -->
-    <script src="/js/dashboard.js?v=<?php echo uuidv4(); ?>"></script>
-    <script src="/js/search.js?v=<?php echo uuidv4(); ?>"></script>
+    <script src="/js/dashboard.js?v=<?php echo filemtime(__DIR__ . '/js/dashboard.js'); ?>"></script>
+    <script src="/js/search.js?v=<?php echo filemtime(__DIR__ . '/js/search.js'); ?>"></script>
         <?php echo $scripts; ?>
         <?php include_once "usr_database.php"; ?>
     <script>
