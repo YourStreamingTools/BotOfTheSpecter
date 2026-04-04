@@ -1431,20 +1431,25 @@ hr {
 /* Delete chip button */
 .tag-multiselect .delete,
 .tag-multiselect .tms-chip-del {
-    background: none;
+    background: rgba(255,255,255,0.12);
     border: none;
     cursor: pointer;
-    color: var(--accent-hover);
-    font-size: 0.7rem;
+    color: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
     padding: 0;
     line-height: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    opacity: 0.7;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 
 .tag-multiselect .delete:hover,
-.tag-multiselect .tms-chip-del:hover { opacity: 1; }
+.tag-multiselect .tms-chip-del:hover { background: rgba(239,68,68,0.25); color: var(--danger, #ef4444); }
 
 /* ensure dropdown inside modal keeps dark styling */
 .rm-modal .tag-multiselect { overflow: visible !important; }
