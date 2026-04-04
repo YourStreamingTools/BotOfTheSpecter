@@ -17,6 +17,7 @@ import shutil
 import subprocess
 from scp import SCPClient
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 # Import our modular components
 from music_handler import MusicHandler
@@ -1559,8 +1560,8 @@ if __name__ == '__main__':
     log_file = args.logfile if args.logfile else os.path.join(SCRIPT_DIR, "noti_server.log")
     # Create custom formatter with specific date format
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    # Configure file handler
-    file_handler = logging.FileHandler(log_file, mode="a")
+    # Configure file handler with rotation (10 MB per file, 10 backups)
+    file_handler = RotatingFileHandler(log_file, mode="a", maxBytes=10 * 1024 * 1024, backupCount=10)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(log_level)
     # Configure console handler
