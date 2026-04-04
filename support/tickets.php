@@ -46,13 +46,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
         $category = $_POST['category']  ?? 'general';
         $priority = $_POST['priority']  ?? 'normal';
         $message  = trim($_POST['message'] ?? '');
-        $validCats  = ['billing', 'technical', 'account', 'general'];
+        $validCats  = ['billing', 'technical', 'account', 'general', 'feedback'];
         $validPrios = ['low', 'normal', 'high'];
         $allowedPrios = is_staff() ? $validPrios : ['low', 'normal'];
+        // Feedback tickets get auto-generated subject and default priority
+        if ($category === 'feedback') {
+            $subject  = 'Feedback from ' . ($_SESSION['display_name'] ?? $_SESSION['username'] ?? 'Unknown');
+            $priority = 'normal';
+        }
         if (strlen($subject) < 5)               $errors[] = 'Subject must be at least 5 characters.';
         if (strlen($subject) > 255)             $errors[] = 'Subject must be 255 characters or fewer.';
         if (!in_array($category, $validCats, true)) $errors[] = 'Invalid category.';
-        if (!in_array($priority, $allowedPrios, true)) $errors[] = 'Invalid priority.';
+        if ($category !== 'feedback' && !in_array($priority, $allowedPrios, true)) $errors[] = 'Invalid priority.';
         if (strlen($message) < 20)              $errors[] = 'Message must be at least 20 characters.';
         if (strlen($message) > 5000)            $errors[] = 'Message must be 5000 characters or fewer.';
         if (empty($errors)) {
@@ -200,7 +205,7 @@ function prio_badge(string $p): string {
     return '<span class="sp-badge ' . $cls . '"><i class="fa-solid ' . $ic . '"></i> ' . ucfirst($p) . '</span>';
 }
 function cat_label(string $c): string {
-    $map = ['billing'=>'Billing','technical'=>'Technical','account'=>'Account','general'=>'General'];
+    $map = ['billing'=>'Billing','technical'=>'Technical','account'=>'Account','general'=>'General','feedback'=>'Feedback'];
     return $map[$c] ?? ucfirst($c);
 }
 function time_ago(string $dt): string {
@@ -383,9 +388,10 @@ elseif ($action === 'new'):
                         <option value="technical">Technical</option>
                         <option value="account">Account</option>
                         <option value="billing">Billing</option>
+                        <option value="feedback">Feedback</option>
                     </select>
                 </div>
-                <div class="sp-form-group">
+                <div class="sp-form-group" id="priority_group">
                     <label class="sp-label" for="ticket_priority">Priority</label>
                     <select id="ticket_priority" name="priority" class="sp-select">
                         <option value="normal">Normal</option>
@@ -396,7 +402,7 @@ elseif ($action === 'new'):
                     </select>
                 </div>
             </div>
-            <div class="sp-form-group">
+            <div class="sp-form-group" id="subject_group">
                 <label class="sp-label" for="ticket_subject">Subject <span class="sp-req">*</span></label>
                 <input type="text" id="ticket_subject" name="subject" class="sp-input" maxlength="255"
                     placeholder="Briefly describe your issue"
@@ -410,12 +416,39 @@ elseif ($action === 'new'):
                 <div class="sp-char-counter" data-for="ticket_message"></div>
             </div>
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
-                <button type="submit" class="sp-btn sp-btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit Ticket</button>
+                <button type="submit" class="sp-btn sp-btn-primary" id="submit_ticket_btn"><i class="fa-solid fa-paper-plane"></i> Submit Ticket</button>
                 <a href="/tickets.php" class="sp-btn sp-btn-ghost">Cancel</a>
             </div>
         </form>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var catSelect = document.getElementById('ticket_category');
+    var subjectGroup = document.getElementById('subject_group');
+    var priorityGroup = document.getElementById('priority_group');
+    var messageLabel = document.querySelector('label[for="ticket_message"]');
+    var messageTextarea = document.getElementById('ticket_message');
+    var submitBtn = document.getElementById('submit_ticket_btn');
+    if (!catSelect) return;
+    function toggleFeedback() {
+        var isFeedback = catSelect.value === 'feedback';
+        subjectGroup.style.display = isFeedback ? 'none' : '';
+        priorityGroup.style.display = isFeedback ? 'none' : '';
+        if (isFeedback) {
+            messageLabel.innerHTML = 'Your Feedback <span class="sp-req">*</span>';
+            messageTextarea.placeholder = 'Tell us what you think — what\'s working, what\'s not, or what you\'d like to see improved.';
+            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Feedback';
+        } else {
+            messageLabel.innerHTML = 'Description <span class="sp-req">*</span>';
+            messageTextarea.placeholder = 'Please describe the issue in detail - what happened, what you expected, and any error messages you saw.';
+            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Ticket';
+        }
+    }
+    catSelect.addEventListener('change', toggleFeedback);
+    toggleFeedback();
+});
+</script>
 <?php
 // ============================================================
 // VIEW: STAFF QUEUE
