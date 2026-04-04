@@ -301,7 +301,7 @@ $v = uuidv4();
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                     <div class="sp-form-group">
                         <label class="sp-label">Subcategory</label>
-                        <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"></div>
+                        <div class="tag-multiselect" id="editItemSubcategory" data-name="subcategory[]"<?php if (!empty($subcategories)): ?> data-allowed='<?php echo htmlspecialchars(json_encode(array_values($subcategories)), ENT_QUOTES, "UTF-8"); ?>'<?php endif; ?>></div>
                         <div class="sp-field-hint">Only predefined tags allowed.</div>
                     </div>
                     <div class="sp-form-group" id="edit-website-type-field" style="display:none;">
@@ -398,6 +398,8 @@ function getPriorityTagClass(priority) {
     return map[priority]||'rm-tag-light';
 }
 function getSubcategoryTagClass(subcategory) {
+    const dynamicMap = (typeof window.__ROADMAP_SUBCAT_COLORS !== 'undefined') ? window.__ROADMAP_SUBCAT_COLORS : {};
+    if (dynamicMap[subcategory]) return 'rm-tag-' + dynamicMap[subcategory];
     const map = {'TWITCH BOT':'rm-tag-primary','DISCORD BOT':'rm-tag-info','WEBSOCKET SERVER':'rm-tag-success','API SERVER':'rm-tag-warning','WEBSITE':'rm-tag-danger','OTHER':'rm-tag-light'};
     return map[subcategory]||'rm-tag-light';
 }
@@ -482,7 +484,9 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch(e) {}
 
     // Tag multiselect (TMS)
-    const TMS_ALLOWED=['TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER'];
+    const TMS_ALLOWED = (typeof window.__ROADMAP_SUBCATEGORIES !== 'undefined' && Array.isArray(window.__ROADMAP_SUBCATEGORIES) && window.__ROADMAP_SUBCATEGORIES.length)
+        ? window.__ROADMAP_SUBCATEGORIES
+        : ['TWITCH BOT','DISCORD BOT','WEBSOCKET SERVER','API SERVER','WEBSITE','OTHER'];
     function createTagMultiSelect(container) {
         if (!container) return null;
         let allowedList=TMS_ALLOWED;
@@ -502,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
             chipsEl.innerHTML=''; hidWrap.innerHTML='';
             selected.forEach(val=>{
                 const chip=document.createElement('span'); chip.className='tag'; chip.textContent=val;
-                const del=document.createElement('button'); del.type='button'; del.className='delete is-small'; del.style.marginLeft='0.4rem';
+                const del=document.createElement('button'); del.type='button'; del.className='delete is-small'; del.style.marginLeft='0.4rem'; del.innerHTML='&times;'; del.title='Remove';
                 del.addEventListener('click',()=>remove(val)); chip.appendChild(del); chipsEl.appendChild(chip);
                 const hid=document.createElement('input'); hid.type='hidden'; hid.name=name; hid.value=val; hidWrap.appendChild(hid);
             });

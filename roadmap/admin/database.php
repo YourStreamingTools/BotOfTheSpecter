@@ -118,8 +118,55 @@ function initializeRoadmapDatabase() {
     if (!$conn->query($sql)) {
         return array('success' => false, 'message' => 'Error backfilling roadmap_item_website_types: ' . $conn->error);
     }
+
+    // Create roadmap_subcategories table (manages available subcategories)
+    $sql = "CREATE TABLE IF NOT EXISTS roadmap_subcategories (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        color VARCHAR(50) NOT NULL DEFAULT 'light',
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    if (!$conn->query($sql)) {
+        return array('success' => false, 'message' => 'Error creating roadmap_subcategories table: ' . $conn->error);
+    }
+
+    // Seed default subcategories if the table is empty
+    $countRes = $conn->query("SELECT COUNT(*) AS cnt FROM roadmap_subcategories");
+    $countRow = $countRes ? $countRes->fetch_assoc() : null;
+    if ($countRow && (int)$countRow['cnt'] === 0) {
+        $defaults = [
+            ['TWITCH BOT', 'primary', 1],
+            ['DISCORD BOT', 'info', 2],
+            ['WEBSOCKET SERVER', 'success', 3],
+            ['API SERVER', 'warning', 4],
+            ['WEBSITE', 'danger', 5],
+            ['OTHER', 'light', 6],
+        ];
+        $ins = $conn->prepare("INSERT IGNORE INTO roadmap_subcategories (name, color, sort_order) VALUES (?, ?, ?)");
+        foreach ($defaults as $d) {
+            $ins->bind_param("ssi", $d[0], $d[1], $d[2]);
+            $ins->execute();
+        }
+        $ins->close();
+    }
+
     $conn->close();
     return array('success' => true, 'message' => 'Database initialized successfully');
+}
+
+// Get available subcategories from the database
+function getAvailableSubcategories($conn = null) {
+    $ownConn = false;
+    if (!$conn) { $conn = getRoadmapConnection(); $ownConn = true; }
+    $rows = [];
+    $res = $conn->query("SELECT name, color FROM roadmap_subcategories ORDER BY sort_order, name");
+    if ($res) {
+        while ($r = $res->fetch_assoc()) { $rows[] = $r; }
+        $res->free();
+    }
+    if ($ownConn) $conn->close();
+    return $rows;
 }
 
 // Helper function to get database connection

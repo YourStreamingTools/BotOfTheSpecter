@@ -12,7 +12,10 @@ $topbarTitle = 'Development Roadmap';
 $conn = getRoadmapConnection();
 
 $categories    = ['REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED'];
-$subcategories = ['TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER'];
+$subcatRows = getAvailableSubcategories($conn);
+$subcategories = array_map(function($r){ return $r['name']; }, $subcatRows);
+$subcatColorMap = [];
+foreach ($subcatRows as $r) { $subcatColorMap[$r['name']] = $r['color']; }
 
 $searchQuery      = $_GET['search']   ?? '';
 $selectedCategory = $_GET['category'] ?? '';
@@ -47,6 +50,10 @@ foreach ($allItems as $item) $itemsByCategory[$item['category']][] = $item;
 
 ob_start();
 ?>
+<script>
+window.__ROADMAP_SUBCATEGORIES = <?php echo json_encode(array_values($subcategories)); ?>;
+window.__ROADMAP_SUBCAT_COLORS = <?php echo json_encode($subcatColorMap); ?>;
+</script>
 <!-- Page header -->
 <div class="sp-page-header-row">
     <div>
@@ -240,6 +247,8 @@ function getPriorityColor($priority) {
     return $colors[$priority] ?? 'light';
 }
 function getSubcategoryColor($subcategory) {
+    global $subcatColorMap;
+    if (!empty($subcatColorMap[$subcategory])) return $subcatColorMap[$subcategory];
     $colors = ['TWITCH BOT'=>'primary','DISCORD BOT'=>'info','WEBSOCKET SERVER'=>'success','API SERVER'=>'warning','WEBSITE'=>'danger','OTHER'=>'light'];
     return $colors[$subcategory] ?? 'light';
 }
