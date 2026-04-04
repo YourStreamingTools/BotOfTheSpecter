@@ -20,6 +20,12 @@ $pageTitle = 'Roadmap Admin';
 // Get all roadmap items grouped by category
 $conn = getRoadmapConnection();
 
+// Load available subcategories from DB (used by form handlers and UI)
+$subcatRows = getAvailableSubcategories($conn);
+$subcategories = array_map(function($r){ return $r['name']; }, $subcatRows);
+$subcatColorMap = [];
+foreach ($subcatRows as $r) { $subcatColorMap[$r['name']] = $r['color']; }
+
 // Handle form submissions
 $message = '';
 $message_type = '';
@@ -36,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $description = $_POST['description'] ?? '';
             $category = $_POST['category'] ?? 'REQUESTS';
             // allow single value or an array for subcategory (treat as tags)
-            $allowed_subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
+            $allowed_subcategories = $subcategories ?: array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
             $rawSub = $_POST['subcategory'] ?? 'TWITCH BOT';
             $selected_subcategories = is_array($rawSub) ? $rawSub : array($rawSub);
             // normalize and validate
@@ -226,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $description = $_POST['description'] ?? '';
             $category = $_POST['category'] ?? 'REQUESTS';
             // accept single or multiple subcategory values
-            $allowed_subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
+            $allowed_subcategories = $subcategories ?: array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
             $rawSub = $_POST['subcategory'] ?? 'TWITCH BOT';
             $selected_subcategories = is_array($rawSub) ? $rawSub : array($rawSub);
             $selected_subcategories = array_values(array_unique(array_filter(array_map('trim', $selected_subcategories))));
@@ -342,12 +348,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
         }
+    } elseif ($_POST['action'] === 'remove_subcategory') {
+        // CSRF check
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $subName = trim($_POST['subcategory_name'] ?? '');
+            if (!empty($subName)) {
+                // Remove from the available subcategories table
+                $stmt = $conn->prepare("DELETE FROM roadmap_subcategories WHERE name = ?");
+                if ($stmt) {
+                    $stmt->bind_param("s", $subName);
+                    if ($stmt->execute() && $stmt->affected_rows > 0) {
+                        // Remove this subcategory from all items in the junction table
+                        $del = $conn->prepare("DELETE FROM roadmap_item_subcategories WHERE subcategory = ?");
+                        if ($del) { $del->bind_param("s", $subName); $del->execute(); $del->close(); }
+                        $message = 'Subcategory "' . $subName . '" removed successfully!';
+                        $message_type = 'success';
+                        // Refresh the subcategory list
+                        $subcatRows = getAvailableSubcategories($conn);
+                        $subcategories = array_map(function($r){ return $r['name']; }, $subcatRows);
+                        $subcatColorMap = [];
+                        foreach ($subcatRows as $r) { $subcatColorMap[$r['name']] = $r['color']; }
+                    } else {
+                        $message = 'Subcategory not found.';
+                        $message_type = 'warning';
+                    }
+                    $stmt->close();
+                }
+            }
+        }
+    } elseif ($_POST['action'] === 'add_subcategory') {
+        // CSRF check
+        if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $message = 'Invalid CSRF token';
+            $message_type = 'danger';
+        } else {
+            $subName = strtoupper(trim($_POST['subcategory_name'] ?? ''));
+            $subColor = trim($_POST['subcategory_color'] ?? 'light');
+            $allowedColors = ['primary', 'info', 'success', 'warning', 'danger', 'light'];
+            if (!in_array($subColor, $allowedColors)) $subColor = 'light';
+            if (!empty($subName)) {
+                $maxOrder = 0;
+                $res = $conn->query("SELECT MAX(sort_order) AS mx FROM roadmap_subcategories");
+                if ($res) { $row = $res->fetch_assoc(); $maxOrder = (int)($row['mx'] ?? 0); $res->free(); }
+                $newOrder = $maxOrder + 1;
+                $stmt = $conn->prepare("INSERT INTO roadmap_subcategories (name, color, sort_order) VALUES (?, ?, ?)");
+                if ($stmt) {
+                    $stmt->bind_param("ssi", $subName, $subColor, $newOrder);
+                    if ($stmt->execute()) {
+                        $message = 'Subcategory "' . $subName . '" added successfully!';
+                        $message_type = 'success';
+                        // Refresh
+                        $subcatRows = getAvailableSubcategories($conn);
+                        $subcategories = array_map(function($r){ return $r['name']; }, $subcatRows);
+                        $subcatColorMap = [];
+                        foreach ($subcatRows as $r) { $subcatColorMap[$r['name']] = $r['color']; }
+                    } else {
+                        if ($conn->errno === 1062) {
+                            $message = 'Subcategory "' . $subName . '" already exists.';
+                        } else {
+                            $message = 'Error adding subcategory: ' . $stmt->error;
+                        }
+                        $message_type = 'danger';
+                    }
+                    $stmt->close();
+                }
+            }
+        }
     }
 }
 
 // Get all categories and items
 $categories = array('REQUESTS', 'IN PROGRESS', 'BETA TESTING', 'COMPLETED', 'REJECTED');
-$subcategories = array('TWITCH BOT', 'DISCORD BOT', 'WEBSOCKET SERVER', 'API SERVER', 'WEBSITE', 'OTHER');
 
 // Get search and filter parameters
 $searchQuery = $_GET['search'] ?? '';
@@ -432,6 +506,10 @@ foreach ($allItems as $item) {
 // Build page content
 ob_start();
 ?>
+<script>
+window.__ROADMAP_SUBCATEGORIES = <?php echo json_encode(array_values($subcategories)); ?>;
+window.__ROADMAP_SUBCAT_COLORS = <?php echo json_encode($subcatColorMap); ?>;
+</script>
 <!-- Page header -->
 <div class="sp-page-header">
     <div>
@@ -516,7 +594,7 @@ ob_start();
                 </div>
                 <div class="sp-form-group">
                     <label class="sp-label">Subcategory</label>
-                    <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-initial='["TWITCH BOT"]'></div>
+                    <div class="tag-multiselect" id="addItemSubcategory" data-name="subcategory[]" data-allowed='<?php echo htmlspecialchars(json_encode(array_values($subcategories)), ENT_QUOTES, "UTF-8"); ?>' data-initial='<?php echo htmlspecialchars(json_encode([!empty($subcategories) ? $subcategories[0] : "OTHER"]), ENT_QUOTES, "UTF-8"); ?>'></div>
                     <div class="sp-field-hint">Only predefined tags allowed.</div>
                 </div>
                 <div class="sp-form-group" id="website-type-field" style="display:none;">
@@ -537,6 +615,46 @@ ob_start();
                 </div>
             </div>
         </div>
+    </form>
+    </div>
+</div>
+<!-- Manage Subcategories -->
+<div class="sp-card" style="margin-bottom:1.5rem;">
+    <div class="sp-card-body">
+    <h2 style="font-size:1rem;font-weight:600;margin-bottom:1rem;"><i class="fa-solid fa-tags" style="color:var(--accent-hover);margin-right:0.4rem;"></i>Manage Subcategories</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+        <?php foreach ($subcatRows as $sc): ?>
+            <div style="display:inline-flex;align-items:center;gap:0.4rem;background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius);padding:0.35rem 0.6rem;">
+                <span class="rm-tag rm-tag-<?php echo htmlspecialchars($sc['color']); ?>" style="margin:0;"><?php echo htmlspecialchars($sc['name']); ?></span>
+                <form method="POST" style="display:inline;margin:0;">
+                    <input type="hidden" name="action" value="remove_subcategory">
+                    <input type="hidden" name="subcategory_name" value="<?php echo htmlspecialchars($sc['name']); ?>">
+                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm sp-btn-icon" style="padding:0.15rem 0.35rem;font-size:0.7rem;min-width:auto;" onclick="return confirm('Remove subcategory &quot;<?php echo htmlspecialchars($sc['name'], ENT_QUOTES); ?>&quot;? This will also remove it from all items.')" title="Remove <?php echo htmlspecialchars($sc['name']); ?>"><i class="fa-solid fa-xmark"></i></button>
+                </form>
+            </div>
+        <?php endforeach; ?>
+        <?php if (empty($subcatRows)): ?>
+            <div class="sp-alert sp-alert-warning" style="margin:0;"><i class="fa-solid fa-triangle-exclamation"></i> No subcategories defined.</div>
+        <?php endif; ?>
+    </div>
+    <form method="POST" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+        <input type="hidden" name="action" value="add_subcategory">
+        <div class="sp-form-group" style="flex:1;min-width:160px;margin:0;">
+            <label class="sp-label">New Subcategory</label>
+            <input class="sp-input" type="text" name="subcategory_name" placeholder="e.g. MOBILE APP" required style="text-transform:uppercase;">
+        </div>
+        <div class="sp-form-group" style="min-width:120px;margin:0;">
+            <label class="sp-label">Color</label>
+            <select class="sp-select" name="subcategory_color">
+                <option value="primary">Primary (Purple)</option>
+                <option value="info">Info (Blue)</option>
+                <option value="success">Success (Green)</option>
+                <option value="warning">Warning (Yellow)</option>
+                <option value="danger">Danger (Red)</option>
+                <option value="light" selected>Light (Gray)</option>
+            </select>
+        </div>
+        <button type="submit" class="sp-btn sp-btn-primary sp-btn-sm"><i class="fa-solid fa-plus"></i> Add</button>
     </form>
     </div>
 </div>
@@ -669,6 +787,8 @@ function getPriorityColor($priority) {
 }
 
 function getSubcategoryColor($subcategory) {
+    global $subcatColorMap;
+    if (!empty($subcatColorMap[$subcategory])) return $subcatColorMap[$subcategory];
     $colors = [
         'TWITCH BOT' => 'primary',
         'DISCORD BOT' => 'info',
