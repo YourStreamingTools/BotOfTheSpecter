@@ -27,7 +27,6 @@ $result = $stmt->get_result();
 $channelData = $result->fetch_assoc();
 $timezone = $channelData['timezone'] ?? 'UTC';
 $media_migrated = (bool)($channelData['media_migrated'] ?? false);
-$audio_path = $media_migrated ? $media_path : $soundalert_path;
 $stmt->close();
 date_default_timezone_set($timezone);
 
@@ -305,83 +304,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    // File deletion
+    // File deletion — all files live in the unified media library
     if (isset($_POST['delete_files']) && is_array($_POST['delete_files'])) {
         $deleteStatus = "";
-        $extraTable = null;
-        $extraColumn = null;
-        switch ($mediaType) {
-            case 'sound_alert':
-                $targetDir = $audio_path;
-                $dbTable = 'sound_alerts';
-                $dbColumn = 'sound_mapping';
-                // Files are shared — also clear any Twitch event mappings
-                $extraTable = 'twitch_sound_alerts';
-                $extraColumn = 'sound_mapping';
-                break;
-            case 'video_alert':
-                $targetDir = $videoalert_path;
-                $dbTable = 'video_alerts';
-                $dbColumn = 'video_mapping';
-                break;
-            case 'walkon':
-                $targetDir = $walkon_path;
-                $dbTable = null;
-                $dbColumn = null;
-                break;
-            case 'twitch_event':
-                // Files now live in the shared audio pool
-                $targetDir = $audio_path;
-                $dbTable = 'twitch_sound_alerts';
-                $dbColumn = 'sound_mapping';
-                // Also clear channel-point sound alert mappings for this file
-                $extraTable = 'sound_alerts';
-                $extraColumn = 'sound_mapping';
-                break;
-            default:
-                $targetDir = null;
-                break;
-        }
-        if ($targetDir) {
-            $db->begin_transaction();
-            foreach ($_POST['delete_files'] as $file_to_delete) {
-                $filename = basename($file_to_delete);
-                $full_path = $targetDir . '/' . $filename;
-                if (is_file($full_path) && unlink($full_path)) {
-                    $deleteStatus .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
-                    if ($dbTable) {
-                        $deleteMapping = $db->prepare("DELETE FROM $dbTable WHERE $dbColumn = ?");
-                        $deleteMapping->bind_param('s', $filename);
-                        if ($deleteMapping->execute() && $deleteMapping->affected_rows > 0) {
-                            $deleteStatus .= "Mapping for " . htmlspecialchars($filename) . " removed.<br>";
-                        }
-                        $deleteMapping->close();
-                    }
-                    if ($extraTable) {
-                        $extraMapping = $db->prepare("DELETE FROM $extraTable WHERE $extraColumn = ?");
-                        $extraMapping->bind_param('s', $filename);
-                        $extraMapping->execute();
-                        $extraMapping->close();
-                    }
-                } else {
-                    $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
-                }
+        $db->begin_transaction();
+        foreach ($_POST['delete_files'] as $file_to_delete) {
+            $filename = basename($file_to_delete);
+            $full_path = $media_path . '/' . $filename;
+            if (is_file($full_path) && unlink($full_path)) {
+                $deleteStatus .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
+                // Clean up all related mappings for this file
+                $delSound = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = ?");
+                $delSound->bind_param('s', $filename);
+                $delSound->execute();
+                $delSound->close();
+                $delVideo = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = ?");
+                $delVideo->bind_param('s', $filename);
+                $delVideo->execute();
+                $delVideo->close();
+                $delTwitch = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
+                $delTwitch->bind_param('s', $filename);
+                $delTwitch->execute();
+                $delTwitch->close();
+            } else {
+                $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
             }
-            $db->commit();
-            $audio_dirs_for_calc = $media_migrated ? [$media_path] : [$soundalert_path, $twitch_sound_alert_path];
-            $current_storage_used = calculateStorageUsed(array_merge([$walkon_path, $videoalert_path], $audio_dirs_for_calc));
-            $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
-            $status .= $deleteStatus;
         }
+        $db->commit();
+        $current_storage_used = calculateStorageUsed([$media_path, $walkon_path, $videoalert_path, $user_music_path]);
+        $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
+        $status .= $deleteStatus;
     }
 }
 
-$soundalert_files = $media_migrated
-    ? array_diff(scandir($media_path), array('.', '..'))
-    : array_diff(scandir($soundalert_path), array('.', '..', 'twitch'));
-$videoalert_files = array_diff(scandir($videoalert_path), array('.', '..'));
-$walkon_files = array_diff(scandir($walkon_path), array('.', '..'));
-$twitch_sound_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
+// All files come from the unified media library
+$all_media_files = is_dir($media_path) ? array_diff(scandir($media_path), array('.', '..')) : [];
+$soundalert_files = array_filter($all_media_files, fn($f) => strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'mp3');
+$videoalert_files = array_filter($all_media_files, fn($f) => strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'mp4');
+$walkon_files = $all_media_files;
 
 function formatFileNameWithExt($fileName) {
     $fileInfo = pathinfo($fileName);
