@@ -2763,3 +2763,44 @@ label.switch .check { display: none; }
 .media-notif {
     margin-bottom: 1.25rem;
 }
+
+/* ----------------------------------------------------------
+   SweetAlert2 Dark Theme Overrides
+   ---------------------------------------------------------- */
+.swal2-popup {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-hover);
+}
+.swal2-title {
+    color: var(--text-primary) !important;
+}
+.swal2-html-container {
+    color: var(--text-secondary) !important;
+}
+.swal2-input,
+.swal2-textarea,
+.swal2-select {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+.swal2-input::placeholder,
+.swal2-textarea::placeholder {
+    color: var(--text-muted) !important;
+}
+.swal2-input:focus,
+.swal2-textarea:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px var(--accent-glow) !important;
+}
+.swal2-validation-message {
+    background: var(--red-bg) !important;
+    color: var(--red) !important;
+}
+.swal2-close {
+    color: var(--text-muted) !important;
+}
+.swal2-close:hover {
+    color: var(--text-primary) !important;
+}

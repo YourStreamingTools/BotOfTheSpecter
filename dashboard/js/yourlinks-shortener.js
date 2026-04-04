@@ -88,15 +88,15 @@ class YourLinksShortener {
             title: 'Create Short Link',
             html:
                 `<div style="text-align:left;">` +
-                    `<label style="display:block; font-size:0.82rem; font-weight:600; color:#a8a8bc; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.05em;">Destination URL</label>` +
-                    `<input id="swal_yourlinks_destination" class="swal2-input" type="url" value="${this.escapeHtml(this.detectedUrl)}" readonly style="background:#1a1a20; color:#a8a8bc; cursor:not-allowed; margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
-                    `<small style="display:block; color:#6c6c84; font-size:0.78rem; margin-bottom:1rem;">The URL you entered in the message</small>` +
-                    `<label style="display:block; font-size:0.82rem; font-weight:600; color:#a8a8bc; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.05em;">Link Name <span style="color:#f87171;">*</span></label>` +
+                    `<label class="sp-label">Destination URL</label>` +
+                    `<input id="swal_yourlinks_destination" class="swal2-input" type="url" value="${this.escapeHtml(this.detectedUrl)}" readonly style="cursor:not-allowed; opacity:0.7; margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
+                    `<small class="sp-help" style="margin-bottom:1rem;">The URL you entered in the message</small>` +
+                    `<label class="sp-label">Link Name <span style="color:var(--red);">*</span></label>` +
                     `<input id="swal_yourlinks_link_name" class="swal2-input" type="text" placeholder="e.g., discord, youtube, twitch" maxlength="50" autocomplete="off" style="margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
-                    `<small id="swal_yourlinks_link_preview" style="display:block; color:#6c6c84; font-size:0.78rem; margin-bottom:1rem;">Alphanumeric characters, hyphens, and underscores only. Will be: <code>${username}.yourlinks.click/<strong>linkname</strong></code></small>` +
-                    `<label style="display:block; font-size:0.82rem; font-weight:600; color:#a8a8bc; margin-bottom:0.35rem; text-transform:uppercase; letter-spacing:0.05em;">Title (Optional)</label>` +
+                    `<small id="swal_yourlinks_link_preview" class="sp-help" style="margin-bottom:1rem;">Alphanumeric characters, hyphens, and underscores only. Will be: <code>${username}.yourlinks.click/<strong>linkname</strong></code></small>` +
+                    `<label class="sp-label">Title (Optional)</label>` +
                     `<input id="swal_yourlinks_title" class="swal2-input" type="text" placeholder="e.g., Join My Discord Server" maxlength="100" autocomplete="off" style="margin:0 0 0.5rem 0; width:100%; box-sizing:border-box;">` +
-                    `<small style="display:block; color:#6c6c84; font-size:0.78rem;">Display name for the link (for your reference)</small>` +
+                    `<small class="sp-help">Display name for the link (for your reference)</small>` +
                 `</div>`,
             focusConfirm: false,
             showCancelButton: true,
