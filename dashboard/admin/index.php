@@ -1757,6 +1757,9 @@ ob_start();
 <div class="sp-card" style="margin-bottom:1.5rem;">
     <div class="sp-card-header">
         <h2 class="sp-card-title"><span class="icon"><i class="fas fa-server"></i></span> Server Overview</h2>
+        <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="refresh-server-overview" onclick="refreshServerOverview()" title="Refresh server status">
+            <span class="icon"><i class="fas fa-sync-alt"></i></span> Refresh
+        </button>
     </div>
     <div class="sp-card-body">
     <div class="admin-service-grid">
@@ -2676,6 +2679,20 @@ document.addEventListener('DOMContentLoaded', function() {
         updateServiceStatus('export_queue_worker', 'export-queue-status', 'export-queue-pid', 'export-queue-buttons');
         updateServiceStatus('twitch_recorder', 'twitch-recorder-status', 'twitch-recorder-pid', 'twitch-recorder-buttons');
     }, 100);
+    // Refresh all server overview statuses
+    window.refreshServerOverview = function() {
+        const btn = document.getElementById('refresh-server-overview');
+        const icon = btn.querySelector('i');
+        btn.disabled = true;
+        icon.classList.add('fa-spin');
+        Object.values(serviceConfig).forEach(meta => {
+            updateServiceStatus(meta.statusKey, meta.statusId, meta.pidId, meta.buttonsId);
+        });
+        setTimeout(() => {
+            btn.disabled = false;
+            icon.classList.remove('fa-spin');
+        }, 1000);
+    };
     // Utility to create safe DOM ids from channel names
     function sanitizeId(str) {
         return String(str).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
