@@ -510,6 +510,8 @@ _V2_WEBHOOK_PATHS = [
     "/fourthwall",
     "/kofi",
     "/patreon",
+    "/github",
+    "/freestuff"
 ]
 _V2_WEBHOOK_PATHS_SET = set(_V2_WEBHOOK_PATHS)
 
@@ -1716,10 +1718,10 @@ async def save_freestuff_game(webhook_data):
     "/freestuff",
     summary="Receive and process FreeStuff Webhook Requests",
     description="Receives FreeStuff webhooks (ping, announcements, product updates) and forwards to WebSocket.",
-    tags=["Webhooks"],
+    tags=["Admin Only"],
     status_code=status.HTTP_204_NO_CONTENT,
     operation_id="process_freestuff_webhook",
-    include_in_schema=False
+    include_in_schema=True
 )
 async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
     key_info = await verify_key(api_key, service="FreeStuff")
@@ -1767,6 +1769,52 @@ async def handle_freestuff_webhook(request: Request, api_key: str = Query(...)):
             logging.error(f"Error forwarding FreeStuff: {e}")
             raise HTTPException(status_code=500, detail="Error forwarding to websocket")
     return Response(status_code=204, headers={"X-Client-Library": "BotOfTheSpecter/1.0"})
+
+# GitHub Webhook Endpoint
+@app.post(
+    "/github",
+    summary="Receive and process GitHub Webhook Requests",
+    description="Receives GitHub webhook events and forwards them to the WebSocket server.",
+    tags=["Admin Only"],
+    status_code=status.HTTP_200_OK,
+    operation_id="process_github_webhook",
+    include_in_schema=True
+)
+async def handle_github_webhook(request: Request, api_key: str = Query(...)):
+    key_info = await verify_key(api_key, service="GitHub")
+    if not key_info or key_info["type"] != "admin":
+        raise HTTPException(status_code=401, detail="Invalid Admin API Key")
+    github_event = request.headers.get("X-GitHub-Event", "unknown")
+    github_delivery = request.headers.get("X-GitHub-Delivery")
+    try:
+        webhook_data = await request.json()
+    except Exception as e:
+        logging.error(f"Invalid JSON in GitHub webhook: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    logging.info(f"GitHub: event={github_event} | delivery={github_delivery}")
+    async with aiohttp.ClientSession() as session:
+        try:
+            payload = {
+                "event": github_event,
+                "delivery": github_delivery,
+                "data": webhook_data
+            }
+            params = {"code": api_key, "event": "GITHUB", "data": json.dumps(payload)}
+            encoded_params = urlencode(params)
+            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    logging.error(f"WebSocket forward failed: {response.status}")
+                    raise HTTPException(status_code=500, detail="Error forwarding to websocket")
+        except asyncio.TimeoutError:
+            logging.error("Timeout forwarding GitHub event")
+            raise HTTPException(status_code=500, detail="Timeout forwarding to websocket")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Error forwarding GitHub: {e}")
+            raise HTTPException(status_code=500, detail="Error forwarding to websocket")
+    return {"status": "success", "message": "GitHub Webhook received"}
 
 # FreeStuff Games List Endpoint
 @app.get(
