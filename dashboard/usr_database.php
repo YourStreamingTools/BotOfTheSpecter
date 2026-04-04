@@ -11,12 +11,14 @@ try {
         die("Connection failed: " . $usrDBconn->connect_error);
     }
     // Check if the database exists, if not, create it
-    $sql = "CREATE DATABASE IF NOT EXISTS `$dbname`";
-    if ($usrDBconn->query($sql) === TRUE) {
-        echo "<script>console.log('Database $dbname created or already exists.');</script>
-        ";
-    } else {
-        die("Error creating database: " . $usrDBconn->error);
+    $result = $usrDBconn->query("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '$dbname'");
+    if ($result->num_rows === 0) {
+        $sql = "CREATE DATABASE `$dbname`";
+        if ($usrDBconn->query($sql) === TRUE) {
+            echo "<script>console.log('Database $dbname created.');</script>";
+        } else {
+            die("Error creating database: " . $usrDBconn->error);
+        }
     }
     // Close the connection after creating the database
     $usrDBconn->close();
