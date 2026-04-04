@@ -67,7 +67,9 @@ class YourLinksShortener {
             cancelButtonText: 'No, keep original'
         }).then((result) => {
             if (result.isConfirmed) {
-                this.openShorteningModal();
+                // Delay opening the modal until SweetAlert2's close animation
+                // and focus trap are fully finished, otherwise inputs won't be clickable
+                setTimeout(() => this.openShorteningModal(), 300);
                 return;
             }
             if (
@@ -108,6 +110,10 @@ class YourLinksShortener {
         if (statusDiv) statusDiv.innerHTML = '';
         // Open modal
         modal.classList.add('is-active');
+        // Focus the link name input so the user can start typing right away
+        if (linkNameInput) {
+            setTimeout(() => linkNameInput.focus(), 50);
+        }
     }
     closeModal() {
         const modal = document.getElementById('yourlinksModal');

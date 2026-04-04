@@ -123,7 +123,7 @@ $content = ob_get_clean();
 ob_start();
 ?>
 <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-<script src="../js/search.js"></script>
+<script src="../js/search.js?v=<?php echo filemtime(__DIR__ . '/../js/search.js'); ?>"></script>
 <script>
   function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
