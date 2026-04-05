@@ -301,7 +301,8 @@ function performBotAction($action, $botType, $params) {
                     // Construct proper bot start command with all required parameters - MAKE IT BACKGROUND
                     // Use escapeshellarg for safety on dynamic fields
                     // V6 uses venv, beta and others use regular python
-                    $pythonCmd = ($botType === 'v6') ? '/home/botofthespecter/beta_env/bin/python' : 'python';
+                    // -u flag: force unbuffered stdout/stderr so output appears immediately
+                    $pythonCmd = ($botType === 'v6') ? '/home/botofthespecter/beta_env/bin/python -u' : 'python -u';
                     $botArgs = $pythonCmd . " " . escapeshellarg($botScriptPath) .
                                     " -channel " . escapeshellarg($username) .
                                     " -channelid " . escapeshellarg($twitchUserId) .
@@ -317,7 +318,9 @@ function performBotAction($action, $botType, $params) {
                         $botArgs .= " -self";
                     }
                     $crashLog = "/home/botofthespecter/logs/" . $username . "_crash.log";
-                    $wrappedArgs = "bash -c " . escapeshellarg($botArgs . " >> " . $crashLog . " 2>&1");
+                    // Use tee so output is visible in the screen terminal (for screen -r / web console)
+                    // AND simultaneously appended to the crash log for persistence.
+                    $wrappedArgs = "bash -c " . escapeshellarg($botArgs . " 2>&1 | tee -a " . $crashLog);
                     $startCommand = "screen -dmS " . escapeshellarg($screenSessionName) . " " . $wrappedArgs;
                         $startOutput = SSHConnectionManager::executeCommand($connection, $startCommand, true); // true for background
                         $startOutput = sanitizeSSHOutput($startOutput);
