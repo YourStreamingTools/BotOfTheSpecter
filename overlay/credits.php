@@ -148,7 +148,7 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 $columns .= build_event_column($user_db, 'follow', 'Followers', true);
                 $columns .= build_chatters_column($user_db);
                 if ($columns !== '') {
-                    $status = "<section class='scrolling-credits'><div class='columns is-vcentered is-centered is-flex is-flex-direction-row no-wrap-columns'>" . $columns . "</div></section>";
+                    $status = "<section class='credits-overlay-page-scrolling'><div class='columns is-vcentered is-centered is-flex is-flex-direction-row credits-overlay-page-no-wrap'>" . $columns . "</div></section>";
                 } else {
                     $status = '';
                 }
@@ -177,248 +177,9 @@ $buildStatus = $status;
 <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
 <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.4/css/bulma.min.css">
-<style>
-body, html {
-    background: transparent !important;
-    /* Always hide native page scrollbars; we animate the content instead */
-    overflow: hidden;
-}
-
-/* Hide native scrollbars globally */
-html, body {
-    scrollbar-width: none; /* Firefox */
-}
-html::-webkit-scrollbar, body::-webkit-scrollbar {
-    display: none; /* Safari and Chrome */
-}
-.container.is-fluid {
-    /*background: rgba(58, 60, 61, 0.8); */
-    border-radius: 12px;
-    padding: 12px;
-    padding-bottom: 28px;
-    color: #FFFFFF !important;
-    position: relative;
-    overflow: hidden;
-    margin-bottom: 12px;
-    outline: 1px solid #ffffff04;
-    box-sizing: border-box;
-    max-height: calc(100vh - 24px);
-}
-/* Paint a dedicated rounded background layer to avoid rendering artifacts */
-.container.is-fluid::before {
-    content: '';
-    position: absolute;
-    inset: 0px;
-    /* background-color: rgba(58, 60, 61, 0.8); */
-    border-radius: 12px;
-    pointer-events: none;
-    z-index: 0;
-}
-.container.is-fluid > .section,
-.container.is-fluid > .section .container {
-    position: relative;
-    z-index: 1; /* ensure content sits above the bg layer */
-}
-/* Ensure background respects border-radius and is clipped */
-.container.is-fluid {
-    -webkit-background-clip: padding-box;
-    background-clip: padding-box;
-}
-.title,
-.subtitle,
-.section h2,
-.section ul li,
-.content,
-ul.content,
-li {
-    color: #FFFFFF !important;
-}
-/* Center the title and ul */
-.title {
-    text-align: center;
-}
-ul.content {
-    text-align: center;
-    list-style-type: none;
-}
-.content {
-    list-style-type: none;
-}
-.title, .subtitle {
-    font-weight: bold !important;
-}
-.container.is-fluid .content,
-.container.is-fluid .content *,
-.scrolling-credits .content,
-.scrolling-credits .content * {
-    color: #FFFFFF !important;
-}
-.container.is-fluid h2,
-.container.is-fluid h1 {
-    color: #FFFFFF !important;
-}
-/* Reduce default Bulma section/container spacing inside this overlay */
-.container.is-fluid > .section {
-    padding-top: 6px;
-    padding-bottom: 6px;
-    margin: 0;
-}
-.container.is-fluid > .section .container {
-    padding: 0;
-    margin: 0;
-}
-.container.is-fluid .title {
-    margin-top: 2px;
-    margin-bottom: 6px;
-    padding-top: 0;
-}
-a, a:visited, a:active {
-    color: #FFFFFF !important;
-    text-decoration: underline;
-}
-.scrolling-credits {
-    width: 100%;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    z-index: 10;
-    color: #FFFFFF !important;
-    margin-top: 8px;
-    margin-bottom: 8px;
-    padding-bottom: 16px;
-}
-
-/* Ensure the generated page scroll container leaves room at the bottom for rounded corners */
-.page-scroll-wrap-container {
-    box-sizing: border-box;
-    padding-bottom: 16px;
-    background: transparent;
-    border-radius: 12px;
-    overflow: hidden;
-}
-/* inner scrolling structure should be transparent and not paint a square over rounded corners */
-.page-scroll-inner,
-.page-panel,
-.page-scroll-wrap,
-.page-scroll-gap {
-    background: transparent !important;
-}
-.page-scroll-inner {
-    padding-bottom: 16px;
-}
-
-/* Force any nested Bulma/container elements inside the cloned panels to be transparent
-   and not contribute a background box that covers the rounded corners. */
-.page-scroll-wrap-container .container,
-.page-scroll-wrap-container .section,
-.page-scroll-wrap-container .columns,
-.page-scroll-wrap-container .column,
-.page-scroll-wrap-container .scrolling-credits,
-.page-scroll-wrap-container ul,
-.page-scroll-wrap-container li,
-.page-scroll-wrap-container h1,
-.page-scroll-wrap-container h2 {
-    background: transparent !important;
-    box-shadow: none !important;
-    border-radius: inherit !important;
-}
-
-/* Extra bottom gap inside each panel so content never reaches the rounded corner */
-.page-scroll-wrap-container .page-panel {
-    padding-bottom: 28px;
-    box-sizing: border-box;
-}
-
-/* Aggressive safeguard: ensure nothing inside the cloned panels paints an opaque background */
-.page-scroll-wrap-container, .page-scroll-wrap-container * {
-    background-color: transparent !important;
-    background-image: none !important;
-    box-shadow: none !important;
-    border: none !important;
-}
-
-/* If any cloned element has inline background styles, make sure its computed background is cleared */
-.page-scroll-wrap-container [style] {
-    background-color: transparent !important;
-    background-image: none !important;
-}
-.scrolling-credits .columns {
-    width: 100%;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    /* Prevent native scrollbars while keeping layout intact */
-    overflow-x: hidden;
-    gap: 24px;
-    -ms-overflow-style: none; /* IE/Edge */
-    scrollbar-width: none; /* Firefox */
-}
-.scrolling-credits .columns::-webkit-scrollbar {
-    display: none; /* Safari and Chrome */
-}
-.no-wrap-columns {
-    flex-wrap: nowrap !important;
-}
-.scrolling-credits .column {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 200px;
-    flex: 1 1 0;
-    max-width: 100vw;
-    position: relative;
-}
-/* Responsive design for smaller screens */
-@media (max-width: 1400px) {
-    .scrolling-credits .columns {
-        flex-direction: column !important;
-        flex-wrap: wrap !important;
-        overflow-x: visible;
-        gap: 32px;
-    }
-    .scrolling-credits .column {
-        min-width: 100%;
-        width: 100%;
-        max-width: 100%;
-    }
-}
-.scrolling-credits .subtitle {
-    margin-bottom: 16px;
-    color: #FFFFFF !important;
-    z-index: 2;
-    font-weight: bold !important;
-}
-.scrolling-credits ul {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    position: relative;
-    will-change: transform;
-    color: #FFFFFF !important;
-}
-.scrolling-credits li {
-    font-size: 24px;
-    margin: 5px 0;
-    color: #FFFFFF !important;
-    text-align: center;
-}
-.section .container > h2 {
-    text-align: center;
-    margin-left: auto;
-    margin-right: auto;
-}
-.centered-status {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 80vh;
-    text-align: center;
-}
-</style>
+<link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
-<body class="has-text-white">
+<body class="has-text-white credits-overlay-page">
     <div class="container is-fluid" style="margin-top:8px;">
         <section class="section">
             <div class="container">
@@ -429,10 +190,10 @@ a, a:visited, a:active {
                     <li>All the lurkers!</li>
                 </ul>
                 <?php
-                if (preg_match('/<section class=\'scrolling-credits\'>.*?<\/section>/s', $buildStatus, $matches)) {
+                if (preg_match('/<section class=\'credits-overlay-page-scrolling\'>.*?<\/section>/s', $buildStatus, $matches)) {
                     echo $matches[0];
                 } else {
-                    echo str_replace('<section class=\'section\'>', '<section class="section centered-status">', $buildStatus);
+                    echo str_replace('<section class=\'section\'>', '<section class="section credits-overlay-page-centered-status">', $buildStatus);
                 }
                 ?>
             </div>
@@ -446,34 +207,34 @@ document.addEventListener('DOMContentLoaded', function () {
     (function() {
         const main = document.querySelector('.container.is-fluid');
         if (!main) return;
-        const credits = main.querySelector('.scrolling-credits');
+        const credits = main.querySelector('.credits-overlay-page-scrolling');
         if (!credits) return;
         // Only scroll if the credits list actually overflows below the visible area
         const rect = credits.getBoundingClientRect();
         const availableH = window.innerHeight - rect.top;
         if (credits.scrollHeight <= availableH) return;
         // If we haven't created the page scroll container, create one that contains two stacked copies
-        if (!main.querySelector('.page-scroll-wrap-container')) {
+        if (!main.querySelector('.credits-overlay-page-scroll-container')) {
             const wrapper = document.createElement('div');
-            wrapper.className = 'page-scroll-wrap-container';
+            wrapper.className = 'credits-overlay-page-scroll-container';
             wrapper.style.position = 'relative';
             wrapper.style.overflow = 'hidden';
             // Two panels stacked inside an inner container that we will animate.
             // Each panel contains the credits + a small gap so the loop has breathing room.
             const gapPx = 24; // space between end and start in pixels
-            const panelA = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
-            const panelB = '<div class="page-panel"><div class="page-scroll-wrap">' + credits.outerHTML + '</div><div class="page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
-            wrapper.innerHTML = '<div class="page-scroll-inner">' + panelA + panelB + '</div>';
+            const panelA = '<div class="credits-overlay-page-panel"><div class="credits-overlay-page-scroll-wrap">' + credits.outerHTML + '</div><div class="credits-overlay-page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+            const panelB = '<div class="credits-overlay-page-panel"><div class="credits-overlay-page-scroll-wrap">' + credits.outerHTML + '</div><div class="credits-overlay-page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+            wrapper.innerHTML = '<div class="credits-overlay-page-scroll-inner">' + panelA + panelB + '</div>';
             credits.parentNode.replaceChild(wrapper, credits);
         }
-        const pageWrapper = main.querySelector('.page-scroll-wrap-container');
+        const pageWrapper = main.querySelector('.credits-overlay-page-scroll-container');
         if (!pageWrapper) return;
-        const pageInner = pageWrapper.querySelector('.page-scroll-inner');
-        const firstPanel = pageInner ? pageInner.querySelector('.page-panel') : null;
+        const pageInner = pageWrapper.querySelector('.credits-overlay-page-scroll-inner');
+        const firstPanel = pageInner ? pageInner.querySelector('.credits-overlay-page-panel') : null;
         if (!pageInner || !firstPanel) return;
         // Measure the content height (credits) and compute total panel height including gap
-        const contentBlock = firstPanel.querySelector('.page-scroll-wrap');
-        const gapBlock = firstPanel.querySelector('.page-scroll-gap');
+        const contentBlock = firstPanel.querySelector('.credits-overlay-page-scroll-wrap');
+        const gapBlock = firstPanel.querySelector('.credits-overlay-page-scroll-gap');
         const contentH = Math.max(1, Math.round(contentBlock.scrollHeight));
         const gapH = gapBlock ? Math.max(0, parseInt(gapBlock.style.height || '24', 10)) : 24;
         const totalH = contentH + gapH;
@@ -483,14 +244,14 @@ document.addEventListener('DOMContentLoaded', function () {
         pageInner.style.willChange = 'transform';
         pageInner.style.height = (totalH * 2) + 'px';
         // Ensure each panel has consistent sizing
-        Array.from(pageInner.querySelectorAll('.page-panel')).forEach(function(ch) {
+        Array.from(pageInner.querySelectorAll('.credits-overlay-page-panel')).forEach(function(ch) {
             ch.style.height = totalH + 'px';
             ch.style.overflow = 'hidden';
             ch.style.margin = '0';
             ch.style.padding = '0';
-            const innerWrap = ch.querySelector('.page-scroll-wrap');
+            const innerWrap = ch.querySelector('.credits-overlay-page-scroll-wrap');
             if (innerWrap) innerWrap.style.height = contentH + 'px';
-            const innerGap = ch.querySelector('.page-scroll-gap');
+            const innerGap = ch.querySelector('.credits-overlay-page-scroll-gap');
             if (innerGap) innerGap.style.height = gapH + 'px';
         });
         // Animate the inner container vertically by totalH and wrap smoothly

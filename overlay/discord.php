@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Discord Join Notifications</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -44,9 +44,9 @@
                     console.log('DISCORD_JOIN event received:', data);
                     const discordOverlay = document.getElementById('discordOverlay');
                     discordOverlay.innerHTML = `
-                        <div class="overlay-content">
+                        <div class="discord-overlay-page-content">
                             <span>
-                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-icon"> 
+                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
                                 ${data.member} has joined the Discord server
                             </span>
                         </div>
@@ -87,6 +87,6 @@
     </script>
 </head>
 <body>
-    <div id="discordOverlay" class="discord-overlay"></div>
+    <div id="discordOverlay" class="discord-overlay-page"></div>
 </body>
 </html>

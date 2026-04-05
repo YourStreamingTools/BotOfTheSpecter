@@ -175,6 +175,7 @@ $badgeCacheJson = json_encode(
     <meta charset="UTF-8">
     <title>Chat Overlay</title>
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -188,74 +189,10 @@ $badgeCacheJson = json_encode(
             flex-direction: column;
             justify-content: flex-end;
         }
-        #chat-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            gap: 4px;
-            padding: 8px;
-            overflow: hidden;
-            max-height: 100vh;
-        }
-        .chat-message {
-            display: flex;
-            align-items: flex-start;
-            gap: 6px;
-            animation: msgIn 0.2s ease-out forwards;
-            max-width: 100%;
-            word-break: break-word;
-        }
-        @keyframes msgIn {
-            from { opacity: 0; transform: translateY(6px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        .msg-inner {
-            background: rgba(0, 0, 0, 0.55);
-            border-radius: 6px;
-            padding: 5px 8px;
-            line-height: 1.4;
-            max-width: 100%;
-        }
-        .msg-author {
-            font-weight: 700;
-            margin-right: 4px;
-            white-space: nowrap;
-        }
-        .msg-badges {
-            display: inline-flex;
-            gap: 2px;
-            vertical-align: middle;
-            margin-right: 4px;
-        }
-        .msg-badges img {
-            width: 18px;
-            height: 18px;
-            vertical-align: middle;
-        }
-        .msg-text {
-            color: #ffffff;
-            word-break: break-word;
-        }
-        .msg-emote {
-            display: inline-block;
-            vertical-align: middle;
-            height: 28px;
-            width: auto;
-        }
-        .chat-message.removing {
-            animation: msgOut 0.3s ease-in forwards;
-        }
-        .chat-message.no-anim {
-            animation: none;
-        }
-        @keyframes msgOut {
-            from { opacity: 1; max-height: 200px; }
-            to   { opacity: 0; max-height: 0; padding: 0; margin: 0; }
-        }
     </style>
 </head>
 <body>
-<div id="chat-container"></div>
+<div id="chat-overlay-page-container"></div>
 <script>
     // Settings injected server-side from the user's yourchat configuration.
     // Filters and nicknames are shared between yourchat and this overlay.
@@ -275,10 +212,11 @@ $badgeCacheJson = json_encode(
             document.body.innerHTML = '<p style="color:red;padding:10px;">Missing ?code= in URL</p>';
             return;
         }
-        const container = document.getElementById('chat-container');
+        const container = document.getElementById('chat-overlay-page-container');
         let reconnectAttempts = 0;
         let socket;
         let messageBuffer = Array.isArray(OVERLAY_HISTORY) ? OVERLAY_HISTORY.slice() : [];
+        let saveTimer = null;
         async function saveHistory() {
             if (!code || messageBuffer.length === 0) return;
             try {
@@ -288,6 +226,13 @@ $badgeCacheJson = json_encode(
                     body: JSON.stringify(messageBuffer.slice(-100)),
                 });
             } catch (_) { /* best-effort — overlay still works if save fails */ }
+        }
+        // Debounced save — triggers 5 s after the last new message so the file
+        // stays current without hammering the server on every single message.
+        function scheduleSave() {
+            if (count > 1) return;
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveHistory, 5000);
         }
         // Filtering
         // Returns true if the message should be hidden (matches a username or
@@ -353,7 +298,7 @@ $badgeCacheJson = json_encode(
             return parseBadges(badgeStr).map(b => {
                 const url = (OVERLAY_BADGE_CACHE[b.name] || {})[b.version];
                 if (!url) return '';
-                return `<img class="badge-img" src="${url}" alt="${b.name}" title="${b.name}" onerror="this.style.display='none'">`;
+                return `<img class="chat-overlay-page-badge-img" src="${url}" alt="${b.name}" title="${b.name}" onerror="this.style.display='none'">`;
             }).join('');
         }
         // Emote rendering
@@ -381,7 +326,7 @@ $badgeCacheJson = json_encode(
                 if (emoteMap[i]) {
                     const { id, end } = emoteMap[i];
                     const emoteName = chars.slice(i, end + 1).join('');
-                    result += `<img class="msg-emote" src="https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/1.0" alt="${escapeHtml(emoteName)}" title="${escapeHtml(emoteName)}">`;
+                    result += `<img class="chat-overlay-page-emote" src="https://static-cdn.jtvnw.net/emoticons/v2/${id}/default/dark/1.0" alt="${escapeHtml(emoteName)}" title="${escapeHtml(emoteName)}">`;
                     i = end + 1;
                 } else {
                     result += escapeHtml(chars[i]);
@@ -409,18 +354,19 @@ $badgeCacheJson = json_encode(
             const badgeHtml = buildBadgeHtml(data.badges || '');
             const msgHtml   = buildMessageHtml(data.message || '', data.emotes || '');
             const el = document.createElement('div');
-            el.className = 'chat-message' + (isHistory ? ' no-anim' : '');
+            el.className = 'chat-overlay-page-message' + (isHistory ? ' no-anim' : '');
             el.dataset.msgId = data.message_id || '';
             el.innerHTML = `
-                <div class="msg-inner">
-                    <span class="msg-badges">${badgeHtml}</span><span class="msg-author" style="color:${escapeHtml(color)}">${escapeHtml(displayName)}:</span>
-                    <span class="msg-text">${msgHtml}</span>
+                <div class="chat-overlay-page-inner">
+                    <span class="chat-overlay-page-badges">${badgeHtml}</span><span class="chat-overlay-page-author" style="color:${escapeHtml(color)}">${escapeHtml(displayName)}:</span>
+                    <span class="chat-overlay-page-text">${msgHtml}</span>
                 </div>`;
             container.appendChild(el);
             if (!isHistory && count <= 1) {
                 // Track live messages for history persistence (only primary instance)
                 messageBuffer.push(data);
                 if (messageBuffer.length > 100) messageBuffer.shift();
+                scheduleSave();
             }
             enforceMax();
         }
@@ -431,7 +377,7 @@ $badgeCacheJson = json_encode(
         }
         function removeMessage(msgId) {
             if (!msgId) return;
-            container.querySelectorAll('.chat-message').forEach(el => {
+            container.querySelectorAll('.chat-overlay-page-message').forEach(el => {
                 if (el.dataset.msgId === msgId) {
                     el.classList.add('removing');
                     el.addEventListener('animationend', () => el.remove(), { once: true });
@@ -459,11 +405,8 @@ $badgeCacheJson = json_encode(
             } catch (_) { /* best-effort */ }
         }
         setInterval(refreshSettings, 60000);
-        // Save history to the server every 60 s (best-effort, keeps history fresh across reloads)
-        // Only the first overlay instance (count=1) writes history; extras just read on load.
+        // Flush history on page unload (refresh / close) as a fallback
         if (count <= 1) {
-            setInterval(saveHistory, 60000);
-            // Flush the buffer on page unload (refresh / close) so history survives immediately
             window.addEventListener('beforeunload', () => {
                 if (messageBuffer.length === 0) return;
                 const url = '?action=save_history&code=' + encodeURIComponent(code);

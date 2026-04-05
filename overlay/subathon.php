@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Subathon Notifications</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -169,6 +169,6 @@
     </script>
 </head>
 <body>
-    <div id="subathonOverlay" class="subathon-overlay hide"></div>
+    <div id="subathonOverlay" class="subathon-overlay-page hide"></div>
 </body>
 </html>

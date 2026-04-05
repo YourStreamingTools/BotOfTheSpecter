@@ -97,46 +97,36 @@ ob_end_flush();
 <!DOCTYPE html>
 <html>
 <head>
-<title>OBS TASK LIST</title>
-<link rel='icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png' type='image/png' />
-<link rel='apple-touch-icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png'>
-<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
-<meta http-equiv='refresh' content='10'>
-<style>
-body {
-    background: transparent;
-    <?php
-    if ($font) { echo 'font-family: "' . htmlspecialchars($font) . '", sans-serif; '; }
-    if ($color) {
-        echo 'color: ' . htmlspecialchars($color) . ';';
-        if ($shadow) {
-            if (strtolower($color) === 'black' || $color === '#000' || $color === '#000000') {
-                echo 'text-shadow: 0px 0px 6px white;';
-            } else {
-                echo 'text-shadow: 0px 0px 6px black;';
+    <meta http-equiv='refresh' content='10'>
+    <title>OBS TASK LIST</title>
+    <link rel='icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png' type='image/png' />
+    <link rel='apple-touch-icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png'>
+    <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
+    <style>
+        body {
+            background: transparent;
+            <?php
+            if ($font) { echo 'font-family: "' . htmlspecialchars($font) . '", sans-serif; '; }
+            if ($color) {
+                echo 'color: ' . htmlspecialchars($color) . ';';
+                if ($shadow) {
+                    if (strtolower($color) === 'black' || $color === '#000' || $color === '#000000') {
+                        echo 'text-shadow: 0px 0px 6px white;';
+                    } else {
+                        echo 'text-shadow: 0px 0px 6px black;';
+                    }
+                }
+            } elseif ($theme) {
+                echo 'color: white;';
+                if ($shadow) { echo 'text-shadow: 0px 0px 6px black;'; }
             }
+            ?>
         }
-    } elseif ($theme) {
-        echo 'color: white;';
-        if ($shadow) { echo 'text-shadow: 0px 0px 6px black;'; }
-    }
-    ?>
-}
-<?php if ($theme): ?>
-.theme-box {
-    background: rgba(0, 0, 0, 0.75);
-    border-radius: 10px;
-    padding: 15px 20px;
-    display: inline-block;
-    min-width: 200px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-}
-<?php endif; ?>
-</style>
+    </style>
 </head>
 <body>
-<?php if ($theme): ?><div class="theme-box"><?php endif; ?>
+<?php if ($theme): ?><div class="todolist-overlay-page-theme-box"><?php endif; ?>
 <?php if ($error_html): ?>
     <?php echo $error_html; ?>
 <?php else: ?>
@@ -164,6 +154,5 @@ body {
     ?>
 <?php endif; ?>
 <?php if ($theme): ?></div><?php endif; ?>
-
 </body>
 </html>
