@@ -28,58 +28,6 @@ if ($username) {
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <style>
-        .notice-banner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            z-index: 10000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            animation: slideDown 0.5s ease-out;
-        }
-
-        .notice-banner h2 {
-            margin: 0 0 10px 0;
-            font-size: 20px;
-        }
-
-        .notice-banner p {
-            margin: 0;
-            font-size: 14px;
-            opacity: 0.95;
-        }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateY(-100%);
-                opacity: 0;
-            }
-        }
-
-        .notice-banner.hide {
-            animation: slideUp 0.5s ease-out forwards;
-        }
-    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let socket;
@@ -90,107 +38,79 @@ if ($username) {
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
-            // Hide notice after 30 seconds
-            const noticeBanner = document.getElementById('noticeBanner');
-            if (noticeBanner) {
-                setTimeout(() => {
-                    noticeBanner.classList.add('hide');
-                    setTimeout(() => {
-                        noticeBanner.style.display = 'none';
-                    }, 500);
-                }, 30000);
-            }
-            
             if (!code) {
                 alert('No code provided in the URL');
                 return;
             }
-
             function enqueueAudio(url) {
                 audioQueue.push(url);
                 if (!currentAudio) {
                     playNextAudio();
                 }
             }
-
             function playNextAudio() {
                 if (audioQueue.length === 0) {
                     currentAudio = null;
                     return;
                 }
-
                 const url = audioQueue.shift();
                 currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
                 currentAudio.volume = 0.8;
-
                 currentAudio.addEventListener('canplaythrough', () => {
                     console.log('Audio can play through without buffering');
                 });
-
                 currentAudio.addEventListener('ended', () => {
                     currentAudio = null;
                     playNextAudio();
                 });
-
                 currentAudio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
                     alert('Failed to load audio file');
                     currentAudio = null;
                     playNextAudio();
                 });
-
                 currentAudio.play().catch(error => {
                     console.error('Error playing audio:', error);
                     alert('Click to play audio');
                 });
             }
-
             function connectWebSocket() {
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
                 });
-
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
                     socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Everything' });
                 });
-
                 socket.on('disconnect', () => {
                     console.log('Disconnected from WebSocket server');
                     attemptReconnect();
                 });
-
                 socket.on('connect_error', (error) => {
                     console.error('Connection error:', error);
                     attemptReconnect();
                 });
-
                 socket.on('WELCOME', (data) => {
                     console.log('Server says:', data.message);
                 });
-
                 socket.on('NOTIFY', (data) => {
                     console.log('Notification:', data);
                     alert(data.message);
                 });
-
                 socket.on('TTS', (data) => {
                     console.log('TTS event received:', data);
                     enqueueAudio(data.audio_file);
                 });
-
                 socket.on('WALKON', (data) => {
                     console.log('WALKON event received:', data);
                     const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
                     enqueueAudio(audioFile);
                 });
-
                 socket.on('SOUND_ALERT', (data) => {
                     console.log('SOUND_ALERT event received:', data);
                     enqueueAudio(data.sound);
                 });
-
                 socket.on('DEATHS', (data) => {
                     console.log('DEATHS event received:', data);
                     const deathOverlay = document.getElementById('deathOverlay');
@@ -207,17 +127,14 @@ if ($username) {
                     deathOverlay.classList.remove('hide');
                     deathOverlay.classList.add('show');
                     deathOverlay.style.display = 'block';
-
                     setTimeout(() => {
                         deathOverlay.classList.remove('show');
                         deathOverlay.classList.add('hide');
                     }, 10000);
-
                     setTimeout(() => {
                         deathOverlay.style.display = 'none';
                     }, 11000);
                 });
-
                 // Listen for WEATHER_DATA events
                 socket.on('WEATHER_DATA', (data) => {
                     console.log('WEATHER_DATA event received:', data);
@@ -226,7 +143,6 @@ if ($username) {
                     const location = weather.location;
                     updateWeatherOverlay(weather, location);
                 });
-
                 // Listen for DISCORD_JOIN events
                 socket.on('DISCORD_JOIN', (data) => {
                     console.log('DISCORD_JOIN event received:', data);
@@ -241,25 +157,21 @@ if ($username) {
                     `;
                     discordOverlay.classList.add('show');
                     discordOverlay.style.display = 'block';
-
                     // Display for 10 seconds
                     setTimeout(() => {
                         discordOverlay.classList.remove('show');
                         discordOverlay.classList.add('hide');
                     }, 10000);
-
                     // Hide after the transition
                     setTimeout(() => {
                         discordOverlay.style.display = 'none';
                     }, 11000);
                 });
-
                 // Log all events
                 socket.onAny((event, ...args) => {
                     console.log(`Event: ${event}`, args);
                 });
             }
-
             function attemptReconnect() {
                 reconnectAttempts++;
                 const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
@@ -268,7 +180,6 @@ if ($username) {
                     connectWebSocket();
                 }, delay);
             }
-
             // Function to update weather overlay
             function updateWeatherOverlay(weather, location) {
                 console.log('Updating weather overlay with data:', weather);
@@ -290,20 +201,16 @@ if ($username) {
                 `;
                 weatherOverlay.classList.add('show');
                 weatherOverlay.style.display = 'block';
-
                 // Start the timer for updating the time
                 startTimer(timezone);
-
                 setTimeout(() => {
                     weatherOverlay.classList.add('hide');
                     weatherOverlay.classList.remove('show');
                 }, 10000);
-
                 setTimeout(() => {
                     weatherOverlay.style.display = 'none';
                 }, 11000);
             }
-
             // Function to start the timer for current time
             function startTimer(timezone) {
                 function updateTime() {
@@ -315,17 +222,12 @@ if ($username) {
                 updateTime();
                 setInterval(updateTime, 1000);
             }
-
             // Start initial connection
             connectWebSocket();
         });
     </script>
 </head>
 <body>
-    <div id="noticeBanner" class="notice-banner">
-        <h2>🚀 Upcoming Changes</h2>
-        <p>We're working on improvements to our overlay system. Check the <strong>overlays</strong> page on your dashboard for updates!</p>
-    </div>
     <div id="deathOverlay" class="deaths-overlay-page"></div>
     <div id="weatherOverlay" class="weather-overlay-page hide"></div>
     <div id="discordOverlay" class="discord-overlay-page"></div>

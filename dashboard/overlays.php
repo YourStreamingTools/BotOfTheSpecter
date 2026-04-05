@@ -31,6 +31,13 @@ date_default_timezone_set($timezone);
 // Start output buffering
 ob_start();
 ?>
+<div class="sp-alert sp-alert-warning" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem; background-color:rgba(255, 193, 7, 0.1); border-left:4px solid var(--amber);">
+    <span style="font-size:1.75rem; color:var(--amber); flex-shrink:0;"><i class="fas fa-bell"></i></span>
+    <div>
+        <p style="font-weight:700; margin-bottom:0.4rem;">📢 Upcoming Overlay System Update</p>
+        <p style="margin-bottom:0;">We're working on improvements to our overlay system. The main overlay is temporarily showing a notice page. Use the <strong>"All Overlays"</strong> option below with <code>all.php</code> for the complete overlay experience. Check back soon for updates!</p>
+    </div>
+</div>
 <div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
     <span style="font-size:1.75rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-broadcast-tower"></i></span>
     <div>
@@ -62,7 +69,7 @@ ob_start();
                 </ul>
                 <p style="font-size:0.8rem; margin-bottom:0.5rem;"><?= t('overlays_add_once_auto') ?></p>
                 <div class="info-box" style="font-family:monospace; margin-bottom:0;">
-                    https://overlay.botofthespecter.com/?code=API_KEY_HERE
+                    https://overlay.botofthespecter.com/all.php?code=API_KEY_HERE
                 </div>
             </div>
         </div>
