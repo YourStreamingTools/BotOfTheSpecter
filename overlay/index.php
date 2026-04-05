@@ -26,7 +26,7 @@ if ($username) {
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -132,9 +132,9 @@ if ($username) {
                     console.log('DEATHS event received:', data);
                     const deathOverlay = document.getElementById('deathOverlay');
                     deathOverlay.innerHTML = `
-                        <div class="overlay-content">
-                            <div class="overlay-title">
-                                <span class="overlay-emote"></span>
+                        <div class="deaths-overlay-page-content">
+                            <div class="deaths-overlay-page-title">
+                                <span class="deaths-overlay-page-emote"></span>
                                 <span>Current Deaths</span>
                             </div>
                             <div>${data.game}</div>
@@ -169,9 +169,9 @@ if ($username) {
                     console.log('DISCORD_JOIN event received:', data);
                     const discordOverlay = document.getElementById('discordOverlay');
                     discordOverlay.innerHTML = `
-                        <div class="overlay-content">
+                        <div class="discord-overlay-page-content">
                             <span>
-                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-icon"> 
+                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
                                 ${data.member} has joined the Discord server
                             </span>
                         </div>
@@ -211,17 +211,17 @@ if ($username) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 weatherOverlay.innerHTML = `
-                    <div class="overlay-content">
-                        <div class="overlay-header">
-                            <div id="currentTime" class="time"></div>
-                            <div class="location">${location}</div>
-                            <div class="temperature">${weather.temperature}</div>
+                    <div class="weather-overlay-page-content">
+                        <div class="weather-overlay-page-header">
+                            <div id="currentTime" class="weather-overlay-page-time"></div>
+                            <div class="weather-overlay-page-location">${location}</div>
+                            <div class="weather-overlay-page-temperature">${weather.temperature}</div>
                         </div>
-                        <div class="weather-details">
-                            <img src="${weather.icon}" alt="${weather.status}" class="weather-icon">
-                            <div class="status">${weather.status}</div>
-                            <div class="wind">${weather.wind}</div>
-                            <div class="humidity">${weather.humidity}</div>
+                        <div class="weather-overlay-page-details">
+                            <img src="${weather.icon}" alt="${weather.status}" class="weather-overlay-page-icon">
+                            <div class="weather-overlay-page-status">${weather.status}</div>
+                            <div class="weather-overlay-page-wind">${weather.wind}</div>
+                            <div class="weather-overlay-page-humidity">${weather.humidity}</div>
                         </div>
                     </div>
                 `;
@@ -259,8 +259,8 @@ if ($username) {
     </script>
 </head>
 <body>
-    <div id="deathOverlay" class="death-overlay"></div>
-    <div id="weatherOverlay" class="weather-overlay hide"></div>
-    <div id="discordOverlay" class="discord-overlay"></div>
+    <div id="deathOverlay" class="deaths-overlay-page"></div>
+    <div id="weatherOverlay" class="weather-overlay-page hide"></div>
+    <div id="discordOverlay" class="discord-overlay-page"></div>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Audio Notifications</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

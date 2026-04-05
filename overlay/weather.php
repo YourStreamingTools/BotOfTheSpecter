@@ -31,7 +31,7 @@ if ($username) {
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Weather Notifications</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -98,17 +98,17 @@ if ($username) {
                 console.log('Updating weather overlay with data:', weather);
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 weatherOverlay.innerHTML = `
-                    <div class="overlay-content">
-                        <div class="overlay-header">
-                            ${timezone ? '<div id="currentTime" class="time"></div>' : ''}
-                            <div class="location">${location}</div>
-                            <div class="temperature">${weather.temperature}</div>
+                    <div class="weather-overlay-page-content">
+                        <div class="weather-overlay-page-header">
+                            ${timezone ? '<div id="currentTime" class="weather-overlay-page-time"></div>' : ''}
+                            <div class="weather-overlay-page-location">${location}</div>
+                            <div class="weather-overlay-page-temperature">${weather.temperature}</div>
                         </div>
-                        <div class="weather-details">
-                            <img src="${weather.icon}" alt="${weather.status}" class="weather-icon">
-                            <div class="status">${weather.status}</div>
-                            <div class="wind">${weather.wind}</div>
-                            <div class="humidity">${weather.humidity}</div>
+                        <div class="weather-overlay-page-details">
+                            <img src="${weather.icon}" alt="${weather.status}" class="weather-overlay-page-icon">
+                            <div class="weather-overlay-page-status">${weather.status}</div>
+                            <div class="weather-overlay-page-wind">${weather.wind}</div>
+                            <div class="weather-overlay-page-humidity">${weather.humidity}</div>
                         </div>
                     </div>
                 `;
@@ -147,6 +147,6 @@ if ($username) {
     </script>
 </head>
 <body>
-    <div id="weatherOverlay" class="weather-overlay hide"></div>
+    <div id="weatherOverlay" class="weather-overlay-page hide"></div>
 </body>
 </html>

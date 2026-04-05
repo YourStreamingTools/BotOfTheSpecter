@@ -22,7 +22,7 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -90,9 +90,9 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
             function showTwitchEventOverlay(title, message) {
                 const twitchOverlay = document.getElementById('twitchOverlay');
                 twitchOverlay.innerHTML = `
-                    <div class="overlay-content">
-                        <div class="overlay-title">${title}</div>
-                        <div class="overlay-message">${message}</div>
+                    <div class="twitch-overlay-page-content">
+                        <div class="twitch-overlay-page-title">${title}</div>
+                        <div class="twitch-overlay-page-message">${message}</div>
                     </div>
                 `;
                 twitchOverlay.classList.add('show');
@@ -121,6 +121,6 @@ $alertSettings = $stmt->fetch(PDO::FETCH_ASSOC);
     </script>
 </head>
 <body>
-    <div id="twitchOverlay" class="twitch-overlay"></div>
+    <div id="twitchOverlay" class="twitch-overlay-page"></div>
 </body>
 </html>

@@ -3,17 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Video Alert Notifications</title>
-    <link rel="stylesheet" href="index.css">
-    <style>
-        .centered-video {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            max-width: 100%;
-            max-height: 100%;
-        }
-    </style>
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -49,7 +39,7 @@
                 currentVideo.src = `${url}?t=${new Date().getTime()}`;
                 currentVideo.volume = 0.8;
                 currentVideo.controls = false;
-                currentVideo.className = 'centered-video';
+                currentVideo.className = 'video-alert-overlay-page-video';
                 currentVideo.preload = 'auto';
                 document.body.appendChild(currentVideo);
                 currentVideo.addEventListener('canplaythrough', () => {

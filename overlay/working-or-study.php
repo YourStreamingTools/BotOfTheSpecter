@@ -12,10 +12,10 @@ $has_tasklist_query = array_key_exists('tasklist', $_GET);
 $show_timer_panel = true;
 $overlay_mode_class = '';
 if ($has_timer_query && !$has_tasklist_query) {
-    $overlay_mode_class = 'study-overlay--timer-only';
+    $overlay_mode_class = 'study-overlay-page--timer-only';
 } elseif ($has_tasklist_query && !$has_timer_query) {
     $show_timer_panel = false;
-    $overlay_mode_class = 'study-overlay--tasks-only';
+    $overlay_mode_class = 'study-overlay-page--tasks-only';
 }
 
 // New task system panel visibility
@@ -164,193 +164,74 @@ ob_end_clean();
     <title>Specter Working/Study Timer</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <link rel="stylesheet" href="index.css">
-    <style>
-        /* ── New task system panels ─────────────────────────────────── */
-        .task-sys-card {
-            background: rgba(20, 20, 30, 0.85);
-            border: 1px solid rgba(255,255,255,.13);
-            border-radius: 10px;
-            min-width: 200px;
-            max-width: 340px;
-            height: 470px;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-        .task-sys-card__header {
-            padding: 8px 12px;
-            background: rgba(255,255,255,.07);
-            font-weight: 700;
-            font-size: .78rem;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            gap: 7px;
-        }
-        .task-sys-card__dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-        .task-sys-card__list {
-            list-style: none;
-            margin: 0;
-            padding: 6px 0;
-            height: 428px;
-            max-height: 428px;
-            overflow-y: auto;
-        }
-        .task-sys-card__list:empty::after {
-            content: 'No tasks';
-            display: block;
-            text-align: center;
-            padding: 14px;
-            color: rgba(255,255,255,.38);
-            font-style: italic;
-            font-size: .75rem;
-        }
-        .task-sys-item {
-            padding: 5px 12px;
-            display: flex;
-            align-items: flex-start;
-            gap: 9px;
-            border-bottom: 1px solid rgba(255,255,255,.05);
-            animation: taskSlideIn .3s ease;
-        }
-        .task-sys-item:last-child { border-bottom: none; }
-        .task-sys-item.is-done { opacity: .4; }
-        .task-sys-item__check {
-            margin-top: 3px;
-            width: 14px; height: 14px;
-            border-radius: 50%;
-            border: 2px solid #48c78e;
-            flex-shrink: 0;
-        }
-        .task-sys-item.is-done .task-sys-item__check {
-            background: #48c78e;
-            position: relative;
-        }
-        .task-sys-item.is-done .task-sys-item__check::after {
-            content: '\2713';
-            position: absolute;
-            top: -2px; left: 1px;
-            font-size: .5rem;
-            color: #fff;
-        }
-        .task-sys-item__body { flex: 1; min-width: 0; }
-        .task-sys-item__title {
-            font-size: .78rem;
-            font-weight: 600;
-            color: #fff;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .task-sys-item.is-done .task-sys-item__title { text-decoration: line-through; }
-        .task-sys-item__meta {
-            font-size: .65rem;
-            color: rgba(255,255,255,.45);
-            margin-top: 1px;
-        }
-        .task-sys-item__pts {
-            font-size: .68rem;
-            color: #ffd700;
-            font-weight: 700;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-        .task-sys-reward {
-            position: fixed;
-            bottom: 18px; right: 18px;
-            background: #23d160;
-            color: #fff;
-            border-radius: 8px;
-            padding: 9px 15px;
-            font-weight: 700;
-            font-size: .85rem;
-            box-shadow: 0 4px 16px rgba(0,0,0,.45);
-            animation: taskPopIn .4s ease;
-            z-index: 1000;
-        }
-        @keyframes taskSlideIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to   { opacity: 1; transform: none; }
-        }
-        @keyframes taskPopIn {
-            0%   { transform: scale(.6); opacity: 0; }
-            70%  { transform: scale(1.07); }
-            100% { transform: scale(1); opacity: 1; }
-        }
-    </style>
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 </head>
 <body class="study-overlay-page">
     <?php if ($error_html): ?>
-        <div class="study-overlay-error-screen">
+        <div class="study-overlay-page-error-screen">
             <h1>Overlay unavailable</h1>
             <p id="overlayErrorMessage"><?php echo $error_html; ?></p>
         </div>
     <?php else: ?>
-        <div class="study-overlay-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>"
+        <div class="study-overlay-page-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>"
             id="overlayRoot">
-            <section class="study-overlay-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
-                <div class="study-overlay-timer-ring">
+            <section class="study-overlay-page-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
+                <div class="study-overlay-page-timer-ring">
                     <svg viewBox="0 0 220 220">
-                        <circle class="study-overlay-ring-bg" cx="110" cy="110" r="98"></circle>
-                        <circle class="study-overlay-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98">
+                        <circle class="study-overlay-page-ring-bg" cx="110" cy="110" r="98"></circle>
+                        <circle class="study-overlay-page-ring-progress" id="timerRingProgress" cx="110" cy="110" r="98">
                         </circle>
                     </svg>
-                    <div class="study-overlay-timer-inner">
-                        <div id="phaseLabel" class="study-overlay-phase-label">Focus Sprint</div>
-                        <div id="timerDisplay" class="study-overlay-timer-display">00:00</div>
-                        <div id="statusText" class="study-overlay-timer-status">Waiting</div>
+                    <div class="study-overlay-page-timer-inner">
+                        <div id="phaseLabel" class="study-overlay-page-phase-label">Focus Sprint</div>
+                        <div id="timerDisplay" class="study-overlay-page-timer-display">00:00</div>
+                        <div id="statusText" class="study-overlay-page-timer-status">Waiting</div>
                     </div>
                 </div>
-                <div class="study-overlay-stats-row">
+                <div class="study-overlay-page-stats-row">
                     <div>
-                        <div class="study-overlay-stat-label">Focus</div>
-                        <div class="study-overlay-stat-value" id="focusSessionsCompleted">0</div>
+                        <div class="study-overlay-page-stat-label">Focus</div>
+                        <div class="study-overlay-page-stat-value" id="focusSessionsCompleted">0</div>
                     </div>
                     <div>
-                        <div class="study-overlay-stat-label">Micro</div>
-                        <div class="study-overlay-stat-value" id="microSessionsCompleted">0</div>
+                        <div class="study-overlay-page-stat-label">Micro</div>
+                        <div class="study-overlay-page-stat-value" id="microSessionsCompleted">0</div>
                     </div>
                     <div>
-                        <div class="study-overlay-stat-label">Recharge</div>
-                        <div class="study-overlay-stat-value" id="rechargeSessionsCompleted">0</div>
+                        <div class="study-overlay-page-stat-label">Recharge</div>
+                        <div class="study-overlay-page-stat-value" id="rechargeSessionsCompleted">0</div>
                     </div>
                     <div>
-                        <div class="study-overlay-stat-label">Total Sessions</div>
-                        <div class="study-overlay-stat-value" id="sessionsCompleted">0</div>
+                        <div class="study-overlay-page-stat-label">Total Sessions</div>
+                        <div class="study-overlay-page-stat-value" id="sessionsCompleted">0</div>
                     </div>
                     <div>
-                        <div class="study-overlay-stat-label">Total time</div>
-                        <div class="study-overlay-stat-value" id="totalTimeLogged">0m</div>
+                        <div class="study-overlay-page-stat-label">Total time</div>
+                        <div class="study-overlay-page-stat-value" id="totalTimeLogged">0m</div>
                     </div>
                 </div>
             </section>
             <!-- New task system: Streamer Tasks panel -->
             <!-- Shown when ?tasklist is present (filtered by ?tasklist&streamer=true to show only this panel) -->
-            <section class="task-sys-card task-sys-card--streamer"
+            <section class="study-overlay-page-task-sys-card study-overlay-page-task-sys-card--streamer"
                      data-visible="<?php echo $show_new_streamer_panel ? 'true' : 'false'; ?>"
                      <?php if (!$show_new_streamer_panel) echo 'style="display:none"'; ?>>
-                <div class="task-sys-card__header">
-                    <span class="task-sys-card__dot" style="background:#48c78e"></span>
+                <div class="study-overlay-page-task-sys-card-header">
+                    <span class="study-overlay-page-task-sys-card-dot" style="background:#48c78e"></span>
                     Streamer Tasks
                 </div>
-                <ul class="task-sys-card__list" id="newStreamerTaskList"></ul>
+                <ul class="study-overlay-page-task-sys-card-list" id="newStreamerTaskList"></ul>
             </section>
             <!-- New task system: Viewer Tasks panel -->
             <!-- Shown when ?tasklist is present (hidden when ?tasklist&streamer=true) -->
-            <section class="task-sys-card task-sys-card--viewer"
+            <section class="study-overlay-page-task-sys-card study-overlay-page-task-sys-card--viewer"
                      data-visible="<?php echo $show_new_viewer_panel ? 'true' : 'false'; ?>"
                      <?php if (!$show_new_viewer_panel) echo 'style="display:none"'; ?>>
-                <div class="task-sys-card__header">
-                    <span class="task-sys-card__dot" style="background:#3e8ed0"></span>
+                <div class="study-overlay-page-task-sys-card-header">
+                    <span class="study-overlay-page-task-sys-card-dot" style="background:#3e8ed0"></span>
                     Viewer Tasks
                 </div>
-                <ul class="task-sys-card__list" id="newViewerTaskList"></ul>
+                <ul class="study-overlay-page-task-sys-card-list" id="newViewerTaskList"></ul>
             </section>
             <div id="taskRewardPopups"></div>
         </div>
@@ -1020,7 +901,7 @@ ob_end_clean();
                     stopTaskListAutoScroll(listId);
                     return;
                 }
-                const taskCount = list.querySelectorAll('.task-sys-item').length;
+                const taskCount = list.querySelectorAll('.study-overlay-page-task-sys-item').length;
                 const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
                 const shouldAutoScroll = taskCount > 5 && maxScroll > 0;
                 if (!shouldAutoScroll) {
@@ -1056,7 +937,7 @@ ob_end_clean();
                         stopTaskListAutoScroll(listId);
                         return;
                     }
-                    const currentTaskCount = currentList.querySelectorAll('.task-sys-item').length;
+                    const currentTaskCount = currentList.querySelectorAll('.study-overlay-page-task-sys-item').length;
                     const currentMaxScroll = Math.max(0, currentList.scrollHeight - currentList.clientHeight);
                     if (currentTaskCount <= 5 || currentMaxScroll <= 0) {
                         stopTaskListAutoScroll(listId);
@@ -1106,9 +987,9 @@ ob_end_clean();
                 let li = document.getElementById('new-streamer-task-' + task.id);
                 if (!li) { li = document.createElement('li'); li.id = 'new-streamer-task-' + task.id; list.appendChild(li); }
                 const done = task.status === 'completed';
-                li.className = 'task-sys-item' + (done ? ' is-done' : '');
+                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
-                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(taskDescription)}</div></div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
             };
             const newViewerUpsert = (task) => {
@@ -1117,10 +998,10 @@ ob_end_clean();
                 let li = document.getElementById('new-viewer-task-' + task.id);
                 if (!li) { li = document.createElement('li'); li.id = 'new-viewer-task-' + task.id; list.appendChild(li); }
                 const done = task.status === 'completed';
-                li.className = 'task-sys-item' + (done ? ' is-done' : '');
+                li.className = 'study-overlay-page-task-sys-item' + (done ? ' is-done' : '');
                 const userName = String(task?.user_name || '').trim() || 'Unknown';
                 const taskDescription = getTaskDescription(task) || 'Untitled task';
-                li.innerHTML = `<div class="task-sys-item__check"></div><div class="task-sys-item__body"><div class="task-sys-item__title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div></div>`;
+                li.innerHTML = `<div class="study-overlay-page-task-sys-item-check"></div><div class="study-overlay-page-task-sys-item-body"><div class="study-overlay-page-task-sys-item-title">${escapeHtml(userName)}: ${escapeHtml(taskDescription)}</div></div>`;
                 refreshTaskListAutoScroll();
             };
             const newSetDone = (taskId, owner) => {
@@ -1140,7 +1021,7 @@ ob_end_clean();
             };
             const showTaskRewardPopup = (msg) => {
                 const el = document.createElement('div');
-                el.className = 'task-sys-reward';
+                el.className = 'study-overlay-page-task-sys-reward';
                 el.textContent = msg;
                 const container = document.getElementById('taskRewardPopups') || document.body;
                 container.appendChild(el);

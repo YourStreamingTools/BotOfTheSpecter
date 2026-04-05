@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>FourthWall Overlay</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <style>
         body {
@@ -21,85 +21,6 @@
             flex-direction: column-reverse;
             gap: 12px;
             pointer-events: none;
-        }
-        .fw-alert {
-            display: flex;
-            align-items: flex-start;
-            gap: 14px;
-            background: linear-gradient(135deg, rgba(15, 15, 20, 0.95) 0%, rgba(25, 20, 35, 0.95) 100%);
-            border-left: 4px solid #9b59b6;
-            border-radius: 10px;
-            padding: 14px 18px;
-            min-width: 320px;
-            max-width: 420px;
-            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(155, 89, 182, 0.2);
-            opacity: 0;
-            transform: translateX(-40px);
-            animation: fw-slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-        .fw-alert.fw-dismissing {
-            animation: fw-slide-out 0.35s ease-in forwards;
-        }
-        /* Per-type accent colours */
-        .fw-alert.fw-order       { border-left-color: #2ecc71; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(46,204,113,0.2); }
-        .fw-alert.fw-donation    { border-left-color: #f39c12; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(243,156,18,0.2); }
-        .fw-alert.fw-giveaway    { border-left-color: #e74c3c; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(231,76,60,0.2); }
-        .fw-alert.fw-sub         { border-left-color: #3498db; box-shadow: 0 6px 24px rgba(0,0,0,0.6), 0 0 0 1px rgba(52,152,219,0.2); }
-        .fw-icon {
-            font-size: 28px;
-            line-height: 1;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-        .fw-body {
-            flex: 1;
-            min-width: 0;
-        }
-        .fw-label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.45);
-            margin-bottom: 4px;
-        }
-        .fw-alert.fw-order    .fw-label { color: rgba(46, 204, 113, 0.75); }
-        .fw-alert.fw-donation .fw-label { color: rgba(243, 156, 18, 0.75); }
-        .fw-alert.fw-giveaway .fw-label { color: rgba(231, 76, 60, 0.75); }
-        .fw-alert.fw-sub      .fw-label { color: rgba(52, 152, 219, 0.75); }
-        .fw-headline {
-            font-size: 15px;
-            font-weight: 700;
-            color: #ffffff;
-            line-height: 1.3;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .fw-detail {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.65);
-            margin-top: 4px;
-            line-height: 1.4;
-            word-break: break-word;
-        }
-        .fw-amount {
-            font-size: 13px;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.85);
-            margin-top: 3px;
-        }
-        .fw-alert.fw-order    .fw-amount { color: #2ecc71; }
-        .fw-alert.fw-donation .fw-amount { color: #f39c12; }
-        .fw-alert.fw-giveaway .fw-amount { color: #e74c3c; }
-        .fw-alert.fw-sub      .fw-amount { color: #3498db; }
-        @keyframes fw-slide-in {
-            from { opacity: 0; transform: translateX(-40px); }
-            to   { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes fw-slide-out {
-            from { opacity: 1; transform: translateX(0); }
-            to   { opacity: 0; transform: translateX(-40px); }
         }
     </style>
     <script>
@@ -138,10 +59,10 @@
             // Build alert element for each known event type
             function buildAlertElement(eventType, eventPayload) {
                 const el = document.createElement('div');
-                el.className = 'fw-alert';
+                el.className = 'fourthwall-overlay-page-alert';
                 let icon = '🛒', cssClass = '', label = 'FourthWall', headline = '', detail = '', amount = '';
                 if (eventType === 'ORDER_PLACED') {
-                    cssClass = 'fw-order';
+                    cssClass = 'fourthwall-overlay-page-order';
                     icon = '🛒';
                     label = 'New Order';
                     const username = eventPayload.username || 'Someone';
@@ -154,7 +75,7 @@
                     detail = qty > 1 ? `${qty}× ${itemName}` : itemName;
                     amount = price;
                 } else if (eventType === 'DONATION') {
-                    cssClass = 'fw-donation';
+                    cssClass = 'fourthwall-overlay-page-donation';
                     icon = '💰';
                     label = 'Donation';
                     const username = eventPayload.username || 'Someone';
@@ -165,7 +86,7 @@
                     amount = price;
                     detail = msg;
                 } else if (eventType === 'GIVEAWAY_PURCHASED') {
-                    cssClass = 'fw-giveaway';
+                    cssClass = 'fourthwall-overlay-page-giveaway';
                     icon = '🎁';
                     label = 'Giveaway Purchase';
                     const username = eventPayload.username || 'Someone';
@@ -177,7 +98,7 @@
                     detail = itemName;
                     amount = price;
                 } else if (eventType === 'SUBSCRIPTION_PURCHASED') {
-                    cssClass = 'fw-sub';
+                    cssClass = 'fourthwall-overlay-page-sub';
                     icon = '⭐';
                     label = 'New Subscription';
                     const nickname = eventPayload.nickname || 'Someone';
@@ -198,12 +119,12 @@
                 }
                 el.classList.add(cssClass);
                 el.innerHTML = `
-                    <div class="fw-icon">${icon}</div>
-                    <div class="fw-body">
-                        <div class="fw-label">${label}</div>
-                        <div class="fw-headline">${escapeHtml(headline)}</div>
-                        ${detail ? `<div class="fw-detail">${escapeHtml(detail)}</div>` : ''}
-                        ${amount ? `<div class="fw-amount">${escapeHtml(amount)}</div>` : ''}
+                    <div class="fourthwall-overlay-page-icon">${icon}</div>
+                    <div class="fourthwall-overlay-page-body">
+                        <div class="fourthwall-overlay-page-label">${label}</div>
+                        <div class="fourthwall-overlay-page-headline">${escapeHtml(headline)}</div>
+                        ${detail ? `<div class="fourthwall-overlay-page-detail">${escapeHtml(detail)}</div>` : ''}
+                        ${amount ? `<div class="fourthwall-overlay-page-amount">${escapeHtml(amount)}</div>` : ''}
                     </div>`;
                 return el;
             }
@@ -225,7 +146,7 @@
                 const el = buildAlertElement(eventType, eventPayload);
                 container.appendChild(el);
                 setTimeout(() => {
-                    el.classList.add('fw-dismissing');
+                    el.classList.add('fourthwall-overlay-page-dismissing');
                     el.addEventListener('animationend', () => {
                         el.remove();
                         showNextAlert();

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>WebSocket Deaths Notifications</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -46,9 +46,9 @@
                     console.log('DEATHS event received:', data);
                     const deathOverlay = document.getElementById('deathOverlay');
                     deathOverlay.innerHTML = `
-                        <div class="overlay-content">
-                            <div class="overlay-title">
-                                <span class="overlay-emote"></span>
+                        <div class="deaths-overlay-page-content">
+                            <div class="deaths-overlay-page-title">
+                                <span class="deaths-overlay-page-emote"></span>
                                 <span>Current Deaths</span>
                             </div>
                             <div>${data.game}</div>
@@ -90,6 +90,6 @@
     </script>
 </head>
 <body>
-    <div id="deathOverlay"></div>
+    <div id="deathOverlay" class="deaths-overlay-page"></div>
 </body>
 </html>
