@@ -191,6 +191,7 @@ $badgeCacheJson = json_encode(
         #chat-container {
             display: flex;
             flex-direction: column;
+            justify-content: flex-end;
             gap: 4px;
             padding: 8px;
             overflow: hidden;
