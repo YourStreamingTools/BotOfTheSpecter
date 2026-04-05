@@ -114,6 +114,13 @@ if ($twitchUserId !== '') {
     }
 }
 
+// Return current filters/nicknames so the overlay can refresh without a full reload
+if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'get_settings') {
+    header('Content-Type: application/json');
+    echo json_encode($injectedSettings, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // Handle overlay history save — called periodically by the overlay JS via POST
 if ($twitchUserId !== '' && isset($_GET['action']) && $_GET['action'] === 'save_history' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -409,8 +416,8 @@ $badgeCacheJson = json_encode(
                     <span class="msg-text">${msgHtml}</span>
                 </div>`;
             container.appendChild(el);
-            if (!isHistory) {
-                // Track live messages for history persistence
+            if (!isHistory && count <= 1) {
+                // Track live messages for history persistence (only primary instance)
                 messageBuffer.push(data);
                 if (messageBuffer.length > 100) messageBuffer.shift();
             }
@@ -418,10 +425,7 @@ $badgeCacheJson = json_encode(
         }
         function enforceMax() {
             while (container.children.length > maxMessages) {
-                const oldest = container.children[0];
-                oldest.classList.add('removing');
-                oldest.addEventListener('animationend', () => oldest.remove(), { once: true });
-                setTimeout(() => { if (oldest.parentNode) oldest.remove(); }, 400);
+                container.children[0].remove();
             }
         }
         function removeMessage(msgId) {
@@ -441,8 +445,31 @@ $badgeCacheJson = json_encode(
         if (messageBuffer.length > 0) {
             messageBuffer.forEach(msg => addMessage(msg, true));
         }
+        // Refresh filters & nicknames from the server every 60 s so changes
+        // made in yourchat are reflected without reloading the overlay.
+        async function refreshSettings() {
+            try {
+                const res = await fetch('?action=get_settings&code=' + encodeURIComponent(code));
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.filters_usernames) OVERLAY_SETTINGS.filters_usernames = data.filters_usernames;
+                if (data.filters_messages)  OVERLAY_SETTINGS.filters_messages  = data.filters_messages;
+                if (data.nicknames)         OVERLAY_SETTINGS.nicknames         = data.nicknames;
+            } catch (_) { /* best-effort */ }
+        }
+        setInterval(refreshSettings, 60000);
         // Save history to the server every 60 s (best-effort, keeps history fresh across reloads)
-        setInterval(saveHistory, 60000);
+        // Only the first overlay instance (count=1) writes history; extras just read on load.
+        if (count <= 1) {
+            setInterval(saveHistory, 60000);
+            // Flush the buffer on page unload (refresh / close) so history survives immediately
+            window.addEventListener('beforeunload', () => {
+                if (messageBuffer.length === 0) return;
+                const url = '?action=save_history&code=' + encodeURIComponent(code);
+                const body = JSON.stringify(messageBuffer.slice(-100));
+                navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+            });
+        }
         // WebSocket connection
         function connectWebSocket() {
             socket = io('wss://websocket.botofthespecter.com', { reconnection: false });
