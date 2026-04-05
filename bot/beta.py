@@ -1771,7 +1771,6 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
     IRC_HOST = "irc.chat.twitch.tv"
     IRC_PORT = 6697
     reconnect_delay = 30
-    force_refresh = False
     server_reconnect = False
     channel_blocked = False
     timeout_seconds = 0
@@ -1903,9 +1902,15 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     )
                     authenticated = True
             if not authenticated:
-                force_refresh = True
                 if auth_failed:
                     bot_logger.info("[IRC PRESENCE] IRC Presence: Auth failure - waiting 120s before retry...")
+                    # Proactively refresh the in-memory bot token cache so the next
+                    # attempt picks up any updated token that the external refresh
+                    # process may have written to the website DB in the meantime.
+                    try:
+                        await get_website_twitch_app_credentials(force_refresh=True)
+                    except Exception:
+                        pass
                     await sleep(120)
                     reconnect_delay = 30
                 else:
@@ -1918,7 +1923,6 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
             await writer.drain()
             bot_logger.info(f"[IRC PRESENCE] IRC Presence: Joined #{CHANNEL_NAME}")
             reconnect_delay = 30  # Reset back-off on every successful connection
-            force_refresh = False
             server_reconnect = False
             while True:
                 line_bytes = await asyncio_wait_for(reader.readline(), timeout=300)
@@ -14824,8 +14828,9 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
             event_logger.error(f"[EVENT MESSAGE] process_chat_message_event: BOTS_TWITCH_BOT is None for {user_name} - bot not ready yet")
             return
         event_logger.info(f"[EVENT MESSAGE] process_chat_message_event: called for {user_name} (id={user_id}) message={message!r:.80}")
+        # message_counting_and_welcome_messages already calls user_points in its finally block;
+        # do NOT call user_points again here to avoid awarding points twice per EventSub message.
         await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
-        await get_function_from.user_points(user_name, user_id)
     except Exception as e:
         event_logger.error(f"[EVENT MESSAGE] Error processing chat message event for {user_name}: {e}", exc_info=True)
 
