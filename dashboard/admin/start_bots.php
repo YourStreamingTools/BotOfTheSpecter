@@ -1983,7 +1983,6 @@ ob_start();
     // Console viewer state
     let _consolePollTimer = null;
     let _consoleEventSource = null;
-    let _activeConsoleSession = null;
     let _activeConsoleLogFile = null;
     function _setConsoleStatus(msg, type) {
         const el = document.getElementById('console-modal-status');
@@ -1992,14 +1991,9 @@ ob_start();
         el.textContent = msg;
         el.className = 'sp-badge ' + (classes[type] || 'sp-badge-blue');
     }
-    // Enable screen logging to a temp file, then call onReady()
-    function _startConsoleLogging(sessionName, logFile, onReady) {
-        const setupCmd = 'touch ' + logFile + ' 2>/dev/null; screen -S ' + sessionName + ' -X logfile ' + logFile + ' 2>/dev/null; screen -S ' + sessionName + ' -X log on 2>/dev/null; echo ready';
-        const setupUrl = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(setupCmd) + '&safe=0';
-        const setupSrc = new EventSource(setupUrl);
-        const timeout = setTimeout(function() { setupSrc.close(); onReady(); }, 5000);
-        setupSrc.addEventListener('done', function() { clearTimeout(timeout); setupSrc.close(); onReady(); });
-        setupSrc.onerror = function() { clearTimeout(timeout); setupSrc.close(); onReady(); };
+    // Strip ANSI escape codes so raw terminal sequences don't pollute the output
+    function _stripAnsi(str) {
+        return str.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b[()][AB012]/g, '');
     }
     // Open a persistent tail -f stream on the log file
     function _startConsoleTailStream(logFile) {
@@ -2008,13 +2002,14 @@ ob_start();
             _consoleEventSource = null;
         }
         const out = document.getElementById('console-modal-output');
-        const tailCmd = 'tail -f ' + logFile + ' 2>/dev/null';
+        // Show last 200 lines of existing output then follow live updates
+        const tailCmd = 'tail -n 200 -f ' + logFile + ' 2>/dev/null';
         const tailUrl = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(tailCmd) + '&safe=0';
         _consoleEventSource = new EventSource(tailUrl);
         _consoleEventSource.onmessage = function(e) {
             if (e.data && !e.data.startsWith('Executing on ')) {
                 if (out) {
-                    out.textContent += e.data + '\n';
+                    out.textContent += _stripAnsi(e.data) + '\n';
                     out.scrollTop = out.scrollHeight;
                 }
             }
@@ -2035,35 +2030,22 @@ ob_start();
         _setConsoleStatus('Live', 'success');
     }
     window.attachConsole = function(username) {
-        const sessionName = 'specter_' + username.replace(/[^a-zA-Z0-9_]/g, '_');
-        const logFile = '/tmp/screen_log_' + sessionName + '.txt';
+        // The bot is launched with stdout/stderr redirected to the crash log:
+        //   screen -dmS specter_USERNAME bash -c "python ... >> /logs/USERNAME_crash.log 2>&1"
+        // Screen's own terminal stays empty; we must tail the crash log directly.
+        const logFile = '/home/botofthespecter/logs/' + username + '_crash.log';
         const modal = document.getElementById('console-modal');
         document.getElementById('console-modal-title').textContent = 'Bot Console: ' + username;
         document.getElementById('console-modal-output').textContent = '';
         _setConsoleStatus('Connecting...', 'info');
         modal.style.display = 'flex';
-        _activeConsoleSession = sessionName;
         _activeConsoleLogFile = logFile;
-        // Enable screen logging then tail the log file live
-        _startConsoleLogging(sessionName, logFile, function() {
-            _startConsoleTailStream(logFile);
-        });
+        _startConsoleTailStream(logFile);
     };
     window.closeConsoleModal = function() {
         if (_consolePollTimer) { clearInterval(_consolePollTimer); _consolePollTimer = null; }
         if (_consoleEventSource) { _consoleEventSource.close(); _consoleEventSource = null; }
-        // Disable screen logging and clean up the temp log file
-        if (_activeConsoleSession) {
-            const sess = _activeConsoleSession;
-            const lf = _activeConsoleLogFile;
-            const cleanCmd = 'screen -S ' + sess + ' -X log off 2>/dev/null; rm -f ' + lf + ' 2>/dev/null; echo done';
-            const cleanUrl = 'terminal_stream.php?server=bots&command=' + encodeURIComponent(cleanCmd) + '&safe=0';
-            const cleanSrc = new EventSource(cleanUrl);
-            cleanSrc.addEventListener('done', function() { cleanSrc.close(); });
-            setTimeout(function() { cleanSrc.close(); }, 5000);
-            _activeConsoleSession = null;
-            _activeConsoleLogFile = null;
-        }
+        _activeConsoleLogFile = null;
         document.getElementById('console-modal').style.display = 'none';
         document.getElementById('console-modal-output').textContent = '';
     };
