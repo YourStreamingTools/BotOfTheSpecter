@@ -1,5 +1,14 @@
 * {
     box-sizing: border-box;
+    scrollbar-width: none; /* Firefox */
+}
+
+*::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge */
+}
+
+html, body {
+    overflow: hidden;
 }
 
 @keyframes slideIn {
@@ -1055,18 +1064,18 @@
 /* ===== Credits Overlay ===== */
 
 .credits-overlay-page,
-.credits-overlay-page html {
+html:has(body.credits-overlay-page) {
     background: transparent !important;
     overflow: hidden;
 }
 
 .credits-overlay-page,
-.credits-overlay-page html {
+html:has(body.credits-overlay-page) {
     scrollbar-width: none;
 }
 
 .credits-overlay-page::-webkit-scrollbar,
-.credits-overlay-page html::-webkit-scrollbar {
+html:has(body.credits-overlay-page)::-webkit-scrollbar {
     display: none;
 }
 
