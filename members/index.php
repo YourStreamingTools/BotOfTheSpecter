@@ -702,6 +702,7 @@ if ($username && !$notFound && $isDeceased) {
 
                     <div class="sp-card">
                         <h3 id="table-title"></h3>
+                        <p id="command-totals" style="display:none;"></p>
                         <div class="sp-table-wrap">
                         <table class="sp-table">
                             <thead>
@@ -913,6 +914,8 @@ if ($username && !$notFound && $isDeceased) {
             let additionalColumnVisible4 = false;
             let additionalColumnVisible5 = false;
             let output = '';
+            // Hide command totals summary by default
+            document.getElementById('command-totals').style.display = 'none';
             // Update active button state - highlight the currently selected button
             document.querySelectorAll('.tab-item').forEach(tab => {
                 // First reset all tabs to the default state
@@ -944,16 +947,24 @@ if ($username && !$notFound && $isDeceased) {
                 }
             }
             switch (type) {
-                case 'customCommands':
+                case 'customCommands': {
                     additionalColumnVisible = true;
                     additionalColumnVisible2 = true;
-                    data = customCommands;
+                    additionalColumnVisible3 = true;
+                    const enabledCommands = customCommands.filter(c => c.status === 'Enabled');
+                    const disabledCount = customCommands.length - enabledCommands.length;
+                    data = enabledCommands;
                     title = 'Custom Commands';
                     infoColumn = 'Command';
                     dataColumn = 'Response';
                     additionalColumnName = 'Status';
                     additionalColumnName2 = 'Cooldown';
+                    additionalColumnName3 = 'Permission';
+                    const totalsEl = document.getElementById('command-totals');
+                    totalsEl.textContent = `Command Totals: ${enabledCommands.length} Enabled / ${disabledCount} Disabled`;
+                    totalsEl.style.display = '';
                     break;
+                }
                 case 'lurkers':
                     data = lurkers;
                     title = 'Currently Lurking Users';
@@ -1058,7 +1069,11 @@ if ($username && !$notFound && $isDeceased) {
                         output += `<tr>`;
                         if (type === 'customCommands') {
                             const commandClass = item.status === 'Enabled' ? 'text-success' : 'text-danger';
-                            output += `<td>!${item.command}</td><td>${item.response}</td><td class="${commandClass}">${item.status}</td><td>${item.cooldown}</td>`;
+                            const permissionLabels = { 'everyone': ['Everyone', '#2ecc71'], 'vip': ['VIPs', '#a855f7'], 'all-subs': ['All Subscribers', '#ffd700'], 't1-sub': ['Tier 1 Subscriber', '#c0c0c0'], 't2-sub': ['Tier 2 Subscriber', '#cd7f32'], 't3-sub': ['Tier 3 Subscriber', '#ffd700'], 'mod': ['Mods', '#f5a623'], 'broadcaster': ['Broadcaster', '#e74c3c'] };
+                            const [permLabel, permColor] = permissionLabels[item.permission] || [item.permission, ''];
+                            const cooldown = parseInt(item.cooldown, 10);
+                            const cooldownColor = cooldown <= 15 ? '#2ecc71' : cooldown <= 60 ? '#f5a623' : '#e74c3c';
+                            output += `<td>!${item.command}</td><td>${item.response}</td><td class="${commandClass}">${item.status}</td><td style="color:${cooldownColor};font-weight:600;">${item.cooldown}s</td><td style="color:${permColor};font-weight:600;">${permLabel}</td>`;
                         } else if (type === 'typos') {
                             output += `<td>${item.username}</td><td><span class='text-success'>${item.typo_count}</span></td>`;
                         } else if (type === 'deaths') {

@@ -828,6 +828,23 @@ body.sp-hero-page .sp-hero {
 .text-success { color: var(--green); }
 .text-danger  { color: var(--red); }
 .text-muted   { color: var(--text-muted); }
+.text-warning { color: var(--amber); }
+.text-info    { color: var(--blue); }
+
+/* Data table title & command totals */
+#table-title {
+    padding: 1rem 1.25rem 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+#command-totals {
+    padding: 0.25rem 1.25rem 0.75rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
 
 
 /* ----------------------------------------------------------
