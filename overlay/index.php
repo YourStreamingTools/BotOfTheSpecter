@@ -28,6 +28,58 @@ if ($username) {
     <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <style>
+        .notice-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideDown 0.5s ease-out;
+        }
+
+        .notice-banner h2 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+        }
+
+        .notice-banner p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.95;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+        }
+
+        .notice-banner.hide {
+            animation: slideUp 0.5s ease-out forwards;
+        }
+    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let socket;
@@ -38,6 +90,17 @@ if ($username) {
             const timezone = <?php echo json_encode($timezone); ?>;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+            // Hide notice after 30 seconds
+            const noticeBanner = document.getElementById('noticeBanner');
+            if (noticeBanner) {
+                setTimeout(() => {
+                    noticeBanner.classList.add('hide');
+                    setTimeout(() => {
+                        noticeBanner.style.display = 'none';
+                    }, 500);
+                }, 30000);
+            }
+            
             if (!code) {
                 alert('No code provided in the URL');
                 return;
@@ -259,6 +322,10 @@ if ($username) {
     </script>
 </head>
 <body>
+    <div id="noticeBanner" class="notice-banner">
+        <h2>🚀 Upcoming Changes</h2>
+        <p>We're working on improvements to our overlay system. Check the <strong>overlays</strong> page on your dashboard for updates!</p>
+    </div>
     <div id="deathOverlay" class="deaths-overlay-page"></div>
     <div id="weatherOverlay" class="weather-overlay-page hide"></div>
     <div id="discordOverlay" class="discord-overlay-page"></div>
