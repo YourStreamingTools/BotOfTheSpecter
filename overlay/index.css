@@ -292,6 +292,114 @@ html, body {
     margin-top: 4px;
 }
 
+/* ===== Configurable Twitch Alert ===== */
+
+.twitch-alert-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    z-index: 1000;
+}
+
+.twitch-alert-container.show {
+    display: flex;
+}
+
+.twitch-alert-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.twitch-alert-box.layout-above { flex-direction: column; }
+.twitch-alert-box.layout-below { flex-direction: column-reverse; }
+.twitch-alert-box.layout-left { flex-direction: row; }
+.twitch-alert-box.layout-right { flex-direction: row-reverse; }
+.twitch-alert-box.layout-behind {
+    flex-direction: column;
+    position: relative;
+}
+.twitch-alert-box.layout-behind .twitch-alert-image {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    opacity: 0.5;
+}
+.twitch-alert-box.layout-behind .twitch-alert-text {
+    position: relative;
+    z-index: 1;
+}
+
+.twitch-alert-image {
+    max-width: 300px;
+    max-height: 300px;
+}
+
+.twitch-alert-text {
+    line-height: 1.4;
+}
+
+.twitch-alert-accent {
+    /* Color set dynamically via JS */
+}
+
+/* ===== Alert Animation Keyframes ===== */
+
+@keyframes slideInLeft {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutLeft {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(-100%); opacity: 0; }
+}
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+@keyframes slideInUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes slideOutUp {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-100%); opacity: 0; }
+}
+@keyframes slideInDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes slideOutDown {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(100%); opacity: 0; }
+}
+@keyframes bounceIn {
+    0% { transform: scale(0.3); opacity: 0; }
+    50% { transform: scale(1.05); opacity: 1; }
+    70% { transform: scale(0.9); }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes bounceOut {
+    0% { transform: scale(1); opacity: 1; }
+    20% { transform: scale(1.1); }
+    100% { transform: scale(0.3); opacity: 0; }
+}
+@keyframes zoomIn {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+@keyframes zoomOut {
+    from { transform: scale(1); opacity: 1; }
+    to { transform: scale(0); opacity: 0; }
+}
+
 /* ===== Subathon Overlay ===== */
 
 .subathon-overlay-page {

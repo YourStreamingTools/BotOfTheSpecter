@@ -42,6 +42,7 @@ $tabMap = [
     'walkon' => 'walkons',
     'twitch_event' => 'twitch-events',
     'twitch_event_mapping' => 'twitch-events',
+    'alert_media' => 'alert-media',
 ];
 $activeTab = $tabMap[$activeTab] ?? 'sound-alerts';
 
@@ -80,6 +81,21 @@ while ($stmt->fetch()) {
     $twitchSoundAlertMappings[$file_name] = $twitch_event;
 }
 $stmt->close();
+
+// Fetch alert media references from twitch_alerts
+$alertMediaFiles = [];
+$alertMediaResult = $db->query("SELECT id, alert_category, variant_name, alert_image, alert_sound FROM twitch_alerts WHERE alert_image IS NOT NULL OR alert_sound IS NOT NULL");
+if ($alertMediaResult) {
+    while ($row = $alertMediaResult->fetch_assoc()) {
+        if ($row['alert_image']) {
+            $alertMediaFiles[$row['alert_image']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'image'];
+        }
+        if ($row['alert_sound']) {
+            $alertMediaFiles[$row['alert_sound']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'sound'];
+        }
+    }
+    $alertMediaResult->free();
+}
 
 // Build cross-mapping exclusion lists for channel point rewards
 $videoMappedRewards = [];
@@ -443,6 +459,9 @@ ob_start();
     <li class="<?php echo $activeTab === 'twitch-events' ? 'is-active' : ''; ?>" data-tab="twitch-events">
         <a><i class="fab fa-twitch"></i><span><?php echo t('modules_tab_twitch_event_alerts'); ?></span></a>
     </li>
+    <li class="<?php echo $activeTab === 'alert-media' ? 'is-active' : ''; ?>" data-tab="alert-media">
+        <a><i class="fas fa-bell"></i><span>Alert Media</span></a>
+    </li>
 </ul>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════ -->
@@ -761,6 +780,58 @@ ob_start();
             <?php else: ?>
                 <div class="media-empty-state">
                     <p><?php echo t('modules_no_sound_alert_files_uploaded'); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- Alert Media Tab -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-content" id="alert-media" style="display:<?php echo $activeTab === 'alert-media' ? 'block' : 'none'; ?>;">
+    <div class="sp-card">
+        <header class="sp-card-header">
+            <span class="sp-card-title"><i class="fas fa-bell"></i> Alert Media</span>
+        </header>
+        <div class="sp-card-body">
+            <?php if (!empty($alertMediaFiles)): ?>
+            <div class="sp-table-wrap">
+                <table class="sp-table media-table">
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Type</th>
+                            <th>Used By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($alertMediaFiles as $filename => $usages): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars(pathinfo($filename, PATHINFO_FILENAME)); ?></td>
+                            <td>
+                                <?php
+                                    $types = array_unique(array_column($usages, 'type'));
+                                    echo implode(', ', array_map('ucfirst', $types));
+                                ?>
+                            </td>
+                            <td>
+                                <?php foreach ($usages as $usage): ?>
+                                    <div>
+                                        <em><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $usage['category']))); ?></em>
+                                        &mdash; <?php echo htmlspecialchars($usage['variant']); ?>
+                                        (<?php echo $usage['type']; ?>)
+                                    </div>
+                                <?php endforeach; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php else: ?>
+                <div class="media-empty-state">
+                    <p>No alert media files configured. Upload images and sounds via the <a href="alerts.php">Alerts</a> page.</p>
                 </div>
             <?php endif; ?>
         </div>

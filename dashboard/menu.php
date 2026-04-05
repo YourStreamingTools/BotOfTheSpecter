@@ -45,6 +45,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => 'Streaming', 'icon' => 'fas fa-tower-broadcast', 'href' => 'streaming.php' ],
             [ 'divider' => true ],
             [ 'label' => t('navbar_overlays'), 'icon' => 'fas fa-layer-group', 'href' => 'overlays.php' ],
+            [ 'label' => 'Alerts', 'icon' => 'fas fa-bell', 'href' => 'alerts.php' ],
             [ 'label' => t('navbar_sound_alerts'), 'icon' => 'fas fa-volume-up', 'href' => 'sound-alerts.php' ],
             [ 'label' => t('navbar_video_alerts'), 'icon' => 'fas fa-film', 'href' => 'video-alerts.php' ],
             [ 'label' => t('navbar_walkon_alerts'), 'icon' => 'fas fa-door-open', 'href' => 'walkons.php' ],
