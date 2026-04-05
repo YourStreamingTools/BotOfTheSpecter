@@ -629,6 +629,17 @@ hr {
     min-width: 100px;
 }
 
+/* Left-align the command name and response columns */
+.sp-table thead th:first-child,
+.sp-table thead th:nth-child(2) {
+    text-align: left;
+}
+
+.sp-table tbody td:first-child,
+.sp-table tbody td:nth-child(2) {
+    text-align: left;
+}
+
 .sp-table tbody td {
     padding: 0.8rem 1rem;
     border-bottom: 1px solid var(--border);
