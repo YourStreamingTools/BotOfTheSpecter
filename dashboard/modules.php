@@ -69,6 +69,7 @@ function resolveModuleBotTwitchUserId($username) {
 
 // AJAX: resolve module bot Twitch username to ID
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'resolve_module_bot_id') {
+    ob_clean();
     header('Content-Type: application/json');
     $botName = trim($_POST['bot_username'] ?? '');
     if ($botName === '') {
