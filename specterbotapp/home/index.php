@@ -103,7 +103,6 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -120,7 +119,6 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
     <link rel="stylesheet" href="css/custom.css?v=<?php echo filemtime(__DIR__ . '/css/custom.css'); ?>">
 </head>
-
 <body class="dark-mode">
     <header>
         <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
@@ -270,6 +268,27 @@ socket.on('disconnect', () => {
             <?php if (isset($_SESSION['access_token'])): ?>
             <?php
             $userFolder = '/var/www/specterbotapp/' . $twitchUsername;
+            // Handle file save (create / edit)
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_file_name'], $_POST['save_file_content'])) {
+                $rawName = trim($_POST['save_file_name']);
+                $rawName = preg_replace('/\.php$/i', '', $rawName);           // strip .php if typed
+                $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $rawName);  // whitelist chars
+                $editorMsg = '';
+                $editorMsgClass = '';
+                if ($safeName === '' || strtolower($safeName) === 'index') {
+                    $editorMsg = $safeName === '' ? 'Filename cannot be empty.' : '"index" cannot be used as a filename.';
+                    $editorMsgClass = 'has-text-danger';
+                } else {
+                    $targetPath = $userFolder . '/' . $safeName . '.php';
+                    if (file_put_contents($targetPath, $_POST['save_file_content']) !== false) {
+                        $editorMsg = 'Saved: ' . htmlspecialchars($safeName) . '.php';
+                        $editorMsgClass = 'has-text-success';
+                    } else {
+                        $editorMsg = 'Failed to save file.';
+                        $editorMsgClass = 'has-text-danger';
+                    }
+                }
+            }
             // Handle file deletion
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_file'])) {
                 $delFile = basename($_POST['delete_file']);
@@ -291,6 +310,9 @@ socket.on('disconnect', () => {
                         <!-- Upload panel -->
                         <div class="upload-panel">
                             <h3 class="title is-4">Upload Your Files</h3>
+                            <button class="button is-success upload-submit" id="open-editor-new" style="margin-bottom:0.75rem;width:100%;">
+                                <i class="fas fa-file-code"></i> Create New File
+                            </button>
                             <p class="upload-hint">Only <code>.php</code> files are accepted. The filename becomes your overlay URL.</p>
                             <form action="" method="POST" enctype="multipart/form-data" id="uploadForm">
                                 <label for="filesToUpload" class="drag-area" id="drag-area">
@@ -336,7 +358,7 @@ socket.on('disconnect', () => {
                                                 <th style="width:36px;"></th>
                                                 <th>File Name</th>
                                                 <th>Link</th>
-                                                <th style="width:100px;">Action</th>
+                                                <th style="width:170px;">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -354,11 +376,16 @@ socket.on('disconnect', () => {
                                                         </a>
                                                     </td>
                                                     <td>
-                                                        <form action="" method="POST" style="margin:0;">
-                                                            <input type="hidden" name="delete_file" value="<?php echo htmlspecialchars($file); ?>">
-                                                            <button type="submit" class="button is-danger delete-single"
-                                                                data-filename="<?php echo htmlspecialchars(formatFileName($file)); ?>">Delete</button>
-                                                        </form>
+                                                        <div class="buttons" style="margin:0;flex-wrap:nowrap;">
+                                                            <button type="button" class="button is-info edit-file-btn"
+                                                                data-filename="<?php echo htmlspecialchars(formatFileName($file)); ?>"
+                                                                data-filepath="<?php echo htmlspecialchars($file); ?>">Edit</button>
+                                                            <form action="" method="POST" style="margin:0;">
+                                                                <input type="hidden" name="delete_file" value="<?php echo htmlspecialchars($file); ?>">
+                                                                <button type="submit" class="button is-danger delete-single"
+                                                                    data-filename="<?php echo htmlspecialchars(formatFileName($file)); ?>">Delete</button>
+                                                            </form>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -372,6 +399,40 @@ socket.on('disconnect', () => {
                                 </div>
                             <?php endif; ?>
                         </div>
+                    </div>
+                </div>
+                <?php if (!empty($editorMsg)): ?>
+                    <p class="<?php echo $editorMsgClass; ?>" style="margin-top:0.5rem;"><?php echo $editorMsg; ?></p>
+                <?php endif; ?>
+                <!-- File Editor Modal -->
+                <div class="modal" id="editor-modal">
+                    <div class="modal-background" id="editor-modal-bg"></div>
+                    <div class="modal-card" style="width:90%;max-width:960px;">
+                        <header class="modal-card-head">
+                            <p class="modal-card-title" id="editor-modal-title">Create New File</p>
+                            <button class="delete" aria-label="close" id="close-editor-x"></button>
+                        </header>
+                        <section class="modal-card-body" style="padding:1rem 1.25rem;">
+                            <form id="editor-form" action="" method="POST">
+                                <div class="editor-filename-row">
+                                    <label for="editor-filename" style="font-weight:600;color:var(--text-primary);">Filename</label>
+                                    <div class="editor-filename-input-wrap">
+                                        <input type="text" id="editor-filename" name="save_file_name"
+                                            class="editor-input" placeholder="my-overlay"
+                                            pattern="[a-zA-Z0-9_\-]+" title="Letters, numbers, hyphens and underscores only"
+                                            required autocomplete="off">
+                                        <span class="editor-ext-badge">.php</span>
+                                    </div>
+                                </div>
+                                <label for="editor-code" style="font-weight:600;color:var(--text-primary);display:block;margin:0.75rem 0 0.35rem;">Code</label>
+                                <textarea id="editor-code" name="save_file_content" class="editor-textarea" spellcheck="false"
+                                    placeholder="<?php echo htmlspecialchars("<?php\n// Your code here"); ?>"></textarea>
+                            </form>
+                        </section>
+                        <footer class="modal-card-foot">
+                            <button class="button" id="close-editor-footer">Cancel</button>
+                            <button type="submit" form="editor-form" class="button is-primary">Save File</button>
+                        </footer>
                     </div>
                 </div>
             <?php endif; ?>
@@ -534,6 +595,57 @@ socket.on('disconnect', () => {
             document.getElementById('websocket-modal-bg').addEventListener('click', closeModal);
         })();
     </script>
+    <?php if (isset($_SESSION['access_token'])): ?>
+    <script>
+    (function () {
+        const modal = document.getElementById('editor-modal');
+        if (!modal) return;
+        const title = document.getElementById('editor-modal-title');
+        const nameInput = document.getElementById('editor-filename');
+        const codeArea = document.getElementById('editor-code');
+        function openEditor(fileName, code, isEdit) {
+            title.textContent = isEdit ? 'Edit File' : 'Create New File';
+            nameInput.value = fileName;
+            nameInput.readOnly = isEdit;
+            codeArea.value = code;
+            modal.classList.add('is-active');
+            if (!isEdit) nameInput.focus(); else codeArea.focus();
+        }
+        function closeEditor() { modal.classList.remove('is-active'); }
+        document.getElementById('open-editor-new').addEventListener('click', function () {
+            openEditor('', '', false);
+        });
+        document.getElementById('close-editor-x').addEventListener('click', closeEditor);
+        document.getElementById('close-editor-footer').addEventListener('click', closeEditor);
+        document.getElementById('editor-modal-bg').addEventListener('click', closeEditor);
+        // Edit buttons — fetch file content via AJAX
+        document.querySelectorAll('.edit-file-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const fileName = this.dataset.filename;
+                const filePath = this.dataset.filepath;
+                btn.disabled = true;
+                btn.textContent = 'Loading…';
+                fetch('load_file.php?file=' + encodeURIComponent(filePath))
+                    .then(function (r) { return r.text(); })
+                    .then(function (content) {
+                        openEditor(fileName, content, true);
+                    })
+                    .catch(function () { alert('Failed to load file.'); })
+                    .finally(function () { btn.disabled = false; btn.textContent = 'Edit'; });
+            });
+        });
+        // Tab key inserts spaces inside the editor
+        codeArea.addEventListener('keydown', function (e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+    })();
+    </script>
+    <?php endif; ?>
 </body>
-
 </html>
