@@ -264,7 +264,33 @@ stream_session_started_at = 0.0                                                 
 pending_outgoing_raid = None                                                            # Dictionary to hold pending outgoing raid data until stream goes offline for accurate viewer count persistence
 outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
-_hh_instance = None                                                                     # HedgehogOBrienModule instance, set on event_ready
+_channel_modules: list = []                                                             # Active custom channel module instances, populated on event_ready
+
+async def dispatch_module_event(event: str, **kwargs):
+    any_handled = False
+    for module in _channel_modules:
+        handler = getattr(module, f"handle_{event}", None)
+        if callable(handler):
+            try:
+                result = await handler(**kwargs)
+                if result:
+                    any_handled = True
+            except Exception as e:
+                bot_logger.error(f"[MODULE DISPATCH] {event} → {type(module).__name__}: {e}")
+    return any_handled
+
+async def dispatch_module_command(message: str, username: str, broadcaster_id: str) -> None:
+    for module in _channel_modules:
+        try:
+            if hasattr(module, 'is_bureau_command') and callable(module.is_bureau_command):
+                if module.is_bureau_command(message):
+                    if hasattr(module, 'handle_bureau_command') and callable(module.handle_bureau_command):
+                        async def _send(msg, _mod=module):
+                            await _mod.send_module_message(message=msg, broadcaster_id=broadcaster_id)
+                        await module.handle_bureau_command(command=message, username=username, send_message=_send)
+        except Exception as e:
+            bot_logger.error(f"[MODULE DISPATCH] command → {type(module).__name__}: {e}")
+
 _pronouns_list_cache = None                                                             # Cached dict of all pronoun definitions from alejo.io
 _pronouns_list_cache_time = 0                                                           # Timestamp of last pronouns list fetch
 PRONOUNS_LIST_CACHE_TTL = 86400                                                         # Refresh pronouns list once per day
@@ -1508,8 +1534,7 @@ async def process_twitch_eventsub_message(message):
                         mod_info = event_data.get("mod", {})
                         user_name = mod_info.get("user_name", "Unknown User")
                         event_logger.info(f"[EVENTSUB] User {user_name} added as moderator by {moderator_user_name}")
-                        if _hh_instance is not None:
-                            create_task(_hh_instance.handle_mod_granted(user_name, CHANNEL_ID))
+                        create_task(dispatch_module_event("mod_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
                     elif action == "unmod":
                         unmod_info = event_data.get("unmod", {})
                         user_name = unmod_info.get("user_name", "Unknown User")
@@ -1518,8 +1543,7 @@ async def process_twitch_eventsub_message(message):
                         vip_info = event_data.get("vip", {})
                         user_name = vip_info.get("user_name", "Unknown User")
                         event_logger.info(f"[EVENTSUB] User {user_name} added as VIP by {moderator_user_name}")
-                        if _hh_instance is not None:
-                            create_task(_hh_instance.handle_vip_granted(user_name, CHANNEL_ID))
+                        create_task(dispatch_module_event("vip_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
                     elif action == "unvip":
                         unvip_info = event_data.get("unvip", {})
                         user_name = unvip_info.get("user_name", "Unknown User")
@@ -3221,17 +3245,19 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
+        global _channel_modules
+        _channel_modules = []
         if hedgehogobrien_module is not None and hedgehogobrien_module.HedgehogOBrienModule.is_hedgehogobrien_channel(CHANNEL_NAME):
-            global _hh_instance
-            _hh_instance = hedgehogobrien_module.HedgehogOBrienModule(
+            _hh = hedgehogobrien_module.HedgehogOBrienModule(
                 mysql_handler=mysql_handler,
                 http_session=_shared_http_session,
                 chat_logger=chat_logger,
             )
             try:
-                await _hh_instance.ensure_tables()
+                await _hh.ensure_tables()
                 bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
-                create_task(_hh_instance.handle_ready(broadcaster_id=CHANNEL_ID))
+                _channel_modules.append(_hh)
+                create_task(dispatch_module_event("ready", broadcaster_id=CHANNEL_ID))
             except Exception as _hh_err:
                 bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
@@ -3460,15 +3486,8 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"[EVENT MESSAGE] Custom command '{command}' not found.")
                 else:
                     chat_logger.info(f"[EVENT MESSAGE] Custom command '{command}' not found.")
-            # Handle hedgehogobrien module commands
-            if _hh_instance is not None and _hh_instance.is_bureau_command(messageContent):
-                async def _hh_send(msg):
-                    await _hh_instance.send_module_message(message=msg, broadcaster_id=CHANNEL_ID)
-                await _hh_instance.handle_bureau_command(
-                    command=AuthorMessage,
-                    username=messageAuthor,
-                    send_message=_hh_send,
-                )
+            # Handle custom module commands
+            await dispatch_module_command(message=AuthorMessage, username=messageAuthor, broadcaster_id=CHANNEL_ID)
             # Handle AI responses
             if botofthespecter_module.is_bot_home_channel(CHANNEL_NAME, BOT_HOME_CHANNEL_NAME):
                 ai_text = await botofthespecter_module.handle_bot_home_channel_ai(
@@ -3675,16 +3694,15 @@ class TwitchBot(commands.Bot):
                     )
                     await connection.commit()
                     chat_logger.info(f"[WELCOME] Marked {messageAuthor} as seen today.")
-                    # Forward to custom module if applicable - module handles message and returns True
-                    if _hh_instance is not None:
-                        _hh_handled = await _hh_instance.handle_first_chat(
-                            channel_name=CHANNEL_NAME,
-                            username=messageAuthor,
-                            broadcaster_id=CHANNEL_ID,
-                        )
-                        if _hh_handled:
-                            create_task(self.safe_walkon(messageAuthor))
-                            return
+                    # Forward to custom modules if applicable - module handles message and returns True
+                    _module_handled = await dispatch_module_event("first_chat",
+                        channel_name=CHANNEL_NAME,
+                        username=messageAuthor,
+                        broadcaster_id=CHANNEL_ID,
+                    )
+                    if _module_handled:
+                        create_task(self.safe_walkon(messageAuthor))
+                        return
                     # Only send welcome message if enabled
                     if user_status_enabled and send_welcome_messages:
                         if not user_data:
@@ -4350,9 +4368,8 @@ class TwitchBot(commands.Bot):
                         # Custom commands link
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
-                        # If in hh's channel, have module announce its own commands too
-                        if _hh_instance is not None and _hh_instance.is_hedgehogobrien_channel(CHANNEL_NAME):
-                            create_task(_hh_instance.handle_commands_list(broadcaster_id=CHANNEL_ID))
+                        # Let any active module announce its own commands
+                        create_task(dispatch_module_event("commands_list", broadcaster_id=CHANNEL_ID))
                         # Record usage
                         add_usage('commands', bucket_key, cooldown_bucket)
                     else:
@@ -12222,8 +12239,7 @@ async def process_followers_event(user_id, user_name):
                     source="follow"
                 )
             create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
-            if _hh_instance is not None:
-                create_task(_hh_instance.handle_follow(user_name))
+            create_task(dispatch_module_event("follow", user_name=user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"[FOLLOW] A stream marker was created: {marker_description}.")
@@ -12739,16 +12755,14 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
             create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
-            if (
-                _hh_instance is not None
-                and event_type == "channel.channel_points_custom_reward_redemption.add"
-                and reward_title == hedgehogobrien_module.BUREAU_PROMOTION_REWARD_TITLE
-            ):
-                create_task(_hh_instance.handle_rank_promotion_redemption(
+            if event_type == "channel.channel_points_custom_reward_redemption.add" and _channel_modules:
+                handled = await dispatch_module_event("channel_point_redemption",
                     username=user_name,
                     broadcaster_id=CHANNEL_ID,
-                ))
-                return
+                    reward_title=reward_title,
+                )
+                if handled:
+                    return
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
