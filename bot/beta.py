@@ -46,9 +46,13 @@ load_dotenv()
 
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
-# Temp Disable HedgehogOBrienModule import 
 from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
 #hedgehogobrien_module = None
+
+_MODULE_CLASSES = [
+    hedgehogobrien_module.HedgehogOBrienModule if hedgehogobrien_module is not None else None,
+]
+_MODULE_CLASSES = [cls for cls in _MODULE_CLASSES if cls is not None]
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -3247,19 +3251,22 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
         global _channel_modules
         _channel_modules = []
-        if hedgehogobrien_module is not None and hedgehogobrien_module.HedgehogOBrienModule.is_hedgehogobrien_channel(CHANNEL_NAME):
-            _hh = hedgehogobrien_module.HedgehogOBrienModule(
+        for cls in _MODULE_CLASSES:
+            if not cls.claims_channel(CHANNEL_NAME):
+                continue
+            module_instance = cls(
                 mysql_handler=mysql_handler,
                 http_session=_shared_http_session,
                 chat_logger=chat_logger,
             )
             try:
-                await _hh.ensure_tables()
-                bot_logger.info("[hedgehogobrien] Custom module tables ensured.")
-                _channel_modules.append(_hh)
-                create_task(dispatch_module_event("ready", broadcaster_id=CHANNEL_ID))
-            except Exception as _hh_err:
-                bot_logger.error(f"[hedgehogobrien] Failed to ensure tables: {_hh_err}")
+                await module_instance.ensure_tables()
+                bot_logger.info(f"[module] {cls.__name__} tables ensured for channel '{CHANNEL_NAME}'.")
+                _channel_modules.append(module_instance)
+            except Exception as _mod_err:
+                bot_logger.error(f"[module] {cls.__name__} failed to ensure tables: {_mod_err}")
+        if _channel_modules:
+            create_task(dispatch_module_event("ready", broadcaster_id=CHANNEL_ID))
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
