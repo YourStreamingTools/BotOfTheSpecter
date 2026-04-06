@@ -250,7 +250,7 @@ if (isset($username) && $username !== '') {
       ['label' => 'Twitch','value' => $twitchStatus,'tooltip' => t('bot_twitch_explanation'),],
       ['label' => 'Final','value' => $finalStatus,'tooltip' => t('bot_final_explanation'),],
     ];
-    $debugInfo = '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">';
+    $debugInfo = '<div style="display:flex; flex-wrap:wrap; gap:0.5rem; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem; justify-content:center;">';
       foreach ($debugStatuses as $statusMeta) {
         $tooltipAttr = '';
         if (!empty($statusMeta['tooltip'])) {
