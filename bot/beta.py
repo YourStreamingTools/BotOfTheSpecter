@@ -711,6 +711,9 @@ async def subscribe_to_events(session_id):
         {"type": "channel.hype_train.begin", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.hype_train.end", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.moderate", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.goal.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.goal.progress", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.goal.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
     ]
     # Chat bot topics - use App Access Token + bot user ID (required for Chat Bot badge / chat visibility)
     chat_topics = [
@@ -1760,6 +1763,49 @@ async def process_twitch_eventsub_message(message):
                         shoutout_message = f"Sorry, @{CHANNEL_NAME}, I see a shoutout, however I was unable to get the correct information from twitch to process the request."
                         await send_chat_message(shoutout_message)
                         twitch_logger.info(f"[EVENTSUB] Shoutout message sent: {shoutout_message}")
+                # Goal Events
+                elif event_type == "channel.goal.begin":
+                    goal_type = event_data.get("type", "unknown")
+                    description = event_data.get("description", "")
+                    current_amount = event_data.get("current_amount", 0)
+                    target_amount = event_data.get("target_amount", 0)
+                    event_logger.info(f"[EVENTSUB] Goal begun: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}")
+                    create_task(websocket_notice(event="TWITCH_GOAL_BEGIN", additional_data={
+                        "goal_type": goal_type,
+                        "description": description,
+                        "current_amount": current_amount,
+                        "target_amount": target_amount,
+                        "started_at": event_data.get("started_at")
+                    }))
+                elif event_type == "channel.goal.progress":
+                    goal_type = event_data.get("type", "unknown")
+                    description = event_data.get("description", "")
+                    current_amount = event_data.get("current_amount", 0)
+                    target_amount = event_data.get("target_amount", 0)
+                    event_logger.info(f"[EVENTSUB] Goal progress: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}")
+                    create_task(websocket_notice(event="TWITCH_GOAL_PROGRESS", additional_data={
+                        "goal_type": goal_type,
+                        "description": description,
+                        "current_amount": current_amount,
+                        "target_amount": target_amount,
+                        "started_at": event_data.get("started_at")
+                    }))
+                elif event_type == "channel.goal.end":
+                    goal_type = event_data.get("type", "unknown")
+                    description = event_data.get("description", "")
+                    current_amount = event_data.get("current_amount", 0)
+                    target_amount = event_data.get("target_amount", 0)
+                    is_achieved = event_data.get("is_achieved", False)
+                    event_logger.info(f"[EVENTSUB] Goal ended: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}, achieved={is_achieved}")
+                    create_task(websocket_notice(event="TWITCH_GOAL_END", additional_data={
+                        "goal_type": goal_type,
+                        "description": description,
+                        "current_amount": current_amount,
+                        "target_amount": target_amount,
+                        "is_achieved": is_achieved,
+                        "started_at": event_data.get("started_at"),
+                        "ended_at": event_data.get("ended_at")
+                    }))
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"[EVENTSUB] Received message with unknown event type: {event_type}")
