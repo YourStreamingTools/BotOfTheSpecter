@@ -3249,9 +3249,14 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
-        global _channel_modules
+        global _channel_modules, _shared_http_session
         _channel_modules = []
+        if _shared_http_session is None:
+            _shared_http_session = httpClientSession()
         for cls in _MODULE_CLASSES:
+            if not callable(getattr(cls, 'claims_channel', None)):
+                bot_logger.warning(f"[module] {cls.__name__} does not implement claims_channel() — skipping.")
+                continue
             if not cls.claims_channel(CHANNEL_NAME):
                 continue
             module_instance = cls(
