@@ -373,6 +373,7 @@ try {
                 shadow TINYINT(1) NOT NULL DEFAULT 0,
                 bold TINYINT(1) NOT NULL DEFAULT 0,
                 font_size INT(11) NOT NULL DEFAULT 22,
+                show_completed TINYINT(1) NOT NULL DEFAULT 1,
                 PRIMARY KEY (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=latin1",
         'todos' => "
@@ -961,7 +962,7 @@ try {
         async_log('Default category ensured.');
     }
     // Ensure default options for showobs exist
-    if ($usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22 WHERE NOT EXISTS (SELECT 1 FROM showobs)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO showobs (font, color, list, shadow, bold, font_size, show_completed) SELECT 'Arial', 'Black', 'Bullet', 0, 0, 22, 1 WHERE NOT EXISTS (SELECT 1 FROM showobs)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default showobs options ensured.');
     }
     // Ensure default options for bot_settings exist

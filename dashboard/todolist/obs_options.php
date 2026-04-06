@@ -45,6 +45,7 @@ if (preg_match('/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/', $color_raw)) {
 $list = isset($result['list']) && $result['list'] !== '' ? $result['list'] : 'Bullet';
 $shadow = isset($result['shadow']) && $result['shadow'] == 1 ? true : false;
 $bold = isset($result['bold']) && $result['bold'] == 1 ? true : false;
+$show_completed = isset($result['show_completed']) && $result['show_completed'] == 1 ? true : false;
 // Normalize font size to integer pixels
 $font_size_raw = isset($result['font_size']) ? $result['font_size'] : '';
 $font_size = intval(preg_replace('/\D/', '', $font_size_raw));
@@ -58,6 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $selectedList = isset($_POST["list"]) ? $_POST["list"] : 'Bullet';
     $selectedShadow = isset($_POST["shadow"]) ? 1 : 0;
     $selectedBold = isset($_POST["bold"]) ? 1 : 0;
+    $selectedShowCompleted = isset($_POST["show_completed"]) ? 1 : 0;
     // Normalize font size to integer pixels
     $selectedFontSize = isset($_POST["font_size"]) ? intval(preg_replace('/\D/', '', $_POST["font_size"])) : 12;
     if ($selectedFontSize <= 0) $selectedFontSize = 12;
@@ -75,16 +77,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Use prepared statements with correct types (s = string, i = integer)
     if ($result) {
-        $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ? LIMIT 1");
-        $stmt->bind_param("sssiii", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt = $db->prepare("UPDATE showobs SET font = ?, color = ?, list = ?, shadow = ?, bold = ?, font_size = ?, show_completed = ? LIMIT 1");
+        $stmt->bind_param("sssiiii", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize, $selectedShowCompleted);
         if ($stmt->execute()) {
             header("Location: obs_options.php");
         } else {
             echo "Error updating settings: " . htmlspecialchars($stmt->error);
         }
     } else {
-        $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssiii", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize);
+        $stmt = $db->prepare("INSERT INTO showobs (font, color, list, shadow, bold, font_size, show_completed) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssiiii", $selectedFont, $selectedColor, $selectedList, $selectedShadow, $selectedBold, $selectedFontSize, $selectedShowCompleted);
         if ($stmt->execute()) {
             header("Location: obs_options.php");
         } else {
@@ -141,6 +143,7 @@ ob_start();
                     <div><strong>Font Size:</strong> <span><?php echo htmlspecialchars($font_size); ?>px</span></div>
                     <div><strong>Text Shadow:</strong> <span><?php echo $shadow ? 'Enabled' : 'Disabled'; ?></span></div>
                     <div><strong>Text Bold:</strong> <span><?php echo $bold ? 'Enabled' : 'Disabled'; ?></span></div>
+                    <div><strong>Show Completed:</strong> <span><?php echo $show_completed ? 'Yes' : 'No'; ?></span></div>
                 </div>
             <?php else: ?>
                 <div class="sp-alert sp-alert-info" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.25rem;">
@@ -200,6 +203,13 @@ ob_start();
                     <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
                         <input type="checkbox" name="bold" value="1" <?php if ($bold) echo 'checked'; ?>>
                         <span>Enable bold</span>
+                    </label>
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label" for="show_completed">Show Completed Tasks</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" name="show_completed" value="1" <?php if ($show_completed) echo 'checked'; ?>>
+                        <span>Show completed tasks</span>
                     </label>
                 </div>
             </div>
