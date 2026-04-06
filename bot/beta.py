@@ -47,8 +47,8 @@ load_dotenv()
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
 # Temp Disable HedgehogOBrienModule import 
-#from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
-hedgehogobrien_module = None
+from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
+#hedgehogobrien_module = None
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -4350,6 +4350,9 @@ class TwitchBot(commands.Bot):
                         # Custom commands link
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
+                        # If in hh's channel, have module announce its own commands too
+                        if _hh_instance is not None and _hh_instance.is_hedgehogobrien_channel(CHANNEL_NAME):
+                            create_task(_hh_instance.handle_commands_list(broadcaster_id=CHANNEL_ID))
                         # Record usage
                         add_usage('commands', bucket_key, cooldown_bucket)
                     else:
