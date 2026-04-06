@@ -3271,7 +3271,7 @@ class TwitchBot(commands.Bot):
             except Exception as _mod_err:
                 bot_logger.error(f"[module] {cls.__name__} failed to ensure tables: {_mod_err}")
         if _channel_modules:
-            create_task(dispatch_module_event("ready", broadcaster_id=CHANNEL_ID))
+            create_task(dispatch_module_event("ready", broadcaster_id=CHANNEL_ID, irc_presence=twitch_irc_presence))
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
