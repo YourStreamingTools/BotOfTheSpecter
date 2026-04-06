@@ -66,6 +66,7 @@ if (!$error_html) {
     $list = isset($settings['list']) ? $settings['list'] : null;
     $shadow = isset($settings['shadow']) && $settings['shadow'] == 1 ? true : false;
     $bold = isset($settings['bold']) && $settings['bold'] == 1 ? true : false;
+    $show_completed = isset($settings['show_completed']) && $settings['show_completed'] == 1 ? true : false;
     // Normalize font size to an integer (pixels)
     $font_size_raw = isset($settings['font_size']) ? $settings['font_size'] : '';
     $font_size = intval(preg_replace('/\D/', '', $font_size_raw));
@@ -81,7 +82,11 @@ if (!$error_html) {
     $category_row = $result->fetch_assoc();
     if ($category_row) {
         $category = $category_row['category'];
-        $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? AND (private = 0 OR private IS NULL) ORDER BY id ASC");
+        if ($show_completed) {
+            $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? AND (private = 0 OR private IS NULL) ORDER BY id ASC");
+        } else {
+            $stmt = $user_db->prepare("SELECT * FROM todos WHERE category = ? AND (private = 0 OR private IS NULL) AND completed != 'Yes' ORDER BY id ASC");
+        }
         $stmt->bind_param("i", $category_id);
         $stmt->execute();
         $tasks_result = $stmt->get_result();
