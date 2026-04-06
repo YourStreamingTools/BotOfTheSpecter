@@ -178,6 +178,11 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
                         <br>Example:
                         <pre><code class="language-php">&lt;?php
 require '/var/www/specterbotapp/database.php';</code></pre>
+                        This provides two connection variables:
+                        <ul>
+                            <li><code>$conn</code> &mdash; Your main channel database connection (always available).</li>
+                            <li><code>$conn_module</code> &mdash; Connection to your custom modules database (<code>{username}_custom_modules</code>), if it exists. This will be <code>null</code> if no custom module database has been created for your channel.</li>
+                        </ul>
                     </li>
                 </ul>
             </div>
