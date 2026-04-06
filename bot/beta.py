@@ -5672,9 +5672,26 @@ class TwitchBot(commands.Bot):
                     if status == 'Disabled' and ctx.author.name != bot_owner:
                         await send_chat_message(f"Skipping songs is currently disabled.")
                         return
+                # Check if the user is the requester of the currently playing song
+                is_requester = False
                 if not await command_permissions(permissions, ctx.author):
-                    await send_chat_message("You do not have the required permissions to use this command.")
-                    return
+                    # Before denying, check if they requested the current song
+                    try:
+                        req_access_token = await get_spotify_access_token()
+                        req_headers = {"Authorization": f"Bearer {req_access_token}"}
+                        async with httpClientSession() as req_session:
+                            async with req_session.get("https://api.spotify.com/v1/me/player/currently-playing", headers=req_headers) as req_response:
+                                if req_response.status == 200:
+                                    req_data = await req_response.json()
+                                    current_song_id = req_data.get("item", {}).get("uri")
+                                    if current_song_id and current_song_id in song_requests:
+                                        if song_requests[current_song_id].get("user") == ctx.author.name:
+                                            is_requester = True
+                    except Exception:
+                        pass
+                    if not is_requester:
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
                 # Check cooldown
                 bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                 if not await check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
