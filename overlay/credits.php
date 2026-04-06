@@ -139,6 +139,16 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
                 if ($user_db->connect_error) {
                     die("Connection failed: " . $user_db->connect_error);
                 }
+                // Load credits overlay settings
+                $overlaySettings = ['scroll_speed' => 50, 'text_color' => '#FFFFFF', 'font_family' => 'Arial', 'looping' => 1];
+                if ($settingsStmt = $user_db->prepare("SELECT scroll_speed, text_color, font_family, looping FROM credits_overlay_settings WHERE id = 1")) {
+                    $settingsStmt->execute();
+                    $settingsResult = $settingsStmt->get_result();
+                    if ($settingsResult->num_rows > 0) {
+                        $overlaySettings = $settingsResult->fetch_assoc();
+                    }
+                    $settingsStmt->close();
+                }
                 // Only build the scrolling credits section
                 $columns = '';
                 $columns .= build_event_column($user_db, 'raid', 'Raiders');
@@ -178,6 +188,27 @@ $buildStatus = $status;
 <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.4/css/bulma.min.css">
 <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
+<?php if (isset($overlaySettings)):
+    $googleFonts = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito', 'Inter'];
+    if (in_array($overlaySettings['font_family'], $googleFonts)):
+?>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= urlencode($overlaySettings['font_family']) ?>:wght@400;700&display=swap">
+<?php endif; ?>
+<style>
+    .credits-overlay-page .title,
+    .credits-overlay-page .subtitle,
+    .credits-overlay-page .section h2,
+    .credits-overlay-page .section ul li,
+    .credits-overlay-page .content,
+    .credits-overlay-page ul.content,
+    .credits-overlay-page li,
+    .credits-overlay-page h1,
+    .credits-overlay-page h2 {
+        color: <?= htmlspecialchars($overlaySettings['text_color']) ?> !important;
+        font-family: '<?= htmlspecialchars($overlaySettings['font_family']) ?>', sans-serif !important;
+    }
+</style>
+<?php endif; ?>
 </head>
 <body class="has-text-white credits-overlay-page">
     <div class="container is-fluid" style="margin-top:8px;">
@@ -201,71 +232,87 @@ $buildStatus = $status;
     </div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    var creditsConfig = {
+        scrollSpeed: <?= isset($overlaySettings) ? intval($overlaySettings['scroll_speed']) : 50 ?>,
+        looping: <?= isset($overlaySettings) ? intval($overlaySettings['looping']) : 1 ?>
+    };
     // PAGE-LEVEL auto-scroll for the entire credits section
     // Deferred into rAF so layout is fully calculated before measuring heights
     requestAnimationFrame(function() {
     (function() {
-        const main = document.querySelector('.container.is-fluid');
+        var main = document.querySelector('.container.is-fluid');
         if (!main) return;
-        const credits = main.querySelector('.credits-overlay-page-scrolling');
+        var credits = main.querySelector('.credits-overlay-page-scrolling');
         if (!credits) return;
         // Only scroll if the credits list actually overflows below the visible area
-        const rect = credits.getBoundingClientRect();
-        const availableH = window.innerHeight - rect.top;
+        var rect = credits.getBoundingClientRect();
+        var availableH = window.innerHeight - rect.top;
         if (credits.scrollHeight <= availableH) return;
-        // If we haven't created the page scroll container, create one that contains two stacked copies
+        // If we haven't created the page scroll container, create one
         if (!main.querySelector('.credits-overlay-page-scroll-container')) {
-            const wrapper = document.createElement('div');
+            var wrapper = document.createElement('div');
             wrapper.className = 'credits-overlay-page-scroll-container';
             wrapper.style.position = 'relative';
             wrapper.style.overflow = 'hidden';
-            // Two panels stacked inside an inner container that we will animate.
-            // Each panel contains the credits + a small gap so the loop has breathing room.
-            const gapPx = 24; // space between end and start in pixels
-            const panelA = '<div class="credits-overlay-page-panel"><div class="credits-overlay-page-scroll-wrap">' + credits.outerHTML + '</div><div class="credits-overlay-page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
-            const panelB = '<div class="credits-overlay-page-panel"><div class="credits-overlay-page-scroll-wrap">' + credits.outerHTML + '</div><div class="credits-overlay-page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
-            wrapper.innerHTML = '<div class="credits-overlay-page-scroll-inner">' + panelA + panelB + '</div>';
+            var gapPx = 24;
+            var panelA = '<div class="credits-overlay-page-panel"><div class="credits-overlay-page-scroll-wrap">' + credits.outerHTML + '</div><div class="credits-overlay-page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+            if (creditsConfig.looping) {
+                var panelB = '<div class="credits-overlay-page-panel"><div class="credits-overlay-page-scroll-wrap">' + credits.outerHTML + '</div><div class="credits-overlay-page-scroll-gap" style="height:' + gapPx + 'px"></div></div>';
+                wrapper.innerHTML = '<div class="credits-overlay-page-scroll-inner">' + panelA + panelB + '</div>';
+            } else {
+                wrapper.innerHTML = '<div class="credits-overlay-page-scroll-inner">' + panelA + '</div>';
+            }
             credits.parentNode.replaceChild(wrapper, credits);
         }
-        const pageWrapper = main.querySelector('.credits-overlay-page-scroll-container');
+        var pageWrapper = main.querySelector('.credits-overlay-page-scroll-container');
         if (!pageWrapper) return;
-        const pageInner = pageWrapper.querySelector('.credits-overlay-page-scroll-inner');
-        const firstPanel = pageInner ? pageInner.querySelector('.credits-overlay-page-panel') : null;
+        var pageInner = pageWrapper.querySelector('.credits-overlay-page-scroll-inner');
+        var firstPanel = pageInner ? pageInner.querySelector('.credits-overlay-page-panel') : null;
         if (!pageInner || !firstPanel) return;
-        // Measure the content height (credits) and compute total panel height including gap
-        const contentBlock = firstPanel.querySelector('.credits-overlay-page-scroll-wrap');
-        const gapBlock = firstPanel.querySelector('.credits-overlay-page-scroll-gap');
-        const contentH = Math.max(1, Math.round(contentBlock.scrollHeight));
-        const gapH = gapBlock ? Math.max(0, parseInt(gapBlock.style.height || '24', 10)) : 24;
-        const totalH = contentH + gapH;
-        // Set the visible area to the content height so header-aligned region stays correct
+        // Measure the content height
+        var contentBlock = firstPanel.querySelector('.credits-overlay-page-scroll-wrap');
+        var gapBlock = firstPanel.querySelector('.credits-overlay-page-scroll-gap');
+        var contentH = Math.max(1, Math.round(contentBlock.scrollHeight));
+        var gapH = gapBlock ? Math.max(0, parseInt(gapBlock.style.height || '24', 10)) : 24;
+        var totalH = contentH + gapH;
         pageWrapper.style.height = contentH + 'px';
         pageWrapper.style.overflow = 'hidden';
         pageInner.style.willChange = 'transform';
-        pageInner.style.height = (totalH * 2) + 'px';
-        // Ensure each panel has consistent sizing
+        if (creditsConfig.looping) {
+            pageInner.style.height = (totalH * 2) + 'px';
+        } else {
+            pageInner.style.height = totalH + 'px';
+        }
         Array.from(pageInner.querySelectorAll('.credits-overlay-page-panel')).forEach(function(ch) {
             ch.style.height = totalH + 'px';
             ch.style.overflow = 'hidden';
             ch.style.margin = '0';
             ch.style.padding = '0';
-            const innerWrap = ch.querySelector('.credits-overlay-page-scroll-wrap');
+            var innerWrap = ch.querySelector('.credits-overlay-page-scroll-wrap');
             if (innerWrap) innerWrap.style.height = contentH + 'px';
-            const innerGap = ch.querySelector('.credits-overlay-page-scroll-gap');
+            var innerGap = ch.querySelector('.credits-overlay-page-scroll-gap');
             if (innerGap) innerGap.style.height = gapH + 'px';
         });
-        // Animate the inner container vertically by totalH and wrap smoothly
-        const duration = Math.max(2, totalH / 50);
-        const speed = totalH / duration;
-        let last = null;
-        let offset = 0;
+        // Use user-configured scroll speed (pixels per second)
+        var speed = creditsConfig.scrollSpeed;
+        var last = null;
+        var offset = 0;
         function animatePage(ts) {
             if (last == null) last = ts;
-            const delta = (ts - last) / 1000;
+            var delta = (ts - last) / 1000;
             last = ts;
             offset += speed * delta;
-            if (offset >= totalH) offset -= totalH;
-            pageInner.style.transform = `translateY(${-offset}px)`;
+            if (creditsConfig.looping) {
+                if (offset >= totalH) offset -= totalH;
+            } else {
+                // Stop scrolling when the content has fully scrolled out of view
+                if (offset >= totalH) {
+                    offset = totalH;
+                    pageInner.style.transform = 'translateY(' + (-offset) + 'px)';
+                    return;
+                }
+            }
+            pageInner.style.transform = 'translateY(' + (-offset) + 'px)';
             requestAnimationFrame(animatePage);
         }
         requestAnimationFrame(animatePage);

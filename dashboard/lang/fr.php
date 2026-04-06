@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 return [
     // Profile Page
     'profile_title' => 'Paramètres du profil',
@@ -884,6 +884,16 @@ return [
     'overlays_kofi_desc' => 'Affichez vos événements Ko-Fi sur votre stream.',
     'overlays_patreon' => 'Patreon',
     'overlays_patreon_desc' => 'Affichez vos informations de soutien sur votre stream.',
+    'overlays_credits_settings_title' => 'Paramètres du générique',
+    'overlays_credits_scroll_speed' => 'Vitesse de défilement',
+    'overlays_credits_scroll_speed_help' => 'Contrôle la vitesse de défilement du générique (pixels par seconde). Plus élevé = plus rapide.',
+    'overlays_credits_text_color' => 'Couleur du texte',
+    'overlays_credits_font_family' => 'Police de caractères',
+    'overlays_credits_looping' => 'Boucler le générique',
+    'overlays_credits_looping_help' => 'Lorsque activé, le générique défile en boucle continue.',
+    'overlays_credits_save' => 'Enregistrer les paramètres',
+    'overlays_credits_saved' => 'Paramètres enregistrés avec succès !',
+    'overlays_credits_save_error' => 'Échec de l\'enregistrement des paramètres.',
     // Media Page
     'media_page_title' => 'Médias',
     // Sound Alerts Page

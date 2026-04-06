@@ -793,6 +793,14 @@ try {
                 allow_user_tasks TINYINT(1) DEFAULT 1,
                 task_visible_overlay TINYINT(1) DEFAULT 1,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'credits_overlay_settings' => "
+            CREATE TABLE IF NOT EXISTS credits_overlay_settings (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                scroll_speed INT NOT NULL DEFAULT 50,
+                text_color VARCHAR(20) NOT NULL DEFAULT '#FFFFFF',
+                font_family VARCHAR(100) NOT NULL DEFAULT 'Arial',
+                looping TINYINT(1) NOT NULL DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
@@ -1022,6 +1030,10 @@ try {
     // Ensure default options for task_settings exist
     if ($usrDBconn->query("INSERT INTO task_settings (require_approval, default_reward_points, allow_user_tasks, task_visible_overlay) SELECT 0, 50, 1, 1 WHERE NOT EXISTS (SELECT 1 FROM task_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default task_settings options ensured.');
+    }
+    // Ensure default options for credits_overlay_settings exist
+    if ($usrDBconn->query("INSERT INTO credits_overlay_settings (scroll_speed, text_color, font_family, looping) SELECT 50, '#FFFFFF', 'Arial', 1 WHERE NOT EXISTS (SELECT 1 FROM credits_overlay_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+        async_log('Default credits_overlay_settings options ensured.');
     }
     // Ensure default options for streamer_preferences exist
     if (

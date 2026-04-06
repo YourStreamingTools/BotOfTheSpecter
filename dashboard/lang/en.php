@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 return [
     // Profile Page
     'profile_title' => 'Profile Settings',
@@ -941,6 +941,16 @@ return [
     'overlays_kofi_desc' => 'Display your Ko-Fi events on your stream.',
     'overlays_patreon' => 'Patreon',
     'overlays_patreon_desc' => 'Display your pledge information on your stream.',
+    'overlays_credits_settings_title' => 'Credits Overlay Settings',
+    'overlays_credits_scroll_speed' => 'Scroll Speed',
+    'overlays_credits_scroll_speed_help' => 'Controls how fast the credits scroll (pixels per second). Higher = faster.',
+    'overlays_credits_text_color' => 'Text Color',
+    'overlays_credits_font_family' => 'Font Family',
+    'overlays_credits_looping' => 'Loop Credits',
+    'overlays_credits_looping_help' => 'When enabled, credits will scroll continuously in a loop.',
+    'overlays_credits_save' => 'Save Settings',
+    'overlays_credits_saved' => 'Settings saved successfully!',
+    'overlays_credits_save_error' => 'Failed to save settings.',
     // Media Page
     'media_page_title' => 'Media',
     // Sound Alerts Page

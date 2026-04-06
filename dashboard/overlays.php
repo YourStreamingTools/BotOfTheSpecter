@@ -28,6 +28,36 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
+// Load credits overlay settings
+$creditsSettings = ['scroll_speed' => 50, 'text_color' => '#FFFFFF', 'font_family' => 'Arial', 'looping' => 1];
+$creditsStmt = $db->prepare("SELECT scroll_speed, text_color, font_family, looping FROM credits_overlay_settings WHERE id = 1");
+if ($creditsStmt) {
+    $creditsStmt->execute();
+    $creditsResult = $creditsStmt->get_result();
+    if ($creditsResult->num_rows > 0) {
+        $creditsSettings = $creditsResult->fetch_assoc();
+    }
+    $creditsStmt->close();
+}
+
+// Handle credits overlay settings save
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['credits_overlay_save'])) {
+    header('Content-Type: application/json');
+    $scrollSpeed = max(10, min(200, intval($_POST['scroll_speed'] ?? 50)));
+    $textColor = preg_match('/^#[0-9A-Fa-f]{6}$/', $_POST['text_color'] ?? '') ? $_POST['text_color'] : '#FFFFFF';
+    $fontFamily = htmlspecialchars(trim($_POST['font_family'] ?? 'Arial'), ENT_QUOTES, 'UTF-8');
+    $looping = intval(!empty($_POST['looping']));
+    $saveStmt = $db->prepare("INSERT INTO credits_overlay_settings (id, scroll_speed, text_color, font_family, looping) VALUES (1, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE scroll_speed = VALUES(scroll_speed), text_color = VALUES(text_color), font_family = VALUES(font_family), looping = VALUES(looping)");
+    $saveStmt->bind_param("issi", $scrollSpeed, $textColor, $fontFamily, $looping);
+    if ($saveStmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'error' => $saveStmt->error]);
+    }
+    $saveStmt->close();
+    exit();
+}
+
 // Start output buffering
 ob_start();
 ?>
@@ -76,14 +106,66 @@ ob_start();
     </div>
     <!-- Stream Ending Credits -->
     <div class="sp-card" style="margin-bottom:0;">
-        <div class="sp-card-header">
+        <div class="sp-card-header" style="display:flex; justify-content:space-between; align-items:center;">
             <div class="sp-card-title"><i class="fas fa-scroll"></i> <?= t('overlays_stream_ending_credits') ?></div>
+            <button id="creditsSettingsBtn" class="sp-btn sp-btn-sm sp-btn-secondary" title="<?= t('overlays_credits_settings_title') ?>">
+                <i class="fas fa-cog"></i>
+            </button>
         </div>
         <div class="sp-card-body">
             <?= t('overlays_stream_ending_credits_desc') ?>
             <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
                 https://overlay.botofthespecter.com/credits.php?code=API_KEY_HERE
             </div>
+        </div>
+    </div>
+    <!-- Credits Overlay Settings Modal -->
+    <div class="sp-modal-backdrop" id="creditsSettingsModal">
+        <div class="sp-modal" style="max-width:500px;">
+            <header class="sp-modal-head">
+                <p class="sp-modal-title"><?= t('overlays_credits_settings_title') ?></p>
+                <button class="sp-modal-close" aria-label="close" id="closeCreditsSettingsModal">&times;</button>
+            </header>
+            <section class="sp-modal-body">
+                <form id="creditsSettingsForm">
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('overlays_credits_scroll_speed') ?></label>
+                        <input type="range" id="creditsScrollSpeed" name="scroll_speed" min="10" max="200" value="<?= intval($creditsSettings['scroll_speed']) ?>" style="width:100%;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--text-secondary);">
+                            <span>Slow</span>
+                            <span id="creditsScrollSpeedVal"><?= intval($creditsSettings['scroll_speed']) ?></span>
+                            <span>Fast</span>
+                        </div>
+                        <small style="color:var(--text-secondary);"><?= t('overlays_credits_scroll_speed_help') ?></small>
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('overlays_credits_text_color') ?></label>
+                        <input type="color" id="creditsTextColor" name="text_color" value="<?= htmlspecialchars($creditsSettings['text_color']) ?>" style="width:60px; height:36px; border:none; cursor:pointer;">
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('overlays_credits_font_family') ?></label>
+                        <select id="creditsFontFamily" name="font_family" class="sp-input" style="width:100%;">
+                            <?php
+                            $fonts = ['Arial', 'Verdana', 'Helvetica', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito', 'Inter'];
+                            foreach ($fonts as $font):
+                            ?>
+                                <option value="<?= $font ?>" <?= ($creditsSettings['font_family'] === $font) ? 'selected' : '' ?> style="font-family:'<?= $font ?>';"><?= $font ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; font-weight:600; cursor:pointer;">
+                            <input type="checkbox" id="creditsLooping" name="looping" value="1" <?= $creditsSettings['looping'] ? 'checked' : '' ?>>
+                            <?= t('overlays_credits_looping') ?>
+                        </label>
+                        <small style="color:var(--text-secondary);"><?= t('overlays_credits_looping_help') ?></small>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <span id="creditsSaveStatus" style="align-self:center; font-size:0.85rem;"></span>
+                        <button type="submit" class="sp-btn sp-btn-primary"><?= t('overlays_credits_save') ?></button>
+                    </div>
+                </form>
+            </section>
         </div>
     </div>
     <!-- To Do List -->
@@ -293,5 +375,59 @@ ob_start();
 <?php
 // End buffering and assign to $content
 $content = ob_get_clean();
+
+ob_start();
+?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var openBtn = document.getElementById('creditsSettingsBtn');
+    var modal = document.getElementById('creditsSettingsModal');
+    var closeBtn = document.getElementById('closeCreditsSettingsModal');
+    var form = document.getElementById('creditsSettingsForm');
+    var speedSlider = document.getElementById('creditsScrollSpeed');
+    var speedVal = document.getElementById('creditsScrollSpeedVal');
+    var statusEl = document.getElementById('creditsSaveStatus');
+    if (!openBtn || !modal) return;
+    speedSlider.addEventListener('input', function () {
+        speedVal.textContent = this.value;
+    });
+    openBtn.addEventListener('click', function () {
+        modal.classList.add('is-active');
+    });
+    closeBtn.addEventListener('click', function () {
+        modal.classList.remove('is-active');
+    });
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) modal.classList.remove('is-active');
+    });
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var formData = new FormData(form);
+        formData.append('credits_overlay_save', '1');
+        statusEl.textContent = '';
+        statusEl.style.color = '';
+        fetch(window.location.pathname, {
+            method: 'POST',
+            body: formData
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                statusEl.style.color = 'var(--green)';
+                statusEl.textContent = <?= json_encode(t('overlays_credits_saved')) ?>;
+            } else {
+                statusEl.style.color = 'var(--red)';
+                statusEl.textContent = <?= json_encode(t('overlays_credits_save_error')) ?>;
+            }
+        })
+        .catch(function () {
+            statusEl.style.color = 'var(--red)';
+            statusEl.textContent = <?= json_encode(t('overlays_credits_save_error')) ?>;
+        });
+    });
+});
+</script>
+<?php
+$scripts = ob_get_clean();
 include 'layout.php';
 ?>
