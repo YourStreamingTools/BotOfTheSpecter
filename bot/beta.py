@@ -1168,9 +1168,9 @@ async def process_twitch_eventsub_message(message):
             chatter_user_id = event_data["chatter_user_id"]
             chatter_user_name = event_data["chatter_user_name"]
             message_text = event_data["message"]["text"]
+            is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
             # Capture chat for AI Ad Breaks
             try:
-                is_bot_message = (chatter_user_name or "").strip().lower() == (BOT_USERNAME or "").strip().lower()
                 is_auto_message = False
                 auto_messages = [m.get('message') for m in active_timed_messages.values() if m.get('message')]
                 if message_text in auto_messages:
@@ -1200,7 +1200,8 @@ async def process_twitch_eventsub_message(message):
                         json.dump(current_chat, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 event_logger.error(f"[EVENTSUB] Error logging chat for ad break: {e}")
-            create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
+            if not is_bot_message:
+                create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
             return
         if not event_type:
             return
