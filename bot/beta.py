@@ -3370,8 +3370,6 @@ class TwitchBot(commands.Bot):
             await self.handle_commands(message)
             messageContent = messageContentRaw.lower()
             AuthorMessage = str(message.content) if message.content else ""
-            create_task(self.message_counting_and_welcome_messages(messageAuthor, messageAuthorID, bannedUser, messageContentRaw))
-            # Check if the message matches the spam pattern (Has its own DB logic internally)
             try:
                 spam_pattern = await get_spam_patterns()
             except Exception as spam_err:
