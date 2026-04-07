@@ -1,4 +1,5 @@
 <?php
+ob_start();
 session_start();
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
@@ -42,6 +43,7 @@ if ($creditsStmt) {
 
 // Handle credits overlay settings save
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['credits_overlay_save'])) {
+    while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
     $scrollSpeed = max(10, min(200, intval($_POST['scroll_speed'] ?? 50)));
     $textColor = preg_match('/^#[0-9A-Fa-f]{6}$/', $_POST['text_color'] ?? '') ? $_POST['text_color'] : '#FFFFFF';
