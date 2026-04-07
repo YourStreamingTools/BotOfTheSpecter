@@ -15,6 +15,7 @@ if (isset($_SESSION['status'])) {
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
+    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
     header('Location: login.php');
     exit();
 }

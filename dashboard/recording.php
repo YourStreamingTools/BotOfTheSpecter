@@ -17,6 +17,7 @@ if (!isset($_SESSION['access_token'])) {
         ]);
         exit();
     }
+    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
     header('Location: login.php');
     exit();
 }

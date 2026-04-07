@@ -9,8 +9,11 @@ require_once __DIR__ . '/api/twitch_token_validate.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
+  $returnTo = $_SERVER['REQUEST_URI'];
   session_unset();
   session_destroy();
+  session_start();
+  $_SESSION['redirect_after_login'] = $returnTo;
   header('Location: login.php');
   exit();
 }
@@ -20,8 +23,11 @@ $tokenData = validateTwitchToken($_SESSION['access_token']);
 $consoleLog = '';
 if (!$tokenData) {
   // Token is invalid, clear session and redirect to login
+  $returnTo = $_SERVER['REQUEST_URI'];
   session_unset();
   session_destroy();
+  session_start();
+  $_SESSION['redirect_after_login'] = $returnTo;
   header('Location: login.php');
   exit();
 } else {
@@ -136,8 +142,11 @@ if ($username !== 'botofthespecter') {
   $tokenData = validateTwitchToken($_SESSION['access_token']);
   if (!$tokenData) {
     // Token is invalid, clear session and redirect to login
+    $returnTo = $_SERVER['REQUEST_URI'];
     session_unset();
     session_destroy();
+    session_start();
+    $_SESSION['redirect_after_login'] = $returnTo;
     header('Location: login.php');
     exit();
   }
@@ -200,8 +209,11 @@ if (isset($username) && $username !== '') {
   $tokenData = validateTwitchToken($_SESSION['access_token']);
   if (!$tokenData) {
     // Token is invalid, clear session and redirect to login
+    $returnTo = $_SERVER['REQUEST_URI'];
     session_unset();
     session_destroy();
+    session_start();
+    $_SESSION['redirect_after_login'] = $returnTo;
     header('Location: login.php');
     exit();
   }
