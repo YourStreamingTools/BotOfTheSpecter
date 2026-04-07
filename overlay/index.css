@@ -1173,6 +1173,8 @@ html, body {
 
 .credits-overlay-page,
 html:has(body.credits-overlay-page) {
+    --credits-text-color: #FFFFFF;
+    --credits-font-family: Arial, sans-serif;
     background: transparent !important;
     overflow: hidden;
 }
@@ -1191,7 +1193,7 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     border-radius: 12px;
     padding: 12px;
     padding-bottom: 28px;
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
     position: relative;
     overflow: hidden;
     margin-bottom: 12px;
@@ -1227,7 +1229,8 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .credits-overlay-page .content,
 .credits-overlay-page ul.content,
 .credits-overlay-page li {
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
+    font-family: var(--credits-font-family) !important;
 }
 
 .credits-overlay-page .title {
@@ -1252,12 +1255,14 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .credits-overlay-page .container.is-fluid .content *,
 .credits-overlay-page-scrolling .content,
 .credits-overlay-page-scrolling .content * {
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
+    font-family: var(--credits-font-family) !important;
 }
 
 .credits-overlay-page .container.is-fluid h2,
 .credits-overlay-page .container.is-fluid h1 {
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
+    font-family: var(--credits-font-family) !important;
 }
 
 .credits-overlay-page .container.is-fluid > .section {
@@ -1280,7 +1285,7 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 .credits-overlay-page a,
 .credits-overlay-page a:visited,
 .credits-overlay-page a:active {
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
     text-decoration: underline;
 }
 
@@ -1290,7 +1295,7 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     display: flex;
     justify-content: center;
     z-index: 10;
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
     margin-top: 8px;
     margin-bottom: 8px;
     padding-bottom: 16px;
@@ -1392,7 +1397,8 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 
 .credits-overlay-page-scrolling .subtitle {
     margin-bottom: 16px;
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
+    font-family: var(--credits-font-family) !important;
     z-index: 2;
     font-weight: bold !important;
 }
@@ -1404,13 +1410,15 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     width: 100%;
     position: relative;
     will-change: transform;
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
+    font-family: var(--credits-font-family) !important;
 }
 
 .credits-overlay-page-scrolling li {
     font-size: 24px;
     margin: 5px 0;
-    color: #FFFFFF !important;
+    color: var(--credits-text-color) !important;
+    font-family: var(--credits-font-family) !important;
     text-align: center;
 }
 

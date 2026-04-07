@@ -195,17 +195,9 @@ $buildStatus = $status;
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= urlencode($overlaySettings['font_family']) ?>:wght@400;700&display=swap">
 <?php endif; ?>
 <style>
-    .credits-overlay-page .title,
-    .credits-overlay-page .subtitle,
-    .credits-overlay-page .section h2,
-    .credits-overlay-page .section ul li,
-    .credits-overlay-page .content,
-    .credits-overlay-page ul.content,
-    .credits-overlay-page li,
-    .credits-overlay-page h1,
-    .credits-overlay-page h2 {
-        color: <?= htmlspecialchars($overlaySettings['text_color']) ?> !important;
-        font-family: '<?= htmlspecialchars($overlaySettings['font_family']) ?>', sans-serif !important;
+    .credits-overlay-page {
+        --credits-text-color: <?= htmlspecialchars($overlaySettings['text_color']) ?>;
+        --credits-font-family: '<?= htmlspecialchars($overlaySettings['font_family']) ?>', sans-serif;
     }
 </style>
 <?php endif; ?>
