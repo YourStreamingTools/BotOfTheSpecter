@@ -12,6 +12,7 @@ session_start();
 
 // Must be logged in to the dashboard
 if (empty($_SESSION['access_token']) || empty($_SESSION['twitch_user_id'])) {
+    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
     header('Location: /login.php');
     exit;
 }

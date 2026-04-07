@@ -12,9 +12,17 @@ ini_set('session.cookie_lifetime', 86400);
 // Start PHP session
 session_start();
 
-// If the user is already logged in, redirect them to the dashboard page
+// If the user is already logged in, redirect them to the intended page (or dashboard)
 if (isset($_SESSION['access_token'])) {
-    header('Location: dashboard.php');
+    $loginRedirect = 'dashboard.php';
+    if (!empty($_SESSION['redirect_after_login'])) {
+        $candidate = $_SESSION['redirect_after_login'];
+        if (strncmp($candidate, '/', 1) === 0 && strncmp($candidate, '//', 2) !== 0) {
+            $loginRedirect = $candidate;
+        }
+        unset($_SESSION['redirect_after_login']);
+    }
+    header('Location: ' . $loginRedirect);
     exit;
 }
 
@@ -151,7 +159,15 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                 $last_login = date('Y-m-d H:i:s');
                 mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
                 if (mysqli_stmt_execute($stmt)) {
-                    header('Location: dashboard.php');
+                    $loginRedirect = 'dashboard.php';
+                    if (!empty($_SESSION['redirect_after_login'])) {
+                        $candidate = $_SESSION['redirect_after_login'];
+                        if (strncmp($candidate, '/', 1) === 0 && strncmp($candidate, '//', 2) !== 0) {
+                            $loginRedirect = $candidate;
+                        }
+                        unset($_SESSION['redirect_after_login']);
+                    }
+                    header('Location: ' . $loginRedirect);
                     exit;
                 } else {
                     echo 'Error updating user: ' . mysqli_stmt_error($stmt);
@@ -200,7 +216,15 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                     mysqli_commit($conn);
                     // Set the session user id to the assigned id (don't rely on mysqli_insert_id when inserting explicit ids)
                     $_SESSION['user_id'] = $assignedId;
-                    header('Location: dashboard.php');
+                    $loginRedirect = 'dashboard.php';
+                    if (!empty($_SESSION['redirect_after_login'])) {
+                        $candidate = $_SESSION['redirect_after_login'];
+                        if (strncmp($candidate, '/', 1) === 0 && strncmp($candidate, '//', 2) !== 0) {
+                            $loginRedirect = $candidate;
+                        }
+                        unset($_SESSION['redirect_after_login']);
+                    }
+                    header('Location: ' . $loginRedirect);
                     exit;
                 } catch (Exception $e) {
                     // Rollback if possible
@@ -342,7 +366,15 @@ if (isset($_GET['code'])) {
             $last_login = date('Y-m-d H:i:s');
             mysqli_stmt_bind_param($stmt, 'ssssssss', $accessToken, $refreshToken, $profileImageUrl, $twitchUsername, $twitchDisplayName, $last_login, $email, $twitchUserId);
             if (mysqli_stmt_execute($stmt)) {
-                header('Location: dashboard.php');
+                $loginRedirect = 'dashboard.php';
+                if (!empty($_SESSION['redirect_after_login'])) {
+                    $candidate = $_SESSION['redirect_after_login'];
+                    if (strncmp($candidate, '/', 1) === 0 && strncmp($candidate, '//', 2) !== 0) {
+                        $loginRedirect = $candidate;
+                    }
+                    unset($_SESSION['redirect_after_login']);
+                }
+                header('Location: ' . $loginRedirect);
                 exit;
             } else {
                 echo 'Error updating user: ' . mysqli_stmt_error($stmt);
@@ -397,7 +429,15 @@ if (isset($_GET['code'])) {
                     mysqli_commit($conn);
                     // Set the session user id to the assigned id (don't rely on mysqli_insert_id when inserting explicit ids)
                     $_SESSION['user_id'] = $assignedId;
-                    header('Location: dashboard.php');
+                    $loginRedirect = 'dashboard.php';
+                    if (!empty($_SESSION['redirect_after_login'])) {
+                        $candidate = $_SESSION['redirect_after_login'];
+                        if (strncmp($candidate, '/', 1) === 0 && strncmp($candidate, '//', 2) !== 0) {
+                            $loginRedirect = $candidate;
+                        }
+                        unset($_SESSION['redirect_after_login']);
+                    }
+                    header('Location: ' . $loginRedirect);
                     exit;
                 } catch (Exception $e) {
                     // Rollback if possible
