@@ -375,11 +375,6 @@ if ($action === 'edit' || $action === 'new'):
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="sp-insert-table">Table</button>
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="sp-insert-alert">Alert</button>
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="sp-insert-hr"><i class="fa-solid fa-minus"></i></button>
-                    <span style="border-left:1px solid var(--border);height:1.25rem;margin:0 0.15rem;"></span>
-                    <button type="button" class="sp-btn sp-btn-accent sp-btn-sm" id="sp-ai-open"
-                            style="background:var(--accent);color:#fff;">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI
-                    </button>
                 </div>
             </div>
             <textarea id="doc_content" name="doc_content" class="sp-code-editor" spellcheck="false"
@@ -389,6 +384,10 @@ if ($action === 'edit' || $action === 'new'):
                     <i class="fa-solid fa-floppy-disk"></i> <?php echo $isNew ? 'Create Doc Block' : 'Save Changes'; ?>
                 </button>
                 <a href="/docs.php" class="sp-btn sp-btn-ghost">Cancel</a>
+                <button type="button" class="sp-btn sp-btn-sm" id="sp-ai-open"
+                        style="background:var(--accent);color:#fff;margin-left:auto;">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI Assistant
+                </button>
             </div>
         </div>
         <div class="sp-preview-col">
@@ -410,17 +409,23 @@ if ($action === 'edit' || $action === 'new'):
         <div class="sp-ai-modal-body">
             <label class="sp-label" for="sp-ai-prompt">What would you like the AI to do?</label>
             <textarea id="sp-ai-prompt" class="sp-input" rows="4"
-                      placeholder="e.g. &quot;Write a section explaining how to set up Spotify integration&quot; or &quot;Add a warning alert about rate limits to the existing content&quot;"></textarea>
-            <div class="sp-ai-options" style="margin-top:0.5rem;display:flex;gap:1rem;align-items:center;">
-                <label class="sp-toggle-label" style="font-size:0.85rem;">
+                      placeholder="e.g. &quot;Edit the first paragraph to mention broadcasters&quot; or &quot;Write a new section about Spotify integration&quot;"></textarea>
+            <div class="sp-ai-options" style="margin-top:0.75rem;display:flex;gap:1rem;align-items:center;">
+                <label style="font-size:0.85rem;display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;"
+                       title="AI rewrites the entire block with your changes applied">
                     <input type="radio" name="sp_ai_mode" value="replace" checked>
-                    Replace content
+                    Edit existing content
                 </label>
-                <label class="sp-toggle-label" style="font-size:0.85rem;">
+                <label style="font-size:0.85rem;display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;"
+                       title="AI generates new HTML and adds it after your current content">
                     <input type="radio" name="sp_ai_mode" value="append">
-                    Append to content
+                    Add new content below
                 </label>
             </div>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">
+                <strong>Edit existing</strong> — AI reads your current content, applies your requested changes, and replaces it.<br>
+                <strong>Add new below</strong> — AI generates new HTML and appends it after what you already have.
+            </p>
             <div id="sp-ai-error" class="sp-alert sp-alert-danger" style="display:none;margin-top:0.75rem;">
                 <i class="fa-solid fa-circle-xmark"></i>
                 <span id="sp-ai-error-msg"></span>
@@ -743,11 +748,12 @@ document.addEventListener('DOMContentLoaded', function () {
     var textarea = document.getElementById('doc_content');
     var preview  = document.getElementById('sp-preview');
     var counter  = document.getElementById('sp-char-count');
+    function updatePreview() {
+        if (!textarea || !preview) return;
+        preview.innerHTML = textarea.value;
+        if (counter) counter.textContent = textarea.value.length + ' chars';
+    }
     if (textarea && preview) {
-        function updatePreview() {
-            preview.innerHTML = textarea.value;
-            if (counter) counter.textContent = textarea.value.length + ' chars';
-        }
         textarea.addEventListener('input', updatePreview);
         updatePreview();
     }
@@ -839,8 +845,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     doc_id:       editIdInput ? parseInt(editIdInput.value, 10) : 0
                 })
             })
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
+            .then(function (res) { return res.text(); })
+            .then(function (rawText) {
+                var data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (e) {
+                    errorMsg.textContent = 'Invalid response from server.';
+                    errorWrap.style.display = 'flex';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Generate';
+                    return;
+                }
                 if (!data.ok) {
                     errorMsg.textContent = data.error || 'Unknown error.';
                     errorWrap.style.display = 'flex';
@@ -854,9 +870,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     } else {
                         textarea.value = data.html;
                     }
-                    textarea.dispatchEvent(new Event('input'));
+                    // Force preview + char count update
+                    updatePreview();
+                    // Scroll textarea to top so change is visible
+                    textarea.scrollTop = 0;
+                    // Flash the textarea border to signal success
+                    textarea.style.outline = '2px solid var(--accent)';
+                    setTimeout(function () { textarea.style.outline = ''; }, 1500);
                 }
                 closeModal();
+                // Show a success toast
+                var toast = document.createElement('div');
+                toast.className = 'sp-alert sp-alert-success';
+                toast.setAttribute('data-dismiss', '4000');
+                var modeLabel = mode === 'append' ? 'added below existing content' : 'existing content updated';
+                toast.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>AI content applied — ' + modeLabel + '. Review the changes before saving.</span>';
+                var form = document.getElementById('sp-doc-form');
+                if (form) form.parentNode.insertBefore(toast, form);
+                setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 4000);
             })
             .catch(function (err) {
                 errorMsg.textContent = 'Network error: ' + err.message;
