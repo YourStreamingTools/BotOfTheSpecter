@@ -375,6 +375,11 @@ if ($action === 'edit' || $action === 'new'):
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="sp-insert-table">Table</button>
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="sp-insert-alert">Alert</button>
                     <button type="button" class="sp-btn sp-btn-ghost sp-btn-sm" id="sp-insert-hr"><i class="fa-solid fa-minus"></i></button>
+                    <span style="border-left:1px solid var(--border);height:1.25rem;margin:0 0.15rem;"></span>
+                    <button type="button" class="sp-btn sp-btn-accent sp-btn-sm" id="sp-ai-open"
+                            style="background:var(--accent);color:#fff;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI
+                    </button>
                 </div>
             </div>
             <textarea id="doc_content" name="doc_content" class="sp-code-editor" spellcheck="false"
@@ -395,6 +400,40 @@ if ($action === 'edit' || $action === 'new'):
         </div>
     </div>
 </form>
+<!-- AI Assistant Modal -->
+<div id="sp-ai-overlay" class="sp-ai-overlay" style="display:none;">
+    <div class="sp-ai-modal">
+        <div class="sp-ai-modal-header">
+            <h3><i class="fa-solid fa-wand-magic-sparkles"></i> AI Content Assistant</h3>
+            <button type="button" id="sp-ai-close" class="sp-btn sp-btn-ghost sp-btn-sm">&times;</button>
+        </div>
+        <div class="sp-ai-modal-body">
+            <label class="sp-label" for="sp-ai-prompt">What would you like the AI to do?</label>
+            <textarea id="sp-ai-prompt" class="sp-input" rows="4"
+                      placeholder="e.g. &quot;Write a section explaining how to set up Spotify integration&quot; or &quot;Add a warning alert about rate limits to the existing content&quot;"></textarea>
+            <div class="sp-ai-options" style="margin-top:0.5rem;display:flex;gap:1rem;align-items:center;">
+                <label class="sp-toggle-label" style="font-size:0.85rem;">
+                    <input type="radio" name="sp_ai_mode" value="replace" checked>
+                    Replace content
+                </label>
+                <label class="sp-toggle-label" style="font-size:0.85rem;">
+                    <input type="radio" name="sp_ai_mode" value="append">
+                    Append to content
+                </label>
+            </div>
+            <div id="sp-ai-error" class="sp-alert sp-alert-danger" style="display:none;margin-top:0.75rem;">
+                <i class="fa-solid fa-circle-xmark"></i>
+                <span id="sp-ai-error-msg"></span>
+            </div>
+        </div>
+        <div class="sp-ai-modal-footer">
+            <button type="button" id="sp-ai-cancel" class="sp-btn sp-btn-ghost">Cancel</button>
+            <button type="button" id="sp-ai-submit" class="sp-btn sp-btn-primary">
+                <i class="fa-solid fa-paper-plane"></i> Generate
+            </button>
+        </div>
+    </div>
+</div>
 <?php if (!$isNew && $editDoc): ?>
 <form method="POST" action="/docs.php" style="margin-top:0.75rem;">
     <input type="hidden" name="_action"    value="toggle_vis">
@@ -739,6 +778,101 @@ document.addEventListener('DOMContentLoaded', function () {
         var btn = document.getElementById(id);
         if (btn) btn.addEventListener('click', function () { insertSnippet(snippets[id]); });
     });
+    /* ---- AI Assistant ---- */
+    (function () {
+        var aiBtn     = document.getElementById('sp-ai-open');
+        var overlay   = document.getElementById('sp-ai-overlay');
+        var closeBtn  = document.getElementById('sp-ai-close');
+        var cancelBtn = document.getElementById('sp-ai-cancel');
+        var submitBtn = document.getElementById('sp-ai-submit');
+        var promptEl  = document.getElementById('sp-ai-prompt');
+        var errorWrap = document.getElementById('sp-ai-error');
+        var errorMsg  = document.getElementById('sp-ai-error-msg');
+        if (!aiBtn || !overlay) return;
+        var csrfToken = document.querySelector('input[name="csrf_token"]');
+        csrfToken = csrfToken ? csrfToken.value : '';
+        function openModal() {
+            overlay.style.display = 'flex';
+            promptEl.value = '';
+            errorWrap.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Generate';
+            setTimeout(function () { promptEl.focus(); }, 100);
+        }
+        function closeModal() {
+            overlay.style.display = 'none';
+        }
+        aiBtn.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay) closeModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && overlay.style.display === 'flex') closeModal();
+        });
+        // Submit prompt to AI
+        submitBtn.addEventListener('click', function () {
+            var prompt = (promptEl.value || '').trim();
+            if (!prompt) {
+                errorMsg.textContent = 'Please enter a prompt.';
+                errorWrap.style.display = 'flex';
+                return;
+            }
+            var secSelect = document.getElementById('section_key');
+            var editIdInput = document.querySelector('input[name="edit_id"]');
+            var mode = document.querySelector('input[name="sp_ai_mode"]:checked');
+            mode = mode ? mode.value : 'replace';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+            errorWrap.style.display = 'none';
+            fetch('/api/ai_docs.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({
+                    prompt:       prompt,
+                    current_html: textarea ? textarea.value : '',
+                    section_key:  secSelect ? secSelect.value : '',
+                    doc_id:       editIdInput ? parseInt(editIdInput.value, 10) : 0
+                })
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (!data.ok) {
+                    errorMsg.textContent = data.error || 'Unknown error.';
+                    errorWrap.style.display = 'flex';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Generate';
+                    return;
+                }
+                if (textarea) {
+                    if (mode === 'append') {
+                        textarea.value = textarea.value + (textarea.value ? '\n' : '') + data.html;
+                    } else {
+                        textarea.value = data.html;
+                    }
+                    textarea.dispatchEvent(new Event('input'));
+                }
+                closeModal();
+            })
+            .catch(function (err) {
+                errorMsg.textContent = 'Network error: ' + err.message;
+                errorWrap.style.display = 'flex';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Generate';
+            });
+        });
+        // Allow Ctrl+Enter to submit
+        promptEl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submitBtn.click();
+            }
+        });
+    }());
     /* ---- Collapsible section cards ---- */
     var STORAGE_KEY = 'sp_cms_collapsed';
     function getCollapsed() {

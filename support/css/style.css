@@ -1819,3 +1819,60 @@ hr {
         flex-direction: column;
     }
 }
+
+/* ----------------------------------------------------------
+   AI Assistant Modal
+   ---------------------------------------------------------- */
+.sp-ai-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.sp-ai-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+}
+.sp-ai-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.sp-ai-modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--accent);
+}
+.sp-ai-modal-body {
+    padding: 1.25rem;
+}
+.sp-ai-modal-body textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    margin-top: 0.35rem;
+}
+.sp-ai-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--border);
+}
