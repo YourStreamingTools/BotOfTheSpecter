@@ -1,7 +1,6 @@
 <?php
-$openai_api_key = "";
-$openai_organization_id = "";
-$openai_project_id = "";
+include "ai.php";
+
 if (!isset($openai_config) || !is_array($openai_config)) {
     $openai_config = [
         'admin_key' => $openai_api_key,
