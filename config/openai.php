@@ -1,5 +1,5 @@
 <?php
-include "ai.php";
+include __DIR__ . "/ai.php";
 
 if (!isset($openai_config) || !is_array($openai_config)) {
     $openai_config = [
