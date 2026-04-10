@@ -2377,7 +2377,7 @@ async def CUSTOM_COMMAND(data):
             websocket_logger.error(f"[CUSTOM COMMAND] Missing command or response in custom command event: {data}")
             return
         # Process and send the custom command
-        await process_dynamic_message_variables(command, response, user="API", send_to_chat=True)
+        await process_dynamic_variables(command, response, user="API", send_to_chat=True)
         websocket_logger.info(f"[CUSTOM COMMAND] Custom command '{command}' executed successfully via API")
     except Exception as e:
         websocket_logger.error(f"[CUSTOM COMMAND] Failed to process custom command event: {e}")
@@ -3475,7 +3475,7 @@ class TwitchBot(commands.Bot):
                             user_name = user_mention.group(1) if user_mention else messageAuthor
                             # Process variables (SAFE now - connection released)
                             if response.strip():
-                                await process_dynamic_message_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                                await process_dynamic_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
                             # Record usage
                             add_usage(command, 'global', 'default')
                         else:
@@ -3739,8 +3739,8 @@ class TwitchBot(commands.Bot):
                             user_id = messageAuthorID
                             user_to_shoutout = messageAuthor
                             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
-                        if has_dynamic_message_variables(message_to_send):
-                            message_to_send = await process_dynamic_message_variables(
+                        if has_dynamic_variables(message_to_send):
+                            message_to_send = await process_dynamic_variables(
                                 command="welcome_message", response=message_to_send, user=messageAuthor
                             )
                         if message_to_send.strip():
@@ -3859,8 +3859,8 @@ class TwitchBot(commands.Bot):
                         user_id = messageAuthorID
                         user_to_shoutout = messageAuthor
                         shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
-                    if has_dynamic_message_variables(message_to_send):
-                        message_to_send = await process_dynamic_message_variables(
+                    if has_dynamic_variables(message_to_send):
+                        message_to_send = await process_dynamic_variables(
                             command="welcome_message", response=message_to_send, user=messageAuthor
                         )
                     if message_to_send.strip():
@@ -10049,7 +10049,7 @@ async def get_user_count(command, user):
             await connection.close()
 
 # Shared dynamic variable switches used across command/timed-message processing
-DYNAMIC_MESSAGE_SWITCHES = (
+DYNAMIC_VARIABLE_SWITCHES = (
     '(customapi.', '(count)', '(daysuntil.',
     '(command.', '(user)', '(author)', '(arg)', '(pronouns)', '(pronouns.they)', '(pronouns.them)',
     '(random.percent)', '(random.number)', '(random.percent.',
@@ -10061,11 +10061,11 @@ DYNAMIC_MESSAGE_SWITCHES = (
     '(lotto)', '(fortune)', '(message)', '(vip)', '(vip.today)',
 )
 
-def has_dynamic_message_variables(text):
-    return bool(text) and any(switch in text for switch in DYNAMIC_MESSAGE_SWITCHES)
+def has_dynamic_variables(text):
+    return bool(text) and any(switch in text for switch in DYNAMIC_VARIABLE_SWITCHES)
 
 # Function to process dynamic message variables
-async def process_dynamic_message_variables(
+async def process_dynamic_variables(
     command,
     response,
     user="API",
@@ -10115,7 +10115,7 @@ async def process_dynamic_message_variables(
                 chat_logger.error(f"[MESSAGE VARS] Error loading many random pick options for command '{command}': {e}")
             # Process variables in a loop until none remain
             responses_to_send = []
-            while has_dynamic_message_variables(response):
+            while has_dynamic_variables(response):
                 # Handle (count)
                 if '(count)' in response:
                     try:
@@ -10312,7 +10312,7 @@ async def process_dynamic_message_variables(
                         sub_response = await cursor.fetchone()
                         if sub_response:
                             response = response.replace(f"(command.{sub_command})", "")
-                            processed_sub_response = await process_dynamic_message_variables(
+                            processed_sub_response = await process_dynamic_variables(
                                 sub_command,
                                 sub_response["response"],
                                 user=user,
@@ -11516,8 +11516,8 @@ async def send_timed_message(message_id, message, delay):
                 await sleep(wait_time)
         chat_logger.info(f"[TIMED MESSAGE] Sending Timed Message ID: {message_id} - {message}")
         try:
-            if has_dynamic_message_variables(message):
-                await process_dynamic_message_variables(
+            if has_dynamic_variables(message):
+                await process_dynamic_variables(
                     command=f"timed_message_{message_id}",
                     response=message,
                     user=CHANNEL_NAME,
@@ -11870,8 +11870,8 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
                     alert_message = alert_message.replace("(pronouns)", "they/them")
                     alert_message = alert_message.replace("(pronouns.they)", "they")
                     alert_message = alert_message.replace("(pronouns.them)", "them")
-            if has_dynamic_message_variables(alert_message):
-                alert_message = await process_dynamic_message_variables(
+            if has_dynamic_variables(alert_message):
+                alert_message = await process_dynamic_variables(
                     command="raid_alert", response=alert_message, user=from_broadcaster_name
                 )
             if alert_message.strip():
@@ -11948,8 +11948,8 @@ async def process_cheer_event(user_id, user_name, bits):
                     alert_message = alert_message.replace("(pronouns)", "they/them")
                     alert_message = alert_message.replace("(pronouns.they)", "they")
                     alert_message = alert_message.replace("(pronouns.them)", "them")
-            if has_dynamic_message_variables(alert_message):
-                alert_message = await process_dynamic_message_variables(
+            if has_dynamic_variables(alert_message):
+                alert_message = await process_dynamic_variables(
                     command="cheer_alert", response=alert_message, user=user_name
                 )
             if alert_message.strip():
@@ -12090,8 +12090,8 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                         alert_message = alert_message.replace("(pronouns)", "they/them")
                         alert_message = alert_message.replace("(pronouns.they)", "they")
                         alert_message = alert_message.replace("(pronouns.them)", "them")
-                if has_dynamic_message_variables(alert_message):
-                    alert_message = await process_dynamic_message_variables(
+                if has_dynamic_variables(alert_message):
+                    alert_message = await process_dynamic_variables(
                         command="subscription_alert", response=alert_message, user=user_name
                     )
             try:
@@ -12213,8 +12213,8 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                         alert_message = alert_message.replace("(pronouns)", "they/them")
                         alert_message = alert_message.replace("(pronouns.they)", "they")
                         alert_message = alert_message.replace("(pronouns.them)", "them")
-                if has_dynamic_message_variables(alert_message):
-                    alert_message = await process_dynamic_message_variables(
+                if has_dynamic_variables(alert_message):
+                    alert_message = await process_dynamic_variables(
                         command="subscription_alert", response=alert_message, user=user_name
                     )
             try:
@@ -12290,8 +12290,8 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                         alert_message = alert_message.replace("(pronouns)", "they/them")
                         alert_message = alert_message.replace("(pronouns.they)", "they")
                         alert_message = alert_message.replace("(pronouns.them)", "them")
-                if has_dynamic_message_variables(alert_message):
-                    alert_message = await process_dynamic_message_variables(
+                if has_dynamic_variables(alert_message):
+                    alert_message = await process_dynamic_variables(
                         command="gift_subscription_alert", response=alert_message, user=giftsubfrom
                     )
                 await send_chat_message(alert_message)
@@ -12370,8 +12370,8 @@ async def process_followers_event(user_id, user_name):
                     alert_message = alert_message.replace("(pronouns)", "they/them")
                     alert_message = alert_message.replace("(pronouns.they)", "they")
                     alert_message = alert_message.replace("(pronouns.them)", "them")
-            if has_dynamic_message_variables(alert_message):
-                alert_message = await process_dynamic_message_variables(
+            if has_dynamic_variables(alert_message):
+                alert_message = await process_dynamic_variables(
                     command="follower_alert", response=alert_message, user=user_name
                 )
             if alert_message.strip():
@@ -12929,7 +12929,7 @@ async def process_channel_point_rewards(event_data, event_type):
                         "original_message": original_message,
                     }
                     # Process all variables through the shared function
-                    custom_message = await process_dynamic_message_variables(
+                    custom_message = await process_dynamic_variables(
                         command=f"reward_{reward_id}",
                         response=custom_message,
                         user=user_name,
