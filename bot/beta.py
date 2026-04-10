@@ -10055,7 +10055,10 @@ DYNAMIC_MESSAGE_SWITCHES = (
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
-    '(call.'
+    '(call.',
+    # Channel-point-specific variables (only processed when channel_point_data is provided)
+    '(userstreak)', '(track)', '(tts)', '(tts.message)',
+    '(lotto)', '(fortune)', '(message)', '(vip)', '(vip.today)',
 )
 
 def has_dynamic_message_variables(text):
@@ -10071,6 +10074,7 @@ async def process_dynamic_message_variables(
     emit_additional=True,
     _visited_commands=None,
     _return_additional=False,
+    channel_point_data=None,
 ):
     if _visited_commands is None:
         _visited_commands = set()
@@ -10174,6 +10178,100 @@ async def process_dynamic_message_variables(
                 # Handle (arg) - the argument passed to the command
                 if '(arg)' in response:
                     response = response.replace('(arg)', arg if arg is not None else '')
+                # --- Channel-point-specific variables (only when channel_point_data is provided) ---
+                if channel_point_data:
+                    cp_reward_id = channel_point_data.get("reward_id")
+                    cp_user_id = channel_point_data.get("user_id")
+                    cp_user_input = channel_point_data.get("user_input", "")
+                    # Handle (message) - user input from the redemption
+                    if '(message)' in response:
+                        response = response.replace('(message)', cp_user_input)
+                    # Handle (usercount) - per-user reward counter (uses reward_counts table)
+                    if '(usercount)' in response:
+                        try:
+                            await cursor.execute(
+                                'INSERT INTO reward_counts (reward_id, user, `count`) VALUES (%s, %s, 1) '
+                                'ON DUPLICATE KEY UPDATE `count` = `count` + 1',
+                                (cp_reward_id, user)
+                            )
+                            await cursor.execute('SELECT `count` FROM reward_counts WHERE reward_id = %s AND user = %s', (cp_reward_id, user))
+                            rc_result = await cursor.fetchone()
+                            user_count = rc_result.get("count", 1) if rc_result else 1
+                            response = response.replace('(usercount)', str(user_count))
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing channel point (usercount): {e}")
+                            response = response.replace('(usercount)', "Error")
+                    # Handle (userstreak)
+                    if '(userstreak)' in response:
+                        try:
+                            await cursor.execute(
+                                'INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, 1) '
+                                'ON DUPLICATE KEY UPDATE '
+                                'streak = IF(LOWER(`current_user`) = LOWER(%s), streak + 1, 1), '
+                                '`current_user` = %s',
+                                (cp_reward_id, user, user, user)
+                            )
+                            await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s", (cp_reward_id,))
+                            streak_row = await cursor.fetchone()
+                            current_streak = streak_row['streak'] if streak_row else 1
+                            response = response.replace('(userstreak)', str(current_streak))
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (userstreak): {e}\n{traceback.format_exc()}")
+                            response = response.replace('(userstreak)', "Error")
+                    # Handle (track) - increment reward usage count
+                    if '(track)' in response:
+                        try:
+                            await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (cp_reward_id,))
+                            response = response.replace('(track)', '')
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (track): {e}")
+                            response = response.replace('(track)', '')
+                    # Handle (tts) - trigger text-to-speech with user input
+                    if '(tts)' in response:
+                        create_task(websocket_notice(event="TTS", text=cp_user_input))
+                        response = response.replace('(tts)', '')
+                    # Handle (lotto) - generate lotto numbers
+                    if '(lotto)' in response:
+                        winning_numbers_str = await generate_user_lotto_numbers(user)
+                        if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
+                            response = response.replace('(lotto)', f"Error: {winning_numbers_str['error']}")
+                        else:
+                            response = response.replace('(lotto)', winning_numbers_str)
+                    # Handle (fortune)
+                    if '(fortune)' in response:
+                        fortune_message = await tell_fortune()
+                        fortune_message = fortune_message[0].lower() + fortune_message[1:]
+                        response = response.replace('(fortune)', fortune_message)
+                    # Handle (vip) and (vip.today) - grant VIP via Twitch Helix API
+                    if '(vip)' in response or '(vip.today)' in response:
+                        try:
+                            async with httpClientSession() as vip_session:
+                                headers_vip = {
+                                    'Client-Id': CLIENT_ID,
+                                    'Authorization': f'Bearer {CHANNEL_AUTH}'
+                                }
+                                params_vip = {'broadcaster_id': CHANNEL_ID, 'user_id': cp_user_id}
+                                add_vip_url = 'https://api.twitch.tv/helix/channels/vips'
+                                async with vip_session.post(add_vip_url, headers=headers_vip, params=params_vip) as vip_resp:
+                                    if vip_resp.status == 204:
+                                        response = response.replace('(vip)', '')
+                                        response = response.replace('(vip.today)', '')
+                                        if '(vip.today)' in channel_point_data.get("original_message", ""):
+                                            try:
+                                                await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (cp_user_id, user))
+                                            except Exception as _e:
+                                                chat_logger.error(f"[MESSAGE VARS] Failed to record vip_today for {user}: {_e}")
+                                        create_task(websocket_notice(event='VIP_ADDED', user=user))
+                                    else:
+                                        txt = await vip_resp.text()
+                                        chat_logger.error(f"[MESSAGE VARS] Failed to add VIP for {user}: {vip_resp.status} {txt}")
+                                        response = response.replace('(vip)', '')
+                                        response = response.replace('(vip.today)', '')
+                                        create_task(send_chat_message(f"@{user} I couldn't grant VIP (Twitch API returned {vip_resp.status})."))
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (vip)/(vip.today): {e}")
+                            response = response.replace('(vip)', '')
+                            response = response.replace('(vip.today)', '')
                 # Handle (pronouns), (pronouns.they), (pronouns.them)
                 if '(pronouns)' in response or '(pronouns.they)' in response or '(pronouns.them)' in response:
                     try:
@@ -10316,6 +10414,11 @@ async def process_dynamic_message_variables(
                         if url.startswith('json.'):
                             json_flag = True
                             url = url[5:]
+                        # URL-encode (user) and (message) inside API URLs
+                        if '(user)' in url:
+                            url = url.replace('(user)', quote(user, safe=''))
+                        if channel_point_data and '(message)' in url:
+                            url = url.replace('(message)', quote(channel_point_data.get("user_input", ""), safe=''))
                         if json_flag:
                             api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
                             if api_response == "Error":
@@ -12813,168 +12916,28 @@ async def process_channel_point_rewards(event_data, event_type):
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
                     contains_fortune_placeholder = '(fortune)' in custom_message
-                    json_context = None
-                    # Apply all replacements in a loop until no more variables are found
-                    max_iterations = 8
-                    iteration = 0
-                    vars_to_replace = ['(user)', '(pronouns)', '(pronouns.they)', '(pronouns.them)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(vip)', '(vip.today)', '(message)', '(customapi.', '(json.']
-                    while iteration < max_iterations:
-                        iteration += 1
-                        has_vars = any(var in custom_message for var in vars_to_replace if var not in ('(customapi.', '(json.'))
-                        has_customapi = '(customapi.' in custom_message
-                        has_json = '(json.' in custom_message
-                        if not (has_vars or has_customapi or has_json):
-                            break
-                        # Re-populate replacements for this iteration
-                        replacements = {}
-                        # Handle (user)
-                        if '(user)' in custom_message:
-                            replacements['(user)'] = user_name
-                        # Handle (pronouns), (pronouns.they), (pronouns.them)
-                        if '(pronouns)' in custom_message or '(pronouns.they)' in custom_message or '(pronouns.them)' in custom_message:
-                            try:
-                                pronouns = await get_user_pronouns(user_name)
-                                p_subject, p_object = _split_pronouns(pronouns)
-                                replacements['(pronouns)'] = pronouns if pronouns else 'they/them'
-                                replacements['(pronouns.they)'] = p_subject
-                                replacements['(pronouns.them)'] = p_object
-                            except Exception as e:
-                                chat_logger.error(f"[CHANNEL POINTS] Error processing (pronouns) in channel point reward: {e}")
-                                replacements['(pronouns)'] = 'they/them'
-                                replacements['(pronouns.they)'] = 'they'
-                                replacements['(pronouns.them)'] = 'them'
-                        # Handle (usercount)
-                        if '(usercount)' in custom_message:
-                            try:
-                                await cursor.execute(
-                                    'INSERT INTO reward_counts (reward_id, user, `count`) VALUES (%s, %s, 1) '
-                                    'ON DUPLICATE KEY UPDATE `count` = `count` + 1',
-                                    (reward_id, user_name)
-                                )
-                                await cursor.execute('SELECT `count` FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
-                                result = await cursor.fetchone()
-                                user_count = result.get("count", 1) if result else 1
-                                replacements['(usercount)'] = str(user_count)
-                            except Exception as e:
-                                chat_logger.error(f"[CHANNEL POINTS] Error while handling (usercount): {e}")
-                                replacements['(usercount)'] = "Error"
-                        # Handle (userstreak)
-                        if '(userstreak)' in custom_message:
-                            try:
-                                await cursor.execute(
-                                    'INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, 1) '
-                                    'ON DUPLICATE KEY UPDATE '
-                                    'streak = IF(LOWER(`current_user`) = LOWER(%s), streak + 1, 1), '
-                                    '`current_user` = %s',
-                                    (reward_id, user_name, user_name, user_name)
-                                )
-                                await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
-                                streak_row = await cursor.fetchone()
-                                current_streak = streak_row['streak'] if streak_row else 1
-                                replacements['(userstreak)'] = str(current_streak)
-                            except Exception as e:
-                                chat_logger.error(f"[CHANNEL POINTS] Error while handling (userstreak): {e}\n{traceback.format_exc()}")
-                                replacements['(userstreak)'] = "Error"
-                        # Handle (track)
-                        if '(track)' in custom_message:
-                            try:
-                                await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
-                                await connection.commit()
-                                replacements['(track)'] = ''
-                            except Exception as e:
-                                chat_logger.error(f"[CHANNEL POINTS] Error while handling (track): {e}")
-                                replacements['(track)'] = ''
-                        # Handle (tts)
-                        if '(tts)' in custom_message:
-                            tts_message = event_data.get("user_input", "")
-                            create_task(websocket_notice(event="TTS", text=tts_message))
-                            replacements['(tts)'] = ""
-                        # Handle (message)
-                        if '(message)' in custom_message:
-                            replacements['(message)'] = event_data.get("user_input", "")
-                        # Handle (lotto)
-                        if '(lotto)' in custom_message:
-                            winning_numbers_str = await generate_user_lotto_numbers(user_name)
-                            if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
-                                replacements['(lotto)'] = f"Error: {winning_numbers_str['error']}"
-                            else:
-                                replacements['(lotto)'] = winning_numbers_str
-                        # Handle (fortune)
-                        if '(fortune)' in custom_message:
-                            fortune_message = await tell_fortune()
-                            fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                            replacements['(fortune)'] = fortune_message
-                        # Handle (customapi.) after other replacements are available
-                        if '(customapi.' in custom_message:
-                            placeholders = extract_customapi_placeholders(custom_message)
-                            user_input_value = event_data.get("user_input", "")
-                            for full_placeholder, url in placeholders:
-                                json_flag = False
-                                if url.startswith('json.'):
-                                    json_flag = True
-                                    url = url[5:]
-                                url = url.replace('(message)', quote(user_input_value, safe=''))
-                                url = url.replace('(user)', quote(user_name, safe=''))
-                                if json_flag:
-                                    api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
-                                    if api_response == "Error":
-                                        json_context = None
-                                        replacements[full_placeholder] = ""
-                                    else:
-                                        json_context = api_response
-                                        replacements[full_placeholder] = ""
-                                else:
-                                    api_response = await fetch_api_response(url, json_flag=False)
-                                    replacements[full_placeholder] = api_response
-                        # Handle (json.path.to.value)
-                        if '(json.' in custom_message:
-                            json_placeholders = extract_json_placeholders(custom_message)
-                            for full_placeholder, json_path in json_placeholders:
-                                if json_context is None:
-                                    replacements[full_placeholder] = ""
-                                else:
-                                    replacements[full_placeholder] = format_json_placeholder_value(resolve_json_path(json_context, json_path))
-                        # Handle (vip) and (vip.today) - grant VIP via Twitch Helix API
-                        if '(vip)' in custom_message or '(vip.today)' in custom_message:
-                            try:
-                                # Make POST to add VIP
-                                async with httpClientSession() as session:
-                                    headers_vip = {
-                                        'Client-Id': CLIENT_ID,
-                                        'Authorization': f'Bearer {CHANNEL_AUTH}'
-                                    }
-                                    params_vip = {'broadcaster_id': CHANNEL_ID, 'user_id': user_id}
-                                    add_vip_url = 'https://api.twitch.tv/helix/channels/vips'
-                                    async with session.post(add_vip_url, headers=headers_vip, params=params_vip) as vip_resp:
-                                        if vip_resp.status == 204:
-                                            replacements['(vip)'] = ''
-                                            replacements['(vip.today)'] = ''
-                                            # If vip.today, record the user so we can remove at stream end
-                                            if '(vip.today)' in custom_message:
-                                                try:
-                                                    await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (user_id, user_name))
-                                                    await connection.commit()
-                                                except Exception as _e:
-                                                    chat_logger.error(f"[CHANNEL POINTS] Failed to record vip_today for {user_name}: {_e}")
-                                            # Notify chat of success (only if the placeholder stands alone / developer can customize message)
-                                            create_task(websocket_notice(event='VIP_ADDED', user=user_name))
-                                        else:
-                                            txt = await vip_resp.text()
-                                            chat_logger.error(f"[CHANNEL POINTS] Failed to add VIP for {user_name}: {vip_resp.status} {txt}")
-                                            replacements['(vip)'] = ''
-                                            replacements['(vip.today)'] = ''
-                                            # Inform chat of failure
-                                            create_task(send_chat_message(f"@{user_name} I couldn't grant VIP (Twitch API returned {vip_resp.status})."))
-                            except Exception as e:
-                                chat_logger.error(f"[CHANNEL POINTS] Error while handling (vip)/(vip.today): {e}")
-                                replacements['(vip)'] = ''
-                                replacements['(vip.today)'] = ''
-                        # Apply all replacements
-                        for var, value in replacements.items():
-                            if value is None:
-                                value = ""
-                            custom_message = custom_message.replace(var, str(value))
-                    # Only send message if it's not empty after replacements
+                    contains_tts_message = '(tts.message)' in custom_message
+                    original_message = custom_message
+                    # Remove (tts.message) before variable processing so it doesn't interfere
+                    if contains_tts_message:
+                        custom_message = custom_message.replace('(tts.message)', '')
+                    # Build channel point context for the shared function
+                    cp_data = {
+                        "reward_id": reward_id,
+                        "user_id": user_id,
+                        "user_input": event_data.get("user_input", ""),
+                        "original_message": original_message,
+                    }
+                    # Process all variables through the shared function
+                    custom_message = await process_dynamic_message_variables(
+                        command=f"reward_{reward_id}",
+                        response=custom_message,
+                        user=user_name,
+                        arg=event_data.get("user_input", ""),
+                        send_to_chat=False,
+                        channel_point_data=cp_data,
+                    )
+                    # Post-processing: fortune name prefix
                     if custom_message.strip():
                         if contains_fortune_placeholder:
                             custom_message_lstripped = custom_message.lstrip()
@@ -12982,9 +12945,8 @@ async def process_channel_point_rewards(event_data, event_type):
                             name_prefix = f"{user_name.lower()},"
                             if not normalized_lstripped.startswith(name_prefix):
                                 custom_message = f"{user_name}, {custom_message_lstripped}"
-                        # Check for (tts.message) which sends the final message to both TTS and chat
-                        if '(tts.message)' in custom_message:
-                            custom_message = custom_message.replace('(tts.message)', '')
+                        # Post-processing: (tts.message) sends final message to both TTS and chat
+                        if contains_tts_message:
                             await send_chat_message(custom_message)
                             create_task(websocket_notice(event="TTS", text=custom_message))
                         else:
