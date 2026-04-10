@@ -10054,7 +10054,8 @@ DYNAMIC_MESSAGE_SWITCHES = (
     '(command.', '(user)', '(author)', '(arg)', '(pronouns)', '(pronouns.they)', '(pronouns.them)',
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
-    '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.'
+    '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
+    '(call.'
 )
 
 def has_dynamic_message_variables(text):
@@ -10186,6 +10187,20 @@ async def process_dynamic_message_variables(
                         response = response.replace('(pronouns)', 'they/them')
                         response = response.replace('(pronouns.they)', 'they')
                         response = response.replace('(pronouns.them)', 'them')
+                # Handle (call.) - invoke a built-in command
+                if '(call.' in response:
+                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                    if calling_match:
+                        match_call = calling_match.group(1)
+                        response = response.replace(f"(call.{match_call})", "")
+                        try:
+                            bot_ref = BOTS_TWITCH_BOT
+                            if bot_ref and hasattr(bot_ref, 'call_command'):
+                                await bot_ref.call_command(match_call, None)
+                            else:
+                                chat_logger.warning(f"[MESSAGE VARS] Cannot call command '{match_call}': bot not available")
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error calling command '{match_call}': {e}")
                 # Handle (command.) - reference other commands
                 if '(command.' in response:
                     command_match = re.search(r'\(command\.(\w+)\)', response)
