@@ -1,6 +1,7 @@
 <?php
 // Initialize session and check authentication
 session_start();
+session_write_close();
 if (!isset($_SESSION['access_token'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);

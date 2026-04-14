@@ -22,6 +22,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $jsonText = file_get_contents(__DIR__ . '/../api/builtin_commands.json');
 $builtinCommands = json_decode($jsonText, true);
 $stmt = $db->prepare("SELECT timezone FROM profile");

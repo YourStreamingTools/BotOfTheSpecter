@@ -1,6 +1,7 @@
 <?php
 // Initialize the session
 session_start();
+session_write_close();
 
 if (!isset($_SESSION['username'])) {
     $errorMsg = 'User session not found.';

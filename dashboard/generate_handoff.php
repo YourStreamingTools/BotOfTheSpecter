@@ -9,6 +9,7 @@
 // ----------------------------------------------------------------
 
 session_start();
+session_write_close();
 
 // Must be logged in to the dashboard
 if (empty($_SESSION['access_token']) || empty($_SESSION['twitch_user_id'])) {

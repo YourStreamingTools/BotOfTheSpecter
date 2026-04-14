@@ -7,6 +7,7 @@ include_once __DIR__ . '/../lang/i18n.php';
 $pageTitle = "API Key Management";
 require_once "/var/www/config/db_connect.php";
 include "../userdata.php";
+session_write_close();
 
 // Handle API key creation
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_key'])) {

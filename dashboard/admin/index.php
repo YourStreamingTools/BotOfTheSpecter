@@ -10,6 +10,7 @@ require_once "/var/www/config/ssh.php";
 require_once "/var/www/config/admin_actions.php";
 require_once "/var/www/config/twitch.php";
 include "../userdata.php";
+session_write_close();
 
 function get_twitch_app_credentials_for_dashboard($conn) {
     $resolvedClientId = isset($GLOBALS['clientID']) ? trim((string)$GLOBALS['clientID']) : '';

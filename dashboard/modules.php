@@ -23,6 +23,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -88,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Handle add a new module bot
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_module_bot') {
+    session_start(); // Reopen session for flash messages
     $botName = trim($_POST['bot_username'] ?? '');
     $botId   = trim($_POST['bot_channel_id'] ?? '');
     if ($botName === '') {
@@ -132,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Handle remove a module bot
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remove_module_bot') {
+    session_start(); // Reopen session for flash messages
     $recordId = intval($_POST['record_id'] ?? 0);
     if ($recordId > 0) {
         $stmt = $conn->prepare("DELETE FROM custom_module_bots WHERE id = ? AND channel_id = ?");
@@ -185,6 +188,7 @@ $stmt->close();
 
 // Handle joke command status update
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['toggle_joke_command'])) {
+    session_start(); // Reopen session for flash messages
     $new_status = $_POST['joke_command_status'];
     $stmt = $db->prepare("UPDATE builtin_commands SET status = ? WHERE command = 'joke'");
     $stmt->bind_param('s', $new_status);

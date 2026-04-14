@@ -36,7 +36,9 @@ if ($betaAccess) {
     $tier = $_SESSION['tier'] ?? "None";
     // If tier is not set or None, check subscription via API
     if ($tier === "None" || empty($tier)) {
-        // Make internal request to check subscription
+        // Release session lock before internal HTTP request to prevent deadlock
+        // (check_subscription.php also calls session_start on the same session)
+        session_write_close();
         $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
         $ch = curl_init($checkUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -44,6 +46,8 @@ if ($betaAccess) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         $subResponse = curl_exec($ch);
         curl_close($ch);
+        // Reopen session to persist the tier value
+        session_start();
         if ($subResponse !== false) {
             $subData = json_decode($subResponse, true);
             if (isset($subData['tier'])) {

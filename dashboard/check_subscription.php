@@ -6,6 +6,7 @@ session_start();
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 require_once "userdata.php";
+// Note: session_write_close() deferred - this file writes $_SESSION['tier'] at the end
 
 // Ensure user is logged in
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['twitchUserId'])) {

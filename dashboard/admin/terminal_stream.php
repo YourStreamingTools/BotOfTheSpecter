@@ -4,6 +4,7 @@ require_once __DIR__ . '/admin_access.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 include '../userdata.php';
+session_write_close();
 
 @set_time_limit(0);
 ignore_user_abort(true);

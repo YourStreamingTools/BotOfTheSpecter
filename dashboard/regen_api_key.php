@@ -5,6 +5,7 @@ require 'db_connect.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+session_write_close();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'regen_api_key') {
     // Ensure the Twitch user ID exists in the session

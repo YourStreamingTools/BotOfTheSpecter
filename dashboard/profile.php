@@ -516,6 +516,7 @@ if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
 
 ob_start();
 include 'storage_used.php';
+session_write_close();
 ob_end_clean();
 
 function formatBytes($bytes, $precision = 2) {

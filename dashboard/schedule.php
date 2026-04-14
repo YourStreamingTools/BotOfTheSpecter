@@ -17,6 +17,7 @@ $pageTitle = 'Twitch Schedule';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 include 'userdata.php';
+session_write_close();
 include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';

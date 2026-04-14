@@ -13,6 +13,7 @@ if (!isset($_SESSION['access_token'])) {
 require_once "/var/www/config/db_connect.php";
 include "/var/www/config/ssh.php";
 include 'userdata.php';
+session_write_close();
 
 // Validate and get parameters
 if (!isset($_GET['server']) || !isset($_GET['file'])) {
@@ -81,9 +82,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['new_title'])) {
     $newPath = "{$user_dir}/{$newFilename}";
     // Attempt rename
     if (@ssh2_sftp_rename($sftp, $oldPath, $newPath)) {
+        session_start();
         $_SESSION['edit_status'] = ['success' => true, 'message' => t('streaming_file_renamed_success')];
         echo json_encode(['success' => true, 'message' => t('streaming_file_renamed_success'), 'newFilename' => $newFilename]);
     } else {
+        session_start();
         $_SESSION['edit_status'] = ['success' => false, 'message' => t('streaming_file_rename_failed')];
         echo json_encode(['success' => false, 'message' => t('streaming_file_rename_failed')]);
     }

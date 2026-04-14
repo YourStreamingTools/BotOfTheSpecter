@@ -21,6 +21,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -101,6 +102,7 @@ curl_close($ch);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+session_write_close();
 
 if ($subResponse !== false && $httpCode === 200) {
     $subData = json_decode($subResponse, true);

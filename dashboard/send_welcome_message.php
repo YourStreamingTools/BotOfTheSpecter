@@ -3,6 +3,7 @@ session_start();
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 include "userdata.php";
+session_write_close();
 
 function get_twitch_app_credentials_for_welcome_test($conn) {
     $resolvedClientId = isset($GLOBALS['clientID']) ? trim((string)$GLOBALS['clientID']) : '';

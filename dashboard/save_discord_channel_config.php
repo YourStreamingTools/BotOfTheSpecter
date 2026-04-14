@@ -48,6 +48,7 @@ if (isset($_SESSION['api_key'])) {
     }
     $userSTMT->close();
 }
+session_write_close();
 
 // Check if request is POST and has the required data
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

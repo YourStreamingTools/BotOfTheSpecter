@@ -18,6 +18,7 @@ require_once "/var/www/config/db_connect.php";
 $billing_conn = new mysqli($servername, $username, $password, "fossbilling");
 include "/var/www/config/ssh.php";
 include 'userdata.php';
+session_write_close();
 include 'user_db.php';
 $is_subscribed = false;
 

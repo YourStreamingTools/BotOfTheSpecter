@@ -329,6 +329,8 @@ $version = $versionRunning ?: $newVersion;
 $parts = explode('.', $version);
 $changelogVersion = isset($parts[1]) ? $parts[0] . '.' . $parts[1] : $parts[0];
 
+// Release session lock before rendering HTML
+session_write_close();
 // Start output buffering for layout template
 ob_start();
 ?>

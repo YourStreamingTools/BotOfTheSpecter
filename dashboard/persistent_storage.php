@@ -24,6 +24,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -214,7 +215,9 @@ function getS3FilesForStorage($bucketName, $userFolder, $s3ClientInstance) {
 if (!empty($username) && (!userFolderExists($bucket_name, $username))) {
     $folder_created = createUserFolder($bucket_name, $username);
     if ($folder_created) {
+        session_start();
         $_SESSION['folder_created'] = true;
+        session_write_close();
     }
 }
 // Fetch persistent storage files
@@ -267,6 +270,7 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
     $fileToDelete = $_GET['delete'];
     try {
         $s3Client->deleteObject(['Bucket' => $bucket_name,'Key' => $fileToDelete]);
+        session_start();
         $_SESSION['delete_success'] = true;
         header('Location: persistent_storage.php?server=' . $selected_server);
         exit();

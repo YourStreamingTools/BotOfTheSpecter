@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 require_once "/var/www/config/db_connect.php";
 
 // Ensure the user is logged in

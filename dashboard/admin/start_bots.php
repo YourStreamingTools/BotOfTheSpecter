@@ -1010,6 +1010,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
 
 // Include userdata.php AFTER all AJAX handling to prevent output corruption
 include '../userdata.php';
+session_write_close();
 
 // Fetch all users from database
 $users = [];

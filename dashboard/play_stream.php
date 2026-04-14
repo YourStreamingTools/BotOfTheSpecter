@@ -14,6 +14,7 @@ require_once "/var/www/config/db_connect.php";
 include "/var/www/config/object_storage.php";
 include "/var/www/config/ssh.php";
 include 'userdata.php';
+session_write_close();
 
 $from_persistent = isset($_GET['persistent']) && $_GET['persistent'] === 'true';
 

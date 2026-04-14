@@ -32,6 +32,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();
@@ -281,6 +282,7 @@ $rewardUsageJs = array_column($rewardUsageData, 'usage_count', 'reward_title');
 
 // Handling form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    session_start(); // Reopen session for POST writes (flash messages)
     $action = $_POST['action'] ?? '';
     switch ($action) {
         case 'update': 

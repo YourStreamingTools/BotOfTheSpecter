@@ -6,6 +6,7 @@ include_once __DIR__ . '/../lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
 include '../userdata.php';
+session_write_close();
 $pageTitle = t('admin_user_management_title');
 $currentAdminUserId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 $currentAdminIsSuperAdmin = false;

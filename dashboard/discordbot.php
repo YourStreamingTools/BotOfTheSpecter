@@ -1765,6 +1765,8 @@ function getChannelNameFromId($channel_id, $channels_array)
   return $channel_id; // Return ID if channel not found in array
 }
 
+// Release session lock before rendering HTML
+session_write_close();
 // Start output buffering for layout
 ob_start();
 ?>

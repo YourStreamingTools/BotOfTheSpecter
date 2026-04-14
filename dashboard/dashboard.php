@@ -27,6 +27,7 @@ if ($isLoggedIn) {
     include_once 'usr_database.php';
     include 'user_db.php';
     include 'storage_used.php';
+session_write_close();
 
     // Channel info metrics (followers, subscribers, raids)
     $followerCount = 0;

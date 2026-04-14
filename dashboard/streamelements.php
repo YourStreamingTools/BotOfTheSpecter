@@ -346,6 +346,7 @@ if ($isLinked && isset($stored_jwt_token) && !empty($stored_jwt_token)) {
     }
 }
 
+session_write_close();
 ob_start();
 ?>
 <div class="sp-card">

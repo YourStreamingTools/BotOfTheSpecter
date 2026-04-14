@@ -22,6 +22,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $isActAsUser = isset($isActAs) && $isActAs === true;
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();

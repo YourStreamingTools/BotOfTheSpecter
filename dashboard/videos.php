@@ -18,6 +18,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 
 $accessToken = $_SESSION['access_token'] ?? '';
 $channelUserId = trim((string) ($_SESSION['twitchUserId'] ?? ($broadcasterID ?? '')));

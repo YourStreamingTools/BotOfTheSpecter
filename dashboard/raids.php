@@ -16,6 +16,7 @@ $pageTitle = t('navbar_raids');
 // Includes
 require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
+session_write_close();
 include "mod_access.php";
 include 'user_db.php';
 

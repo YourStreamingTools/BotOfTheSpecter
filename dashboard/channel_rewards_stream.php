@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 
 @ini_set('output_buffering', 'off');
 @ini_set('zlib.output_compression', 0);

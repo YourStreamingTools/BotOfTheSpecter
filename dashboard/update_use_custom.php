@@ -91,6 +91,7 @@ try {
     if (isset($use_self)) {
         $_SESSION['use_self'] = $use_self;
     }
+    session_write_close();
 
     $result = ['success' => true];
     if (isset($use_custom)) $result['use_custom'] = $use_custom;

@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 include '/var/www/config/database.php';
 $dbname = $_SESSION['username'];
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);

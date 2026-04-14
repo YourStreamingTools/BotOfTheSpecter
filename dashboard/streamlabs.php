@@ -253,6 +253,7 @@ if ($isLinked && isset($access_token) && !empty($access_token)) {
     }
 }
 
+session_write_close();
 ob_start();
 ?>
 <div class="sp-alert sp-alert-success" style="margin-bottom: 1.5rem;">

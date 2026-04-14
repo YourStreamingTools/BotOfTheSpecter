@@ -79,7 +79,10 @@ $actorIsAdmin = !empty($actorContext['is_admin']);
 $hasAccess = $actorIsAdmin || $actorUsername === 'botofthespecter';
 
 if (!$hasAccess && $actorTwitchUserId !== '' && $targetUserId !== '') {
+    // Release session lock before Twitch API call
+    session_write_close();
     $hasAccess = userCanModerateChannel($targetUserId, $actorTwitchUserId, $actorAccessToken, (string)($clientID ?? ''));
+    session_start(); // Reopen for session writes below
 }
 
 if (!$hasAccess) {

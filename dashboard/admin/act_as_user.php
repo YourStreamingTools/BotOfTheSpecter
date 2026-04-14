@@ -91,5 +91,6 @@ admin_audit_log(
     (string) ($targetUser['username'] ?? $targetUserId)
 );
 
+session_write_close();
 header('Location: ../dashboard.php');
 exit;

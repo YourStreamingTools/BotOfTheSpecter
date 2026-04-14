@@ -67,48 +67,40 @@ if (!function_exists('ssh2_connect')) {
     exit();
 }
 
+// Release session lock before SSH connection (SSH can take seconds)
+session_write_close();
+
+$deleteStatus = null;
+
 // Connect to the server
 $connection = @ssh2_connect($server_host, 22);
 if (!$connection) {
-    $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_connection_failed')];
-    header('Location: streaming.php');
-    exit();
-}
-
-// Authenticate
-if (!@ssh2_auth_password($connection, $server_username, $server_password)) {
-    $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_authentication_failed')];
-    header('Location: streaming.php');
-    exit();
-}
-
-// Create SFTP session
-$sftp = @ssh2_sftp($connection);
-if (!$sftp) {
-    $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_sftp_init_failed')];
-    header('Location: streaming.php');
-    exit();
-}
-
-// Build file path
-$file_path = "{$user_dir}/{$filename}";
-$sftp_path = "ssh2.sftp://" . intval($sftp) . $file_path;
-
-// Check if file exists
-if (!file_exists($sftp_path)) {
-    $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_file_not_found')];
-    header('Location: streaming.php');
-    exit();
-}
-
-// Delete the file
-if (@ssh2_sftp_unlink($sftp, $file_path)) {
-    $_SESSION['delete_status'] = ['success' => true, 'message' => t('streaming_file_deleted_success')];
+    $deleteStatus = ['success' => false, 'message' => t('streaming_connection_failed')];
+} elseif (!@ssh2_auth_password($connection, $server_username, $server_password)) {
+    $deleteStatus = ['success' => false, 'message' => t('streaming_authentication_failed')];
 } else {
-    $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_file_delete_failed')];
+    // Create SFTP session
+    $sftp = @ssh2_sftp($connection);
+    if (!$sftp) {
+        $deleteStatus = ['success' => false, 'message' => t('streaming_sftp_init_failed')];
+    } else {
+        // Build file path
+        $file_path = "{$user_dir}/{$filename}";
+        $sftp_path = "ssh2.sftp://" . intval($sftp) . $file_path;
+
+        if (!file_exists($sftp_path)) {
+            $deleteStatus = ['success' => false, 'message' => t('streaming_file_not_found')];
+        } elseif (@ssh2_sftp_unlink($sftp, $file_path)) {
+            $deleteStatus = ['success' => true, 'message' => t('streaming_file_deleted_success')];
+        } else {
+            $deleteStatus = ['success' => false, 'message' => t('streaming_file_delete_failed')];
+        }
+    }
 }
 
-// Redirect back to streaming page
+// Reopen session only once to write the result
+session_start();
+$_SESSION['delete_status'] = $deleteStatus;
 header('Location: streaming.php');
 exit();
 ?>

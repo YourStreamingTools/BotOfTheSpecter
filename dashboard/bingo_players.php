@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 ob_start();
 
 ini_set('display_errors', 1);
