@@ -271,6 +271,10 @@ tags_metadata = [
         "name": "Admin Only",
         "description": "Administrative endpoints that require admin API key. Service-specific admin keys are restricted to their designated service.",
     },
+    {
+        "name": "Extension",
+        "description": "Read-only endpoints for the Twitch Extension. No API key required. Uses the broadcaster's Twitch channel ID to identify the channel.",
+    },
 ]
 
 # Function to get API count from database
@@ -471,7 +475,6 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/user-points/credit",
     "/user-points/debit",
     "/weather/location",
-    "/games",
     "/authorizedusers",
     "/checkkey",
     "/streamonline",
@@ -503,6 +506,19 @@ _V2_PUBLIC_PATHS = [
     "/api/exchangerate",
     "/api/weather",
     "/api/steamapplist",
+    "/extension/commands",
+    "/extension/deaths",
+    "/extension/quotes",
+    "/extension/typos",
+    "/extension/lurkers",
+    "/extension/hugs",
+    "/extension/kisses",
+    "/extension/highfives",
+    "/extension/custom-counts",
+    "/extension/user-counts",
+    "/extension/reward-counts",
+    "/extension/watch-time",
+    "/extension/todos",
 ]
 _V2_PUBLIC_PATHS_SET = set(_V2_PUBLIC_PATHS)
 
@@ -3374,10 +3390,11 @@ async def debit_user_points(api_key: str = Query(..., description="API key for a
 # Function to verify the location of the user for weather
 @app.get(
     "/weather/location",
-    summary="Get website-specific weather location",
-    description="Retrieve the correct location information for a given query from the website.",
+    summary="Validate a weather location",
+    description="Used by the website profile page to verify that a user-entered location returns a valid result before saving it as their default weather location.",
+    tags=["User Account"],
     operation_id="get_web_weather_location",
-    include_in_schema=False
+    include_in_schema=True
 )
 async def web_weather(api_key: str = Query(...), location: str = Query(...), channel: str = Query(None)):
     key_info = await verify_key(api_key)
@@ -3402,68 +3419,6 @@ async def web_weather(api_key: str = Query(...), location: str = Query(...), cha
         return {"message": formatted}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Games endpoint
-@app.get(
-    "/games",
-    summary="Search for a game (Helix token taken from DB)",
-    include_in_schema=False
-)
-async def get_game(
-    api_key: str = Query(..., description="API key to authenticate the request"),
-    game_name: str = Query(..., description="Name of the game to search for"),
-    channel: str = Query(None, description="Website username (required when using an admin key)")
-):
-    key_info = await verify_key(api_key)
-    if not key_info:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
-    # Resolve the website username (admin keys must provide `channel`)
-    username = resolve_username(key_info, channel)
-    # Fetch the usable Twitch access token from the website DB (twitch_bot_access)
-    twitch_token = None
-    conn = await get_mysql_connection()
-    try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("""
-                SELECT t.twitch_access_token
-                FROM users u
-                LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
-                WHERE u.username = %s
-            """, (username,))
-            row = await cur.fetchone()
-            if row and row.get("twitch_access_token"):
-                twitch_token = row["twitch_access_token"]
-            # Admin fallback: if no token for requested account, try to grab a bot token
-            if not twitch_token and key_info["type"] == "admin":
-                await cur.execute("SELECT twitch_access_token FROM twitch_bot_access WHERE twitch_access_token IS NOT NULL LIMIT 1")
-                bot_row = await cur.fetchone()
-                if bot_row:
-                    twitch_token = bot_row["twitch_access_token"]
-    except Exception as e:
-        logging.error(f"Error fetching Twitch token for user '{username}': {e}")
-        raise HTTPException(status_code=500, detail="Error accessing token store")
-    finally:
-        conn.close()
-    if not twitch_token:
-        raise HTTPException(status_code=400, detail="Twitch OAuth token not available for this account")
-    # Use Twitch Helix `search/categories` (returns id, name, box_art_url)
-    helix_url = "https://api.twitch.tv/helix/search/categories"
-    headers = {
-        "Client-ID": "mrjucsmsnri89ifucl66jj1n35jkj8",
-        "Authorization": f"Bearer {twitch_token}"
-    }
-    params = {"query": game_name, "first": 1}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(helix_url, headers=headers, params=params) as response:
-            if response.status != 200:
-                raise HTTPException(status_code=response.status, detail=f"Twitch Helix error: {await response.text()}")
-            data = await response.json()
-            items = data.get("data", [])
-            if not items:
-                raise HTTPException(status_code=404, detail="Game not found")
-            match = items[0]
-            return {"id": match.get("id"), "name": match.get("name")}
 
 # Get a list of authorized users
 @app.get(
