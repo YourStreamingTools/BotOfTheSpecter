@@ -2,6 +2,7 @@
 // Timeline view using changelog versions
 date_default_timezone_set('Australia/Sydney');
 session_start();
+session_write_close();
 
 // Set page metadata
 $pageTitle = 'Timeline';
