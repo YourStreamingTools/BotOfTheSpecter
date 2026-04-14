@@ -323,6 +323,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'login'
     header('Location: ' . $authUrl);
     exit();
 }
+session_write_close();
 ?>
 <!doctype html>
 <html lang="en" class="theme-dark">
