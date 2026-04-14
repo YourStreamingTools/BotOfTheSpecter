@@ -54,6 +54,7 @@ return [
     'streamelements' => 'StreamElements',
     'streamlabs' => 'StreamLabs',
     'youtube' => 'YouTube',
+    'kick' => 'Kick',
     'connected' => 'Connected',
     'not_connected' => 'Not Connected',
     'coming_soon' => 'COMING SOON',

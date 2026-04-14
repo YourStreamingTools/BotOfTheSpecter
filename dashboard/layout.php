@@ -352,11 +352,11 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             }
             document.getElementById('cookieAcceptBtn').onclick = function () {
                 setCookie('cookie_consent', 'accepted', 7);
-                hideCookieConsentBox();
+                location.reload();
             };
             document.getElementById('cookieDeclineBtn').onclick = function () {
                 setCookie('cookie_consent', 'declined', 14);
-                hideCookieConsentBox();
+                location.reload();
             };
         });
         // Generic client-side active-menu helper (works for default, moderator and admin menus)
