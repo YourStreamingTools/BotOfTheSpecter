@@ -3493,19 +3493,23 @@ class TwitchBot(commands.Bot):
                             # Check cooldown
                             if not await check_cooldown(command, 'global', 'default', 1, int(cooldown)):
                                 return
-                            # Handle (call.)
+                            # Handle (call.) - collect for deferred execution after the main response
+                            pending_call = None
                             if '(call.' in response:
                                 calling_match = re.search(r'\(call\.(\w+)\)', response)
                                 if calling_match:
                                     match_call = calling_match.group(1)
                                     response = response.replace(f"(call.{match_call})", "").strip()
-                                    await self.call_command(match_call, message, arg_str)
+                                    pending_call = match_call
                             # Extract user mention
                             user_mention = re.search(r'@(\w+)', messageContent)
                             user_name = user_mention.group(1) if user_mention else messageAuthor
                             # Process variables (SAFE now - connection released)
                             if response.strip():
                                 await process_dynamic_variables(command, response, user=user_name, arg=arg, send_to_chat=True)
+                            # Fire (call.) after the main response has been sent
+                            if pending_call:
+                                await self.call_command(pending_call, message, arg_str)
                             # Record usage
                             add_usage(command, 'global', 'default')
                         else:
@@ -10150,6 +10154,7 @@ async def process_dynamic_variables(
                 chat_logger.error(f"[MESSAGE VARS] Error loading many random pick options for command '{command}': {e}")
             # Process variables in a loop until none remain
             responses_to_send = []
+            pending_calls = []  # (call.) commands deferred until after the main message is sent
             while has_dynamic_variables(response):
                 # Handle (count)
                 if '(count)' in response:
@@ -10320,20 +10325,13 @@ async def process_dynamic_variables(
                         response = response.replace('(pronouns)', 'they/them')
                         response = response.replace('(pronouns.they)', 'they')
                         response = response.replace('(pronouns.them)', 'them')
-                # Handle (call.) - invoke a built-in command
+                # Handle (call.) - defer command invocation until after the main message is sent
                 if '(call.' in response:
                     calling_match = re.search(r'\(call\.(\w+)\)', response)
                     if calling_match:
                         match_call = calling_match.group(1)
                         response = response.replace(f"(call.{match_call})", "")
-                        try:
-                            bot_ref = BOTS_TWITCH_BOT
-                            if bot_ref and hasattr(bot_ref, 'call_command'):
-                                await bot_ref.call_command(match_call, None)
-                            else:
-                                chat_logger.warning(f"[MESSAGE VARS] Cannot call command '{match_call}': bot not available")
-                        except Exception as e:
-                            chat_logger.error(f"[MESSAGE VARS] Error calling command '{match_call}': {e}")
+                        pending_calls.append(match_call)
                 # Handle (command.) - reference other commands
                 if '(command.' in response:
                     command_match = re.search(r'\(command\.(\w+)\)', response)
@@ -10536,6 +10534,16 @@ async def process_dynamic_variables(
             # Send the main response to chat if requested
             if send_to_chat:
                 await send_long_chat_message(response)
+            # Fire any deferred (call.) commands after the main message
+            for call_cmd in pending_calls:
+                try:
+                    bot_ref = BOTS_TWITCH_BOT
+                    if bot_ref and hasattr(bot_ref, 'call_command'):
+                        await bot_ref.call_command(call_cmd, None)
+                    else:
+                        chat_logger.warning(f"[MESSAGE VARS] Cannot call command '{call_cmd}': bot not available")
+                except Exception as e:
+                    chat_logger.error(f"[MESSAGE VARS] Error calling command '{call_cmd}': {e}")
             # Send any additional responses from (command.) references
             if emit_additional:
                 for resp in responses_to_send:
