@@ -5,6 +5,7 @@
  */
 
 session_start();
+session_write_close();
 
 // Require admin authentication
 if (!isset($_SESSION['username']) || !($_SESSION['admin'] ?? false)) {

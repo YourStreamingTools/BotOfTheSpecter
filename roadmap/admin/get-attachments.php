@@ -5,6 +5,7 @@
  */
 
 session_start();
+session_write_close();
 
 require_once 'database.php';
 

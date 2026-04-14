@@ -1,6 +1,7 @@
 <?php
 // Start session to access it
 session_start();
+session_write_close();
 
 // Destroy the session
 session_unset();

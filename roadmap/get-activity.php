@@ -6,6 +6,7 @@ require_once "/var/www/config/database.php";
 require_once "/var/www/roadmap/admin/database.php";
 
 session_start();
+session_write_close();
 
 $item_id = $_GET['item_id'] ?? 0;
 

@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 date_default_timezone_set('Australia/Sydney');
 session_start();
+session_write_close();
 require_once "admin/database.php";
 
 $pageTitle = 'Roadmap';
