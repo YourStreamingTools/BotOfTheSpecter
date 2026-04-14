@@ -251,6 +251,7 @@ if ($username && !$notFound && $isDeceased) {
         }
     } catch (Exception $e) { /* Silently fail — memorial banner still shows */ }
 }
+session_write_close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
