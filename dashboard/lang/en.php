@@ -9,7 +9,7 @@ return [
     'technical_terms' => 'Technical terms and advanced options:',
     'technical_help' => 'Enable this to use technical terminology and unlock advanced configuration options. When enabled, you will see more detailed or technical responses. Recommended for users comfortable with advanced systems or who need to see more details from the system.',
     'language' => 'Language:',
-    'language_help' => 'Your preferred language selection. Language selection coming soon. For support or errors with our language translation, please email <a href="mailto:languages@botofthespecter.com">languages@botofthespecter.com</a>.',
+    'language_help' => 'Your preferred language selection. For support or errors with our language translation, please email <a href="mailto:languages@botofthespecter.com">languages@botofthespecter.com</a>.',
     'twitch_username_help' => 'Your Twitch username. This cannot be changed here.',
     'twitch_display_name_help' => 'Your Twitch display name. This cannot be changed here.',
     'joined_help' => 'The date you joined BotOfTheSpecter.',
