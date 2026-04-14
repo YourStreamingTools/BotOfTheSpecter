@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 header('Content-Type: application/json');
 require_once "/var/www/config/db_connect.php";
 

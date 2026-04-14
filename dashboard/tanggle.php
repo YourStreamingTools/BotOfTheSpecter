@@ -19,6 +19,7 @@ include 'userdata.php';
 include 'bot_control.php';
 include "mod_access.php";
 include 'storage_used.php';
+session_write_close();
 
 require_once '/var/www/config/database.php';
 $dbname = $username;

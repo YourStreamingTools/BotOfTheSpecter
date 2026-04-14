@@ -10,6 +10,7 @@ require_once "/var/www/config/db_connect.php";
 include 'user_db.php';
 include 'file_paths.php';
 include 'storage_used.php';
+session_write_close();
 
 $db_name = isset($_SESSION['username']) ? $_SESSION['username'] : null;
 
@@ -32,6 +33,7 @@ $activeTab = "joke-blacklist"; // Default tab
 
 // Process POST requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    session_start(); // Reopen session for flash messages
     // Determine which tab to return to based on POST data
     if (isset($_POST['blacklist'])) {
         $activeTab = "joke-blacklist";

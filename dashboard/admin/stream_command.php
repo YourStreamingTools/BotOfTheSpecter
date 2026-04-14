@@ -5,6 +5,7 @@ require_once __DIR__ . '/admin_access.php';
 // Include necessary files to get user data
 require_once '/var/www/config/db_connect.php';
 include '../userdata.php';
+session_write_close();
 require_once '/var/www/config/ssh.php';
 
 // Check if user is logged in and is an admin

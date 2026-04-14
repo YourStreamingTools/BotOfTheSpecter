@@ -25,6 +25,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 $stmt = $db->prepare("SELECT timezone FROM profile");
 $stmt->execute();
 $result = $stmt->get_result();

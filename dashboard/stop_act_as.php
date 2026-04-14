@@ -62,5 +62,6 @@ unset(
     $_SESSION['mod_act_as_target_display_name']
 );
 
+session_write_close();
 header('Location: dashboard.php?act_as=stopped');
 exit;

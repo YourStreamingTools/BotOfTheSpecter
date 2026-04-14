@@ -1,6 +1,7 @@
 <?php
 // AJAX endpoint to fetch automated shoutout cooldown data
 session_start();
+session_write_close();
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {

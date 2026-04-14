@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 // Serve user-uploaded music files to the owner only
 if (!isset($_SESSION['access_token']) || empty($_SESSION['username'])) {
     http_response_code(403);

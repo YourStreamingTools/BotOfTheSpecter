@@ -15,6 +15,7 @@ if (!isset($_SESSION['access_token'])) {
 
 // Include necessary files
 include 'userdata.php';
+session_write_close();
 include_once "/var/www/config/ssh.php";
 
 // Check if this is a POST request

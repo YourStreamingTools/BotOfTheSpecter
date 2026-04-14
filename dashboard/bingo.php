@@ -24,6 +24,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+session_write_close();
 
 // Handle POST request to save API key
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['api_key'])) {

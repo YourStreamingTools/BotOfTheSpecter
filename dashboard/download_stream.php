@@ -17,6 +17,7 @@ if (!isset($_SESSION['access_token'])) {
 require_once "/var/www/config/db_connect.php";
 include "/var/www/config/ssh.php";
 include 'userdata.php';
+session_write_close();
 
 // Validate and get parameters
 if (!isset($_GET['server']) || !isset($_GET['file'])) {

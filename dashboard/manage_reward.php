@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['access_token'])) {
@@ -230,6 +231,7 @@ $deleteResult = twitchApiCall('DELETE', $deleteUrl, $token, $clientID);
 // HANDLE 403 FORBIDDEN - MANUAL FLOW TRIGGER
 if ($deleteResult['code'] === 403) {
     // Save state to session
+    session_start();
     $_SESSION['specter_manage_reward_queue'] = [
         'old_reward_id' => $rewardId,
         'body' => $newRewardBody,
