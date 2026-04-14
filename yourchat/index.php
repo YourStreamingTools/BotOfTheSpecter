@@ -580,6 +580,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'save_session_id' && $_SERVER[
 }
 
 $isLoggedIn = isset($_SESSION['access_token']) && isset($_SESSION['user_id']);
+session_write_close();
 
 // Cache busting for CSS file using file modification time
 $cssFile = __DIR__ . '/style.css';
