@@ -11132,8 +11132,6 @@ async def process_stream_online_websocket():
         ad_upcoming_last_notified_next_ad_at = None
         last_ad_message_ts = 0.0
         clear_ad_break_chat_history("stream-online-session-reset")
-    looped_tasks["timed_message"] = create_task(timed_message())
-    looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
     await generate_winning_lotto_numbers()
     # Reach out to the Twitch API to get stream data
     async with httpClientSession() as session:
@@ -11153,6 +11151,15 @@ async def process_stream_online_websocket():
             stream_data = data['data'][0]
             current_game = (stream_data.get('game_name') or '').strip() or None
             stream_title = (stream_data.get('title') or '').strip() or None
+            # Sync stream_session_started_at to the real Twitch started_at
+            started_at_str = stream_data.get('started_at')
+            if started_at_str:
+                try:
+                    started_at_dt = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
+                    stream_session_started_at = started_at_dt.timestamp()
+                    chat_logger.info(f"[STREAM ONLINE] Stream started_at from Twitch API: {started_at_str}")
+                except Exception as e:
+                    bot_logger.warning(f"[STREAM ONLINE] Could not parse started_at '{started_at_str}', using bot-detected time: {e}")
         else:
             current_game = None
             stream_title = None
@@ -11194,6 +11201,8 @@ async def process_stream_online_websocket():
     finally:
         if connection:
             await connection.close()
+    looped_tasks["timed_message"] = create_task(timed_message())
+    looped_tasks["handle_upcoming_ads"] = create_task(handle_upcoming_ads())
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
@@ -11535,7 +11544,19 @@ async def handle_chat_message(messageAuthor, messageContent=""):
             chat_logger.info(f"[EVENT MESSAGE] Chat count trigger reached for message ID: {message_id}")
 
 async def send_interval_message(message_id, message, interval_seconds):
-    global stream_online, scheduled_tasks
+    global stream_online, scheduled_tasks, stream_session_started_at
+    if stream_session_started_at > 0:
+        elapsed = time.time() - stream_session_started_at
+        if elapsed < 0:
+            elapsed = 0.0
+        time_into_interval = elapsed % interval_seconds
+        initial_wait = interval_seconds - time_into_interval
+    else:
+        initial_wait = interval_seconds
+    await sleep(initial_wait)
+    if not stream_online:
+        return
+    await send_timed_message(message_id, message, 0)
     while stream_online:
         await sleep(interval_seconds)
         if stream_online:
