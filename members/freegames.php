@@ -10,6 +10,7 @@ if (!isset($_SESSION['access_token'])) {
     header('Location: https://members.botofthespecter.com/login.php');
     exit();
 }
+session_write_close();
 
 $title = "Free Games"; 
 

@@ -1,5 +1,6 @@
 <?php
 session_start();
+session_write_close();
 
 // Must be logged in
 if (!isset($_SESSION['access_token'])) {
