@@ -3155,6 +3155,28 @@ async def cleanup_idle_db_pools():
             bot_logger.error(f"[DB CONNECTION] Error in cleanup_idle_db_pools: {e}")
             await sleep(300)  # Wait 5 minutes before retrying on error
 
+class _FakeAuthor:
+    def __init__(self):
+        self.name = CHANNEL_NAME
+        self.id = CHANNEL_ID
+        self.is_mod = True
+        self.is_vip = True
+        self.is_subscriber = True
+
+class _FakeMessage:
+    def __init__(self):
+        self.author = _FakeAuthor()
+        self.content = ""
+        self.channel = None
+
+class _FakeContext:
+    def __init__(self, bot):
+        self.author = _FakeAuthor()
+        self.message = _FakeMessage()
+        self.bot = bot
+        self.prefix = "!"
+        self.view = None
+
 def _build_command_args(callback, arg_str):
     if not arg_str:
         return (), {}
@@ -4036,8 +4058,13 @@ class TwitchBot(commands.Bot):
         if command_name in self.running_commands:
             bot_logger.error(f"[CALL COMMAND] Command '{command_name}' is already running, skipping.")
             return
+        # If no context was provided (e.g. called from a timed message via
+        # (call.*)), use a fake context so that permission checks treat the
+        # invocation as coming from the broadcaster.
+        if ctx is None:
+            ctx = _FakeContext(self)
         # If ctx doesn't have 'view', it's a Message, create a Context
-        if not hasattr(ctx, 'view'):
+        elif not hasattr(ctx, 'view'):
             ctx = Context(message=ctx, bot=self, prefix='!')
         command_obj = getattr(self, f"{command_name}_command", None)
         if command_obj is not None:
