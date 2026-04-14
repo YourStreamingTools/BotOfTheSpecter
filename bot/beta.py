@@ -216,6 +216,7 @@ def time_right_now(tz=None):
 
 # Initialize instances for the translator, shoutout queue, websockets, and permitted users for protection
 scheduled_tasks = set()                                                                 # Set for scheduled tasks
+_background_tasks = set()                                                               # Strong references for fire-and-forget tasks to prevent GC warnings
 shoutout_queue = Queue()                                                                # Queue for shoutouts
 recent_shoutouts = {}                                                                   # Dictionary for recent shoutouts
 permitted_users = {}                                                                    # Dictionary for permitted users
@@ -269,6 +270,12 @@ pending_outgoing_raid = None                                                    
 outgoing_raid_task = None                                                               # asyncio.Task that waits for stream end to persist outgoing raid
 MYSQL_QUERY_TIMEOUT = float(os.getenv('MYSQL_QUERY_TIMEOUT', '5'))                      # Timeout for executing a MySQL query (in seconds)
 _channel_modules: list = []                                                             # Active custom channel module instances, populated on event_ready
+
+def safe_create_task(coro):
+    task = create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 async def dispatch_module_event(event: str, **kwargs):
     any_handled = False
@@ -884,11 +891,11 @@ async def connect_to_tipping_services():
                     event_logger.info("[TIPPING SERVICES] No StreamLabs token record found for this channel")
             # Start connection tasks with delays for cleaner logs
             if streamelements_token:
-                create_task(streamelements_connection_manager())
+                safe_create_task(streamelements_connection_manager())
                 # Wait 2 seconds for StreamElements to connect and log before starting StreamLabs
                 await sleep(2)
             if streamlabs_token:
-                create_task(connect_to_streamlabs())
+                safe_create_task(connect_to_streamlabs())
             if not streamelements_token and not streamlabs_token:
                 event_logger.error("[TIPPING SERVICES] No valid tokens found for either StreamElements or StreamLabs. Aborting tipping service connection.")
                 return
@@ -1201,7 +1208,7 @@ async def process_twitch_eventsub_message(message):
             except Exception as e:
                 event_logger.error(f"[EVENTSUB] Error logging chat for ad break: {e}")
             if not is_bot_message:
-                create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
+                safe_create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
             return
         if not event_type:
             return
@@ -1216,7 +1223,7 @@ async def process_twitch_eventsub_message(message):
                 }
                 # Followers Event
                 if event_type == "channel.follow":
-                    create_task(process_followers_event(
+                    safe_create_task(process_followers_event(
                         event_data["user_id"],
                         event_data["user_name"]
                     ))
@@ -1240,7 +1247,7 @@ async def process_twitch_eventsub_message(message):
                             del gift_sub_recipients[user_id]
                         # Only process if not a duplicate from gift
                         if not should_skip:
-                            create_task(process_subscription_event(
+                            safe_create_task(process_subscription_event(
                                 user_id,
                                 event_data["chatter_user_name"],
                                 tier_name,
@@ -1253,14 +1260,14 @@ async def process_twitch_eventsub_message(message):
                         cumulative_months = resub_data.get("cumulative_months", 1)
                         subscription_message = resub_data.get("sub_message", {}).get("text", "")
                         if subscription_message:
-                            create_task(process_subscription_message_event(
+                            safe_create_task(process_subscription_message_event(
                                 event_data["chatter_user_id"],
                                 event_data["chatter_user_name"],
                                 tier_name,
                                 cumulative_months
                             ))
                         else:
-                            create_task(process_subscription_event(
+                            safe_create_task(process_subscription_event(
                                 event_data["chatter_user_id"],
                                 event_data["chatter_user_name"],
                                 tier_name,
@@ -1278,7 +1285,7 @@ async def process_twitch_eventsub_message(message):
                         # handles the aggregate chat message — skip individual sub_gift alerts
                         is_community_gift = bool(sub_gift_data.get("community_gift_id"))
                         if not is_community_gift:
-                            create_task(process_giftsub_event(
+                            safe_create_task(process_giftsub_event(
                                 event_data["chatter_user_name"],
                                 tier_name,
                                 1,  # Single targeted gift
@@ -1289,7 +1296,7 @@ async def process_twitch_eventsub_message(message):
                         community_gift_data = event_data.get("community_sub_gift", {})
                         tier = community_gift_data.get("sub_tier")
                         tier_name = tier_mapping.get(tier, tier)
-                        create_task(process_giftsub_event(
+                        safe_create_task(process_giftsub_event(
                             event_data["chatter_user_name"],
                             tier_name,
                             community_gift_data.get("total", 0),
@@ -1318,7 +1325,7 @@ async def process_twitch_eventsub_message(message):
                             pif_message = pif_message.replace("(gifter)", gifter_user_name)
                         await send_chat_message(pif_message)
                         # Process the gift subscription (skip alert since we already sent custom message)
-                        create_task(process_giftsub_event(
+                        safe_create_task(process_giftsub_event(
                             event_data["chatter_user_name"],
                             tier_name,
                             1,  # Pay it forward is a single gift
@@ -1343,7 +1350,7 @@ async def process_twitch_eventsub_message(message):
                         upgrade_message = upgrade_message.replace("(tier)", tier_name)
                         await send_chat_message(upgrade_message)
                         # Process the subscription data
-                        create_task(process_subscription_event(
+                        safe_create_task(process_subscription_event(
                             event_data["chatter_user_id"],
                             event_data["chatter_user_name"],
                             tier_name,
@@ -1367,7 +1374,7 @@ async def process_twitch_eventsub_message(message):
                         upgrade_message = upgrade_message.replace("(tier)", tier_name)
                         await send_chat_message(upgrade_message)
                         # Process the subscription data
-                        create_task(process_subscription_event(
+                        safe_create_task(process_subscription_event(
                             event_data["chatter_user_id"],
                             event_data["chatter_user_name"],
                             tier_name,
@@ -1391,7 +1398,7 @@ async def process_twitch_eventsub_message(message):
                             event_logger.info("[EVENTSUB] Outgoing raid canceled (unraid)")
                 # Cheer Event
                 elif event_type == "channel.bits.use":
-                    create_task(process_cheer_event(
+                    safe_create_task(process_cheer_event(
                         event_data["user_id"],
                         event_data["user_name"],
                         event_data["bits"]
@@ -1408,7 +1415,7 @@ async def process_twitch_eventsub_message(message):
                     from_name_normalized = (from_broadcaster_user_name or "").strip().lower()
                     # Incoming raid to this channel
                     if to_broadcaster_user_id == CHANNEL_ID:
-                        create_task(process_raid_event(
+                        safe_create_task(process_raid_event(
                             from_broadcaster_user_id,
                             from_broadcaster_user_name,
                             viewers
@@ -1455,7 +1462,7 @@ async def process_twitch_eventsub_message(message):
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
                         sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                        create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                        safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Hype Train End Event
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"[EVENTSUB] Hype Train End Event Data: {event_data}")
@@ -1472,7 +1479,7 @@ async def process_twitch_eventsub_message(message):
                     result = await cursor.fetchone()
                     if result and result.get("sound_mapping"):
                         sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                        create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                        safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
                 # Channel Update Event
                 elif event_type == 'channel.update':
                     global current_game
@@ -1484,7 +1491,7 @@ async def process_twitch_eventsub_message(message):
                     event_logger.info(f"[EVENTSUB] Channel Updated with the following data: Title: {stream_title}. Category: {category_name}.")
                 # Ad Break Begin Event
                 elif event_type == 'channel.ad_break.begin':
-                    create_task(handle_ad_break_start(event_data["duration_seconds"]))
+                    safe_create_task(handle_ad_break_start(event_data["duration_seconds"]))
                 # Charity Campaign Donate Event
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["user_name"]
@@ -1539,7 +1546,7 @@ async def process_twitch_eventsub_message(message):
                         mod_info = event_data.get("mod", {})
                         user_name = mod_info.get("user_name", "Unknown User")
                         event_logger.info(f"[EVENTSUB] User {user_name} added as moderator by {moderator_user_name}")
-                        create_task(dispatch_module_event("mod_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
+                        safe_create_task(dispatch_module_event("mod_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
                     elif action == "unmod":
                         unmod_info = event_data.get("unmod", {})
                         user_name = unmod_info.get("user_name", "Unknown User")
@@ -1548,7 +1555,7 @@ async def process_twitch_eventsub_message(message):
                         vip_info = event_data.get("vip", {})
                         user_name = vip_info.get("user_name", "Unknown User")
                         event_logger.info(f"[EVENTSUB] User {user_name} added as VIP by {moderator_user_name}")
-                        create_task(dispatch_module_event("vip_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
+                        safe_create_task(dispatch_module_event("vip_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
                     elif action == "unvip":
                         unvip_info = event_data.get("unvip", {})
                         user_name = unvip_info.get("user_name", "Unknown User")
@@ -1606,13 +1613,13 @@ async def process_twitch_eventsub_message(message):
                         # Log unknown actions for debugging
                         event_logger.error(f"[EVENTSUB] Unknown moderation action '{action}' received: {event_data}")
                     # Send moderation event to websocket for Discord logging
-                    create_task(websocket_notice(event="MODERATION", additional_data=event_data))
+                    safe_create_task(websocket_notice(event="MODERATION", additional_data=event_data))
                 # Channel Point Rewards Event
                 elif event_type in [
                     "channel.channel_points_automatic_reward_redemption.add", 
                     "channel.channel_points_custom_reward_redemption.add"
                     ]:
-                    create_task(process_channel_point_rewards(event_data, event_type))
+                    safe_create_task(process_channel_point_rewards(event_data, event_type))
                 # Poll Event
                 elif event_type in ["channel.poll.begin", "channel.poll.end"]:
                     if event_type == "channel.poll.begin":
@@ -1629,7 +1636,7 @@ async def process_twitch_eventsub_message(message):
                             message = f"Poll '{poll_title}' has started! Poll ending in {int(minutes)} minutes."
                         else:
                             message = f"Poll '{poll_title}' has started! Poll ending in {int(seconds)} seconds."
-                        create_task(handel_twitch_poll(event="poll.begin", poll_title=poll_title, half_time=half_time, message=message))
+                        safe_create_task(handel_twitch_poll(event="poll.begin", poll_title=poll_title, half_time=half_time, message=message))
                     elif event_type == "channel.poll.end":
                         poll_id = event_data.get("id")
                         poll_title = event_data.get("title")
@@ -1650,7 +1657,7 @@ async def process_twitch_eventsub_message(message):
                         params = [sorted_choices[i]["title"] if i < len(sorted_choices) else None for i in range(len(sql_options))] + [poll_id]
                         await cursor.execute(sql_query, params)
                         await connection.commit()
-                        create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
+                        safe_create_task(handel_twitch_poll(event="poll.end", poll_title=poll_title, message=message))
                 # Stream Online/Offline Event
                 elif event_type in ["stream.online", "stream.offline"]:
                     # Reset ad break count in database
@@ -1662,10 +1669,10 @@ async def process_twitch_eventsub_message(message):
                         event_logger.error(f"[EVENTSUB] Error resetting ad break count: {e}")
                     if event_type == "stream.online":
                         bot_logger.info(f"[EVENTSUB] Stream is now online!")
-                        create_task(websocket_notice(event="STREAM_ONLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_ONLINE"))
                     else:
                         bot_logger.info(f"[EVENTSUB] Stream is now offline.")
-                        create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_OFFLINE"))
                 # AutoMod Message Hold Event
                 elif event_type == "automod.message.hold":
                     event_logger.info(f"[EVENTSUB] Got an AutoMod Message Hold: {event_data}")
@@ -1677,7 +1684,7 @@ async def process_twitch_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"[EVENTSUB] Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            create_task(ban_user(messageAuthor, messageAuthorID))
+                            safe_create_task(ban_user(messageAuthor, messageAuthorID))
                             # Deny the message via Twitch API
                             try:
                                 # Determine which user ID to use for the API request
@@ -1709,7 +1716,7 @@ async def process_twitch_eventsub_message(message):
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"[EVENTSUB] Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            create_task(ban_user(messageAuthor, messageAuthorID))
+                            safe_create_task(ban_user(messageAuthor, messageAuthorID))
                             # Deny the message via Twitch API
                             try:
                                 # Determine which user ID to use for the API request
@@ -1744,16 +1751,16 @@ async def process_twitch_eventsub_message(message):
                         twitch_logger.info(f"[EVENTSUB] Suspicious user {messageAuthor} has ban evasion evaluation: {banEvasionEvaluation}")
                         if banEvasionEvaluation == "likely":
                             bot_logger.info(f"[EVENTSUB] Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to likely ban evasion.")
-                            create_task(ban_user(messageAuthor, messageAuthorID))
+                            safe_create_task(ban_user(messageAuthor, messageAuthorID))
                     if banEvasionTypes:
                         twitch_logger.info(f"[EVENTSUB] Suspicious user {messageAuthor} has the following types: {banEvasionTypes}")
                     if lowTrustStatus == "active_monitoring":
                         bot_logger.info(f"[EVENTSUB] Banning suspicious user {messageAuthor} with ID {messageAuthorID} due to active monitoring status.")
-                        create_task(ban_user(messageAuthor, messageAuthorID))
+                        safe_create_task(ban_user(messageAuthor, messageAuthorID))
                     for pattern in spam_pattern:
                         if pattern.search(messageContent):
                             twitch_logger.info(f"[EVENTSUB] Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                            create_task(ban_user(messageAuthor, messageAuthorID))
+                            safe_create_task(ban_user(messageAuthor, messageAuthorID))
                 elif event_type == "channel.shoutout.create" or event_type == "channel.shoutout.receive":
                     if event_type == "channel.shoutout.create":
                         global shoutout_user
@@ -1799,7 +1806,7 @@ async def process_twitch_eventsub_message(message):
                     current_amount = event_data.get("current_amount", 0)
                     target_amount = event_data.get("target_amount", 0)
                     event_logger.info(f"[EVENTSUB] Goal begun: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}")
-                    create_task(websocket_notice(event="TWITCH_GOAL_BEGIN", additional_data={
+                    safe_create_task(websocket_notice(event="TWITCH_GOAL_BEGIN", additional_data={
                         "goal_type": goal_type,
                         "description": description,
                         "current_amount": current_amount,
@@ -1812,7 +1819,7 @@ async def process_twitch_eventsub_message(message):
                     current_amount = event_data.get("current_amount", 0)
                     target_amount = event_data.get("target_amount", 0)
                     event_logger.info(f"[EVENTSUB] Goal progress: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}")
-                    create_task(websocket_notice(event="TWITCH_GOAL_PROGRESS", additional_data={
+                    safe_create_task(websocket_notice(event="TWITCH_GOAL_PROGRESS", additional_data={
                         "goal_type": goal_type,
                         "description": description,
                         "current_amount": current_amount,
@@ -1826,7 +1833,7 @@ async def process_twitch_eventsub_message(message):
                     target_amount = event_data.get("target_amount", 0)
                     is_achieved = event_data.get("is_achieved", False)
                     event_logger.info(f"[EVENTSUB] Goal ended: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}, achieved={is_achieved}")
-                    create_task(websocket_notice(event="TWITCH_GOAL_END", additional_data={
+                    safe_create_task(websocket_notice(event="TWITCH_GOAL_END", additional_data={
                         "goal_type": goal_type,
                         "description": description,
                         "current_amount": current_amount,
@@ -2165,7 +2172,7 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                                 else:
                                     streak_msg = "Congrats (user) on watching (value) consecutive streams!"
                                 streak_msg = streak_msg.replace("(user)", un_display).replace("(value)", str(un_value))
-                            create_task(send_chat_message(streak_msg))
+                            safe_create_task(send_chat_message(streak_msg))
                         else:
                             bot_logger.info(f"[IRC PRESENCE] IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")
                     else:
@@ -2905,7 +2912,7 @@ async def process_tanggle_room_complete(data):
         if is_new_completion:
             integrations_logger.info(f"[TANGGLE] Tanggle: Recorded new room completion {room_uuid}. Total completed puzzles: {completed_count}")
             await send_chat_message(f"We've completed another puzzle! That's {completed_count} puzzles completed.")
-            create_task(websocket_notice(
+            safe_create_task(websocket_notice(
                 event="TANNGLE_COMPLETE",
                 additional_data={
                     "room_uuid": room_uuid,
@@ -2949,7 +2956,7 @@ async def process_stream_bingo_message(data):
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Bingo game started - Game ID: {_current_bingo_game_id}, Events: {len(events)}, Sub-only: {is_sub_only}, Random-only: {random_call_only}")
                 sub_notice = " (Sub-only)" if is_sub_only else ""
                 await send_chat_message(f"A new Stream Bingo game has started{sub_notice}! Get your cards ready chat!")
-                create_task(websocket_notice(
+                safe_create_task(websocket_notice(
                     event="STREAM_BINGO_STARTED",
                     additional_data={"is_sub_only": is_sub_only, "events_count": len(events), "game_id": _current_bingo_game_id}
                 ))
@@ -2967,7 +2974,7 @@ async def process_stream_bingo_message(data):
                 else:
                     integrations_logger.warning("[STREAM BINGO] Stream Bingo: Received GAME_ENDED but no active game was being tracked")
                 await send_chat_message("The Stream Bingo game has ended! Thanks for playing!")
-                create_task(websocket_notice(event="STREAM_BINGO_ENDED"))
+                safe_create_task(websocket_notice(event="STREAM_BINGO_ENDED"))
             elif event_type in ['number_called', 'EVENT_CALLED']:
                 # Handle number called — keys are fully lowercased after normalization
                 display_number = data.get('displaynumber')
@@ -2975,7 +2982,7 @@ async def process_stream_bingo_message(data):
                 event_name = data.get('eventname')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Event called - Event: {event_name} (#{display_number}, ID: {event_id})")
                 await send_chat_message(f"Event {display_number} called: \"{event_name}\"")
-                create_task(websocket_notice(
+                safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EVENT_CALLED",
                     additional_data={"display_number": display_number, "event_name": event_name, "event_id": event_id}
                 ))
@@ -3008,7 +3015,7 @@ async def process_stream_bingo_message(data):
                 else:
                     integrations_logger.warning(f"[STREAM BINGO] Stream Bingo: Received BINGO_REGISTERED for {player_name} but no active game is being tracked")
                 await send_chat_message(f"BINGO! @{player_name} got {rank_text} place! Congratulations!")
-                create_task(websocket_notice(
+                safe_create_task(websocket_notice(
                     event="STREAM_BINGO_WINNER",
                     additional_data={"player_name": player_name, "rank": rank, "rank_text": rank_text}
                 ))
@@ -3019,7 +3026,7 @@ async def process_stream_bingo_message(data):
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
                 await send_chat_message(f"@{player_name} grabbed an extra bingo card with {bits} bits!")
-                create_task(websocket_notice(
+                safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EXTRA_CARD",
                     additional_data={"player_name": player_name, "bits": bits}
                 ))
@@ -3027,7 +3034,7 @@ async def process_stream_bingo_message(data):
                 # Handle vote started
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: Voting has started")
                 await send_chat_message("Bingo voting has started! Cast your vote now!")
-                create_task(websocket_notice(event="STREAM_BINGO_VOTE_STARTED"))
+                safe_create_task(websocket_notice(event="STREAM_BINGO_VOTE_STARTED"))
             elif event_type == 'EXTRA_VOTE_WITH_BITS':
                 # Handle extra vote purchased with bits
                 player_name = data.get('playername')
@@ -3035,7 +3042,7 @@ async def process_stream_bingo_message(data):
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
                 await send_chat_message(f"@{player_name} got an extra bingo vote with {bits} bits!")
-                create_task(websocket_notice(
+                safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EXTRA_CARD",
                     additional_data={"player_name": player_name, "bits": bits, "is_vote": True}
                 ))
@@ -3043,12 +3050,12 @@ async def process_stream_bingo_message(data):
                 # Handle vote ended
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: Voting has ended")
                 await send_chat_message("Bingo voting has ended!")
-                create_task(websocket_notice(event="STREAM_BINGO_VOTE_ENDED"))
+                safe_create_task(websocket_notice(event="STREAM_BINGO_VOTE_ENDED"))
             elif event_type == 'ALL_EVENTS_CALLED':
                 # Handle all events called
                 integrations_logger.info("[STREAM BINGO] Stream Bingo: All events have been called")
                 await send_chat_message("All bingo events have been called!")
-                create_task(websocket_notice(event="STREAM_BINGO_ALL_CALLED"))
+                safe_create_task(websocket_notice(event="STREAM_BINGO_ALL_CALLED"))
             else:
                 integrations_logger.debug(f"[STREAM BINGO] Stream Bingo: Unhandled event type: {event_type}")
         finally:
@@ -3238,8 +3245,8 @@ class TwitchBot(commands.Bot):
         await load_automated_shoutout_tracking()
         looped_tasks["check_stream_online"] = create_task(check_stream_online())
         looped_tasks["periodic_stream_metadata_refresh"] = create_task(periodic_stream_metadata_refresh())
-        create_task(known_users())
-        create_task(channel_point_rewards())
+        safe_create_task(known_users())
+        safe_create_task(channel_point_rewards())
         looped_tasks["twitch_token_refresh"] = create_task(twitch_token_refresh())
         looped_tasks["twitch_eventsub"] = create_task(twitch_eventsub())
         looped_tasks["twitch_irc_presence"] = create_task(twitch_irc_presence())
@@ -3272,6 +3279,7 @@ class TwitchBot(commands.Bot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
+        looped_tasks["irc_health_check"] = create_task(irc_health_check())
         global _channel_modules, _shared_http_session
         _channel_modules = []
         if _shared_http_session is None:
@@ -3402,7 +3410,7 @@ class TwitchBot(commands.Bot):
                 for pattern in spam_pattern:
                     if pattern.search(messageContent):
                         bot_logger.info(f"[EVENT MESSAGE] Banning user {messageAuthor} with ID {messageAuthorID} for spam pattern match.")
-                        create_task(ban_user(messageAuthor, messageAuthorID))
+                        safe_create_task(ban_user(messageAuthor, messageAuthorID))
                         bannedUser = messageAuthor
                         return
             if messageContent.startswith('!'):
@@ -3734,7 +3742,7 @@ class TwitchBot(commands.Bot):
                         broadcaster_id=CHANNEL_ID,
                     )
                     if _module_handled:
-                        create_task(self.safe_walkon(messageAuthor))
+                        safe_create_task(self.safe_walkon(messageAuthor))
                         return
                     # Only send welcome message if enabled
                     if user_status_enabled and send_welcome_messages:
@@ -3776,7 +3784,7 @@ class TwitchBot(commands.Bot):
                                 source="welcome_message"
                             )
                         chat_logger.info(f"[WELCOME] Sent welcome message to {messageAuthor}")
-                    create_task(self.safe_walkon(messageAuthor))
+                    safe_create_task(self.safe_walkon(messageAuthor))
                 elif not already_seen_today and stream_online and is_command_message:
                     # First message is a command - do not mark as seen yet.
                     chat_logger.info(f"[WELCOME] {messageAuthor} sent a command as their first message; deferring 'seen' until a non-command message is received.")
@@ -3896,7 +3904,7 @@ class TwitchBot(commands.Bot):
                             source="welcome_message"
                         )
                     chat_logger.info(f"[WELCOME] Sent first-command welcome message to {messageAuthor}")
-                    create_task(self.safe_walkon(messageAuthor))
+                    safe_create_task(self.safe_walkon(messageAuthor))
         except Exception as e:
             chat_logger.error(f"[WELCOME] Error in send_first_command_welcome_if_needed for {messageAuthor}: {e}")
 
@@ -4407,7 +4415,7 @@ class TwitchBot(commands.Bot):
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
                         # Let any active module announce its own commands
-                        create_task(dispatch_module_event("commands_list", broadcaster_id=CHANNEL_ID))
+                        safe_create_task(dispatch_module_event("commands_list", broadcaster_id=CHANNEL_ID))
                         # Record usage
                         add_usage('commands', bucket_key, cooldown_bucket)
                     else:
@@ -4605,7 +4613,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"[FORCE ONLINE] Stream status forcibly set to online by {ctx.author.name}.")
                         bot_logger.info(f"[FORCE ONLINE] Stream is now online!")
                         await send_chat_message("Stream status has been forcibly set to online.")
-                        create_task(websocket_notice(event="STREAM_ONLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_ONLINE"))
                         # Record usage
                         add_usage('forceonline', bucket_key, cooldown_bucket)
                     else:
@@ -4646,7 +4654,7 @@ class TwitchBot(commands.Bot):
                         chat_logger.info(f"[FORCE OFFLINE] Stream status forcibly set to offline by {ctx.author.name}.")
                         bot_logger.info(f"[FORCE OFFLINE] Stream is now offline.")
                         await send_chat_message("Stream status has been forcibly set to offline.")
-                        create_task(websocket_notice(event="STREAM_OFFLINE"))
+                        safe_create_task(websocket_notice(event="STREAM_OFFLINE"))
                         # Record usage
                         add_usage('forceoffline', bucket_key, cooldown_bucket)
                     else:
@@ -7421,7 +7429,7 @@ class TwitchBot(commands.Bot):
                 await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times.")
                 if await command_permissions("mod", ctx.author):
                     chat_logger.info(f"[DEATHS] Sending DEATHS event with game: {current_game}, death count: {stream_death_count}")
-                    create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 # Record usage
                 add_usage('deaths', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -7489,7 +7497,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[DEATH ADD] Total death count has been calculated as: {total_death_count}")
                     chat_logger.info(f"[DEATH ADD] Stream death count for {current_game} is now: {stream_death_count}")
                     await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
-                    create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except GeneratorExit:
                     raise
                 except Exception as e:
@@ -7564,7 +7572,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[DEATH REMOVE] {current_game} death has been removed, we now have {game_death_count} deaths.")
                     chat_logger.info(f"[DEATH REMOVE] Total death count has been calculated as: {total_death_count}")
                     await send_chat_message(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
-                    create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
                 except GeneratorExit:
                     raise
                 except Exception as e:
@@ -9557,7 +9565,7 @@ class TwitchBot(commands.Bot):
                 # Notify websocket clients/overlays for each winner
                 try:
                     for winner_name in winner_names:
-                        create_task(websocket_notice(event="RAFFLE_WINNER", additional_data={"raffle_name": raffle_name, "winner": winner_name, "prize": raffle_prize}))
+                        safe_create_task(websocket_notice(event="RAFFLE_WINNER", additional_data={"raffle_name": raffle_name, "winner": winner_name, "prize": raffle_prize}))
                 except Exception as e:
                     websocket_logger.error(f"[DRAW RAFFLE] Failed to send RAFFLE_WINNER notify: {e}")
         except Exception as e:
@@ -10255,7 +10263,7 @@ async def process_dynamic_variables(
                             response = response.replace('(track)', '')
                     # Handle (tts) - trigger text-to-speech with user input
                     if '(tts)' in response:
-                        create_task(websocket_notice(event="TTS", text=cp_user_input))
+                        safe_create_task(websocket_notice(event="TTS", text=cp_user_input))
                         response = response.replace('(tts)', '')
                     # Handle (lotto) - generate lotto numbers
                     if '(lotto)' in response:
@@ -10288,13 +10296,13 @@ async def process_dynamic_variables(
                                                 await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (cp_user_id, user))
                                             except Exception as _e:
                                                 chat_logger.error(f"[MESSAGE VARS] Failed to record vip_today for {user}: {_e}")
-                                        create_task(websocket_notice(event='VIP_ADDED', user=user))
+                                        safe_create_task(websocket_notice(event='VIP_ADDED', user=user))
                                     else:
                                         txt = await vip_resp.text()
                                         chat_logger.error(f"[MESSAGE VARS] Failed to add VIP for {user}: {vip_resp.status} {txt}")
                                         response = response.replace('(vip)', '')
                                         response = response.replace('(vip.today)', '')
-                                        create_task(send_chat_message(f"@{user} I couldn't grant VIP (Twitch API returned {vip_resp.status})."))
+                                        safe_create_task(send_chat_message(f"@{user} I couldn't grant VIP (Twitch API returned {vip_resp.status})."))
                         except Exception as e:
                             chat_logger.error(f"[MESSAGE VARS] Error processing (vip)/(vip.today): {e}")
                             response = response.replace('(vip)', '')
@@ -10794,7 +10802,7 @@ async def shoutout_worker():
             twitch_logger.info(f"[SHOUTOUT] Shoutout processed for {user_to_shoutout}. [source={source}]")
             if trigger_api:
                 shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
-                create_task(remove_shoutout_user(user_to_shoutout, 60))
+                safe_create_task(remove_shoutout_user(user_to_shoutout, 60))
             # Record shoutout for per-user cooldown tracking regardless of source
             await record_automated_shoutout(user_id, user_to_shoutout)
             # Update cooldown trackers
@@ -11515,7 +11523,7 @@ async def handle_chat_message(messageAuthor, messageContent=""):
         # Check if enough new chat lines have occurred since the last trigger
         if chat_line_count - last_trigger_count >= chat_line_trigger:
             trigger_info["last_trigger_count"] = chat_line_count  # Update last trigger count
-            create_task(send_timed_message(message_id, message, 0))
+            safe_create_task(send_timed_message(message_id, message, 0))
             chat_logger.info(f"[EVENT MESSAGE] Chat count trigger reached for message ID: {message_id}")
 
 async def send_interval_message(message_id, message, interval_seconds):
@@ -11866,7 +11874,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             except Exception as e:
                 twitch_logger.error(f"[RAID] Failed to write raid analytics to analytic_raids for channel {CHANNEL_NAME}: {e}")
             # Send raid notification to Twitch Chat, and Websocket
-            create_task(websocket_notice(event="TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
+            safe_create_task(websocket_notice(event="TWITCH_RAID", user=from_broadcaster_name, raid_viewers=viewer_count))
             # Send a message to the Twitch channel
             await cursor.execute("SELECT alert_message FROM twitch_chat_alerts WHERE alert_type = %s", ("raid_alert",))
             result = await cursor.fetchone()
@@ -11920,7 +11928,7 @@ async def process_raid_event(from_broadcaster_id, from_broadcaster_name, viewer_
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
             await connection.close()
@@ -12018,7 +12026,7 @@ async def process_cheer_event(user_id, user_name, bits):
                 cheer_add_time = int(settings['cheer_add'])  # Retrieve the time to add for cheers
                 await addtime_subathon(CHANNEL_NAME, cheer_add_time)  # Call to add time based on cheers
             # Send cheer notification to Twitch Chat, and Websocket
-            create_task(websocket_notice(event="TWITCH_CHEER", user=user_name, cheer_amount=bits))
+            safe_create_task(websocket_notice(event="TWITCH_CHEER", user=user_name, cheer_amount=bits))
             marker_description = f"New Cheer from {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"[CHEER] A stream marker was created: {marker_description}.")
@@ -12028,7 +12036,7 @@ async def process_cheer_event(user_id, user_name, bits):
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
             await connection.close()
@@ -12122,7 +12130,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
                         command="subscription_alert", response=alert_message, user=user_name
                     )
             try:
-                create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                safe_create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("[SUB EVENT] Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"[SUB EVENT] Failed to send WebSocket notice: {e}")
@@ -12149,7 +12157,7 @@ async def process_subscription_event(user_id, user_name, sub_plan, event_months,
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"[SUB EVENT] Error processing subscription event for user {user_name} ({user_id}): {e}")
     finally:
@@ -12245,7 +12253,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
                         command="subscription_alert", response=alert_message, user=user_name
                     )
             try:
-                create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
+                safe_create_task(websocket_notice(event="TWITCH_SUB", user=user_name, sub_tier=sub_plan, sub_months=event_months))
                 event_logger.info("[SUB MESSAGE] Sent WebSocket notice")
             except Exception as e:
                 event_logger.error(f"[SUB MESSAGE] Failed to send WebSocket notice: {e}")
@@ -12272,7 +12280,7 @@ async def process_subscription_message_event(user_id, user_name, sub_plan, event
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     except Exception as e:
         event_logger.error(f"[SUB MESSAGE] Error processing subscription message event for user {user_name} ({user_id}): {e}")
     finally:
@@ -12331,7 +12339,7 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 result = await cursor.fetchone()
                 if result and result.get("sound_mapping"):
                     sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                    create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                    safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
             await connection.close()
@@ -12411,8 +12419,8 @@ async def process_followers_event(user_id, user_name):
                     shoutout_message=shoutout_message,
                     source="follow"
                 )
-            create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
-            create_task(dispatch_module_event("follow", user_name=user_name))
+            safe_create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
+            safe_create_task(dispatch_module_event("follow", user_name=user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"[FOLLOW] A stream marker was created: {marker_description}.")
@@ -12422,7 +12430,7 @@ async def process_followers_event(user_id, user_name):
             result = await cursor.fetchone()
             if result and result.get("sound_mapping"):
                 sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
     finally:
         if connection:
             await connection.close()
@@ -12927,7 +12935,7 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_data = event_data.get("reward", {})
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
-            create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
+            safe_create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
             if event_type == "channel.channel_points_custom_reward_redemption.add" and _channel_modules:
                 handled = await dispatch_module_event("channel_point_redemption",
                     username=user_name,
@@ -12975,7 +12983,7 @@ async def process_channel_point_rewards(event_data, event_type):
                         # Post-processing: (tts.message) sends final message to both TTS and chat
                         if contains_tts_message:
                             await send_chat_message(custom_message)
-                            create_task(websocket_notice(event="TTS", text=custom_message))
+                            safe_create_task(websocket_notice(event="TTS", text=custom_message))
                         else:
                             await send_chat_message(custom_message)
             # Sound alert logic
@@ -12984,14 +12992,14 @@ async def process_channel_point_rewards(event_data, event_type):
             if sound_result and sound_result["sound_mapping"]:
                 sound_file = sound_result.get("sound_mapping")
                 event_logger.info(f"[CHANNEL POINTS] Got {event_type} - Found Sound Mapping - {reward_id} - {sound_file}")
-                create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
             # Video alert logic
             await cursor.execute("SELECT video_mapping FROM video_alerts WHERE reward_id = %s", (reward_id,))
             video_result = await cursor.fetchone()
             if video_result and video_result["video_mapping"]:
                 video_file = video_result.get("video_mapping")
                 event_logger.info(f"[CHANNEL POINTS] Got {event_type} - Found Video Mapping - {reward_id} - {video_file}")
-                create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
+                safe_create_task(websocket_notice(event="VIDEO_ALERT", video=video_file))
         except Exception as e:
             event_logger.error(f"[CHANNEL POINTS] An error occurred while processing the reward: {str(e)}")
 
@@ -13317,10 +13325,10 @@ async def start_subathon(ctx):
                     await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
-                    create_task(subathon_countdown())
+                    safe_create_task(subathon_countdown())
                     # Send websocket notice
                     additional_data = {'starting_minutes': starting_minutes}
-                    create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
+                    safe_create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
                 else:
                     await send_chat_message(f"Can't start subathon, please go to the dashboard and set up subathons.")
     finally:
@@ -13339,7 +13347,7 @@ async def stop_subathon(ctx):
                 await connection.commit()
                 await send_chat_message(f"Subathon ended!")
                 # Send websocket notice
-                create_task(websocket_notice(event="SUBATHON_STOP"))
+                safe_create_task(websocket_notice(event="SUBATHON_STOP"))
             else:
                 await send_chat_message(f"No subathon active.")
     finally:
@@ -13360,7 +13368,7 @@ async def pause_subathon(ctx):
                 await send_chat_message(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
                 # Send websocket notice
                 additional_data = {'remaining_minutes': remaining_minutes}
-                create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data=additional_data))
+                safe_create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data=additional_data))
             else:
                 await send_chat_message("No subathon is active or it's already paused!")
     finally:
@@ -13379,10 +13387,10 @@ async def resume_subathon(ctx):
                 await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
                 await send_chat_message(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
-                create_task(subathon_countdown())
+                safe_create_task(subathon_countdown())
                 # Send websocket notice
                 additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
-                create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
+                safe_create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
     finally:
         if connection:
             await connection.close()
@@ -13401,7 +13409,7 @@ async def addtime_subathon(ctx, minutes):
                 await send_chat_message(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
                 additional_data = {'added_minutes': minutes}
-                create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data=additional_data))
+                safe_create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data=additional_data))
             else:
                 await send_chat_message("No subathon is active or it's paused!")
     finally:
@@ -14119,7 +14127,7 @@ async def handle_ad_break_start(duration_seconds):
             global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
             ads_api_url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={CHANNEL_ID}"
             headers = { "Client-ID": CLIENT_ID, "Authorization": f"Bearer {CHANNEL_AUTH}" }
-            create_task(check_next_ad_after_completion(ads_api_url, headers))
+            safe_create_task(check_next_ad_after_completion(ads_api_url, headers))
         except Exception as e:
             api_logger.error(f"[ADS] Exception scheduling next-ad check after ad end: {e}")
     try:
@@ -14432,7 +14440,7 @@ async def check_and_handle_ads(last_notification_time, last_ad_time, last_snooze
                     last_notification_time = None
                     last_ad_time = last_ad_at
                     # Schedule a check for the next ad after a brief delay
-                    create_task(check_next_ad_after_completion(ads_api_url, headers))
+                    safe_create_task(check_next_ad_after_completion(ads_api_url, headers))
                 # Log preroll free time for debugging
                 if preroll_free_time > 0:
                     api_logger.debug(f"[ADS] Preroll free time remaining: {preroll_free_time} seconds")
@@ -14928,6 +14936,28 @@ async def process_chat_message_event(user_id: str, user_name: str, message: str 
         await get_function_from.message_counting_and_welcome_messages(user_name, user_id, False, message)
     except Exception as e:
         event_logger.error(f"[EVENT MESSAGE] Error processing chat message event for {user_name}: {e}", exc_info=True)
+
+async def irc_health_check():
+    while True:
+        try:
+            await sleep(60)
+            bot = BOTS_TWITCH_BOT
+            if bot is None:
+                continue
+            channels = bot.connected_channels
+            if not channels:
+                bot_logger.warning("[IRC HEALTH] TwitchIO IRC has no connected channels — commands will not work. Attempting reconnect...")
+                try:
+                    await bot.connect()
+                    bot_logger.info("[IRC HEALTH] TwitchIO IRC reconnect initiated.")
+                except Exception as reconnect_err:
+                    bot_logger.error(f"[IRC HEALTH] TwitchIO IRC reconnect failed: {reconnect_err}")
+            else:
+                bot_logger.debug(f"[IRC HEALTH] TwitchIO IRC connected to {len(channels)} channel(s).")
+        except asyncioCancelledError:
+            break
+        except Exception as e:
+            bot_logger.error(f"[IRC HEALTH] Error in IRC health check: {e}")
 
 async def cleanup_gift_sub_tracking():
     global gift_sub_recipients
