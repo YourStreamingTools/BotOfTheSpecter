@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.5"
+VERSION = "5.7.6"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -3004,7 +3004,7 @@ class TwitchBot(commands.Bot):
     async def points_command(self, ctx):
         global bot_owner
         user_id = str(ctx.author.id)
-        user_name = ctx.author.name
+        user_name = ctx.author.name.lower()
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3076,9 +3076,9 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')  # Remove @ if present
+                        user = user.lstrip('@').lower()  # Remove @ if present
                         user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name
+                        user_name = user if user else ctx.author.name.lower()
                         await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                         result = await cursor.fetchone()
                         if result:
@@ -3124,9 +3124,9 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')  # Remove @ if present
+                        user = user.lstrip('@').lower()  # Remove @ if present
                         user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name
+                        user_name = user if user else ctx.author.name.lower()
                         await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
                         result = await cursor.fetchone()
                         if result:
