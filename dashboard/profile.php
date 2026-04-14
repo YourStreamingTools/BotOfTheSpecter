@@ -963,6 +963,20 @@ ob_start();
                             </button>
                         </div>
                     </div>
+                    <div class="sp-card" style="margin-bottom:0;">
+                        <div class="sp-card-body" style="display:flex;flex-direction:column;gap:0.75rem;padding:0.75rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="width:2.5em;height:2.5em;display:flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;">
+                                    <img src="https://cdn.brandfetch.io/id3gkQXO6j/w/400/h/400/theme/dark/icon.jpeg" alt="Kick" style="width:2.5em;height:2.5em;object-fit:cover;border-radius:50%;background:#222;display:block;">
+                                </span>
+                                <p style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:0;"><?php echo t('kick'); ?></p>
+                            </div>
+                            <button type="button" class="sp-btn sp-btn-warning sp-btn-sm" style="width:100%;" disabled>
+                                <i class="fas fa-clock"></i>
+                                <span><?php echo t('coming_soon'); ?></span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1281,15 +1295,8 @@ document.addEventListener('DOMContentLoaded', function() {
         statusIcon.style.display = 'none';
         helpText.textContent = <?php echo json_encode(t('weather_location_input_help')); ?>;
         if (!location) return;
-        // Only validate if cookies are accepted
-        if (!hasCookieConsent()) {
-            // Don't check API, just allow user to save
-            statusIcon.style.display = 'none';
-            helpText.textContent = <?php echo json_encode(t('weather_location_input_help')); ?>;
-            return;
-        }
         // If user accepted cookies, check for cached validation
-        const cached = getCookie('weather_location_valid');
+        const cached = hasCookieConsent() ? getCookie('weather_location_valid') : null;
         if (cached) {
             try {
                 const cachedObj = JSON.parse(cached);
