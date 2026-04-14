@@ -1291,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return getCookie('cookie_consent') === 'accepted';
     }
     function validateWeatherLocation() {
-        const location = weatherInput.value.trim();
+        const location = weatherInput.value.trim().replace(/\s+/g, ',');
         statusIcon.style.display = 'none';
         helpText.textContent = <?php echo json_encode(t('weather_location_input_help')); ?>;
         if (!location) return;
@@ -1316,7 +1316,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         statusIcon.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         statusIcon.style.display = '';
-        fetch(`https://api.botofthespecter.com/weather/location?api_key=${encodeURIComponent(apiKey)}&location=${encodeURIComponent(location)}`)
+        fetch(`https://api.botofthespecter.com/v2/weather/location?location=${encodeURIComponent(location)}`, {
+            headers: { 'X-API-KEY': apiKey }
+        })
             .then(res => {
                 return res.json().then(data => {
                     let valid = false, msg = "";
