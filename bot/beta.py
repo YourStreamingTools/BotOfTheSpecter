@@ -4830,7 +4830,7 @@ class TwitchBot(commands.Bot):
     async def points_command(self, ctx):
         global bot_owner
         user_id = str(ctx.author.id)
-        user_name = ctx.author.name
+        user_name = ctx.author.name.lower()
         connection = None
         connection = await mysql_connection()
         try:
@@ -4902,13 +4902,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')
+                        user = user.lstrip('@').lower()
                         user_info = await self.fetch_users(names=[user])
                         if not user_info:
                             await send_chat_message(f"User {user} not found.")
                             return
                         target_user_id = str(user_info[0].id)
-                        target_user_name = user_info[0].name
+                        target_user_name = user_info[0].name.lower()
                         result = await manage_user_points(target_user_id, target_user_name, "credit", points_to_add)
                         if result["success"]:
                             await send_chat_message(f"Added {points_to_add} points to {target_user_name}. They now have {result['points']} points.")
@@ -4947,13 +4947,13 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@')
+                        user = user.lstrip('@').lower()
                         user_info = await self.fetch_users(names=[user])
                         if not user_info:
                             await send_chat_message(f"User {user} not found.")
                             return
                         target_user_id = str(user_info[0].id)
-                        target_user_name = user_info[0].name
+                        target_user_name = user_info[0].name.lower()
                         result = await manage_user_points(target_user_id, target_user_name, "debit", points_to_remove)
                         if result["success"]:
                             await send_chat_message(f"Removed {result['amount_changed']} points from {target_user_name}. They now have {result['points']} points.")
