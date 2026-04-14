@@ -48,6 +48,7 @@ try {
             CREATE TABLE IF NOT EXISTS everyone (
                 username VARCHAR(255),
                 group_name VARCHAR(255) DEFAULT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
         'groups' => "
@@ -88,30 +89,35 @@ try {
             CREATE TABLE IF NOT EXISTS user_typos (
                 username VARCHAR(255),
                 typo_count INT DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
         'lurk_times' => "
             CREATE TABLE IF NOT EXISTS lurk_times (
                 user_id VARCHAR(255),
                 start_time VARCHAR(255) NOT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB",
         'hug_counts' => "
             CREATE TABLE IF NOT EXISTS hug_counts (
                 username VARCHAR(255),
                 hug_count INT DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
         'highfive_counts' => "
             CREATE TABLE IF NOT EXISTS highfive_counts (
                 username VARCHAR(255),
                 highfive_count INT DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
         'kiss_counts' => "
             CREATE TABLE IF NOT EXISTS kiss_counts (
                 username VARCHAR(255),
                 kiss_count INT DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
         'total_deaths' => "
@@ -146,6 +152,7 @@ try {
                 command VARCHAR(255) NOT NULL,
                 user VARCHAR(255) NOT NULL,
                 count INT DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 UNIQUE (command, user)
             ) ENGINE=InnoDB",
         'reward_counts' => "
@@ -162,6 +169,7 @@ try {
                 user_id VARCHAR(255),
                 user_name VARCHAR(255),
                 bits INT,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'subscription_data' => "
@@ -171,6 +179,7 @@ try {
                 user_name VARCHAR(255),
                 sub_plan VARCHAR(255),
                 months INT,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'followers_data' => "
@@ -178,6 +187,7 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 user_id VARCHAR(255),
                 user_name VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch',
                 followed_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'raid_data' => "
@@ -187,6 +197,7 @@ try {
                 raider_id VARCHAR(255),
                 viewers INT,
                 raid_count INT,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'analytic_raids' => "
@@ -205,6 +216,7 @@ try {
                 streak_value INT NOT NULL DEFAULT 0,
                 highest_streak INT NOT NULL DEFAULT 0,
                 total_streams_watched INT NOT NULL DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_user_name (user_name)
@@ -213,6 +225,7 @@ try {
             CREATE TABLE IF NOT EXISTS quotes (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 quote TEXT,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 added TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB",
         'seen_users' => "
@@ -221,6 +234,7 @@ try {
                 username VARCHAR(255),
                 welcome_message VARCHAR(255) DEFAULT NULL,
                 status VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch',
                 first_seen DATETIME DEFAULT NULL,
                 last_seen DATETIME DEFAULT NULL
             ) ENGINE=InnoDB",
@@ -228,6 +242,7 @@ try {
             CREATE TABLE IF NOT EXISTS seen_today (
                 user_id VARCHAR(255),
                 username VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB",
         'timed_messages' => "
@@ -278,13 +293,15 @@ try {
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 username VARCHAR(255),
                 event VARCHAR(255),
-                data VARCHAR(255)
+                data VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch'
             ) ENGINE=InnoDB",
         'message_counts' => "
             CREATE TABLE IF NOT EXISTS message_counts (
                 username VARCHAR(255),
                 message_count INT NOT NULL,
                 user_level VARCHAR(255) NOT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (username)
             ) ENGINE=InnoDB",
         'bot_points' => "
@@ -292,6 +309,7 @@ try {
                 user_id VARCHAR(50),
                 user_name VARCHAR(50),
                 points INT DEFAULT 0,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB",
         'bot_settings' => "
@@ -468,6 +486,7 @@ try {
                 total_watch_time_live INT DEFAULT 0,
                 total_watch_time_offline INT DEFAULT 0,
                 last_active VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch',
                 PRIMARY KEY (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'watch_time_excluded_users' => "
@@ -518,6 +537,7 @@ try {
                 username VARCHAR(255),
                 winning_numbers VARCHAR(255),
                 supplementary_numbers VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch',
                 UNIQUE (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'stream_lotto_winning_numbers' => "
@@ -561,6 +581,7 @@ try {
                 user_id VARCHAR(255),
                 username VARCHAR(255),
                 weight INT DEFAULT 1,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 entered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (raffle_id, username),
                 FOREIGN KEY (raffle_id) REFERENCES raffles(id) ON DELETE CASCADE
@@ -572,6 +593,7 @@ try {
                 entry_id INT NOT NULL,
                 username VARCHAR(255),
                 user_id VARCHAR(255),
+                source VARCHAR(50) DEFAULT 'Twitch',
                 won_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (raffle_id) REFERENCES raffles(id) ON DELETE CASCADE,
                 FOREIGN KEY (entry_id) REFERENCES raffle_entries(id) ON DELETE CASCADE
@@ -616,6 +638,7 @@ try {
             CREATE TABLE IF NOT EXISTS chat_history (
                 author VARCHAR(255),
                 message TEXT,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'member_streams' => "
@@ -656,6 +679,7 @@ try {
                 player_name VARCHAR(255) NOT NULL,
                 player_id VARCHAR(255) NOT NULL,
                 `rank` INT NOT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_game_id (game_id),
                 INDEX idx_rank (`rank`),
@@ -667,6 +691,7 @@ try {
                 game_id VARCHAR(36) NOT NULL,
                 player_name VARCHAR(255) NOT NULL,
                 player_id VARCHAR(50) NOT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
                 joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_game_player (game_id, player_id),
                 INDEX idx_game_id (game_id)
@@ -892,7 +917,7 @@ try {
                     }
                     // Prevent accidental removal of core audit columns if they exist in multiple places (id handled above)
                     $safe_to_drop = true;
-                    $reserved = ['created_at','updated_at','timestamp'];
+                    $reserved = ['created_at','updated_at','timestamp','source'];
                     if (in_array($extraCol, $reserved)) {
                         echo "<script>console.log('Skipping drop of reserved column $extraCol on $table_name');</script>";
                         $safe_to_drop = false;

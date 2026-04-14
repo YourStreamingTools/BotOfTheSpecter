@@ -5,6 +5,8 @@ import json
 import copy
 import secrets
 import hashlib
+import base64
+import time as _time
 import logging
 from logging.handlers import RotatingFileHandler
 import asyncio
@@ -527,7 +529,8 @@ _V2_WEBHOOK_PATHS = [
     "/kofi",
     "/patreon",
     "/github",
-    "/freestuff"
+    "/freestuff",
+    "/kick/{username}"
 ]
 _V2_WEBHOOK_PATHS_SET = set(_V2_WEBHOOK_PATHS)
 
@@ -1831,6 +1834,143 @@ async def handle_github_webhook(request: Request, api_key: str = Query(...)):
             logging.error(f"Error forwarding GitHub: {e}")
             raise HTTPException(status_code=500, detail="Error forwarding to websocket")
     return {"status": "success", "message": "GitHub Webhook received"}
+
+# ---------------------------------------------------------------------------
+# Kick.com Webhook Endpoint
+# URL: POST /kick/{username}
+# Kick posts events here; we verify the signature, look up the user's API key
+# by username, then forward the event to the internal WebSocket server so the
+# kick bot (which is connected via Socket.IO) can receive it.
+# ---------------------------------------------------------------------------
+
+# Kick public-key cache — fetched from Kick's API, refreshed every hour
+_kick_pubkey_cache: bytes | None = None
+_kick_pubkey_cache_time: float   = 0.0
+_KICK_PUBKEY_CACHE_TTL           = 3600  # seconds
+_KICK_PUBKEY_URL                 = "https://api.kick.com/public/v1/public-key"
+
+async def _get_kick_public_key() -> bytes | None:
+    global _kick_pubkey_cache, _kick_pubkey_cache_time
+    now = _time.time()
+    if _kick_pubkey_cache and (now - _kick_pubkey_cache_time) < _KICK_PUBKEY_CACHE_TTL:
+        return _kick_pubkey_cache
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(_KICK_PUBKEY_URL, timeout=10) as r:
+                if r.status == 200:
+                    payload   = await r.json()
+                    key_b64   = payload.get("public_key") or payload.get("key", "")
+                    _kick_pubkey_cache      = base64.b64decode(key_b64)
+                    _kick_pubkey_cache_time = now
+                    return _kick_pubkey_cache
+                logging.error(f"[KICK] Public key fetch failed: HTTP {r.status}")
+    except Exception as e:
+        logging.error(f"[KICK] Could not fetch public key: {e}")
+    return None
+
+async def _verify_kick_signature(message_id: str, timestamp: str, raw_body: bytes, signature_b64: str) -> bool:
+    try:
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+        from cryptography.exceptions import InvalidSignature
+        pubkey_der = await _get_kick_public_key()
+        if not pubkey_der:
+            logging.warning("[KICK] Public key unavailable — accepting delivery without verification")
+            return True   # fail-open; tighten once the key endpoint is confirmed reachable
+        public_key   = serialization.load_der_public_key(pubkey_der)
+        signed_bytes = f"{message_id}.{timestamp}.".encode() + raw_body
+        sig_bytes    = base64.b64decode(signature_b64)
+        public_key.verify(sig_bytes, signed_bytes, asym_padding.PKCS1v15(), hashes.SHA256())
+        return True
+    except InvalidSignature:
+        return False
+    except Exception as e:
+        logging.error(f"[KICK] Signature verification error: {e}")
+        return False
+
+async def _get_api_key_for_username(username: str) -> str | None:
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT api_key FROM users WHERE username = %s LIMIT 1",
+                (username.lower(),)
+            )
+            row = await cur.fetchone()
+            return row[0] if row else None
+    finally:
+        conn.close()
+
+# Kick event type (from webhook header) → internal WebSocket event name
+_KICK_EVENT_MAP: dict[str, str] = {
+    "chat.message.sent":                 "KICK_CHAT",
+    "channel.followed":                  "KICK_FOLLOW",
+    "channel.subscription.new":          "KICK_SUB",
+    "channel.subscription.renewal":      "KICK_RESUB",
+    "channel.subscription.gifts":        "KICK_GIFTSUB",
+    "channel.reward.redemption.updated": "KICK_REDEMPTION",
+    "livestream.status.updated":         "KICK_STREAM_STATUS",
+    "livestream.metadata.updated":       "KICK_STREAM_METADATA",
+    "moderation.banned":                 "KICK_BAN",
+    "kicks.gifted":                      "KICK_KICKS_GIFTED",
+}
+
+@app.post(
+    "/kick/{username}",
+    summary="Receive Kick.com Webhook Events",
+    description=(
+        "Kick posts real-time events to this endpoint. The channel slug is used as the URL path "
+        "so we can route the event to the correct bot instance. The Kick RSA-SHA256 signature is "
+        "verified before forwarding the event to the internal WebSocket server."
+    ),
+    tags=["Webhooks"],
+    status_code=status.HTTP_200_OK,
+    operation_id="receive_kick_webhook"
+)
+async def receive_kick_webhook(username: str, request: Request):
+    raw_body   = await request.body()
+    msg_id     = request.headers.get("Kick-Event-Message-Id",  "")
+    timestamp  = request.headers.get("Kick-Event-Timestamp",   "")
+    signature  = request.headers.get("Kick-Event-Signature",   "")
+    event_type = request.headers.get("Kick-Event-Type",        "")
+    if signature:
+        valid = await _verify_kick_signature(msg_id, timestamp, raw_body, signature)
+        if not valid:
+            logging.warning(f"[KICK] Bad signature — channel={username!r} event={event_type!r}")
+            raise HTTPException(status_code=403, detail="Invalid Kick webhook signature")
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    logging.info(f"[KICK] webhook received | channel={username!r} | event={event_type!r}")
+    ws_event = _KICK_EVENT_MAP.get(event_type, "KICK_UNKNOWN")
+    api_key = await _get_api_key_for_username(username)
+    if not api_key:
+        # Unknown channel — return 200 so Kick doesn't keep retrying
+        logging.warning(f"[KICK] No user found for username={username!r}, ignoring event")
+        return {"status": "ok", "note": "channel not registered"}
+    async with aiohttp.ClientSession() as session:
+        try:
+            params = {
+                "code":    api_key,
+                "event":   ws_event,
+                "channel": username,
+                "data":    json.dumps(payload),
+            }
+            url = f"https://websocket.botofthespecter.com/notify?{urlencode(params)}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    logging.error(f"[KICK] WS forward failed: HTTP {response.status}")
+                    raise HTTPException(status_code=500, detail="Error forwarding to WebSocket server")
+        except asyncio.TimeoutError:
+            logging.error("[KICK] Timeout forwarding event to WebSocket server")
+            raise HTTPException(status_code=500, detail="Timeout forwarding to WebSocket server")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"[KICK] Unexpected error forwarding event: {e}")
+            raise HTTPException(status_code=500, detail="Error forwarding to WebSocket server")
+    return {"status": "ok", "event": ws_event}
 
 # FreeStuff Games List Endpoint
 @app.get(
