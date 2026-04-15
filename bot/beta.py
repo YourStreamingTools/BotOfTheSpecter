@@ -3559,8 +3559,8 @@ class TwitchBot(commands.Bot):
                 if (CUSTOM_MODE or SELF_MODE) and self.nick.lower() == CHANNEL_NAME.lower():
                     chat_logger.info(f"[EVENT MESSAGE] Ignoring AI mention of channel name in CUSTOM/SELF mode")
                     return
-                # Ignore messages from the channel owner in SELF mode (explicit owner messages)
-                if message.author.name.lower() == CHANNEL_NAME.lower():
+                # Ignore messages from the channel owner only when in SELF mode
+                if SELF_MODE and message.author.name.lower() == CHANNEL_NAME.lower():
                     chat_logger.info(f"[EVENT MESSAGE] Ignoring AI mention from channel owner in SELF mode")
                     return
                 user_message = str(message.content).lower().replace(f'@{self.nick.lower()}', '').strip()
