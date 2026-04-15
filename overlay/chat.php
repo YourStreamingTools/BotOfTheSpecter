@@ -345,6 +345,12 @@ $badgeCacheJson = json_encode(
         // Message rendering
         // isHistory = true: render without slide-in animation and skip buffering
         function addMessage(data, isHistory) {
+            // Strip Twitch /me action wrapper (\x01ACTION ...\x01)
+            if (data.message && data.message.charCodeAt(0) === 1) {
+                data = Object.assign({}, data, {
+                    message: data.message.replace(/^\x01ACTION\s?/, '').replace(/\x01$/, '')
+                });
+            }
             // Apply username / phrase filters shared with yourchat
             if (isMessageFiltered(data.username, data.display_name, data.message)) return;
             // Use custom nickname if the streamer has set one for this user
