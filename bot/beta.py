@@ -10159,23 +10159,44 @@ async def process_dynamic_variables(
                 # Handle (count)
                 if '(count)' in response:
                     try:
-                        if arg is None:
-                            await update_custom_count(command, "1")
+                        count_increment = 1
+                        if arg is not None:
+                            try:
+                                count_increment = int(arg)
+                            except (ValueError, TypeError):
+                                count_increment = 1
+                        await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
+                        cc_result = await cursor.fetchone()
+                        if cc_result:
+                            new_count = (cc_result.get("count") or 0) + count_increment
+                            await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
                         else:
-                            await update_custom_count(command, arg)
-                        get_count = await get_custom_count(command)
-                        response = response.replace('(count)', str(get_count))
+                            new_count = count_increment
+                            await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, new_count))
+                        chat_logger.info(f"[MESSAGE VARS] Updated count for command '{command}' to {new_count}.")
+                        response = response.replace('(count)', str(new_count))
                     except Exception as e:
                         chat_logger.error(f"[MESSAGE VARS] Error processing (count): {e}")
+                        response = response.replace('(count)', "Error")
                 # Handle (usercount)
                 if '(usercount)' in response:
                     try:
-                        if arg is None:
-                            await update_user_count(command, user, "1")
+                        count_increment = 1
+                        if arg is not None:
+                            try:
+                                count_increment = int(arg)
+                            except (ValueError, TypeError):
+                                count_increment = 1
+                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
+                        uc_result = await cursor.fetchone()
+                        if uc_result:
+                            new_count = (uc_result.get("count") or 0) + count_increment
+                            await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (new_count, command, user))
                         else:
-                            await update_user_count(command, user, arg)
-                        get_count = await get_user_count(command, user)
-                        response = response.replace('(usercount)', str(get_count))
+                            new_count = count_increment
+                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user, new_count))
+                        chat_logger.info(f"[MESSAGE VARS] Updated user count for command '{command}' and user '{user}' to {new_count}.")
+                        response = response.replace('(usercount)', str(new_count))
                     except Exception as e:
                         chat_logger.error(f"[MESSAGE VARS] Error processing (usercount): {e}")
                         response = response.replace('(usercount)', "Error")
