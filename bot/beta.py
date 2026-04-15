@@ -10178,8 +10178,8 @@ async def process_dynamic_variables(
                     except Exception as e:
                         chat_logger.error(f"[MESSAGE VARS] Error processing (count): {e}")
                         response = response.replace('(count)', "Error")
-                # Handle (usercount)
-                if '(usercount)' in response:
+                # Handle (usercount) - regular commands only; channel points use reward_counts below
+                if '(usercount)' in response and not channel_point_data:
                     try:
                         count_increment = 1
                         if arg is not None:
