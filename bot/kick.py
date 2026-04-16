@@ -574,22 +574,24 @@ async def on_user_banned(data: dict):
 
 async def on_follow(data: dict):
     # Kick webhook channel.followed → data has: user_id, username, slug
-    user = data.get("slug") or data.get("username", "someone")
+    user    = data.get("slug") or data.get("username", "someone")
+    user_id = str(data.get("user_id", "") or "")
     event_logger.info(f"[FOLLOW] {user} followed {CHANNEL_NAME}")
     await send_chat_message(f"Welcome {user}! Thanks for the follow!")
-    safe_create_task(record_follow_event(user))
+    safe_create_task(record_follow_event(user, user_id))
 
 async def on_subscription(data: dict):
     # Kick webhook channel.subscription.new / renewal → data has: subscriber, plan, months
     subscriber = (data.get("subscriber") or {})
     username   = subscriber.get("slug") or subscriber.get("username", "someone")
+    user_id    = str(subscriber.get("id", "") or "")
     months     = data.get("months", 1)
     event_logger.info(f"[SUB] {username} subscribed ({months} month(s))")
     if months > 1:
         await send_chat_message(f"Thank you {username} for resubscribing for {months} months!")
     else:
         await send_chat_message(f"Thank you {username} for subscribing!")
-    safe_create_task(record_subscription_event(username, months))
+    safe_create_task(record_subscription_event(username, months, user_id))
 
 async def on_gift_subscriptions(data: dict):
     # Kick webhook channel.subscription.gifts → data has: gifter, gifts_count
@@ -640,25 +642,24 @@ async def on_stream_offline():
                 task.cancel()
         message_tasks.clear()
 
-async def record_follow_event(username: str):
+async def record_follow_event(username: str, user_id: str = None):
     try:
         async with await mysql_connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT IGNORE INTO followers (user_name, followed_at) VALUES (%s, %s)",
-                    (username.lower(), datetime.now())
+                    "INSERT INTO followers_data (user_id, user_name, source) VALUES (%s, %s, 'Kick')",
+                    (user_id or "", username.lower())
                 )
     except Exception as e:
         bot_logger.error(f"[DB FOLLOW] {e}")
 
-async def record_subscription_event(username: str, months: int):
+async def record_subscription_event(username: str, months: int, user_id: str = None):
     try:
         async with await mysql_connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO subscribers (user_name, months, subscribed_at) VALUES (%s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE months=%s, subscribed_at=%s",
-                    (username.lower(), months, datetime.now(), months, datetime.now())
+                    "INSERT INTO subscription_data (user_id, user_name, months, source) VALUES (%s, %s, %s, 'Kick')",
+                    (user_id or "", username.lower(), months)
                 )
     except Exception as e:
         bot_logger.error(f"[DB SUB] {e}")
@@ -959,7 +960,7 @@ async def cmd_quoteadd(ctx: _Ctx):
     async with await mysql_connection() as conn:
         async with conn.cursor(DictCursor) as cur:
             await cur.execute(
-                "INSERT INTO quotes (quote, added_by) VALUES (%s, %s)", (ctx.args_str, ctx.user_name)
+                "INSERT INTO quotes (quote, added_by, source) VALUES (%s, %s, 'Kick')", (ctx.args_str, ctx.user_name)
             )
             quote_id = cur.lastrowid
     await send_chat_message(f"Quote #{quote_id} added.")
@@ -1082,8 +1083,8 @@ async def cmd_lurk(ctx: _Ctx):
     async with await mysql_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "INSERT INTO lurk_times (user_id, user_name, start_time) VALUES (%s, %s, %s) "
-                "ON DUPLICATE KEY UPDATE start_time=VALUES(start_time)",
+                "INSERT INTO lurk_times (user_id, user_name, start_time, source) VALUES (%s, %s, %s, 'Kick') "
+                "ON DUPLICATE KEY UPDATE start_time=VALUES(start_time), source='Kick'",
                 (ctx.user_id, ctx.user_name, datetime.now())
             )
     await send_chat_message(f"@{ctx.user_name} is now lurking! They'll be back soon.")
@@ -1430,7 +1431,7 @@ async def cmd_edittypos(ctx: _Ctx):
     async with await mysql_connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "INSERT INTO typos (user_name, typo_count) VALUES (%s, %s) "
+                "INSERT INTO typos (user_name, typo_count, source) VALUES (%s, %s, 'Kick') "
                 "ON DUPLICATE KEY UPDATE typo_count=%s",
                 (target, count, count)
             )
@@ -1647,7 +1648,7 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
                     current = row["points"]
                 else:
                     await cur.execute(
-                        "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0)",
+                        "INSERT INTO bot_points (user_id, user_name, points, source) VALUES (%s, %s, 0, 'Kick')",
                         (user_id, user_name)
                     )
                     current = 0
