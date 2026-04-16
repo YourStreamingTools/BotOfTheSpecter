@@ -33,17 +33,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Kick Chat Bot")
-parser.add_argument("-channel",      dest="target_channel",    required=True,  help="Kick channel slug (username)")
-parser.add_argument("-channelid",    dest="channel_id",        required=True,  help="Kick broadcaster user ID")
-parser.add_argument("-chatroomid",   dest="chatroom_id",       required=True,  help="Kick chatroom ID")
-parser.add_argument("-token",        dest="channel_auth_token", required=True, help="Kick OAuth access token")
-parser.add_argument("-refresh",      dest="refresh_token",     required=True,  help="Kick OAuth refresh token")
-parser.add_argument("-clientid",     dest="client_id",         required=True,  help="Kick app client ID")
-parser.add_argument("-clientsecret", dest="client_secret",     required=True,  help="Kick app client secret")
-parser.add_argument("-apitoken",     dest="api_token",         required=False, help="BotOfTheSpecter internal API token")
+parser.add_argument("-twitchusername", dest="twitch_username",   required=True,  help="Twitch username of the streamer (used for the database and internal routing)")
+parser.add_argument("-kickusername",   dest="kick_username",     required=True,  help="Kick channel slug / username (may differ from Twitch username)")
+parser.add_argument("-channelid",      dest="channel_id",        required=True,  help="Kick broadcaster user ID")
+parser.add_argument("-chatroomid",     dest="chatroom_id",       required=True,  help="Kick chatroom ID")
+parser.add_argument("-token",          dest="channel_auth_token", required=True, help="Kick OAuth access token")
+parser.add_argument("-refresh",        dest="refresh_token",     required=True,  help="Kick OAuth refresh token")
+parser.add_argument("-clientid",       dest="client_id",         required=True,  help="Kick app client ID")
+parser.add_argument("-clientsecret",   dest="client_secret",     required=True,  help="Kick app client secret")
+parser.add_argument("-apitoken",       dest="api_token",         required=False, help="BotOfTheSpecter internal API token")
 args = parser.parse_args()
 
-CHANNEL_NAME        = args.target_channel.lower()
+# TWITCH_USERNAME: the streamer's Twitch username.
+#   Used for: MySQL database name, WebSocket REGISTER channel, webhook URL path in api.py.
+TWITCH_USERNAME     = args.twitch_username.lower()
+# KICK_CHANNEL: the streamer's Kick channel slug.
+#   Used for: all Kick REST API calls (send message, ban, channel info, etc.).
+KICK_CHANNEL        = args.kick_username.lower()
 CHANNEL_ID          = int(args.channel_id)
 CHATROOM_ID         = int(args.chatroom_id)
 CHANNEL_AUTH        = args.channel_auth_token
@@ -114,7 +120,7 @@ def setup_logger(name, log_file, level=LoggingLevel):
 
 loggers = {}
 for log_type in log_types:
-    log_file = os.path.join(logs_directory, log_type, f"{CHANNEL_NAME}_kick.txt")
+    log_file = os.path.join(logs_directory, log_type, f"{TWITCH_USERNAME}_kick.txt")
     loggers[log_type] = setup_logger(f"kick.{log_type}", log_file)
 
 bot_logger          = loggers['bot']
@@ -125,7 +131,7 @@ event_logger        = loggers['event_log']
 websocket_logger    = loggers['websocket']
 system_logger       = loggers['system']
 
-bot_logger.info(f"[STARTUP] Kick bot v{VERSION} starting for channel: {CHANNEL_NAME}")
+bot_logger.info(f"[STARTUP] Kick bot v{VERSION} starting for channel: {TWITCH_USERNAME}")
 
 _background_tasks       = set()
 scheduled_tasks         = set()
@@ -211,7 +217,7 @@ class DirectConnection:
 
 async def mysql_connection(db_name=None):
     if db_name is None:
-        db_name = CHANNEL_NAME
+        db_name = TWITCH_USERNAME
     conn = await sql_connect(
         host=SQL_HOST, user=SQL_USER, password=SQL_PASSWORD,
         db=db_name, autocommit=True, connect_timeout=10
@@ -268,7 +274,7 @@ async def _persist_kick_tokens(access_token, refresh_token):
             async with conn.cursor() as cur:
                 await cur.execute(
                     "UPDATE kick_bot_tokens SET access_token=%s, refresh_token=%s WHERE channel_name=%s",
-                    (access_token, refresh_token, CHANNEL_NAME)
+                    (access_token, refresh_token, TWITCH_USERNAME)
                 )
     except Exception as e:
         bot_logger.error(f"[AUTH] Failed to persist tokens: {e}")
@@ -459,7 +465,7 @@ async def connect():
     websocket_logger.info("[WS] Socket.IO connection established, registering …")
     registration_data = {
         'code':    API_TOKEN,
-        'channel': CHANNEL_NAME,
+        'channel': TWITCH_USERNAME,
         'name':    f'Kick Bot V{VERSION}',
     }
     try:
@@ -576,7 +582,7 @@ async def on_follow(data: dict):
     # Kick webhook channel.followed → data has: user_id, username, slug
     user    = data.get("slug") or data.get("username", "someone")
     user_id = str(data.get("user_id", "") or "")
-    event_logger.info(f"[FOLLOW] {user} followed {CHANNEL_NAME}")
+    event_logger.info(f"[FOLLOW] {user} followed {KICK_CHANNEL}")
     await send_chat_message(f"Welcome {user}! Thanks for the follow!")
     safe_create_task(record_follow_event(user, user_id))
 
@@ -627,7 +633,7 @@ async def on_stream_online():
     was_online   = stream_online
     stream_online = True
     if not was_online:
-        bot_logger.info(f"[STREAM] {CHANNEL_NAME} went live!")
+        bot_logger.info(f"[STREAM] {KICK_CHANNEL} went live!")
         await load_timed_messages()
         safe_create_task(periodic_watch_time_update())
 
@@ -636,7 +642,7 @@ async def on_stream_offline():
     was_online   = stream_online
     stream_online = False
     if was_online:
-        bot_logger.info(f"[STREAM] {CHANNEL_NAME} went offline.")
+        bot_logger.info(f"[STREAM] {KICK_CHANNEL} went offline.")
         for task in list(message_tasks.values()):
             if not task.done():
                 task.cancel()
@@ -885,9 +891,9 @@ async def cmd_uptime(_ctx: _Ctx):
         diff    = datetime.now(timezone.utc) - started
         hours, rem = divmod(int(diff.total_seconds()), 3600)
         mins, secs = divmod(rem, 60)
-        await send_chat_message(f"{CHANNEL_NAME} has been live for {hours}h {mins}m {secs}s.")
+        await send_chat_message(f"{KICK_CHANNEL} has been live for {hours}h {mins}m {secs}s.")
     else:
-        await send_chat_message(f"{CHANNEL_NAME} is not currently live.")
+        await send_chat_message(f"{KICK_CHANNEL} is not currently live.")
 
 async def cmd_game(_ctx: _Ctx):
     info = await get_channel_info()
@@ -1285,7 +1291,7 @@ async def cmd_watchtime(ctx: _Ctx):
             row = await cur.fetchone()
     if row:
         hours, mins = divmod(row["watch_time"], 60)
-        await send_chat_message(f"@{target} has watched {CHANNEL_NAME} for {hours}h {mins}m.")
+        await send_chat_message(f"@{target} has watched {KICK_CHANNEL} for {hours}h {mins}m.")
     else:
         await send_chat_message(f"No watch time found for @{target}.")
 
@@ -1678,7 +1684,7 @@ async def get_spotify_access_token() -> str | None:
     try:
         async with await mysql_connection(db_name="website") as conn:
             async with conn.cursor(DictCursor) as cur:
-                await cur.execute("SELECT id FROM users WHERE username=%s", (CHANNEL_NAME,))
+                await cur.execute("SELECT id FROM users WHERE username=%s", (TWITCH_USERNAME,))
                 user_row = await cur.fetchone()
                 if user_row:
                     await cur.execute("SELECT access_token FROM spotify_tokens WHERE user_id=%s", (user_row["id"],))
@@ -1851,7 +1857,7 @@ async def builtin_commands_creation():
 async def update_version_control():
     directory = "/home/botofthespecter/logs/version/kick/"
     os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, f"{CHANNEL_NAME}_kick_version_control.txt")
+    path = os.path.join(directory, f"{TWITCH_USERNAME}_kick_version_control.txt")
     try:
         with open(path, "w") as f:
             f.write(VERSION)
@@ -1860,7 +1866,7 @@ async def update_version_control():
 
 async def main():
     global _shared_http_session
-    bot_logger.info(f"[BOT] Starting Kick bot — channel: {CHANNEL_NAME} | channel_id: {CHANNEL_ID} | chatroom_id: {CHATROOM_ID}")
+    bot_logger.info(f"[BOT] Starting Kick bot — channel: {TWITCH_USERNAME} | channel_id: {CHANNEL_ID} | chatroom_id: {CHATROOM_ID}")
     _shared_http_session = httpClientSession()
     await update_version_control()
     await builtin_commands_creation()
