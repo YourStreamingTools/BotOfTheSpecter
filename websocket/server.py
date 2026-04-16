@@ -8,7 +8,6 @@ import argparse
 import socketio
 from aiohttp import web, web_log
 import time
-import threading
 import paramiko
 import uuid
 import json
@@ -47,15 +46,15 @@ class SSHConnectionManager:
         self.logger = logger
         self.timeout_seconds = timeout_minutes * 60
         self.connections = {}  # hostname -> connection info
-        self.lock = threading.Lock()
+        self.lock = asyncio.Lock()
     async def get_connection(self, ssh_config):
         hostname = ssh_config['hostname']
-        with self.lock:
+        async with self.lock:
             # Check if we have an active connection
             if hostname in self.connections:
                 conn_info = self.connections[hostname]
                 # Check if connection is still valid and not timed out
-                if (time.time() - conn_info['last_used'] < self.timeout_seconds and 
+                if (time.time() - conn_info['last_used'] < self.timeout_seconds and
                     self._is_connection_alive(conn_info['client'])):
                     conn_info['last_used'] = time.time()
                     self.logger.debug(f"Reusing SSH connection to {hostname}")
@@ -90,7 +89,7 @@ class SSHConnectionManager:
             else:
                 raise ValueError("Either password or key_filename must be provided in SSH config")
             # Run connection in thread to avoid blocking
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None, lambda: ssh_client.connect(**connect_kwargs)
             )
             # Store connection info
@@ -115,15 +114,15 @@ class SSHConnectionManager:
     async def cleanup_expired_connections(self):
         current_time = time.time()
         expired_hosts = []
-        with self.lock:
+        async with self.lock:
             for hostname, conn_info in self.connections.items():
                 if current_time - conn_info['last_used'] > self.timeout_seconds:
                     expired_hosts.append(hostname)
             for hostname in expired_hosts:
                 self.logger.info(f"Cleaning up expired SSH connection to {hostname}")
                 self._cleanup_connection(hostname)
-    def cleanup_all_connections(self):
-        with self.lock:
+    async def cleanup_all_connections(self):
+        async with self.lock:
             for hostname in list(self.connections.keys()):
                 self._cleanup_connection(hostname)
             self.logger.info("All SSH connections cleaned up")
@@ -195,8 +194,6 @@ class BotOfTheSpecter_WebsocketServer:
         self.setup_event_handlers()
         self.sio.attach(self.app)
         self.loop = None
-        signal.signal(signal.SIGTERM, self.sig_handler)
-        signal.signal(signal.SIGINT, self.sig_handler)
 
     def setup_routes(self):
         # Set up the routes for the web application.
@@ -1154,7 +1151,7 @@ class BotOfTheSpecter_WebsocketServer:
         # Stop TTS processing
         await self.tts_handler.stop_processing()
         # Clean up all SSH connections
-        self.ssh_manager.cleanup_all_connections()
+        await self.ssh_manager.cleanup_all_connections()
         # Disconnect all registered clients properly
         for code, sids in list(self.registered_clients.items()):
             for client in sids:
@@ -1540,13 +1537,6 @@ class BotOfTheSpecter_WebsocketServer:
         except Exception as e:
             self.logger.error(f"Error transferring file {local_file_path}: {e}")
             return None
-
-    def get_code_by_sid(self, sid):
-        for code, clients in self.registered_clients.items():
-            for client in clients:
-                if client['sid'] == sid:
-                    return code
-        return None
 
 if __name__ == '__main__':
     SCRIPT_DIR = os.path.dirname(__file__)
