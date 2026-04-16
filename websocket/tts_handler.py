@@ -274,15 +274,17 @@ class TTSHandler:
             # Build remote file path
             remote_dir = self.tts_config['remote_paths']['tts_directory']
             remote_file_path = f"{remote_dir.rstrip('/')}/{filename}"
-            # Execute delete command
+            # Execute delete command in a thread to avoid blocking the event loop
             command = f"rm -f '{remote_file_path}'"
             self.logger.info(f"Executing remote cleanup: {command}")
-            stdin, stdout, stderr = ssh_client.exec_command(command)
-            exit_status = stdout.channel.recv_exit_status()
+            def _do_rm():
+                _, stdout, stderr = ssh_client.exec_command(command)
+                return stdout.channel.recv_exit_status(), stderr.read().decode().strip()
+            loop = asyncio.get_running_loop()
+            exit_status, error_msg = await loop.run_in_executor(None, _do_rm)
             if exit_status == 0:
                 self.logger.info(f"Successfully deleted remote file: {remote_file_path}")
             else:
-                error_msg = stderr.read().decode().strip()
                 self.logger.warning(f"Remote delete command returned {exit_status}: {error_msg}")
         except Exception as e:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
@@ -297,22 +299,26 @@ class TTSHandler:
             # Build remote path
             remote_dir = self.tts_config['remote_paths']['tts_directory']
             remote_file_path = f"{remote_dir.rstrip('/')}/{remote_filename}"
-            # Create remote directory if needed
+            loop = asyncio.get_running_loop()
+            # Create remote directory if needed (fire-and-forget, no need to wait)
             mkdir_command = f"mkdir -p '{remote_dir}'"
-            ssh_client.exec_command(mkdir_command)
-            # Transfer file using SCP
-            from scp import SCPClient
-            with SCPClient(ssh_client.get_transport()) as scp:
-                scp.put(local_file_path, remote_file_path)
+            await loop.run_in_executor(None, lambda: ssh_client.exec_command(mkdir_command))
+            # Transfer file using SCP in a thread to avoid blocking the event loop
+            def _do_scp():
+                from scp import SCPClient
+                with SCPClient(ssh_client.get_transport()) as scp:
+                    scp.put(local_file_path, remote_file_path)
+            await loop.run_in_executor(None, _do_scp)
             # Set correct ownership for web server access
             chown_command = f"chown www-data:www-data '{remote_file_path}'"
             self.logger.info(f"Setting file ownership: {chown_command}")
-            stdin, stdout, stderr = ssh_client.exec_command(chown_command)
-            exit_status = stdout.channel.recv_exit_status()
+            def _do_chown():
+                _, stdout, stderr = ssh_client.exec_command(chown_command)
+                return stdout.channel.recv_exit_status(), stderr.read().decode().strip()
+            exit_status, error_msg = await loop.run_in_executor(None, _do_chown)
             if exit_status == 0:
                 self.logger.info(f"File ownership set successfully")
             else:
-                error_msg = stderr.read().decode().strip()
                 self.logger.warning(f"Failed to set ownership: {error_msg}")
             self.logger.info(f"File transferred successfully: {remote_file_path}")
             return remote_file_path
