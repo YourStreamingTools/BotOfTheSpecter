@@ -680,6 +680,9 @@ class EventSubReconnect(Exception):
     def __init__(self, reconnect_url):
         self.reconnect_url = reconnect_url
 
+_seen_eventsub_message_ids: dict = {}  # message_id -> received_timestamp
+_EVENTSUB_DEDUP_TTL = 60  # seconds to remember a seen message_id
+
 # Setup Twitch EventSub
 async def twitch_eventsub():
     twitch_websocket_uri = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=600"
@@ -809,6 +812,18 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
             # event_logger.info(f"Received message: {message}")
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
+                if message_type == 'notification':
+                    eventsub_msg_id = message_data['metadata'].get('message_id')
+                    if eventsub_msg_id:
+                        now = time.time()
+                        # Purge expired entries to keep the dict small
+                        expired_ids = [k for k, t in _seen_eventsub_message_ids.items() if now - t > _EVENTSUB_DEDUP_TTL]
+                        for k in expired_ids:
+                            del _seen_eventsub_message_ids[k]
+                        if eventsub_msg_id in _seen_eventsub_message_ids:
+                            event_logger.warning(f"[EVENTSUB RECEIVE] Duplicate notification {eventsub_msg_id!r} ignored")
+                            continue
+                        _seen_eventsub_message_ids[eventsub_msg_id] = now
                 if message_type == 'session_keepalive':
                     event_logger.info("[EVENTSUB RECEIVE] Received session keepalive message from Twitch WebSocket")
                 elif message_type == 'session_reconnect':
@@ -3349,7 +3364,12 @@ class TwitchBot(commands.Bot):
             if source_room_id and source_room_id != str(CHANNEL_ID):
                 return
         author_name_for_log = message.author.name if getattr(message, 'author', None) else "unknown"
-        chat_history_logger.info(f"[EVENT MESSAGE] Chat message from {author_name_for_log}: {message.content}")
+        log_content = str(message.content) if message.content else ""
+        if log_content.startswith("\x01ACTION ") and log_content.endswith("\x01"):
+            log_content = log_content[8:-1]
+        elif log_content.startswith("ACTION - "):
+            log_content = log_content[9:]
+        chat_history_logger.info(f"[EVENT MESSAGE] Chat message from {author_name_for_log}: {log_content}")
         try:
             async with await mysql_connection() as connection:
                 async with connection.cursor(DictCursor) as cursor:
@@ -14537,7 +14557,7 @@ async def check_next_ad_after_completion(ads_api_url, headers):
                                         next_ad_datetime = datetime.fromtimestamp(int(next_ad_at), set_timezone.UTC)
                                         current_time = time_right_now(set_timezone.UTC)
                                         time_until_ad = (next_ad_datetime - current_time).total_seconds()
-                                        api_logger.info(f"[ADS] Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
+                                        api_logger.debug(f"[ADS] Next ad scheduled in {time_until_ad} seconds ({time_until_ad/60:.1f} minutes)")
                                         if time_until_ad <= 300:  # 5 minutes or less
                                             if ad_upcoming_last_notified_next_ad_at != next_ad_at:
                                                 ad_upcoming_last_notified_next_ad_at = next_ad_at
