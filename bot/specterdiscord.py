@@ -1951,9 +1951,9 @@ class LiveChannelManager:
                                     stream_age_minutes = (datetime.now(timezone.utc) - started_at_dt).total_seconds() / 60
                                 except Exception:
                                     pass
-                            # If the stream started more than 10 minutes ago, the bot restarted mid-stream.
+                            # If the stream started more than 5 minutes ago, the bot restarted mid-stream.
                             # Mark as online in our state but do NOT re-announce to avoid spamming.
-                            if stream_age_minutes is not None and stream_age_minutes > 10:
+                            if stream_age_minutes is not None and stream_age_minutes > 5:
                                 self.logger.info(
                                     f"Stream is live for {username_lower} (started {stream_age_minutes:.0f}m ago) "
                                     f"but no DB notification found — bot restarted mid-stream, skipping re-announcement"
@@ -3564,6 +3564,37 @@ class BotOfTheSpecter(commands.Bot):
             if code in self._stream_online_in_flight:
                 return
             self._stream_online_in_flight.add(code)
+        if event_type == "OFFLINE":
+            try:
+                early_verify_mysql = MySQLHelper(self.logger)
+                early_user_row = await early_verify_mysql.fetchone(
+                    "SELECT username FROM users WHERE api_key = %s",
+                    (code,), database_name='website', dict_cursor=True
+                )
+                if early_user_row and early_user_row.get('username'):
+                    early_username = early_user_row['username']
+                    early_auth, early_cid = await early_verify_mysql.get_bot_access_token()
+                    if early_auth and early_cid:
+                        async with aiohttp.ClientSession() as early_session:
+                            early_headers = {"Client-ID": early_cid, "Authorization": f"Bearer {early_auth}"}
+                            async with early_session.get(
+                                f"https://api.twitch.tv/helix/streams?user_login={early_username}&type=live&first=1",
+                                headers=early_headers
+                            ) as early_resp:
+                                if early_resp.status == 200:
+                                    early_data = await early_resp.json()
+                                    if early_data.get("data"):
+                                        self.logger.info(
+                                            f"OFFLINE event for {early_username} (code: {code}) but Twitch API confirms "
+                                            f"stream is still live — ignoring entire false offline event"
+                                        )
+                                        self._stream_online_in_flight.discard(code)
+                                        return
+            except Exception as early_verify_err:
+                self.logger.debug(f"Error in early offline verification for {code}: {early_verify_err}")
+                self.logger.info(f"Cannot verify offline for {code} — ignoring event to prevent false offline processing")
+                self._stream_online_in_flight.discard(code)
+                return
         # Update Discord info in cache
         await self.channel_mapping.update_discord_info(code, guild.name, channel.name)
         # Use cached message text or defaults
@@ -3716,6 +3747,56 @@ class BotOfTheSpecter(commands.Bot):
                                         skip_post = True
                         except Exception as e:
                             self.logger.error(f"Error checking existing live notifications for {account_username}: {e}", exc_info=True)
+                        if not skip_post:
+                            try:
+                                age_auth_token, age_client_id = await mysql_helper.get_bot_access_token()
+                                if age_auth_token and age_client_id:
+                                    async with aiohttp.ClientSession() as age_session:
+                                        age_headers = {"Client-ID": age_client_id, "Authorization": f"Bearer {age_auth_token}"}
+                                        async with age_session.get(
+                                            f"https://api.twitch.tv/helix/streams?user_login={account_username}&type=live&first=1",
+                                            headers=age_headers
+                                        ) as age_resp:
+                                            if age_resp.status == 200:
+                                                age_data = await age_resp.json()
+                                                age_streams = age_data.get("data", [])
+                                                if age_streams:
+                                                    age_started_at = age_streams[0].get('started_at')
+                                                    if age_started_at:
+                                                        age_started_dt = datetime.fromisoformat(age_started_at.replace('Z', '+00:00'))
+                                                        stream_age = datetime.now(timezone.utc) - age_started_dt
+                                                        stream_age_minutes = stream_age.total_seconds() / 60
+                                                        if stream_age_minutes > 5:
+                                                            self.logger.info(
+                                                                f"Stream for {account_username} has been live for {stream_age_minutes:.0f}m "
+                                                                f"but no DB entry exists — likely re-detection after false offline, "
+                                                                f"skipping notification and silently inserting DB entry"
+                                                            )
+                                                            skip_post = True
+                                                            try:
+                                                                posted_at_silent = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                                                                stream_id_silent = age_streams[0].get('id', '')
+                                                                await mysql_helper.insert_live_notification(
+                                                                    guild.id, account_username, stream_id_silent,
+                                                                    age_started_at, posted_at_silent
+                                                                )
+                                                                self._stream_alert_posted_at[cooldown_key] = datetime.now(timezone.utc)
+                                                                self.logger.info(f"Silently inserted live_notification for {account_username} in guild {guild.id}")
+                                                                # Also mark online in live_channel_manager
+                                                                if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
+                                                                    await self.live_channel_manager.mark_online(
+                                                                        code, username=account_username,
+                                                                        twitch_user_id=age_streams[0].get('user_id'),
+                                                                        stream_id=stream_id_silent or None,
+                                                                        started_at=age_started_at,
+                                                                        details=age_streams[0]
+                                                                    )
+                                                            except Exception as silent_err:
+                                                                self.logger.debug(f"Error silently inserting live_notification for {account_username}: {silent_err}")
+                                                        else:
+                                                            self.logger.info(f"Stream for {account_username} started {stream_age_minutes:.1f}m ago — fresh stream, proceeding with notification")
+                            except Exception as age_check_err:
+                                self.logger.debug(f"Error checking stream age for {account_username}: {age_check_err}")
                         # Get user profile image and stream info
                         if skip_post:
                             self.logger.info(f"Skipping live notification for {account_username} - already posted to guild {guild.id}")
@@ -3878,25 +3959,20 @@ class BotOfTheSpecter(commands.Bot):
                     break
         else:
             self.logger.info(f"Channel name already matches target '{channel_update}' - skipping rename")
-        # For OFFLINE events, clear all live notifications across all guilds
+        # For OFFLINE events, clear live notifications (stream already verified offline by early check above)
         if event_type == "OFFLINE":
             try:
                 if hasattr(self, 'live_channel_manager') and self.live_channel_manager:
                     await self.live_channel_manager.mark_offline(code)
                     # This clears notifications for ALL guilds, not just this one
                     await self.live_channel_manager.clear_live_notifications_for_channel(code)
-                    self.logger.info(f"Cleared live notifications for {code} on OFFLINE event")
+                    self.logger.info(f"Cleared live notifications for {code} on verified OFFLINE event")
             except Exception as e:
                 self.logger.error(f"Error clearing live notifications on OFFLINE for {code}: {e}")
         self._stream_online_in_flight.discard(code)
         self.logger.info(f"Completed processing {event_type} event for channel_code: {code}")
 
     async def _send_failure_dm(self, guild, action, username, reason):
-        """Send a failure notification DM to both the server owner and the bot owner.
-
-        Server owner receives a user-friendly message directing them to contact support.
-        Bot owner receives full technical detail so they can diagnose the issue.
-        """
         BOT_OWNER_ID = 127783626917150720
         guild_name = guild.name if guild else "Unknown Server"
         guild_id = guild.id if guild else "N/A"
@@ -6771,6 +6847,41 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
         # Only skip if we've already posted THIS stream_id for THIS guild
         if ln_row and ln_row.get('stream_id') and stream_id and str(ln_row.get('stream_id')) == str(stream_id):
             return False
+        if not ln_row:
+            try:
+                started_at_str = stream_data.get('started_at')
+                if started_at_str:
+                    started_at_dt = datetime.fromisoformat(str(started_at_str).replace('Z', '+00:00'))
+                    stream_age = datetime.now(timezone.utc) - started_at_dt
+                    stream_age_minutes = stream_age.total_seconds() / 60
+                    if stream_age_minutes > 5:
+                        self.logger.info(
+                            f"Tracked streamer {user_login} has been live for {stream_age_minutes:.0f}m "
+                            f"but no DB entry in guild {guild_id} — likely re-detection after false offline, "
+                            f"silently inserting DB entry without posting"
+                        )
+                        try:
+                            posted_at_silent = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                            await self.mysql.insert_live_notification(
+                                guild_id, user_login, stream_id or '',
+                                str(started_at_dt.strftime('%Y-%m-%d %H:%M:%S')), posted_at_silent
+                            )
+                            # Also mark online in live_channel_manager if available
+                            if channel_code and hasattr(self.bot, 'live_channel_manager') and self.bot.live_channel_manager:
+                                await self.bot.live_channel_manager.mark_online(
+                                    channel_code, username=user_login,
+                                    twitch_user_id=stream_data.get('user_id'),
+                                    stream_id=stream_id or None,
+                                    started_at=started_at_str,
+                                    details=stream_data
+                                )
+                        except Exception as silent_err:
+                            self.logger.debug(f"Error silently inserting tracked streamer notification for {user_login}: {silent_err}")
+                        return False
+                    else:
+                        self.logger.info(f"Tracked streamer {user_login} started {stream_age_minutes:.1f}m ago — fresh stream, proceeding with notification")
+            except Exception as age_err:
+                self.logger.debug(f"Error checking stream age for tracked streamer {user_login}: {age_err}")
         # If there's an old notification for a different stream_id, we should post this new one
         title = stream_data['title']
         game_name = stream_data['game_name']
@@ -6894,6 +7005,28 @@ class StreamerPostingCog(commands.Cog, name='Streamer Posting'):
                                 continue
             except Exception as e:
                 self.logger.debug(f"Error checking stream age for {username}: {e}")
+            try:
+                verify_auth, verify_cid = await self.mysql.get_bot_access_token()
+                if verify_auth and verify_cid:
+                    async with aiohttp.ClientSession() as verify_session:
+                        verify_headers = {"Client-ID": verify_cid, "Authorization": f"Bearer {verify_auth}"}
+                        async with verify_session.get(
+                            f"https://api.twitch.tv/helix/streams?user_login={username}&type=live&first=1",
+                            headers=verify_headers
+                        ) as verify_resp:
+                            if verify_resp.status == 200:
+                                verify_data = await verify_resp.json()
+                                if verify_data.get("data"):
+                                    self.logger.info(
+                                        f"Tracked streamer {username} missing from batch check but direct API confirms still live "
+                                        f"in guild {guild_id} — skipping offline to prevent duplicate notification"
+                                    )
+                                    continue
+            except Exception as verify_err:
+                self.logger.debug(f"Error verifying tracked streamer offline status for {username}: {verify_err}")
+                # If we can't verify, skip clearing to be safe
+                self.logger.info(f"Cannot verify offline for tracked streamer {username} — keeping live state")
+                continue
             # Mark offline in the live_channel_manager and clear ALL live notifications across all guilds
             try:
                 user_row = await self.mysql.fetchone(
