@@ -46,11 +46,13 @@ load_dotenv()
 
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
+from custom_channel_modules import gfaundead as gfaundead_module
 from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
 #hedgehogobrien_module = None
 
 _MODULE_CLASSES = [
     hedgehogobrien_module.HedgehogOBrienModule if hedgehogobrien_module is not None else None,
+    gfaundead_module.GFAUnDeadModule if gfaundead_module is not None else None,
 ]
 _MODULE_CLASSES = [cls for cls in _MODULE_CLASSES if cls is not None]
 
@@ -2941,6 +2943,7 @@ async def process_tanggle_room_complete(data):
                     "piece_completed": pieces.get('completed'),
                 }
             ))
+            safe_create_task(dispatch_module_event("puzzle_complete", completed_count=completed_count, room_uuid=room_uuid))
         else:
             integrations_logger.info(f"[TANGGLE] Tanggle: Duplicate room.complete event ignored for room {room_uuid}. Total remains: {completed_count}")
     except Exception as e:
@@ -3317,7 +3320,12 @@ class TwitchBot(commands.Bot):
             except Exception as _mod_err:
                 bot_logger.error(f"[module] {cls.__name__} failed to ensure tables: {_mod_err}")
         if _channel_modules:
-            looped_tasks["module_ready_dispatch"] = create_task(dispatch_module_event("ready", broadcaster_id=CHANNEL_ID, irc_presence=twitch_irc_presence))
+            looped_tasks["module_ready_dispatch"] = create_task(dispatch_module_event(
+                "ready",
+                broadcaster_id=CHANNEL_ID,
+                irc_presence=twitch_irc_presence,
+                get_stream_started_at=lambda: stream_session_started_at,
+            ))
         await send_chat_message(f"SpecterSystems connected and ready! Running V{VERSION} {SYSTEM}")
 
     async def event_channel_joined(self, channel):
@@ -3417,6 +3425,20 @@ class TwitchBot(commands.Bot):
                     websocket_logger.error(f"[CHAT OVERLAY] CHAT_MESSAGE relay error: {chat_relay_err}")
             else:
                 websocket_logger.debug(f"[CHAT OVERLAY] Skipped CHAT_MESSAGE relay (websocket_connected={websocket_connected}, socket={specterSocket is not None}, socket.connected={getattr(specterSocket, 'connected', False)})")
+            if _channel_modules and messageAuthor:
+                try:
+                    _tags = message.tags or {}
+                    _badges = str(_tags.get('badges', '') or '')
+                    _is_vip = 'vip/' in _badges.lower()
+                    safe_create_task(dispatch_module_event(
+                        "chat_message",
+                        username=messageAuthor,
+                        message=message.content or '',
+                        is_vip=_is_vip,
+                        broadcaster_id=CHANNEL_ID,
+                    ))
+                except Exception as _mod_chat_err:
+                    bot_logger.debug(f"[MODULE DISPATCH] chat_message prep error: {_mod_chat_err}")
             # Handle commands
             await self.handle_commands(message)
             messageContent = messageContentRaw.lower()
@@ -7522,6 +7544,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[DEATH ADD] Stream death count for {current_game} is now: {stream_death_count}")
                     await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
                     safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    safe_create_task(dispatch_module_event("death_change", count=stream_death_count))
                 except GeneratorExit:
                     raise
                 except Exception as e:
@@ -7597,6 +7620,7 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[DEATH REMOVE] Total death count has been calculated as: {total_death_count}")
                     await send_chat_message(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
                     safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
+                    safe_create_task(dispatch_module_event("death_change", count=stream_death_count))
                 except GeneratorExit:
                     raise
                 except Exception as e:
