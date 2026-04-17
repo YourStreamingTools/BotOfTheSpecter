@@ -295,12 +295,17 @@ async def dispatch_module_event(event: str, **kwargs):
 async def dispatch_module_command(message: str, username: str, broadcaster_id: str) -> None:
     for module in _channel_modules:
         try:
-            if hasattr(module, 'is_bureau_command') and callable(module.is_bureau_command):
-                if module.is_bureau_command(message):
-                    if hasattr(module, 'handle_bureau_command') and callable(module.handle_bureau_command):
-                        async def _send(msg, _mod=module):
-                            await _mod.send_module_message(message=msg, broadcaster_id=broadcaster_id)
-                        await module.handle_bureau_command(command=message, username=username, send_message=_send)
+            for is_name, handle_name in (
+                ('is_module_command', 'handle_module_command'),
+                ('is_bureau_command', 'handle_bureau_command'),
+            ):
+                is_fn = getattr(module, is_name, None)
+                handle_fn = getattr(module, handle_name, None)
+                if callable(is_fn) and callable(handle_fn) and is_fn(message):
+                    async def _send(msg, _mod=module):
+                        await _mod.send_module_message(message=msg, broadcaster_id=broadcaster_id)
+                    await handle_fn(command=message, username=username, send_message=_send)
+                    break
         except Exception as e:
             bot_logger.error(f"[MODULE DISPATCH] command → {type(module).__name__}: {e}")
 
