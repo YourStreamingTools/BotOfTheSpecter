@@ -27,6 +27,7 @@ bot/heartrate_test.py
 
 # Custom Bot Modules for channels
 bot/custom_channel_modules/hedgehogobrien.py
+bot/custom_channel_modules/gfaundead.py
 
 # Log files
 api/log.txt
