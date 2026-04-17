@@ -766,6 +766,8 @@ class WebsocketListener:
             if event and event.startswith('OBS_'):
                 # Ignore OBS-related events since Discord bot doesn't need to process them
                 return
+            if event == 'CHAT_MESSAGE':
+                return
             self.logger.info(f"Received websocket event '{event}': {data}")
         await self.specterSocket.connect(websocket_url)
 
