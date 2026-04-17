@@ -302,8 +302,11 @@ async def dispatch_module_command(message: str, username: str, broadcaster_id: s
                 is_fn = getattr(module, is_name, None)
                 handle_fn = getattr(module, handle_name, None)
                 if callable(is_fn) and callable(handle_fn) and is_fn(message):
-                    async def _send(msg, _mod=module):
-                        await _mod.send_module_message(message=msg, broadcaster_id=broadcaster_id)
+                    async def _send(msg, bot_name=None, _mod=module):
+                        kwargs = {'message': msg, 'broadcaster_id': broadcaster_id}
+                        if bot_name is not None:
+                            kwargs['bot_name'] = bot_name
+                        await _mod.send_module_message(**kwargs)
                     await handle_fn(command=message, username=username, send_message=_send)
                     break
         except Exception as e:
