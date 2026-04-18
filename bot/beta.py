@@ -2107,8 +2107,8 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                         f"[IRC PRESENCE] IRC Presence: Bot joined #{CHANNEL_NAME} as {role} "
                         f"(IRC rate limit: {rate_bucket})"
                     )
-                # ── USERNOTICE — subscription/raid/milestone events ───────────────
-                elif "USERNOTICE" in line and ("#" + CHANNEL_NAME) in line:
+                # USERNOTICE — subscription/raid/milestone events
+                elif "USERNOTICE" in line and ("#" + CHANNEL_NAME) in line and irc_nick == "botofthespecter":
                     un_tags = _parse_irc_tags(line)
                     un_msg_id = un_tags.get("msg-id", "")
                     if un_msg_id == "viewermilestone":
