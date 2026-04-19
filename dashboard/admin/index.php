@@ -790,8 +790,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
     $success = false;
     $response_message = 'Unknown error';
     $resolved_target_id = '';
-    $resolved_target_game = '';
-    $chat_message_sent = false;
     if (empty($chatClientId) || empty($chatOAuth)) {
         $response_message = 'Twitch app credentials are missing. Check bot_chat_token table token/client ID settings.';
     } elseif (empty($from_broadcaster_id) || empty($target_login)) {
@@ -853,74 +851,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_shoutout'])) {
                     if ($shoutout_curl_errno) {
                         $response_message = 'Failed to send shoutout: ' . $shoutout_curl_error;
                     } elseif ($shoutout_http_code === 204) {
-                        $channels_url = 'https://api.twitch.tv/helix/channels?broadcaster_id=' . rawurlencode($resolved_target_id);
-                        $channels_ch = curl_init($channels_url);
-                        curl_setopt($channels_ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($channels_ch, CURLOPT_HTTPHEADER, $headers);
-                        curl_setopt($channels_ch, CURLOPT_TIMEOUT, 10);
-                        $channels_response = curl_exec($channels_ch);
-                        $channels_http_code = curl_getinfo($channels_ch, CURLINFO_HTTP_CODE);
-                        $channels_curl_errno = curl_errno($channels_ch);
-                        curl_close($channels_ch);
-                        if (!$channels_curl_errno && $channels_http_code === 200) {
-                            $channels_data = json_decode((string)$channels_response, true);
-                            if (is_array($channels_data) && isset($channels_data['data'][0]) && is_array($channels_data['data'][0])) {
-                                $resolved_target_game = trim((string)($channels_data['data'][0]['game_name'] ?? ''));
-                            }
-                        }
-                        if (!empty($resolved_target_game)) {
-                            $shoutout_message = 'Hey, huge shoutout to @' . $resolved_target_login . '! '
-                                . 'You should go give them a follow over at '
-                                . 'https://www.twitch.tv/' . $resolved_target_login . ' where they were playing: ' . $resolved_target_game;
-                        } else {
-                            $shoutout_message = 'Hey, huge shoutout to @' . $resolved_target_login . '! '
-                                . 'You should go give them a follow over at '
-                                . 'https://www.twitch.tv/' . $resolved_target_login;
-                        }
-                        $chat_url = 'https://api.twitch.tv/helix/chat/messages';
-                        $chat_payload = [
-                            'broadcaster_id' => $from_broadcaster_id,
-                            'sender_id' => $moderator_id,
-                            'message' => $shoutout_message
-                        ];
-                        $chat_ch = curl_init($chat_url);
-                        curl_setopt($chat_ch, CURLOPT_POST, true);
-                        curl_setopt($chat_ch, CURLOPT_POSTFIELDS, json_encode($chat_payload));
-                        curl_setopt($chat_ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($chat_ch, CURLOPT_HTTPHEADER, $headers);
-                        curl_setopt($chat_ch, CURLOPT_TIMEOUT, 10);
-                        $chat_response = curl_exec($chat_ch);
-                        $chat_http_code = curl_getinfo($chat_ch, CURLINFO_HTTP_CODE);
-                        $chat_curl_errno = curl_errno($chat_ch);
-                        $chat_curl_error = curl_error($chat_ch);
-                        curl_close($chat_ch);
                         $success = true;
-                        $chat_message_error = null;
-                        if ($chat_curl_errno) {
-                            $chat_message_error = 'Failed to send chat shoutout message: ' . $chat_curl_error;
-                        } elseif ($chat_http_code === 200) {
-                            $chat_response_data = json_decode((string)$chat_response, true);
-                            if (is_array($chat_response_data) && isset($chat_response_data['data'][0]) && is_array($chat_response_data['data'][0])) {
-                                $chat_message_sent = !empty($chat_response_data['data'][0]['is_sent']);
-                                if (!$chat_message_sent) {
-                                    $drop_reason = $chat_response_data['data'][0]['drop_reason'] ?? null;
-                                    $chat_message_error = 'Shoutout chat message was not sent' . ($drop_reason ? (': ' . $drop_reason) : '.');
-                                }
-                            } else {
-                                $chat_message_error = 'Shoutout sent but chat message response was invalid.';
-                            }
-                        } else {
-                            $chat_message_error = 'Shoutout sent but failed to send chat message. HTTP ' . $chat_http_code;
-                            $chat_error_json = json_decode((string)$chat_response, true);
-                            if (is_array($chat_error_json) && !empty($chat_error_json['message'])) {
-                                $chat_message_error .= ': ' . $chat_error_json['message'];
-                            }
-                        }
-                        if ($chat_message_error) {
-                            $response_message = 'Shoutout sent to ' . $resolved_target_display . ' successfully. ' . $chat_message_error;
-                        } else {
-                            $response_message = 'Shoutout sent to ' . $resolved_target_display . ' successfully and message posted in chat.';
-                        }
+                        $response_message = 'Shoutout sent to ' . $resolved_target_display . ' successfully.';
                     } else {
                         $response_message = 'Failed to send shoutout. HTTP ' . $shoutout_http_code;
                         $shoutout_error_json = json_decode((string)$shoutout_response, true);
