@@ -9294,10 +9294,12 @@ class TwitchBot(commands.Bot):
                     # Remove user lotto entry after the draw
                     await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                     await connection.commit()
+                winning_str = ', '.join(str(n) for n in sorted(winning_set))
+                supplementary_str = ', '.join(str(n) for n in sorted(supplementary_set))
                 if winners == 0 and user_lotto_numbers:
-                    await send_chat_message(f"No winners this time! The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
+                    await send_chat_message(f"No winners this time! The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
                 else:
-                    await send_chat_message(f"The winning numbers were: {winning_set} and Supplementary: {supplementary_set}")
+                    await send_chat_message(f"The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
                 # Clear winning numbers after the draw
                 await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
                 await connection.commit()
