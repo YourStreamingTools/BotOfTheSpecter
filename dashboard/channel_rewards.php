@@ -279,7 +279,7 @@ if (!$showNoChannelPoints && isset($_SESSION['access_token']) && !empty($clientI
                     $rewardId = $r['id'];
                     $rewardTitle = $r['title'];
                     $rewardCost = isset($r['cost']) ? (int)$r['cost'] : 0;
-                    $customMsg = $rewardTitle;
+                    $customMsg = null;
                     // Upsert into per-user DB (no is_enabled column in schema)
                     $upsertSql = "INSERT INTO channel_point_rewards (reward_id, reward_title, reward_cost, custom_message, managed_by) VALUES (?, ?, ?, ?, 'specter') ON DUPLICATE KEY UPDATE reward_title=VALUES(reward_title), reward_cost=VALUES(reward_cost), custom_message=IF(custom_message IS NULL OR custom_message = '', VALUES(custom_message), custom_message), managed_by=VALUES(managed_by)";
                     $stmtUp = $db->prepare($upsertSql);
