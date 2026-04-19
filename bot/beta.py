@@ -11203,6 +11203,8 @@ async def process_stream_online_websocket():
         stream_session_started_at = datetime.now(timezone.utc).timestamp()
         ad_upcoming_notified = False
         ad_upcoming_last_notified_next_ad_at = None
+        if _channel_modules:
+            safe_create_task(dispatch_module_event("stream_online", broadcaster_id=CHANNEL_ID))
         last_ad_message_ts = 0.0
         clear_ad_break_chat_history("stream-online-session-reset")
     await generate_winning_lotto_numbers()
@@ -11279,8 +11281,9 @@ async def process_stream_online_websocket():
 
 # Function to process the stream being offline
 async def process_stream_offline_websocket():
-    global stream_online, scheduled_clear_task
+    global stream_online, scheduled_clear_task, stream_session_started_at
     stream_online = False  # Update the stream status
+    stream_session_started_at = 0.0  # Clear so duration loop doesn't fire while offline
     # Cancel any previous scheduled task to avoid duplication
     if "hyperate_websocket" in looped_tasks:
         looped_tasks["hyperate_websocket"].cancel()
@@ -12891,14 +12894,25 @@ async def check_stream_online():
                                 stream_title = channel_data['data'][0].get('title', None)
                     else:
                         stream_online = True
+                        stream_data = data['data'][0]
                         if not was_online:
-                            stream_session_started_at = datetime.now(timezone.utc).timestamp()
+                            # Use the real Twitch started_at so uptime and duration milestones are accurate
+                            started_at_str = stream_data.get('started_at')
+                            if started_at_str:
+                                try:
+                                    started_at_dt = datetime.strptime(started_at_str.replace('Z', '+00:00'), "%Y-%m-%dT%H:%M:%S%z")
+                                    stream_session_started_at = started_at_dt.timestamp()
+                                except Exception:
+                                    stream_session_started_at = datetime.now(timezone.utc).timestamp()
+                            else:
+                                stream_session_started_at = datetime.now(timezone.utc).timestamp()
                             ad_upcoming_notified = False
                             ad_upcoming_last_notified_next_ad_at = None
                             last_ad_message_ts = 0.0
                             clear_ad_break_chat_history("stream-online-status-check-reset")
+                            if _channel_modules:
+                                safe_create_task(dispatch_module_event("stream_online", broadcaster_id=CHANNEL_ID))
                         # Extract game and title from streams data
-                        stream_data = data['data'][0]
                         current_game = stream_data.get('game_name', None)
                         stream_title = stream_data.get('title', None)
                         looped_tasks["timed_message"] = create_task(timed_message())
