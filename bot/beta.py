@@ -1575,7 +1575,7 @@ async def process_twitch_eventsub_message(message):
                         mod_info = event_data.get("mod", {})
                         user_name = mod_info.get("user_name", "Unknown User")
                         event_logger.info(f"[EVENTSUB] User {user_name} added as moderator by {moderator_user_name}")
-                        safe_create_task(dispatch_module_event("mod_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
+                        safe_create_task(websocket_notice(event="MOD_GRANTED", user=user_name))
                     elif action == "unmod":
                         unmod_info = event_data.get("unmod", {})
                         user_name = unmod_info.get("user_name", "Unknown User")
@@ -1584,7 +1584,7 @@ async def process_twitch_eventsub_message(message):
                         vip_info = event_data.get("vip", {})
                         user_name = vip_info.get("user_name", "Unknown User")
                         event_logger.info(f"[EVENTSUB] User {user_name} added as VIP by {moderator_user_name}")
-                        safe_create_task(dispatch_module_event("vip_granted", user_name=user_name, broadcaster_id=CHANNEL_ID))
+                        safe_create_task(websocket_notice(event="VIP_GRANTED", user=user_name))
                     elif action == "unvip":
                         unvip_info = event_data.get("unvip", {})
                         user_name = unvip_info.get("user_name", "Unknown User")
@@ -3798,10 +3798,11 @@ class TwitchBot(commands.Bot):
                     await connection.commit()
                     chat_logger.info(f"[WELCOME] Marked {messageAuthor} as seen today.")
                     # Forward to custom modules if applicable - module handles message and returns True
-                    _module_handled = await dispatch_module_event("first_chat",
-                        channel_name=CHANNEL_NAME,
-                        username=messageAuthor,
-                        broadcaster_id=CHANNEL_ID,
+                    _module_handled = await websocket_notice(
+                        event="FIRST_CHAT",
+                        user=messageAuthor,
+                        additional_data={"channel_name": CHANNEL_NAME, "username": messageAuthor},
+                        interceptable=True,
                     )
                     if _module_handled:
                         safe_create_task(self.safe_walkon(messageAuthor))
@@ -4477,7 +4478,7 @@ class TwitchBot(commands.Bot):
                         custom_response_message = f"Custom commands: https://members.botofthespecter.com/{CHANNEL_NAME}/"
                         await send_chat_message(custom_response_message)
                         # Let any active module announce its own commands
-                        safe_create_task(dispatch_module_event("commands_list", broadcaster_id=CHANNEL_ID))
+                        safe_create_task(websocket_notice(event="COMMANDS_LIST"))
                         # Record usage
                         add_usage('commands', bucket_key, cooldown_bucket)
                     else:
@@ -12588,8 +12589,34 @@ async def ban_user(username, user_id, use_streamer=False):
 async def websocket_notice(
     event, user=None, death=None, game=None, weather=None, cheer_amount=None,
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
-    video=None, additional_data=None, rewards_data=None
+    video=None, additional_data=None, rewards_data=None,
+    interceptable=False, _http_only=False,
 ):
+    if not _http_only:
+        _mod_kwargs = {'broadcaster_id': CHANNEL_ID, 'send_sound': websocket_notice}
+        for _k, _v in [
+            ('user', user), ('death', death), ('game', game),
+            ('weather', weather), ('cheer_amount', cheer_amount),
+            ('sub_tier', sub_tier), ('sub_months', sub_months),
+            ('raid_viewers', raid_viewers), ('text', text),
+            ('sound', sound), ('video', video), ('rewards_data', rewards_data),
+        ]:
+            if _v is not None:
+                _mod_kwargs[_k] = _v
+        if additional_data and isinstance(additional_data, dict):
+            _mod_kwargs.update(additional_data)
+        if interceptable:
+            module_handled = await dispatch_module_event(event.lower(), **_mod_kwargs) if _channel_modules else False
+            safe_create_task(websocket_notice(
+                event, user=user, death=death, game=game, weather=weather,
+                cheer_amount=cheer_amount, sub_tier=sub_tier, sub_months=sub_months,
+                raid_viewers=raid_viewers, text=text, sound=sound, video=video,
+                additional_data=additional_data, rewards_data=rewards_data,
+                _http_only=True,
+            ))
+            return module_handled
+        if _channel_modules:
+            safe_create_task(dispatch_module_event(event.lower(), **_mod_kwargs))
     # Check if websocket is connected before sending notifications
     if not is_websocket_connected():
         websocket_logger.error(f"[WS NOTICE] Cannot send event '{event}' - websocket is not connected to internal system")
@@ -12689,6 +12716,13 @@ async def websocket_notice(
                     else:
                         websocket_logger.error(f"[WS NOTICE] Event '{event}' requires additional parameters.")
                         return
+                elif event in ["MOD_GRANTED", "VIP_GRANTED", "FIRST_CHAT"]:
+                    if user:
+                        params['user'] = user
+                    if additional_data:
+                        params.update(additional_data)
+                elif event == "COMMANDS_LIST":
+                    pass  # No additional parameters needed
                 elif event in [
                     "TANNGLE_COMPLETE",
                     "STREAM_BINGO_STARTED", "STREAM_BINGO_ENDED", "STREAM_BINGO_EVENT_CALLED",
@@ -12707,20 +12741,6 @@ async def websocket_notice(
                 async with session.get(url) as response:
                     if response.status == 200:
                         websocket_logger.info(f"[WS NOTICE] HTTP event '{event}' sent successfully with params: {params}")
-                        if _channel_modules:
-                            _mod_kwargs = {'broadcaster_id': CHANNEL_ID, 'send_sound': websocket_notice}
-                            for _k, _v in [
-                                ('user', user), ('death', death), ('game', game),
-                                ('weather', weather), ('cheer_amount', cheer_amount),
-                                ('sub_tier', sub_tier), ('sub_months', sub_months),
-                                ('raid_viewers', raid_viewers), ('text', text),
-                                ('sound', sound), ('video', video), ('rewards_data', rewards_data),
-                            ]:
-                                if _v is not None:
-                                    _mod_kwargs[_k] = _v
-                            if additional_data and isinstance(additional_data, dict):
-                                _mod_kwargs.update(additional_data)
-                            safe_create_task(dispatch_module_event(event.lower(), **_mod_kwargs))
                     else:
                         websocket_logger.error(f"[WS NOTICE] Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
@@ -13068,15 +13088,17 @@ async def process_channel_point_rewards(event_data, event_type):
             reward_data = event_data.get("reward", {})
             reward_id = reward_data.get("id")
             reward_title = reward_data.get("title" if event_type.endswith(".add") else "type")
-            safe_create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
-            if event_type == "channel.channel_points_custom_reward_redemption.add" and _channel_modules:
-                handled = await dispatch_module_event("channel_point_redemption",
-                    username=user_name,
-                    broadcaster_id=CHANNEL_ID,
-                    reward_title=reward_title,
+            if event_type == "channel.channel_points_custom_reward_redemption.add":
+                handled = await websocket_notice(
+                    event="TWITCH_CHANNELPOINTS",
+                    rewards_data=event_data,
+                    additional_data={"username": user_name, "reward_title": reward_title},
+                    interceptable=True,
                 )
                 if handled:
                     return
+            else:
+                safe_create_task(websocket_notice(event="TWITCH_CHANNELPOINTS", rewards_data=event_data))
             # Custom message handling
             await cursor.execute("SELECT custom_message FROM channel_point_rewards WHERE reward_id = %s", (reward_id,))
             custom_message_result = await cursor.fetchone()
