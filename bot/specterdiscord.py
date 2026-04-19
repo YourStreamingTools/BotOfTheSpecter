@@ -3347,7 +3347,7 @@ class BotOfTheSpecter(commands.Bot):
             desc = f"**{twitch_username}** just subscribed"
             if months > 1:
                 desc += f" for {months} months"
-            desc += f" (Tier {tier})!"
+            desc += f" ({tier})!"
             embed = discord.Embed(
                 title="New Subscriber!",
                 description=desc,
