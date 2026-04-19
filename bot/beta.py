@@ -2199,8 +2199,11 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                                 if streak_result and streak_result.get("alert_message"):
                                     streak_msg = streak_result.get("alert_message")
                                 else:
-                                    streak_msg = "Congrats (user) on watching (value) consecutive streams!"
-                                streak_msg = streak_msg.replace("(user)", un_display).replace("(value)", str(un_value))
+                                    if new_total > un_value:
+                                        streak_msg = "Congrats (user) on watching (value) consecutive streams! They've watched a total of (total) streams."
+                                    else:
+                                        streak_msg = "Congrats (user) on watching (value) consecutive streams!"
+                                streak_msg = streak_msg.replace("(user)", un_display).replace("(value)", str(un_value)).replace("(total)", str(new_total))
                             safe_create_task(send_chat_message(streak_msg))
                         else:
                             bot_logger.info(f"[IRC PRESENCE] IRC Presence USERNOTICE viewermilestone (category={un_category}): {line}")
