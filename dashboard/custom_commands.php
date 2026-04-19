@@ -322,6 +322,10 @@ ob_start();
             <i class="fas fa-code"></i>
             <span><?php echo t('custom_commands_view_variables'); ?></span>
         </a>
+        <div class="sp-betabot-toggle">
+            <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
+            <label for="betaBotToggle">Using Beta Bot? <strong>Enables 500 character limit.</strong></label>
+        </div>
     </div>
 </div>
 <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
@@ -581,6 +585,18 @@ function sanitizeCommandName(commandName) {
         .toLowerCase()
         .replace(/\s+/g, '')
         .replace(/[^a-z0-9]/g, '');
+}
+
+var charLimit = 255;
+function applyBetaBotCharLimit(enabled) {
+    charLimit = enabled ? 500 : 255;
+    localStorage.setItem('betaBotMode', enabled ? '1' : '0');
+    ['response', 'command_response'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.setAttribute('maxlength', charLimit);
+    });
+    updateCharCount('response', 'responseCharCount');
+    updateCharCount('command_response', 'editResponseCharCount');
 }
 
 var randomPickOptionsCache = {};
@@ -1006,7 +1022,7 @@ function clearEditCustomCommandForm() {
 function updateCharCount(inputId, counterId) {
     const input = document.getElementById(inputId);
     const counter = document.getElementById(counterId);
-    const maxLength = 255;
+    const maxLength = charLimit;
     const currentLength = input.value.length;
     // Update the counter text
     counter.textContent = currentLength + '/' + maxLength + ' characters';
@@ -1027,7 +1043,7 @@ function updateCharCount(inputId, counterId) {
 
 // Validate form before submission
 function validateForm(form) {
-    const maxLength = 255;
+    const maxLength = charLimit;
     let valid = true;
     // Check all text inputs with maxlength attribute
     const textInputs = form.querySelectorAll('input[type="text"][maxlength]');
@@ -1049,6 +1065,10 @@ function validateForm(form) {
 
 // Initialize character counters when page loads
 window.onload = function() {
+    var betaEnabled = localStorage.getItem('betaBotMode') === '1';
+    var toggle = document.getElementById('betaBotToggle');
+    if (toggle) toggle.checked = betaEnabled;
+    applyBetaBotCharLimit(betaEnabled);
     updateCharCount('response', 'responseCharCount');
     // Always initialize the edit response character counter, even when empty
     updateCharCount('command_response', 'editResponseCharCount');
