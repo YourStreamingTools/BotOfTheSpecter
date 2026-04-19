@@ -100,6 +100,8 @@ ensureDirectoryWritable($videoalert_path);
 ensureDirectoryWritable($twitch_sound_alert_path);
 // Ensure per-user music folder exists and is writable
 ensureDirectoryWritable($user_music_path);
+// Ensure unified media library folder exists and is writable
+ensureDirectoryWritable($media_path);
 
 // Public user-music folder served by music.botspecter.com - mirror/symlink target for uploaded files
 $public_user_music_path = "/var/www/usermusic/" . $username;

@@ -465,10 +465,6 @@ ob_start();
         <a><i class="fas fa-bell"></i><span>Alert Media</span></a>
     </li>
 </ul>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
-<!-- Sound Alerts Tab -->
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-content" id="sound-alerts" style="display:<?php echo $activeTab === 'sound-alerts' ? 'block' : 'none'; ?>;">
     <!-- File Management Card -->
     <div class="sp-card">
@@ -551,10 +547,6 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
-<!-- Video Alerts Tab -->
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-content" id="video-alerts" style="display:<?php echo $activeTab === 'video-alerts' ? 'block' : 'none'; ?>;">
     <!-- File Management Card -->
     <div class="sp-card">
@@ -637,10 +629,6 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
-<!-- Walk-ons Tab -->
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-content" id="walkons" style="display:<?php echo $activeTab === 'walkons' ? 'block' : 'none'; ?>;">
     <!-- File Management Card -->
     <div class="sp-card">
@@ -693,10 +681,6 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
-<!-- Twitch Event Alerts Tab -->
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-content" id="twitch-events" style="display:<?php echo $activeTab === 'twitch-events' ? 'block' : 'none'; ?>;">
     <!-- File Management Card -->
     <div class="sp-card">
@@ -787,53 +771,68 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
-<!-- Alert Media Tab -->
-<!-- ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="tab-content" id="alert-media" style="display:<?php echo $activeTab === 'alert-media' ? 'block' : 'none'; ?>;">
     <div class="sp-card">
         <header class="sp-card-header">
             <span class="sp-card-title"><i class="fas fa-bell"></i> Alert Media</span>
+            <button class="sp-btn sp-btn-danger delete-selected-btn" disabled data-form="alertMediaDeleteForm">
+                <i class="fas fa-trash"></i> <span>Delete Selected</span>
+            </button>
         </header>
         <div class="sp-card-body">
-            <?php if (!empty($alertMediaFiles)): ?>
-            <div class="sp-table-wrap">
-                <table class="sp-table media-table">
-                    <thead>
-                        <tr>
-                            <th>File Name</th>
-                            <th>Type</th>
-                            <th>Used By</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($alertMediaFiles as $filename => $usages): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars(pathinfo($filename, PATHINFO_FILENAME)); ?></td>
-                            <td>
-                                <?php
-                                    $types = array_unique(array_column($usages, 'type'));
-                                    echo implode(', ', array_map('ucfirst', $types));
-                                ?>
-                            </td>
-                            <td>
-                                <?php foreach ($usages as $usage): ?>
-                                    <div>
-                                        <em><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $usage['category']))); ?></em>
-                                        &mdash; <?php echo htmlspecialchars($usage['variant']); ?>
-                                        (<?php echo $usage['type']; ?>)
-                                    </div>
-                                <?php endforeach; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+            <?php if (!empty($soundalert_files)): ?>
+            <form action="" method="POST" id="alertMediaDeleteForm" class="media-delete-form">
+                <input type="hidden" name="media_type" value="alert_media">
+                <div class="sp-table-wrap">
+                    <table class="sp-table media-table">
+                        <thead>
+                            <tr>
+                                <th class="col-select">Select</th>
+                                <th>File Name</th>
+                                <th>Used By Alerts</th>
+                                <th class="col-action">Action</th>
+                                <th class="col-test">Test Audio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($soundalert_files as $file):
+                                $usages = $alertMediaFiles[$file] ?? [];
+                            ?>
+                            <tr>
+                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
+                                <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
+                                <td>
+                                    <?php if (!empty($usages)): ?>
+                                        <?php foreach ($usages as $usage): ?>
+                                            <div>
+                                                <em><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $usage['category']))); ?></em>
+                                                &mdash; <?php echo htmlspecialchars($usage['variant']); ?>
+                                                (<?php echo $usage['type']; ?>)
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <em>Not used in any alert</em>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="alertMediaDeleteForm">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                                <td>
+                                    <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="SOUND_ALERT" data-param="sound" data-file="<?php echo htmlspecialchars($file); ?>">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </form>
             <?php else: ?>
                 <div class="media-empty-state">
-                    <p>No alert media files configured. Upload images and sounds via the <a href="alerts.php">Alerts</a> page.</p>
+                    <p>No MP3 files uploaded yet. Upload files using the upload form above.</p>
                 </div>
             <?php endif; ?>
         </div>
@@ -854,7 +853,6 @@ $(document).ready(function() {
         $('.tab-content').hide();
         $('#' + tab).show();
     });
-
     // Auto-dismiss status messages after 15 seconds
     if ($('.sp-notif').length) {
         setTimeout(function() {
@@ -863,7 +861,6 @@ $(document).ready(function() {
             });
         }, 15000);
     }
-
     // File input display update
     $(document).on('change', '.media-upload-form input[type="file"]', function() {
         let files = this.files;
@@ -874,7 +871,6 @@ $(document).ready(function() {
         }
         label.text(names.length ? names.join(', ') : label.data('default') || 'No files selected');
     });
-
     // AJAX upload with progress bar (unified for all tabs)
     $(document).on('submit', '.media-upload-form', function(e) {
         e.preventDefault();
@@ -924,7 +920,20 @@ $(document).ready(function() {
                 }, false);
                 return xhr;
             },
-            success: function() {
+            success: function(response) {
+                var data = typeof response === 'string' ? JSON.parse(response) : response;
+                if (data && !data.success) {
+                    statusContainer.hide();
+                    uploadBtn.prop('disabled', false).removeClass('sp-btn-loading');
+                    uploadBtnText.text('Upload Media (MP3/MP4)');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Upload Failed',
+                        html: data.status || 'An error occurred during upload.',
+                        confirmButtonColor: '#3273dc'
+                    });
+                    return;
+                }
                 statusText.html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
                 progressPercent.text('100%');
                 setTimeout(function() { location.reload(); }, 1500);
@@ -942,7 +951,6 @@ $(document).ready(function() {
             }
         });
     });
-
     // Mapping select change (AJAX submit)
     $(document).on('change', '.mapping-select', function() {
         var form = $(this).closest('form');
@@ -950,7 +958,6 @@ $(document).ready(function() {
             location.reload();
         });
     });
-
     // Checkbox monitoring for delete-selected buttons
     $(document).on('change', '.media-delete-form input[type="checkbox"]', function() {
         var form = $(this).closest('.media-delete-form');
@@ -958,7 +965,6 @@ $(document).ready(function() {
         var checked = form.find('input[name="delete_files[]"]:checked').length;
         $('.delete-selected-btn[data-form="' + formId + '"]').prop('disabled', checked < 2);
     });
-
     // Delete selected button
     $(document).on('click', '.delete-selected-btn', function() {
         var formId = $(this).data('form');
@@ -980,7 +986,6 @@ $(document).ready(function() {
             });
         }
     });
-
     // Single delete button
     $(document).on('click', '.delete-single', function() {
         var fileName = $(this).data('file');
@@ -1005,7 +1010,6 @@ $(document).ready(function() {
         });
     });
 });
-
 // Test media playback
 document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll(".test-media").forEach(function(button) {
@@ -1017,7 +1021,6 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 });
-
 function sendStreamEvent(eventType, paramName, fileName) {
     var xhr = new XMLHttpRequest();
     var url = "notify_event.php";
