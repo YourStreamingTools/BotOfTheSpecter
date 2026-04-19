@@ -2958,7 +2958,6 @@ async def process_tanggle_room_complete(data):
                     "piece_completed": pieces.get('completed'),
                 }
             ))
-            safe_create_task(dispatch_module_event("puzzle_complete", completed_count=completed_count, room_uuid=room_uuid))
         else:
             integrations_logger.info(f"[TANGGLE] Tanggle: Duplicate room.complete event ignored for room {room_uuid}. Total remains: {completed_count}")
     except Exception as e:
@@ -7561,7 +7560,6 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[DEATH ADD] Stream death count for {current_game} is now: {stream_death_count}")
                     await send_chat_message(f"We have died {game_death_count} times in {current_game}, with a total of {total_death_count} deaths in all games. This stream, we've died {stream_death_count} times in {current_game}.")
                     safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
-                    safe_create_task(dispatch_module_event("death_change", count=stream_death_count))
                 except GeneratorExit:
                     raise
                 except Exception as e:
@@ -7637,7 +7635,6 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[DEATH REMOVE] Total death count has been calculated as: {total_death_count}")
                     await send_chat_message(f"Death removed from {current_game}, count is now {game_death_count}. Total deaths in all games: {total_death_count}.")
                     safe_create_task(websocket_notice(event="DEATHS", death=stream_death_count, game=current_game))
-                    safe_create_task(dispatch_module_event("death_change", count=stream_death_count))
                 except GeneratorExit:
                     raise
                 except Exception as e:
@@ -11214,8 +11211,6 @@ async def process_stream_online_websocket():
         stream_session_started_at = datetime.now(timezone.utc).timestamp()
         ad_upcoming_notified = False
         ad_upcoming_last_notified_next_ad_at = None
-        if _channel_modules:
-            safe_create_task(dispatch_module_event("stream_online", broadcaster_id=CHANNEL_ID))
         last_ad_message_ts = 0.0
         clear_ad_break_chat_history("stream-online-session-reset")
     await generate_winning_lotto_numbers()
@@ -12536,7 +12531,6 @@ async def process_followers_event(user_id, user_name):
                     source="follow"
                 )
             safe_create_task(websocket_notice(event="TWITCH_FOLLOW", user=user_name))
-            safe_create_task(dispatch_module_event("follow", user_name=user_name))
             marker_description = f"New Twitch Follower: {user_name}"
             if await make_stream_marker(marker_description):
                 twitch_logger.info(f"[FOLLOW] A stream marker was created: {marker_description}.")
@@ -12713,6 +12707,20 @@ async def websocket_notice(
                 async with session.get(url) as response:
                     if response.status == 200:
                         websocket_logger.info(f"[WS NOTICE] HTTP event '{event}' sent successfully with params: {params}")
+                        if _channel_modules:
+                            _mod_kwargs = {'broadcaster_id': CHANNEL_ID, 'send_sound': websocket_notice}
+                            for _k, _v in [
+                                ('user', user), ('death', death), ('game', game),
+                                ('weather', weather), ('cheer_amount', cheer_amount),
+                                ('sub_tier', sub_tier), ('sub_months', sub_months),
+                                ('raid_viewers', raid_viewers), ('text', text),
+                                ('sound', sound), ('video', video), ('rewards_data', rewards_data),
+                            ]:
+                                if _v is not None:
+                                    _mod_kwargs[_k] = _v
+                            if additional_data and isinstance(additional_data, dict):
+                                _mod_kwargs.update(additional_data)
+                            safe_create_task(dispatch_module_event(event.lower(), **_mod_kwargs))
                     else:
                         websocket_logger.error(f"[WS NOTICE] Failed to send HTTP event '{event}'. Status: {response.status}")
     except Exception as e:
@@ -12921,8 +12929,6 @@ async def check_stream_online():
                             ad_upcoming_last_notified_next_ad_at = None
                             last_ad_message_ts = 0.0
                             clear_ad_break_chat_history("stream-online-status-check-reset")
-                            if _channel_modules:
-                                safe_create_task(dispatch_module_event("stream_online", broadcaster_id=CHANNEL_ID))
                         # Extract game and title from streams data
                         current_game = stream_data.get('game_name', None)
                         stream_title = stream_data.get('title', None)
