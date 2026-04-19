@@ -2,6 +2,7 @@
 import os, re, sys, ast, signal, argparse, traceback, math, ssl, inspect, uuid
 import json, time, random, base64, operator, threading
 from asyncio import Queue, subprocess
+from contextvars import ContextVar
 from asyncio import CancelledError as asyncioCancelledError
 from asyncio import TimeoutError as asyncioTimeoutError
 from asyncio import wait_for as asyncio_wait_for
@@ -120,6 +121,9 @@ _cached_home_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
 MEDIA_MIGRATED = False  # Loaded from profile.media_migrated at startup; enables unified /var/www/media/ library
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
+# ContextVars track the current chat message author so send_chat_message can log bot replies to AI history
+_cv_cmd_author_id: ContextVar[str] = ContextVar('_cv_cmd_author_id', default='')
+_cv_cmd_user_msg: ContextVar[str] = ContextVar('_cv_cmd_user_msg', default='')
 BOT_HOME_CHANNEL_NAME = 'botofthespecter'
 BOT_HOME_AI_HISTORY_DIR = '/home/botofthespecter/ai/bot-channel-chat-history'
 AD_BREAK_CHAT_DIR = '/home/botofthespecter/ai/ad_break_chat'
@@ -3410,6 +3414,8 @@ class TwitchBot(commands.Bot):
             messageAuthor = message.author.name if message.author else ""
             messageAuthorID = message.author.id if message.author else ""
             messageContentRaw = str(message.content).strip() if message.content else ""
+            _cv_cmd_author_id.set(messageAuthorID)
+            _cv_cmd_user_msg.set(messageContentRaw)
             if await self.should_block_first_message_command(messageAuthor, messageAuthorID, messageContentRaw, message.author):
                 return
             await self.send_first_command_welcome_if_needed(messageAuthor, messageAuthorID, messageContentRaw)
@@ -14760,6 +14766,32 @@ async def get_current_custom_credentials():
         'token_expires': expires_at
     }
 
+def _save_bot_reply_to_ai_history(bot_message: str) -> None:
+    author_id = _cv_cmd_author_id.get('')
+    user_msg = _cv_cmd_user_msg.get('')
+    if not author_id or not user_msg:
+        return
+    # Only record replies triggered by a command or direct message (not timed/system messages)
+    if not (user_msg.startswith('!') or user_msg.lower().startswith('@')):
+        return
+    try:
+        history_file = Path(HISTORY_DIR) / f"{author_id}.json"
+        history = []
+        if history_file.exists():
+            try:
+                with history_file.open('r', encoding='utf-8') as hf:
+                    history = json.load(hf)
+            except Exception:
+                pass
+        history.append({'role': 'user', 'content': user_msg})
+        history.append({'role': 'assistant', 'content': bot_message})
+        if len(history) > 200:
+            history = history[-200:]
+        with history_file.open('w', encoding='utf-8') as hf:
+            json.dump(history, hf, ensure_ascii=False, indent=2)
+    except Exception as e:
+        api_logger.debug(f"[AI] Failed to save bot reply to AI history for {author_id}: {e}")
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     global CLIENT_ID, CHANNEL_ID, CHANNEL_AUTH, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
@@ -14850,6 +14882,7 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                     if is_sent:
                         chat_logger.info(f"[SEND MESSAGE] Successfully sent chat message: {message} (ID: {message_id})")
                         await track_chat_message()
+                        _save_bot_reply_to_ai_history(message)
                         return True
                     else:
                         chat_logger.error(f"[SEND MESSAGE] Message not sent. Drop reason: {drop_reason}")
