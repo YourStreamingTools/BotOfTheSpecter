@@ -84,6 +84,8 @@ help/search_index.json
 *test*
 bot/export_user_data.log
 .claude/settings.local.json
+bot/custom_channel_modules/.gitattributes
+bot/custom_channel_modules/.gitignore
 
 # Ignoring entire directories
 /app
