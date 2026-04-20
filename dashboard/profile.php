@@ -343,6 +343,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_destroy();
         header('Location: logout.php');
         exit();
+    } elseif ($action === 'set_app_password') {
+        $newPassword = $_POST['app_password'] ?? '';
+        $confirmPassword = $_POST['app_password_confirm'] ?? '';
+        if ($newPassword === '') {
+            $message = 'Password cannot be empty.';
+            $alertClass = 'is-danger';
+        } elseif ($newPassword !== $confirmPassword) {
+            $message = 'Passwords do not match.';
+            $alertClass = 'is-danger';
+        } elseif (strlen($newPassword) < 6) {
+            $message = 'Password must be at least 6 characters.';
+            $alertClass = 'is-danger';
+        } else {
+            $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
+            $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = ? WHERE id = ?");
+            mysqli_stmt_bind_param($stmt, 'si', $hashed, $userId);
+            if (mysqli_stmt_execute($stmt)) {
+                $user['app_password'] = $hashed;
+                $_SESSION['profile_message'] = 'App password set successfully.';
+                $_SESSION['profile_alert_class'] = 'is-success';
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit();
+            } else {
+                $message = 'Failed to set app password: ' . mysqli_error($conn);
+                $alertClass = 'is-danger';
+            }
+        }
+    } elseif ($action === 'clear_app_password') {
+        $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = NULL WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, 'i', $userId);
+        if (mysqli_stmt_execute($stmt)) {
+            $user['app_password'] = null;
+            $_SESSION['profile_message'] = 'App password removed.';
+            $_SESSION['profile_alert_class'] = 'is-success';
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit();
+        } else {
+            $message = 'Failed to remove app password: ' . mysqli_error($conn);
+            $alertClass = 'is-danger';
+        }
     } elseif ($action === 'save_custom_bot') {
         // Handle saving custom bot
         $botName = trim($_POST['bot_username'] ?? '');
@@ -982,6 +1022,51 @@ ob_start();
             </div>
         </div>
     </div>
+    <div id="app-password">
+        <div class="sp-card" style="height:100%;">
+            <div class="sp-card-header">
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <i class="fas fa-mobile-alt fa-2x" style="color:var(--accent);"></i>
+                    <div>
+                        <h3 class="sp-card-title" style="margin:0;">App Password</h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">Set a password to protect access to the BotOfTheSpecter mobile app.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="sp-card-body">
+                <?php $appPasswordSet = !empty($user['app_password']); ?>
+                <div style="margin-bottom:1rem;">
+                    <?php if ($appPasswordSet): ?>
+                        <span class="sp-badge sp-badge-green"><i class="fas fa-lock" style="margin-right:0.25rem;"></i>Password set</span>
+                    <?php else: ?>
+                        <span class="sp-badge sp-badge-amber"><i class="fas fa-lock-open" style="margin-right:0.25rem;"></i>No password set</span>
+                    <?php endif; ?>
+                </div>
+                <form method="post" action="" id="app-password-form">
+                    <input type="hidden" name="action" value="set_app_password">
+                    <div class="sp-form-group">
+                        <label class="sp-label"><?php echo $appPasswordSet ? 'New Password' : 'Password'; ?></label>
+                        <input class="sp-input" type="password" name="app_password" id="app-password-input" autocomplete="new-password" placeholder="Enter app password" required minlength="6">
+                    </div>
+                    <div class="sp-form-group">
+                        <label class="sp-label">Confirm Password</label>
+                        <input class="sp-input" type="password" name="app_password_confirm" id="app-password-confirm" autocomplete="new-password" placeholder="Confirm app password" required minlength="6">
+                    </div>
+                    <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
+                        <button type="submit" class="sp-btn sp-btn-primary"><?php echo $appPasswordSet ? 'Update Password' : 'Set Password'; ?></button>
+                        <?php if ($appPasswordSet): ?>
+                        <button type="button" class="sp-btn sp-btn-danger" id="clear-app-password-btn">Remove Password</button>
+                        <?php endif; ?>
+                    </div>
+                </form>
+                <?php if ($appPasswordSet): ?>
+                <form method="post" action="" id="clear-app-password-form" style="display:none;">
+                    <input type="hidden" name="action" value="clear_app_password">
+                </form>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
     <div style="grid-column:1/-1;" id="custom-bot">
         <div class="sp-card">
             <div class="sp-card-header">
@@ -1238,6 +1323,7 @@ document.addEventListener('DOMContentLoaded', function() {
         { id: 'heartrate-form', message: '<?php echo t('processing'); ?>...' },
         { id: 'custom-bot-form', message: '<?php echo t('processing'); ?>...' }
     ];
+    formsWithReload.push({ id: 'app-password-form', message: '<?php echo t('processing'); ?>...' });
     formsWithReload.forEach(formConfig => {
         const form = document.getElementById(formConfig.id);
         if (form) {
@@ -1265,6 +1351,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }).then((result) => {
                 if (result.isConfirmed) {
                     document.getElementById('regenerate-api-key-form').submit();
+                }
+            });
+        });
+    }
+
+    // App password - remove confirmation
+    const clearAppPasswordBtn = document.getElementById('clear-app-password-btn');
+    if (clearAppPasswordBtn) {
+        clearAppPasswordBtn.addEventListener('click', function() {
+            Swal.fire({
+                title: 'Remove app password?',
+                text: 'This will allow anyone with your API key to access the mobile app without a password.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, remove it',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#e74c3c',
+                cancelButtonColor: '#6c757d'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showProcessingOverlay('Removing app password...');
+                    document.getElementById('clear-app-password-form').submit();
                 }
             });
         });
