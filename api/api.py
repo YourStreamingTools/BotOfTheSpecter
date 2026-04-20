@@ -3985,13 +3985,14 @@ async def get_bot_status_via_ssh(username: str) -> dict:
     except Exception as e:
         logging.error(f"Error loading versions.json: {e}")
     if not all([BOTS_SSH_HOST, SSH_USERNAME, SSH_PASSWORD]):
+        logging.warning(f"Bot status check skipped for '{username}': missing SSH credentials (BOT-SRV-HOST={BOTS_SSH_HOST!r}, SSH_USERNAME set={bool(SSH_USERNAME)}, SSH_PASSWORD set={bool(SSH_PASSWORD)})")
         return {
             "running": False,
             "pid": None,
             "version": None,
             "bot_type": None,
             "outdated": None,
-            "latest_version": None
+            "latest_version": latest_versions.get("stable_version")
         }
     try:
         connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
@@ -4021,6 +4022,7 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             output = (await asyncio.to_thread(stdout.read)).decode('utf-8')
         finally:
             ssh.close()
+        logging.debug(f"running_bots.py output for '{username}':\n{output}")
         # Parse the output to find the specific user's bot
         lines = output.split('\n')
         section = ''
@@ -4063,13 +4065,14 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                         "latest_version": latest_version
                     }
         # If we get here, the bot is not running
+        logging.info(f"Bot not found in running_bots.py output for user '{username}'")
         return {
             "running": False,
             "pid": None,
             "version": None,
             "bot_type": None,
             "outdated": None,
-            "latest_version": None
+            "latest_version": latest_versions.get("stable_version")
         }
     except Exception as e:
         logging.error(f"Error checking bot status for {username}: {str(e)}")
@@ -4079,7 +4082,7 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             "version": None,
             "bot_type": None,
             "outdated": None,
-            "latest_version": None
+            "latest_version": latest_versions.get("stable_version")
         }
 
 # Bot Status Endpoint
