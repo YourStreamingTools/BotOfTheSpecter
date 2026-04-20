@@ -462,6 +462,11 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/joke",
     "/sound-alerts",
     "/custom-commands",
+    "/custom-commands/add",
+    "/custom-commands/update",
+    "/custom-commands/delete",
+    "/builtin-commands",
+    "/builtin-commands/update",
     "/user-commands/get",
     "/user-commands/add",
     "/user-commands/remove",
@@ -2953,6 +2958,258 @@ async def get_custom_commands(api_key: str = Query(...), channel: str = Query(No
     except Exception as e:
         logging.error(f"Error retrieving custom commands for user '{username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving custom commands: {str(e)}")
+
+@app.post(
+    "/custom-commands/add",
+    summary="Add a custom command",
+    description="Add a new custom command to your account's database.",
+    tags=["Commands"],
+    operation_id="add_custom_command"
+)
+async def add_custom_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Command name (without ! prefix)"),
+    response: str = Query(..., description="Command response text", max_length=500),
+    cooldown: int = Query(15, description="Cooldown in seconds", ge=0),
+    permission: str = Query("everyone", description="Permission level (e.g. everyone, subscriber, moderator)"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    command_name = _sanitize_user_command_name(command)
+    if not command_name:
+        raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT command FROM custom_commands WHERE command = %s",
+                    (command_name,),
+                )
+                if await cursor.fetchone():
+                    raise HTTPException(status_code=409, detail=f"Command '{command_name}' already exists")
+                await cursor.execute(
+                    """
+                    INSERT INTO custom_commands (command, response, status, cooldown, permission)
+                    VALUES (%s, %s, 'Enabled', %s, %s)
+                    """,
+                    (command_name, response, cooldown, permission),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=500, detail="Command was not added to the database")
+            return {
+                "status": "success",
+                "user": username,
+                "command": command_name,
+                "message": f"Command '{command_name}' added successfully",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error adding custom command for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error adding custom command: {str(e)}")
+
+@app.put(
+    "/custom-commands/update",
+    summary="Update a custom command",
+    description="Update an existing custom command in your account's database. Only provided fields are changed.",
+    tags=["Commands"],
+    operation_id="update_custom_command"
+)
+async def update_custom_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Command name to update (without ! prefix)"),
+    response: str = Query(None, description="New response text", max_length=500),
+    cooldown: int = Query(None, description="New cooldown in seconds", ge=0),
+    permission: str = Query(None, description="New permission level"),
+    status: str = Query(None, description="New status (Enabled or Disabled)"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    command_name = _sanitize_user_command_name(command)
+    if not command_name:
+        raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    fields, values = [], []
+    if response is not None:
+        fields.append("response = %s"); values.append(response)
+    if cooldown is not None:
+        fields.append("cooldown = %s"); values.append(cooldown)
+    if permission is not None:
+        fields.append("permission = %s"); values.append(permission)
+    if status is not None:
+        if status not in ("Enabled", "Disabled"):
+            raise HTTPException(status_code=400, detail="status must be 'Enabled' or 'Disabled'")
+        fields.append("status = %s"); values.append(status)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+    values.append(command_name)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    f"UPDATE custom_commands SET {', '.join(fields)} WHERE command = %s",
+                    values,
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Command '{command_name}' not found")
+            return {
+                "status": "success",
+                "user": username,
+                "command": command_name,
+                "message": f"Command '{command_name}' updated successfully",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating custom command for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating custom command: {str(e)}")
+
+@app.delete(
+    "/custom-commands/delete",
+    summary="Delete a custom command",
+    description="Remove a custom command from your account's database.",
+    tags=["Commands"],
+    operation_id="delete_custom_command"
+)
+async def delete_custom_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Command name to delete (without ! prefix)"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    command_name = _sanitize_user_command_name(command)
+    if not command_name:
+        raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "DELETE FROM custom_commands WHERE command = %s",
+                    (command_name,),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Command '{command_name}' not found")
+            return {
+                "status": "success",
+                "user": username,
+                "command": command_name,
+                "message": f"Command '{command_name}' deleted successfully",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting custom command for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting custom command: {str(e)}")
+
+# Built-in Commands Endpoints
+@app.get(
+    "/builtin-commands",
+    summary="Get list of built-in commands",
+    description="Retrieve all built-in commands and their enabled/disabled status from your account's database.",
+    tags=["Commands"],
+    operation_id="get_builtin_commands"
+)
+async def get_builtin_commands(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("""
+                    SELECT command, status, permission, cooldown_rate, cooldown_time, cooldown_bucket
+                    FROM builtin_commands
+                    ORDER BY command ASC
+                """)
+                commands = await cursor.fetchall()
+            return {
+                "user": username,
+                "total_commands": len(commands),
+                "commands": [
+                    {
+                        "command": cmd["command"],
+                        "status": cmd["status"],
+                        "permission": cmd["permission"],
+                        "cooldown_rate": cmd["cooldown_rate"],
+                        "cooldown_time": cmd["cooldown_time"],
+                        "cooldown_bucket": cmd["cooldown_bucket"],
+                    }
+                    for cmd in commands
+                ],
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving built-in commands for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving built-in commands: {str(e)}")
+
+@app.put(
+    "/builtin-commands/update",
+    summary="Enable or disable a built-in command",
+    description="Update the status (Enabled/Disabled) of a built-in command in your account's database.",
+    tags=["Commands"],
+    operation_id="update_builtin_command"
+)
+async def update_builtin_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Built-in command name"),
+    status: str = Query(..., description="New status: Enabled or Disabled"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    if status not in ("Enabled", "Disabled"):
+        raise HTTPException(status_code=400, detail="status must be 'Enabled' or 'Disabled'")
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "UPDATE builtin_commands SET status = %s WHERE command = %s",
+                    (status, command),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Built-in command '{command}' not found")
+            return {
+                "status": "success",
+                "user": username,
+                "command": command,
+                "message": f"Built-in command '{command}' set to {status}",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating built-in command for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating built-in command: {str(e)}")
 
 # User Managed Commands Endpoint
 @app.get(
