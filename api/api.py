@@ -2900,7 +2900,7 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
                 sound_files = [f for f in all_files if f.lower().endswith(valid_extensions)]
             # Return formatted JSON response
             return {
-                "user": channel,
+                "user": username,
                 "total_sounds": len(sound_files),
                 "sounds": sound_files
             }
