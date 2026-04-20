@@ -480,6 +480,7 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/authorizedusers",
     "/checkkey",
     "/streamonline",
+    "/deaths",
     "/discord/linked",
     "/discord/twitch-link",
     "/discord/twitch-link/request",
@@ -1368,6 +1369,12 @@ class StreamOnlineResponse(BaseModel):
             }
         }
 
+# Define the response model for Death Counter
+class DeathCountResponse(BaseModel):
+    count: int
+    class Config:
+        json_schema_extra = {"example": {"count": 47}}
+
 # Define the response model for Account information
 class AccountResponse(BaseModel):
     id: int
@@ -1393,6 +1400,7 @@ class AccountResponse(BaseModel):
     spotify_refresh_token: str | None = None
     discord_access_token: str | None = None
     discord_refresh_token: str | None = None
+    app_password_set: bool = False
 
 # Define the response model for FreeStuff Games
 class FreeStuffGame(BaseModel):
@@ -2076,6 +2084,7 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
                     u.is_admin, u.beta_access, u.is_technical,
                     u.signup_date, u.last_login, u.profile_image,
                     u.email, u.language, u.use_custom, u.use_self,
+                    (u.app_password IS NOT NULL) AS app_password_set,
                     s.access_token AS spotify_access_token,
                     s.refresh_token AS spotify_refresh_token,
                     d.access_token AS discord_access_token,
@@ -2114,7 +2123,8 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
                 "spotify_access_token": result["spotify_access_token"],
                 "spotify_refresh_token": result["spotify_refresh_token"],
                 "discord_access_token": result["discord_access_token"],
-                "discord_refresh_token": result["discord_refresh_token"]
+                "discord_refresh_token": result["discord_refresh_token"],
+                "app_password_set": bool(result["app_password_set"])
             }
     except HTTPException:
         raise
@@ -3173,16 +3183,41 @@ def get_wind_direction(deg):
 @app.get(
     "/websocket/tts",
     summary="Trigger TTS via API",
-    description="Send a text-to-speech (TTS) event to the WebSocket server, allowing TTS to be triggered via API.",
+    description="Send a text-to-speech (TTS) event to the WebSocket server. If voice or language are omitted, the user's saved TTS settings are used (defaulting to Alloy/en).",
     tags=["WebSocket Triggers"],
     response_model=StatusResponse,
     operation_id="trigger_websocket_tts"
 )
-async def websocket_tts(api_key: str = Query(...), text: str = Query(...)):
+async def websocket_tts(
+    api_key: str = Query(...),
+    text: str = Query(...),
+    voice: str = Query(None, description="TTS voice to use. Defaults to the voice saved in the user's TTS settings."),
+    language: str = Query(None, description="TTS language to use. Defaults to the language saved in the user's TTS settings."),
+):
     valid = await verify_api_key(api_key)
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    params = {"event": "TTS", "text": text}
+    username = valid
+    # If either setting is missing, load defaults from the user's tts_settings table
+    if not voice or not language:
+        try:
+            conn = await get_mysql_connection_user(username)
+            try:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    await cur.execute("SELECT voice, language FROM tts_settings LIMIT 1")
+                    row = await cur.fetchone()
+            finally:
+                conn.close()
+            if row:
+                if not voice:
+                    voice = row.get("voice") or "Alloy"
+                if not language:
+                    language = row.get("language") or "en"
+        except Exception as e:
+            logging.warning(f"Could not load TTS settings for '{username}': {e}")
+        voice = voice or "Alloy"
+        language = language or "en"
+    params = {"event": "TTS", "text": text, "voice": voice, "language": language}
     await websocket_notice("TTS", params, api_key)
     return {"status": "success"}
 
@@ -3665,6 +3700,33 @@ async def stream_online(api_key: str = Query(...), channel: str = Query(None)):
     except Exception as e:
         logging.error(f"Error checking stream online status from database: {e}")
         raise HTTPException(status_code=500, detail=f"Error checking stream online status: {str(e)}")
+
+# Death Counter Endpoint
+@app.get(
+    "/deaths",
+    response_model=DeathCountResponse,
+    summary="Get current death counter",
+    description="Retrieve the current total death count for the authenticated user.",
+    tags=["User Account"],
+    operation_id="get_death_count"
+)
+async def get_death_count(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("SELECT death_count FROM total_deaths LIMIT 1")
+                row = await cur.fetchone()
+        finally:
+            conn.close()
+        return {"count": row["death_count"] if row else 0}
+    except Exception as e:
+        logging.error(f"Error fetching death count for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error fetching death count")
 
 # Check if Discord user is linked
 @app.get(
