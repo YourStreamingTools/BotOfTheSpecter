@@ -490,6 +490,8 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/checkkey",
     "/streamonline",
     "/deaths",
+    "/deaths/add",
+    "/deaths/remove",
     "/discord/linked",
     "/discord/twitch-link",
     "/discord/twitch-link/request",
@@ -1381,9 +1383,12 @@ class StreamOnlineResponse(BaseModel):
 
 # Define the response model for Death Counter
 class DeathCountResponse(BaseModel):
-    count: int
+    game: str | None = None
+    game_deaths: int = 0
+    stream_deaths: int = 0
+    total_deaths: int = 0
     class Config:
-        json_schema_extra = {"example": {"count": 47}}
+        json_schema_extra = {"example": {"game": "Elden Ring", "game_deaths": 12, "stream_deaths": 3, "total_deaths": 47}}
 
 # Define the response model for Account information
 class AccountResponse(BaseModel):
@@ -4027,18 +4032,144 @@ async def get_death_count(api_key: str = Query(...), channel: str = Query(None))
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
+    current_game = await _get_current_game_from_twitch(username)
+    if not current_game:
+        raise HTTPException(status_code=404, detail="No active stream or current game not set")
     try:
         conn = await get_mysql_connection_user(username)
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT death_count FROM total_deaths LIMIT 1")
+                await cur.execute("SELECT death_count FROM game_deaths WHERE game_name = %s", (current_game,))
                 row = await cur.fetchone()
+                game_deaths = row["death_count"] if row else 0
+                await cur.execute("SELECT death_count FROM per_stream_deaths WHERE game_name = %s", (current_game,))
+                row = await cur.fetchone()
+                stream_deaths = row["death_count"] if row else 0
+                await cur.execute("SELECT COALESCE(SUM(death_count), 0) AS total FROM game_deaths")
+                row = await cur.fetchone()
+                total_deaths = int(row["total"]) if row else 0
         finally:
             conn.close()
-        return {"count": row["death_count"] if row else 0}
+        return {"game": current_game, "game_deaths": game_deaths, "stream_deaths": stream_deaths, "total_deaths": total_deaths}
     except Exception as e:
         logging.error(f"Error fetching death count for '{username}': {e}")
         raise HTTPException(status_code=500, detail="Error fetching death count")
+
+async def _get_current_game_from_twitch(username: str) -> str | None:
+    twitch_creds = await get_twitch_app_credentials()
+    if not twitch_creds:
+        return None
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.twitch.tv/helix/streams",
+                headers={"Client-ID": twitch_creds["client_id"], "Authorization": f"Bearer {twitch_creds['access_token']}"},
+                params={"user_login": username}
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    items = data.get("data", [])
+                    if items:
+                        return items[0].get("game_name")
+    except Exception as e:
+        logging.warning(f"Failed to fetch current game from Twitch for '{username}': {e}")
+    return None
+
+@app.post(
+    "/deaths/add",
+    summary="Add a death to the current game",
+    description="Increment the death counter for the current game by 1 in both game_deaths and per_stream_deaths.",
+    tags=["User Account"],
+    operation_id="add_death"
+)
+async def add_death(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    current_game = await _get_current_game_from_twitch(username)
+    if not current_game:
+        raise HTTPException(status_code=404, detail="No active stream or current game not set")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("""
+                    INSERT INTO game_deaths (game_name, death_count) VALUES (%s, 1)
+                    ON DUPLICATE KEY UPDATE death_count = death_count + 1
+                """, (current_game,))
+                await cur.execute("""
+                    INSERT INTO per_stream_deaths (game_name, death_count) VALUES (%s, 1)
+                    ON DUPLICATE KEY UPDATE death_count = death_count + 1
+                """, (current_game,))
+                await conn.commit()
+                await cur.execute("SELECT death_count FROM game_deaths WHERE game_name = %s", (current_game,))
+                row = await cur.fetchone()
+                game_deaths = row["death_count"] if row else 1
+                await cur.execute("SELECT death_count FROM per_stream_deaths WHERE game_name = %s", (current_game,))
+                row = await cur.fetchone()
+                stream_deaths = row["death_count"] if row else 1
+                await cur.execute("SELECT COALESCE(SUM(death_count), 0) AS total FROM game_deaths")
+                row = await cur.fetchone()
+                total_deaths = int(row["total"]) if row else 0
+        finally:
+            conn.close()
+        try:
+            await websocket_notice("DEATHS", {"event": "DEATHS", "death-text": stream_deaths, "game": current_game}, api_key)
+        except Exception as ws_exc:
+            logging.warning(f"Death add: websocket notify failed for '{username}': {ws_exc}")
+        return {"game": current_game, "game_deaths": game_deaths, "stream_deaths": stream_deaths, "total_deaths": total_deaths}
+    except Exception as e:
+        logging.error(f"Error adding death for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error adding death")
+
+@app.post(
+    "/deaths/remove",
+    summary="Remove a death from the current game",
+    description="Decrement the death counter for the current game by 1 in both game_deaths and per_stream_deaths. Will not go below 0.",
+    tags=["User Account"],
+    operation_id="remove_death"
+)
+async def remove_death(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    current_game = await _get_current_game_from_twitch(username)
+    if not current_game:
+        raise HTTPException(status_code=404, detail="No active stream or current game not set")
+    try:
+        conn = await get_mysql_connection_user(username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute("""
+                    UPDATE game_deaths SET death_count = GREATEST(death_count - 1, 0)
+                    WHERE game_name = %s
+                """, (current_game,))
+                await cur.execute("""
+                    UPDATE per_stream_deaths SET death_count = GREATEST(death_count - 1, 0)
+                    WHERE game_name = %s
+                """, (current_game,))
+                await conn.commit()
+                await cur.execute("SELECT death_count FROM game_deaths WHERE game_name = %s", (current_game,))
+                row = await cur.fetchone()
+                game_deaths = row["death_count"] if row else 0
+                await cur.execute("SELECT death_count FROM per_stream_deaths WHERE game_name = %s", (current_game,))
+                row = await cur.fetchone()
+                stream_deaths = row["death_count"] if row else 0
+                await cur.execute("SELECT COALESCE(SUM(death_count), 0) AS total FROM game_deaths")
+                row = await cur.fetchone()
+                total_deaths = int(row["total"]) if row else 0
+        finally:
+            conn.close()
+        try:
+            await websocket_notice("DEATHS", {"event": "DEATHS", "death-text": stream_deaths, "game": current_game}, api_key)
+        except Exception as ws_exc:
+            logging.warning(f"Death remove: websocket notify failed for '{username}': {ws_exc}")
+        return {"game": current_game, "game_deaths": game_deaths, "stream_deaths": stream_deaths, "total_deaths": total_deaths}
+    except Exception as e:
+        logging.error(f"Error removing death for '{username}': {e}")
+        raise HTTPException(status_code=500, detail="Error removing death")
 
 # Check if Discord user is linked
 @app.get(
