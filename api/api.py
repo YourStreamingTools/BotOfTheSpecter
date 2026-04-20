@@ -19,6 +19,8 @@ import traceback
 # Third-party imports
 import aiohttp
 import aiomysql
+from passlib.context import CryptContext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 import uvicorn
 import aioping
 from paramiko import SSHClient, AutoAddPolicy
@@ -487,6 +489,7 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/discord/twitch-link/unlink",
     "/discord/twitch-link/confirm",
     "/bot/status",
+    "/account/app-login",
 ]
 _V2_API_KEY_REQUIRED_PATHS_SET = set(_V2_API_KEY_REQUIRED_PATHS)
 
@@ -2134,6 +2137,41 @@ async def get_account_info(api_key: str = Query(...), channel: str = Query(None)
         raise HTTPException(status_code=500, detail=f"Error retrieving account information: {str(e)}")
     finally:
         conn.close()
+
+# App Login Endpoint (v2 only — accessed via POST /v2/account/app-login with X-API-KEY header)
+class AppLoginBody(BaseModel):
+    password: str = Field(..., description="Plaintext app password to verify")
+
+@app.post(
+    "/account/app-login",
+    summary="Verify app password",
+    description="Verify the app password for the authenticated user.",
+    tags=["User Account"],
+    operation_id="app_login"
+)
+async def app_login(body: AppLoginBody, api_key: str = Query(...)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, None)
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT app_password FROM users WHERE username = %s",
+                (username,)
+            )
+            result = await cur.fetchone()
+        if not result:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "User not found"})
+        if not result["app_password"]:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "No app password set for this account"})
+        if not pwd_context.verify(body.password, result["app_password"]):
+            return JSONResponse(status_code=401, content={"status": "invalid"})
+        return JSONResponse(status_code=200, content={"status": "success"})
+    except Exception as e:
+        logging.error(f"Error during app login for user '{username}': {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": "Internal server error"})
 
 # Quotes endpoint
 @app.get(
