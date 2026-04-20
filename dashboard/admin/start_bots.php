@@ -1803,13 +1803,16 @@ ob_start();
                 if (result.is_mod) {
                     modTag.className = 'sp-badge sp-badge-green mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-check"></i></span><span>Moderator</span>';
+                    if (makeModBtn) makeModBtn.style.display = 'none';
                 } else if (result.is_banned) {
                     modTag.className = 'sp-badge sp-badge-red mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-ban"></i></span><span>Banned</span>';
                     modTag.title = 'Reason: ' + (result.ban_reason || 'No reason provided');
+                    if (makeModBtn) makeModBtn.style.display = 'none';
                 } else {
                     modTag.className = 'sp-badge sp-badge-amber mod-status-tag';
                     modTag.innerHTML = '<span class="icon"><i class="fas fa-times"></i></span><span>Not Mod</span>';
+                    if (makeModBtn) makeModBtn.style.display = 'inline-flex';
                 }
             } else {
                 modTag.className = 'sp-badge sp-badge-red mod-status-tag';
