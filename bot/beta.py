@@ -12676,14 +12676,14 @@ async def websocket_notice(
                         await cursor.execute(query)
                         result = await cursor.fetchone()
                         if result:
-                            params['voice'] = result.get('voice', 'default')
+                            params['voice'] = result.get('voice', 'Alloy')
                             params['language'] = result.get('language', 'en')
                         else:
-                            params['voice'] = 'default'
+                            params['voice'] = 'Alloy'
                             params['language'] = 'en'
                     except MySQLOtherErrors as e:
                         websocket_logger.error(f"[WS NOTICE] Database error while fetching TTS settings for the channel: {e}")
-                        params['voice'] = 'default'
+                        params['voice'] = 'Alloy'
                         params['language'] = 'en'
                     params['text'] = text
                 elif event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
