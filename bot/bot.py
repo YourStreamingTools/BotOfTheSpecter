@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.6"
+VERSION = "5.7.7"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -8982,14 +8982,14 @@ async def websocket_notice(
                         await cursor.execute(query)
                         result = await cursor.fetchone()
                         if result:
-                            params['voice'] = result.get('voice', 'default')
+                            params['voice'] = result.get('voice', 'Alloy')
                             params['language'] = result.get('language', 'en')
                         else:
-                            params['voice'] = 'default'
+                            params['voice'] = 'Alloy'
                             params['language'] = 'en'
                     except MySQLOtherErrors as e:
                         websocket_logger.error(f"Database error while fetching TTS settings for the channel: {e}")
-                        params['voice'] = 'default'
+                        params['voice'] = 'Alloy'
                         params['language'] = 'en'
                     params['text'] = text
                 elif event in ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]:
