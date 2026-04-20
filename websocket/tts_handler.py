@@ -206,7 +206,9 @@ class TTSHandler:
         if len(text) > 4096:
             self.logger.error(f"Text too long: {len(text)} characters (max 4096)")
             return None
-        # Validate voice
+        # Validate voice (normalise to lowercase to match OpenAI identifiers)
+        if voice_name:
+            voice_name = voice_name.lower()
         if not voice_name or voice_name not in self.available_voices:
             voice_name = self.default_voice
             self.logger.info(f"Using default voice: {voice_name}")
