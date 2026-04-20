@@ -411,7 +411,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && isset($_P
                     client_console_log("[admin service control] $service $action - success: " . ($success ? 'true' : 'false') . ", exit_status: " . var_export($exit_status, true));
                     // Provide a user-friendly message even if output is empty
                     if ($success && empty(trim($output))) {
-                        $output = "Command executed successfully";
+                        $serviceNames = [
+                            'discordbot.service' => 'Discord Bot',
+                            'fastapi.service' => 'FastAPI',
+                            'websocket.service' => 'WebSocket',
+                            'mysql.service' => 'MySQL',
+                            'export_queue_worker.service' => 'Export Queue Worker',
+                            'twitch-recorder.service' => 'Twitch Recorder',
+                        ];
+                        $actionLabels = ['start' => 'started', 'stop' => 'stopped', 'restart' => 'restarted'];
+                        $svcLabel = $serviceNames[$service] ?? $service;
+                        $actLabel = $actionLabels[$action] ?? ($action . 'ed');
+                        $output = "{$svcLabel} {$actLabel} successfully";
                     }
                 }
             }
@@ -2252,6 +2263,15 @@ document.addEventListener('DOMContentLoaded', function() {
             updateServiceStatus(meta.statusKey, meta.statusId, meta.pidId, meta.buttonsId);
         }, 500);
     }
+    const serviceLabels = {
+        'discordbot.service': 'Discord Bot',
+        'fastapi.service': 'FastAPI',
+        'websocket.service': 'WebSocket',
+        'mysql.service': 'MySQL',
+        'export_queue_worker.service': 'Export Queue Worker',
+        'twitch-recorder.service': 'Twitch Recorder'
+    };
+    const actionLabels = { 'start': 'started', 'stop': 'stopped', 'restart': 'restarted' };
     // Function to control service
     window.controlService = function(service, action) {
         const meta = serviceConfig[service];
@@ -2279,11 +2299,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const output = data.output || '';
                 if (success) {
                     console.log('[admin control] command success output:', output);
+                    const svcLabel = serviceLabels[service] || service;
+                    const actLabel = actionLabels[action] || (action + 'ed');
                     Swal.fire({
                         toast: true,
                         position: 'top-end',
                         icon: 'success',
-                        title: 'Command executed successfully',
+                        title: `${svcLabel} ${actLabel} successfully`,
                         showConfirmButton: false,
                         timer: 3500,
                         timerProgressBar: true
