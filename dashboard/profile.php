@@ -1067,7 +1067,7 @@ ob_start();
             </div>
         </div>
     </div>
-    <div style="grid-column:1/-1;" id="custom-bot">
+    <div id="custom-bot">
         <div class="sp-card">
             <div class="sp-card-header">
                 <h2 class="sp-card-title">Custom Bot <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">Beta 5.8</span></h2>
