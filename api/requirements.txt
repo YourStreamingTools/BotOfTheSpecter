@@ -8,4 +8,5 @@ python-dotenv
 aioping
 jokeapi
 python-multipart
+passlib[bcrypt]
 aioping
