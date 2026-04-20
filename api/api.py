@@ -2888,7 +2888,7 @@ async def get_custom_commands(api_key: str = Query(...), channel: str = Query(No
             async with connection.cursor(aiomysql.DictCursor) as cursor:
                 # Query all custom commands
                 await cursor.execute("""
-                    SELECT command, response, status
+                    SELECT command, response, status, cooldown, permission
                     FROM custom_commands
                     ORDER BY command ASC
                 """)
@@ -2899,7 +2899,9 @@ async def get_custom_commands(api_key: str = Query(...), channel: str = Query(No
                 command_list.append({
                     "command": cmd['command'],
                     "response": cmd['response'],
-                    "status": cmd['status']
+                    "status": cmd['status'],
+                    "cooldown": cmd['cooldown'],
+                    "permission": cmd['permission']
                 })
             return {
                 "user": username,
