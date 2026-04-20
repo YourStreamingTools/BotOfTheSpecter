@@ -95,6 +95,8 @@ _ips_file = "/home/botofthespecter/ips.txt"
 _allowed_ip_networks = []
 _ips_file_mtime = 0
 
+VALID_PERMISSIONS = {"everyone", "vip", "all-subs", "t1-sub", "t2-sub", "t3-sub", "mod", "broadcaster"}
+
 def _load_allowed_ips():
     global _allowed_ip_networks, _ips_file_mtime
     try:
@@ -3044,6 +3046,8 @@ async def update_custom_command(
     if cooldown is not None:
         fields.append("cooldown = %s"); values.append(cooldown)
     if permission is not None:
+        if permission not in VALID_PERMISSIONS:
+            raise HTTPException(status_code=400, detail=f"permission must be one of: {', '.join(sorted(VALID_PERMISSIONS))}")
         fields.append("permission = %s"); values.append(permission)
     if status is not None:
         if status not in ("Enabled", "Disabled"):
@@ -3169,30 +3173,41 @@ async def get_builtin_commands(api_key: str = Query(...), channel: str = Query(N
 
 @app.put(
     "/builtin-commands/update",
-    summary="Enable or disable a built-in command",
-    description="Update the status (Enabled/Disabled) of a built-in command in your account's database.",
+    summary="Update a built-in command",
+    description="Update the status and/or permission of a built-in command in your account's database.",
     tags=["Commands"],
     operation_id="update_builtin_command"
 )
 async def update_builtin_command(
     api_key: str = Query(...),
     command: str = Query(..., description="Built-in command name"),
-    status: str = Query(..., description="New status: Enabled or Disabled"),
+    status: str = Query(None, description="New status: Enabled or Disabled"),
+    permission: str = Query(None, description="New permission level"),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
-    if status not in ("Enabled", "Disabled"):
+    if status is not None and status not in ("Enabled", "Disabled"):
         raise HTTPException(status_code=400, detail="status must be 'Enabled' or 'Disabled'")
+    if permission is not None and permission not in VALID_PERMISSIONS:
+        raise HTTPException(status_code=400, detail=f"permission must be one of: {', '.join(sorted(VALID_PERMISSIONS))}")
+    fields, values = [], []
+    if status is not None:
+        fields.append("status = %s"); values.append(status)
+    if permission is not None:
+        fields.append("permission = %s"); values.append(permission)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+    values.append(command)
     try:
         connection = await get_mysql_connection_user(username)
         try:
             async with connection.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
-                    "UPDATE builtin_commands SET status = %s WHERE command = %s",
-                    (status, command),
+                    f"UPDATE builtin_commands SET {', '.join(fields)} WHERE command = %s",
+                    values,
                 )
                 await connection.commit()
                 if cursor.rowcount <= 0:
@@ -3201,7 +3216,7 @@ async def update_builtin_command(
                 "status": "success",
                 "user": username,
                 "command": command,
-                "message": f"Built-in command '{command}' set to {status}",
+                "message": f"Built-in command '{command}' updated successfully",
             }
         finally:
             connection.close()
