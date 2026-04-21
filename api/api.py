@@ -4467,14 +4467,15 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                 look_for_keys=False,
                 allow_agent=False,
             )
+            def run_cmd(cmd):
+                _, out, _ = ssh.exec_command(cmd)
+                out.channel.recv_exit_status()
+                return out.read().decode("utf-8").strip()
             found_type = None
             found_pid = None
             for bot_type in ["stable", "beta", "custom"]:
-                cmd = f"python3 {status_script} -system {bot_type} -channel {username}"
-                _, stdout, _ = await asyncio.to_thread(
-                    ssh.exec_command, cmd, timeout=command_timeout
-                )
-                output = (await asyncio.to_thread(stdout.read)).decode("utf-8").strip()
+                cmd = f"python {status_script} -system {bot_type} -channel {username}"
+                output = await asyncio.to_thread(run_cmd, cmd)
                 logging.debug(f"status.py output for '{username}' ({bot_type}): {output}")
                 m = re.search(r'process ID:\s*(\d+)', output, re.IGNORECASE)
                 if m:
@@ -4482,10 +4483,8 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                     found_pid = int(m.group(1))
                     break
             if found_type:
-                _, vout, _ = await asyncio.to_thread(
-                    ssh.exec_command, f"cat {version_files[found_type]}", timeout=command_timeout
-                )
-                version = (await asyncio.to_thread(vout.read)).decode("utf-8").strip() or None
+                version = await asyncio.to_thread(run_cmd, f"cat {version_files[found_type]}")
+                version = version or None
                 latest = latest_version_map[found_type]
                 is_outdated = False
                 if version and latest:
