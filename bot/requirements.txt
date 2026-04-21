@@ -64,8 +64,8 @@ pyttsx3
 PyNaCl
 
 # For SSH connections
-# Secure remote command execution and file transfer
-paramiko
+# Secure remote command execution and file transfer (async-native)
+asyncssh
 
 # YouTube video downloader
 # Media extraction; can indirectly depend on AWS-related tooling

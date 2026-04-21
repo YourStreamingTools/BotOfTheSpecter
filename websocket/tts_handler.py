@@ -271,23 +271,15 @@ class TTSHandler:
             self.logger.warning("No SSH config available for remote cleanup")
             return
         try:
-            # Get SSH connection from manager
-            ssh_client = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            # Build remote file path
+            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
             remote_dir = self.tts_config['remote_paths']['tts_directory']
             remote_file_path = f"{remote_dir.rstrip('/')}/{filename}"
-            # Execute delete command in a thread to avoid blocking the event loop
-            command = f"rm -f '{remote_file_path}'"
-            self.logger.info(f"Executing remote cleanup: {command}")
-            def _do_rm():
-                _, stdout, stderr = ssh_client.exec_command(command)
-                return stdout.channel.recv_exit_status(), stderr.read().decode().strip()
-            loop = asyncio.get_running_loop()
-            exit_status, error_msg = await loop.run_in_executor(None, _do_rm)
-            if exit_status == 0:
+            self.logger.info(f"Executing remote cleanup: rm -f '{remote_file_path}'")
+            result = await conn.run(f"rm -f '{remote_file_path}'")
+            if result.exit_status == 0:
                 self.logger.info(f"Successfully deleted remote file: {remote_file_path}")
             else:
-                self.logger.warning(f"Remote delete command returned {exit_status}: {error_msg}")
+                self.logger.warning(f"Remote delete returned {result.exit_status}: {result.stderr.strip()}")
         except Exception as e:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
 
@@ -296,32 +288,17 @@ class TTSHandler:
             self.logger.warning("No SSH config available for file transfer")
             return None
         try:
-            # Get SSH connection from manager
-            ssh_client = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            # Build remote path
+            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
             remote_dir = self.tts_config['remote_paths']['tts_directory']
             remote_file_path = f"{remote_dir.rstrip('/')}/{remote_filename}"
-            loop = asyncio.get_running_loop()
-            # Create remote directory if needed (fire-and-forget, no need to wait)
-            mkdir_command = f"mkdir -p '{remote_dir}'"
-            await loop.run_in_executor(None, lambda: ssh_client.exec_command(mkdir_command))
-            # Transfer file using SCP in a thread to avoid blocking the event loop
-            def _do_scp():
-                from scp import SCPClient
-                with SCPClient(ssh_client.get_transport()) as scp:
-                    scp.put(local_file_path, remote_file_path)
-            await loop.run_in_executor(None, _do_scp)
-            # Set correct ownership for web server access
-            chown_command = f"chown www-data:www-data '{remote_file_path}'"
-            self.logger.info(f"Setting file ownership: {chown_command}")
-            def _do_chown():
-                _, stdout, stderr = ssh_client.exec_command(chown_command)
-                return stdout.channel.recv_exit_status(), stderr.read().decode().strip()
-            exit_status, error_msg = await loop.run_in_executor(None, _do_chown)
-            if exit_status == 0:
+            await conn.run(f"mkdir -p '{remote_dir}'")
+            async with conn.start_sftp_client() as sftp:
+                await sftp.put(local_file_path, remote_file_path)
+            result = await conn.run(f"chown www-data:www-data '{remote_file_path}'")
+            if result.exit_status == 0:
                 self.logger.info(f"File ownership set successfully")
             else:
-                self.logger.warning(f"Failed to set ownership: {error_msg}")
+                self.logger.warning(f"Failed to set ownership: {result.stderr.strip()}")
             self.logger.info(f"File transferred successfully: {remote_file_path}")
             return remote_file_path
         except Exception as e:
