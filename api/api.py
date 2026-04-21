@@ -4451,40 +4451,54 @@ async def get_bot_status_via_ssh(username: str) -> dict:
     try:
         connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
         command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
-        # Create SSH client
+        logging.info(f"[bot_status] connecting to {BOTS_SSH_HOST} for '{username}' (connect_timeout={connect_timeout}, command_timeout={command_timeout})")
+        t0 = _time.monotonic()
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         try:
-            # Connect to SSH server in a worker thread to avoid blocking the event loop
-            await asyncio.to_thread(
-                ssh.connect,
-                hostname=BOTS_SSH_HOST,
-                username=SSH_USERNAME,
-                password=SSH_PASSWORD,
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    ssh.connect,
+                    hostname=BOTS_SSH_HOST,
+                    username=SSH_USERNAME,
+                    password=SSH_PASSWORD,
+                    timeout=connect_timeout,
+                    auth_timeout=connect_timeout,
+                    banner_timeout=connect_timeout,
+                    look_for_keys=False,
+                    allow_agent=False,
+                ),
                 timeout=connect_timeout,
-                auth_timeout=connect_timeout,
-                banner_timeout=connect_timeout,
-                look_for_keys=False,
-                allow_agent=False,
             )
-            def run_cmd(cmd):
+            logging.info(f"[bot_status] SSH connected in {_time.monotonic()-t0:.2f}s")
+            def run_cmd(cmd, timeout_s):
                 _, out, _ = ssh.exec_command(cmd)
-                out.channel.recv_exit_status()
-                return out.read().decode("utf-8").strip()
+                out.channel.settimeout(timeout_s)
+                data = out.read().decode("utf-8").strip()
+                return data
             found_type = None
             found_pid = None
             for bot_type in ["stable", "beta", "custom"]:
                 cmd = f"python {status_script} -system {bot_type} -channel {username}"
-                output = await asyncio.to_thread(run_cmd, cmd)
-                logging.debug(f"status.py output for '{username}' ({bot_type}): {output}")
+                t1 = _time.monotonic()
+                output = await asyncio.wait_for(
+                    asyncio.to_thread(run_cmd, cmd, command_timeout),
+                    timeout=command_timeout + 2,
+                )
+                logging.info(f"[bot_status] status.py -{bot_type} for '{username}' in {_time.monotonic()-t1:.2f}s: {output!r}")
                 m = re.search(r'process ID:\s*(\d+)', output, re.IGNORECASE)
                 if m:
                     found_type = bot_type
                     found_pid = int(m.group(1))
                     break
             if found_type:
-                version = await asyncio.to_thread(run_cmd, f"cat {version_files[found_type]}")
+                t2 = _time.monotonic()
+                version = await asyncio.wait_for(
+                    asyncio.to_thread(run_cmd, f"cat {version_files[found_type]}", command_timeout),
+                    timeout=command_timeout + 2,
+                )
                 version = version or None
+                logging.info(f"[bot_status] version file read in {_time.monotonic()-t2:.2f}s: {version!r}")
                 latest = latest_version_map[found_type]
                 is_outdated = False
                 if version and latest:
@@ -4502,7 +4516,7 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                 }
         finally:
             ssh.close()
-        logging.info(f"Bot not running for user '{username}'")
+        logging.info(f"[bot_status] bot not running for '{username}' (total {_time.monotonic()-t0:.2f}s)")
         return {
             "running": False,
             "pid": None,
@@ -4512,7 +4526,7 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             "latest_version": latest_versions.get("stable_version")
         }
     except Exception as e:
-        logging.error(f"Error checking bot status for {username}: {str(e)}")
+        logging.error(f"[bot_status] error for '{username}' after {_time.monotonic()-t0:.2f}s: {type(e).__name__}: {e}", exc_info=True)
         return {
             "running": False,
             "pid": None,
