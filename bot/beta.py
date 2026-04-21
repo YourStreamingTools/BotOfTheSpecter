@@ -48,8 +48,8 @@ load_dotenv()
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
 from custom_channel_modules import gfaundead as gfaundead_module
-from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
-#hedgehogobrien_module = None
+#from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
+hedgehogobrien_module = None
 
 _MODULE_CLASSES = [
     hedgehogobrien_module.HedgehogOBrienModule if hedgehogobrien_module is not None else None,
