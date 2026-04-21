@@ -38,6 +38,7 @@ from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 from pint import UnitRegistry as ureg
+import asyncio
 import asyncssh
 from openai import AsyncOpenAI
 
