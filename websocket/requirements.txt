@@ -1,7 +1,6 @@
 python-socketio
 aiohttp
 aiomysql
-paramiko
+asyncssh
 python-dotenv
-scp
 openai

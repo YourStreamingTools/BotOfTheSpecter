@@ -8,13 +8,12 @@ import argparse
 import socketio
 from aiohttp import web, web_log
 import time
-import paramiko
+import asyncssh
 import uuid
 import json
 import aiomysql
 import shutil
 import subprocess
-from scp import SCPClient
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
@@ -45,86 +44,54 @@ class SSHConnectionManager:
     def __init__(self, logger, timeout_minutes=2):
         self.logger = logger
         self.timeout_seconds = timeout_minutes * 60
-        self.connections = {}  # hostname -> connection info
+        self.connections = {}  # hostname -> {'conn': asyncssh conn, 'last_used': float}
         self.lock = asyncio.Lock()
     async def get_connection(self, ssh_config):
         hostname = ssh_config['hostname']
         async with self.lock:
-            # Check if we have an active connection
             if hostname in self.connections:
                 conn_info = self.connections[hostname]
-                # Check if connection is still valid and not timed out
-                if (time.time() - conn_info['last_used'] < self.timeout_seconds and
-                    self._is_connection_alive(conn_info['client'])):
+                if time.time() - conn_info['last_used'] < self.timeout_seconds:
                     conn_info['last_used'] = time.time()
                     self.logger.debug(f"Reusing SSH connection to {hostname}")
-                    return conn_info['client']
-                else:
-                    # Connection expired or dead, clean it up
-                    self._cleanup_connection(hostname)
-            # Create new connection
-            return await self._create_connection(hostname, ssh_config)
-    def _is_connection_alive(self, ssh_client):
-        try:
-            transport = ssh_client.get_transport()
-            return transport and transport.is_active()
-        except:
-            return False
-    async def _create_connection(self, hostname, ssh_config):
-        try:
+                    return conn_info['conn']
+                conn_info['conn'].close()
+                del self.connections[hostname]
             self.logger.info(f"Creating new SSH connection to {hostname}")
-            ssh_client = paramiko.SSHClient()
-            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            # Connect with provided credentials
             connect_kwargs = {
-                'hostname': ssh_config['hostname'],
+                'host': ssh_config['hostname'],
                 'port': ssh_config.get('port', 22),
                 'username': ssh_config['username'],
-                'timeout': 30
+                'known_hosts': None,
+                'connect_timeout': 30,
             }
             if ssh_config.get('password'):
                 connect_kwargs['password'] = ssh_config['password']
             elif ssh_config.get('key_filename'):
-                connect_kwargs['key_filename'] = ssh_config['key_filename']
+                connect_kwargs['client_keys'] = [ssh_config['key_filename']]
             else:
                 raise ValueError("Either password or key_filename must be provided in SSH config")
-            # Run connection in thread to avoid blocking
-            await asyncio.get_running_loop().run_in_executor(
-                None, lambda: ssh_client.connect(**connect_kwargs)
-            )
-            # Store connection info
-            self.connections[hostname] = {
-                'client': ssh_client,
-                'last_used': time.time(),
-                'config': ssh_config
-            }
+            conn = await asyncssh.connect(**connect_kwargs)
+            self.connections[hostname] = {'conn': conn, 'last_used': time.time()}
             self.logger.info(f"SSH connection established to {hostname}")
-            return ssh_client
-        except Exception as e:
-            self.logger.error(f"Failed to create SSH connection to {hostname}: {e}")
-            raise
-    def _cleanup_connection(self, hostname):
-        if hostname in self.connections:
-            try:
-                self.connections[hostname]['client'].close()
-                self.logger.debug(f"Closed SSH connection to {hostname}")
-            except:
-                pass
-            del self.connections[hostname]
+            return conn
     async def cleanup_expired_connections(self):
         current_time = time.time()
-        expired_hosts = []
         async with self.lock:
-            for hostname, conn_info in self.connections.items():
-                if current_time - conn_info['last_used'] > self.timeout_seconds:
-                    expired_hosts.append(hostname)
-            for hostname in expired_hosts:
+            expired = [h for h, info in self.connections.items()
+                       if current_time - info['last_used'] > self.timeout_seconds]
+            for hostname in expired:
                 self.logger.info(f"Cleaning up expired SSH connection to {hostname}")
-                self._cleanup_connection(hostname)
+                self.connections[hostname]['conn'].close()
+                del self.connections[hostname]
     async def cleanup_all_connections(self):
         async with self.lock:
-            for hostname in list(self.connections.keys()):
-                self._cleanup_connection(hostname)
+            for conn_info in self.connections.values():
+                try:
+                    conn_info['conn'].close()
+                except Exception:
+                    pass
+            self.connections.clear()
             self.logger.info("All SSH connections cleaned up")
 
 class BotOfTheSpecter_WebsocketServer:
@@ -1498,21 +1465,15 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.warning("No SSH config available for remote cleanup")
             return
         try:
-            # Get SSH connection from manager
-            ssh_client = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            # Build remote file path
+            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
             remote_dir = self.tts_config['remote_paths']['tts_directory']
             remote_file_path = f"{remote_dir.rstrip('/')}/{filename}"
-            # Execute delete command
-            command = f"rm -f '{remote_file_path}'"
-            self.logger.info(f"Executing remote cleanup: {command}")
-            stdin, stdout, stderr = ssh_client.exec_command(command)
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status == 0:
+            self.logger.info(f"Executing remote cleanup: rm -f '{remote_file_path}'")
+            result = await conn.run(f"rm -f '{remote_file_path}'")
+            if result.exit_status == 0:
                 self.logger.info(f"Successfully deleted remote file: {remote_file_path}")
             else:
-                error_msg = stderr.read().decode().strip()
-                self.logger.warning(f"Remote delete command returned {exit_status}: {error_msg}")
+                self.logger.warning(f"Remote delete returned {result.exit_status}: {result.stderr.strip()}")
         except Exception as e:
             self.logger.error(f"Error in remote cleanup for {filename}: {e}")
 
@@ -1521,17 +1482,12 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.warning("No SSH config available for file transfer")
             return None
         try:
-            # Get SSH connection from manager
-            ssh_client = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            # Build remote path
+            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
             remote_dir = self.tts_config['remote_paths']['tts_directory']
             remote_file_path = f"{remote_dir.rstrip('/')}/{remote_filename}"
-            # Create remote directory if needed
-            mkdir_command = f"mkdir -p '{remote_dir}'"
-            ssh_client.exec_command(mkdir_command)
-            # Transfer file using SCP
-            with SCPClient(ssh_client.get_transport()) as scp:
-                scp.put(local_file_path, remote_file_path)
+            await conn.run(f"mkdir -p '{remote_dir}'")
+            async with conn.start_sftp_client() as sftp:
+                await sftp.put(local_file_path, remote_file_path)
             self.logger.info(f"File transferred successfully: {remote_file_path}")
             return remote_file_path
         except Exception as e:

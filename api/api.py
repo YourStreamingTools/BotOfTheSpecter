@@ -24,7 +24,6 @@ from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 import uvicorn
 import aioping
-from paramiko import SSHClient, AutoAddPolicy
 import asyncssh
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -151,58 +150,29 @@ def _format_duration(seconds: int) -> str:
     parts.append(f"{secs} second{'s' if secs != 1 else ''}")
     return ", ".join(parts)
 
-def _read_uptime_marker_via_ssh(host: str, username: str, password: str, marker_path: str, server_label: str) -> dict | None:
+async def _read_uptime_marker_via_ssh(host: str, username: str, password: str, marker_path: str, server_label: str) -> dict | None:
     if not all([host, username, password]):
         return None
     timeout_seconds = int(os.getenv('SSH_CONNECT_TIMEOUT', '8'))
-    candidates = []
     try:
-        addr_info = socket.getaddrinfo(host, 22, socket.AF_INET, socket.SOCK_STREAM)
-        candidates = [item[4][0] for item in addr_info if item and len(item) >= 5 and item[4]]
-        # preserve order while removing duplicates
-        candidates = list(dict.fromkeys(candidates))
-        if candidates:
-            logging.info(f"Resolved {host} to IPv4 candidates for {server_label}: {candidates}")
+        logging.info(f"Attempting SSH to {host} as {username} to stat {marker_path} ({server_label})")
+        async with asyncssh.connect(
+            host, username=username, password=password,
+            known_hosts=None, connect_timeout=timeout_seconds,
+        ) as conn:
+            async with conn.start_sftp_client() as sftp:
+                st = await sftp.stat(marker_path)
+                started_at_dt = datetime.fromtimestamp(st.mtime)
+                uptime_seconds = int((datetime.now() - started_at_dt).total_seconds())
+                result = {
+                    "uptime": _format_duration(uptime_seconds),
+                    "started_at": started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                logging.info(f"Successfully read {server_label} uptime marker (started_at={result['started_at']})")
+                return result
     except Exception as exc:
-        logging.warning(f"Could not resolve IPv4 addresses for {host} ({server_label}): {exc}")
-    # fall back to hostname attempt if resolution didn't yield candidates
-    if not candidates:
-        candidates = [host]
-    last_error = None
-    for target in candidates:
-        ssh = None
-        sftp = None
-        try:
-            ssh = SSHClient()
-            ssh.set_missing_host_key_policy(AutoAddPolicy())
-            logging.info(f"Attempting SSH to {target} (host={host}) as {username} to stat {marker_path} ({server_label})")
-            ssh.connect(hostname=target, username=username, password=password, timeout=timeout_seconds)
-            sftp = ssh.open_sftp()
-            st = sftp.stat(marker_path)
-            started_at_dt = datetime.fromtimestamp(st.st_mtime)
-            uptime_seconds = int((datetime.now() - started_at_dt).total_seconds())
-            result = {
-                "uptime": _format_duration(uptime_seconds),
-                "started_at": started_at_dt.strftime('%Y-%m-%d %H:%M:%S')
-            }
-            logging.info(f"Successfully read {server_label} uptime marker via SSH on {target} (started_at={result['started_at']})")
-            return result
-        except Exception as exc:
-            last_error = exc
-            logging.warning(f"SSH attempt failed for {server_label} target {target}: {exc}")
-        finally:
-            try:
-                if sftp:
-                    sftp.close()
-            except Exception:
-                pass
-            try:
-                if ssh:
-                    ssh.close()
-            except Exception:
-                pass
-    logging.error(f"Error fetching {server_label} uptime via SSH ({host}): {last_error}")
-    return None
+        logging.error(f"Error fetching {server_label} uptime via SSH ({host}): {exc}")
+        return None
 
 # In-memory cache for the Twitch app token from bot_chat_token
 _twitch_app_creds_cache: dict = {"loaded_at": 0.0, "access_token": None, "client_id": None}
@@ -2374,7 +2344,7 @@ async def system_uptime(request: Request):
         'SQL': os.getenv('SQL_UPTIME_MARKER_PATH', '/home/botofthespecter/sql_uptime'),
         'BOTS': os.getenv('BOTS_UPTIME_MARKER_PATH', '/home/botofthespecter/bots_uptime'),
     }
-    websocket_uptime = _read_uptime_marker_via_ssh(
+    websocket_uptime = await _read_uptime_marker_via_ssh(
         host=WEBSOCKET_SSH_HOST,
         username=SSH_USERNAME,
         password=SSH_PASSWORD,
@@ -2390,7 +2360,7 @@ async def system_uptime(request: Request):
     }
     for section_name, host in remote_servers.items():
         section = other_sections.setdefault(section_name, {'Local Read': {'uptime': 'Unknown', 'started_at': 'Unknown'}})
-        uptime_info = _read_uptime_marker_via_ssh(
+        uptime_info = await _read_uptime_marker_via_ssh(
             host=host,
             username=SSH_USERNAME,
             password=SSH_PASSWORD,
@@ -2853,67 +2823,34 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
         raise HTTPException(status_code=401, detail="Invalid API Key")
     username = resolve_username(key_info, channel)
     try:
-        # Get SSH credentials from environment
         website_ssh_host = os.getenv('WEB-HOST')
         website_ssh_username = os.getenv('SSH_USERNAME')
         website_ssh_password = os.getenv('SSH_PASSWORD')
-        # Connect to website server via SSH
-        ssh_client = SSHClient()
-        ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        # Run connection in executor to avoid blocking
-        await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: ssh_client.connect(
-                hostname=website_ssh_host,
-                port=22,
-                username=website_ssh_username,
-                password=website_ssh_password,
-                timeout=10
-            )
-        )
-        try:
-            # Build the command to list files in the user's sound alerts directory
-            sound_alerts_dir = f"/var/www/soundalerts/{username}"
-            # List only files directly in the directory (maxdepth 1), excluding the twitch subdirectory
-            command = f'ls -1 "{sound_alerts_dir}" 2>/dev/null | grep -v "^twitch$" | while read f; do [ -f "{sound_alerts_dir}/$f" ] && echo "$f"; done | sort'
-            # Execute command in executor to avoid blocking
-            stdin, stdout, stderr = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: ssh_client.exec_command(command)
-            )
-            # Read output in executor
-            stdout_data = await asyncio.get_event_loop().run_in_executor(
-                None,
-                stdout.read
-            )
-            stderr_data = await asyncio.get_event_loop().run_in_executor(
-                None,
-                stderr.read
-            )
-            return_code = stdout.channel.recv_exit_status()
-            if return_code != 0:
-                error_msg = stderr_data.decode('utf-8').strip()
-                if "No such file" in error_msg or "cannot access" in error_msg:
-                    raise HTTPException(status_code=404, detail=f"No sound alerts directory found for user '{channel}'")
-                logging.error(f"Error listing sound alerts for '{channel}': {error_msg}")
-                raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts")
-            # Parse output and filter for valid audio/video extensions
-            output = stdout_data.decode('utf-8').strip()
-            if not output:
-                sound_files = []
-            else:
-                valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
-                all_files = output.split('\n')
-                sound_files = [f for f in all_files if f.lower().endswith(valid_extensions)]
-            # Return formatted JSON response
-            return {
-                "user": username,
-                "total_sounds": len(sound_files),
-                "sounds": sound_files
-            }
-        finally:
-            # Close SSH connection
-            ssh_client.close()
+        sound_alerts_dir = f"/var/www/soundalerts/{username}"
+        command = f'ls -1 "{sound_alerts_dir}" 2>/dev/null | grep -v "^twitch$" | while read f; do [ -f "{sound_alerts_dir}/$f" ] && echo "$f"; done | sort'
+        async with asyncssh.connect(
+            website_ssh_host, port=22,
+            username=website_ssh_username, password=website_ssh_password,
+            known_hosts=None, connect_timeout=10,
+        ) as conn:
+            result = await conn.run(command)
+        if result.exit_status != 0:
+            error_msg = result.stderr.strip()
+            if "No such file" in error_msg or "cannot access" in error_msg:
+                raise HTTPException(status_code=404, detail=f"No sound alerts directory found for user '{channel}'")
+            logging.error(f"Error listing sound alerts for '{channel}': {error_msg}")
+            raise HTTPException(status_code=500, detail="Error retrieving sound alerts")
+        output = result.stdout.strip()
+        if not output:
+            sound_files = []
+        else:
+            valid_extensions = ('.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.avi', '.mov')
+            sound_files = [f for f in output.split('\n') if f.lower().endswith(valid_extensions)]
+        return {
+            "user": username,
+            "total_sounds": len(sound_files),
+            "sounds": sound_files
+        }
     except HTTPException:
         raise
     except Exception as e:

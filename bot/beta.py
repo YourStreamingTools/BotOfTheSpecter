@@ -38,7 +38,7 @@ from pytz import timezone as pytz_timezone
 from geopy.geocoders import Nominatim
 from jokeapi import Jokes
 from pint import UnitRegistry as ureg
-from paramiko import SSHClient, AutoAddPolicy
+import asyncssh
 from openai import AsyncOpenAI
 
 # Load environment variables from .env file
@@ -3106,69 +3106,37 @@ class SSHConnectionManager:
     def __init__(self, logger, timeout_minutes=5):
         self.logger = logger
         self.timeout_seconds = timeout_minutes * 60
-        self.connections = {}  # server_name -> connection info
-        self.lock = threading.Lock()
+        self.connections = {}  # server_name -> {'conn': asyncssh conn, 'last_used': float}
+        self.lock = asyncio.Lock()
     async def get_connection(self, server_name):
         if not SSH_USERNAME or not SSH_PASSWORD:
             raise ValueError("SSH_USERNAME and SSH_PASSWORD must be set in environment")
         if server_name not in SSH_HOSTS or not SSH_HOSTS[server_name]:
             raise ValueError(f"Invalid server name '{server_name}' or host not configured")
         hostname = SSH_HOSTS[server_name]
-        with self.lock:
-            # Check if we have an active connection
+        async with self.lock:
             if server_name in self.connections:
                 conn_info = self.connections[server_name]
-                # Check if connection is still valid and not timed out
-                if (time.time() - conn_info['last_used'] < self.timeout_seconds and 
-                    self._is_connection_alive(conn_info['client'])):
+                if time.time() - conn_info['last_used'] < self.timeout_seconds:
                     conn_info['last_used'] = time.time()
                     self.logger.debug(f"Reusing SSH connection to {server_name} ({hostname})")
-                    return conn_info['client']
-                else:
-                    # Connection expired or dead, clean it up
-                    self._cleanup_connection(server_name)
-            # Create new connection
-            return await self._create_connection(server_name, hostname)
-    def _is_connection_alive(self, ssh_client):
-        try:
-            transport = ssh_client.get_transport()
-            return transport and transport.is_active()
-        except:
-            return False
-    async def _create_connection(self, server_name, hostname):
-        try:
+                    return conn_info['conn']
+                conn_info['conn'].close()
+                del self.connections[server_name]
             self.logger.info(f"Creating new SSH connection to {server_name} ({hostname})")
-            ssh_client = SSHClient()
-            ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-            # Connect with credentials
-            connect_kwargs = {'hostname': hostname,'port': 22,'username': SSH_USERNAME,'password': SSH_PASSWORD,'timeout': 30}
-            # Run connection in thread to avoid blocking
-            await get_event_loop().run_in_executor(None, lambda: ssh_client.connect(**connect_kwargs))
-            # Store connection info
-            self.connections[server_name] = {'client': ssh_client,'last_used': time.time(),'hostname': hostname}
-            return ssh_client
-        except Exception as e:
-            self.logger.error(f"Failed to create SSH connection to {server_name} ({hostname}): {e}")
-            raise
-    def _cleanup_connection(self, server_name):
-        if server_name in self.connections:
-            try:
-                self.connections[server_name]['client'].close()
-                self.logger.debug(f"Closed SSH connection to {server_name}")
-            except:
-                pass
-            del self.connections[server_name]
-
+            conn = await asyncssh.connect(
+                hostname, port=22,
+                username=SSH_USERNAME, password=SSH_PASSWORD,
+                known_hosts=None, connect_timeout=30,
+            )
+            self.connections[server_name] = {'conn': conn, 'last_used': time.time()}
+            self.logger.info(f"SSH connection established to {server_name} ({hostname})")
+            return conn
     async def execute_command(self, server_name, command):
-        ssh_client = await self.get_connection(server_name)
+        conn = await self.get_connection(server_name)
         try:
-            # Execute command in thread to avoid blocking
-            stdin, stdout, stderr = await get_event_loop().run_in_executor(None, ssh_client.exec_command, command)
-            # Read output in thread
-            stdout_data = await get_event_loop().run_in_executor(None, stdout.read)
-            stderr_data = await get_event_loop().run_in_executor(None, stderr.read)
-            return_code = stdout.channel.recv_exit_status()
-            return {'stdout': stdout_data.decode('utf-8'),'stderr': stderr_data.decode('utf-8'),'return_code': return_code}
+            result = await conn.run(command)
+            return {'stdout': result.stdout, 'stderr': result.stderr, 'return_code': result.exit_status}
         except Exception as e:
             self.logger.error(f"Error executing command on {server_name}: {e}")
             raise
@@ -3180,10 +3148,13 @@ class SSHConnectionManager:
             self.logger.error(f"Error checking file existence on {server_name}: {e}")
             return False
     def close_all_connections(self):
-        with self.lock:
-            for server_name in list(self.connections.keys()):
-                self._cleanup_connection(server_name)
-            self.logger.info("All SSH connections closed")
+        for conn_info in self.connections.values():
+            try:
+                conn_info['conn'].close()
+            except Exception:
+                pass
+        self.connections.clear()
+        self.logger.info("All SSH connections closed")
 
 # Kept for compatibility - per-function connections have no pools to clean up
 async def cleanup_idle_db_pools():
