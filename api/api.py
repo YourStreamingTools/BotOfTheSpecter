@@ -15,6 +15,7 @@ import urllib
 import socket
 from datetime import datetime, timedelta, timezone
 import traceback
+import re
 
 # Third-party imports
 import aiohttp
@@ -4435,6 +4436,18 @@ async def get_bot_status_via_ssh(username: str) -> dict:
             "outdated": None,
             "latest_version": latest_versions.get("stable_version")
         }
+    status_script = "/home/botofthespecter/status.py"
+    version_base = "/home/botofthespecter/logs/version"
+    version_files = {
+        "stable": f"{version_base}/{username}_version_control.txt",
+        "beta": f"{version_base}/beta/{username}_beta_version_control.txt",
+        "custom": f"{version_base}/custom/{username}_custom_version_control.txt",
+    }
+    latest_version_map = {
+        "stable": latest_versions.get("stable_version"),
+        "beta": latest_versions.get("beta_version"),
+        "custom": latest_versions.get("stable_version"),
+    }
     try:
         connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
         command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
@@ -4454,59 +4467,43 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                 look_for_keys=False,
                 allow_agent=False,
             )
-            # Execute the running_bots.py script with a command timeout
-            stdin, stdout, stderr = await asyncio.to_thread(
-                ssh.exec_command,
-                "python3 /home/botofthespecter/running_bots.py 2>&1",
-                timeout=command_timeout,
-            )
-            output = (await asyncio.to_thread(stdout.read)).decode('utf-8')
+            found_type = None
+            found_pid = None
+            for bot_type in ["stable", "beta", "custom"]:
+                cmd = f"python3 {status_script} -system {bot_type} -channel {username}"
+                _, stdout, _ = await asyncio.to_thread(
+                    ssh.exec_command, cmd, timeout=command_timeout
+                )
+                output = (await asyncio.to_thread(stdout.read)).decode("utf-8").strip()
+                logging.debug(f"status.py output for '{username}' ({bot_type}): {output}")
+                m = re.search(r'process ID:\s*(\d+)', output, re.IGNORECASE)
+                if m:
+                    found_type = bot_type
+                    found_pid = int(m.group(1))
+                    break
+            if found_type:
+                _, vout, _ = await asyncio.to_thread(
+                    ssh.exec_command, f"cat {version_files[found_type]}", timeout=command_timeout
+                )
+                version = (await asyncio.to_thread(vout.read)).decode("utf-8").strip() or None
+                latest = latest_version_map[found_type]
+                is_outdated = False
+                if version and latest:
+                    try:
+                        is_outdated = tuple(map(int, version.split('.'))) < tuple(map(int, latest.split('.')))
+                    except (ValueError, AttributeError):
+                        is_outdated = False
+                return {
+                    "running": True,
+                    "pid": found_pid,
+                    "version": version,
+                    "bot_type": found_type,
+                    "outdated": is_outdated,
+                    "latest_version": latest
+                }
         finally:
             ssh.close()
-        logging.debug(f"running_bots.py output for '{username}':\n{output}")
-        # Parse the output to find the specific user's bot
-        lines = output.split('\n')
-        section = ''
-        for line in lines:
-            line = line.strip()
-            # Identify which section we're in
-            if 'Stable bots running:' in line:
-                section = 'stable'
-            elif 'Beta bots running:' in line:
-                section = 'beta'
-            elif 'Custom bots running:' in line:
-                section = 'custom'
-            # Parse bot information line
-            # Format: - Channel: username, PID: 12345, Version: 3.0 | Status
-            import re
-            match = re.match(r'- Channel: (\S+), PID: (\d+), Version: (.+?)\s*\|(.+)', line)
-            if match:
-                channel = match.group(1)
-                pid = int(match.group(2))
-                version = match.group(3)
-                status_text = match.group(4).strip()
-                is_outdated = 'OUTDATED' in status_text
-                # Check if this is the user we're looking for
-                if channel.lower() == username.lower():
-                    # Determine the latest version based on bot type
-                    latest_version = None
-                    if section == 'stable' and 'stable_version' in latest_versions:
-                        latest_version = latest_versions['stable_version']
-                    elif section == 'beta' and 'beta_version' in latest_versions:
-                        latest_version = latest_versions['beta_version']
-                    elif section == 'custom' and 'stable_version' in latest_versions:
-                        # Custom bots compare against stable version
-                        latest_version = latest_versions['stable_version']
-                    return {
-                        "running": True,
-                        "pid": pid,
-                        "version": version,
-                        "bot_type": section,
-                        "outdated": is_outdated,
-                        "latest_version": latest_version
-                    }
-        # If we get here, the bot is not running
-        logging.info(f"Bot not found in running_bots.py output for user '{username}'")
+        logging.info(f"Bot not running for user '{username}'")
         return {
             "running": False,
             "pid": None,
