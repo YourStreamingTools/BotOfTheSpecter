@@ -25,6 +25,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 import uvicorn
 import aioping
 from paramiko import SSHClient, AutoAddPolicy
+import asyncssh
 from fastapi import FastAPI, HTTPException, Request, status, Query, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -4425,9 +4426,9 @@ async def get_bot_status_via_ssh(username: str) -> dict:
         with open(versions_path, "r") as versions_file:
             latest_versions = json.load(versions_file)
     except Exception as e:
-        logging.error(f"Error loading versions.json: {e}")
+        logging.error(f"[bot_status] failed to load versions.json: {e}")
     if not all([BOTS_SSH_HOST, SSH_USERNAME, SSH_PASSWORD]):
-        logging.warning(f"Bot status check skipped for '{username}': missing SSH credentials (BOT-SRV-HOST={BOTS_SSH_HOST!r}, SSH_USERNAME set={bool(SSH_USERNAME)}, SSH_PASSWORD set={bool(SSH_PASSWORD)})")
+        logging.warning(f"[bot_status] skipped for '{username}': missing SSH credentials (BOT-SRV-HOST={BOTS_SSH_HOST!r}, SSH_USERNAME set={bool(SSH_USERNAME)}, SSH_PASSWORD set={bool(SSH_PASSWORD)})")
         return {
             "running": False,
             "pid": None,
@@ -4448,43 +4449,28 @@ async def get_bot_status_via_ssh(username: str) -> dict:
         "beta": latest_versions.get("beta_version"),
         "custom": latest_versions.get("stable_version"),
     }
+    connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
+    command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
+    t0 = _time.monotonic()
+    logging.info(f"[bot_status] connecting to host={BOTS_SSH_HOST!r} user={SSH_USERNAME!r} for '{username}'")
     try:
-        connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
-        command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
-        logging.info(f"[bot_status] connecting to {BOTS_SSH_HOST} for '{username}' (connect_timeout={connect_timeout}, command_timeout={command_timeout})")
-        t0 = _time.monotonic()
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(
-                    ssh.connect,
-                    hostname=BOTS_SSH_HOST,
-                    username=SSH_USERNAME,
-                    password=SSH_PASSWORD,
-                    timeout=connect_timeout,
-                    auth_timeout=connect_timeout,
-                    banner_timeout=connect_timeout,
-                    look_for_keys=False,
-                    allow_agent=False,
-                ),
-                timeout=connect_timeout,
-            )
+        async with asyncssh.connect(
+            BOTS_SSH_HOST,
+            username=SSH_USERNAME,
+            password=SSH_PASSWORD,
+            known_hosts=None,
+            connect_timeout=connect_timeout,
+        ) as conn:
             logging.info(f"[bot_status] SSH connected in {_time.monotonic()-t0:.2f}s")
-            def run_cmd(cmd, timeout_s):
-                _, out, _ = ssh.exec_command(cmd)
-                out.channel.settimeout(timeout_s)
-                data = out.read().decode("utf-8").strip()
-                return data
             found_type = None
             found_pid = None
             for bot_type in ["stable", "beta", "custom"]:
-                cmd = f"python {status_script} -system {bot_type} -channel {username}"
                 t1 = _time.monotonic()
-                output = await asyncio.wait_for(
-                    asyncio.to_thread(run_cmd, cmd, command_timeout),
-                    timeout=command_timeout + 2,
+                result = await asyncio.wait_for(
+                    conn.run(f"python {status_script} -system {bot_type} -channel {username}"),
+                    timeout=command_timeout,
                 )
+                output = result.stdout.strip()
                 logging.info(f"[bot_status] status.py -{bot_type} for '{username}' in {_time.monotonic()-t1:.2f}s: {output!r}")
                 m = re.search(r'process ID:\s*(\d+)', output, re.IGNORECASE)
                 if m:
@@ -4493,12 +4479,12 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                     break
             if found_type:
                 t2 = _time.monotonic()
-                version = await asyncio.wait_for(
-                    asyncio.to_thread(run_cmd, f"cat {version_files[found_type]}", command_timeout),
-                    timeout=command_timeout + 2,
+                cat = await asyncio.wait_for(
+                    conn.run(f"cat {version_files[found_type]}"),
+                    timeout=command_timeout,
                 )
-                version = version or None
-                logging.info(f"[bot_status] version file read in {_time.monotonic()-t2:.2f}s: {version!r}")
+                version = cat.stdout.strip() or None
+                logging.info(f"[bot_status] version={version!r} in {_time.monotonic()-t2:.2f}s; total {_time.monotonic()-t0:.2f}s")
                 latest = latest_version_map[found_type]
                 is_outdated = False
                 if version and latest:
@@ -4514,17 +4500,15 @@ async def get_bot_status_via_ssh(username: str) -> dict:
                     "outdated": is_outdated,
                     "latest_version": latest
                 }
-        finally:
-            ssh.close()
-        logging.info(f"[bot_status] bot not running for '{username}' (total {_time.monotonic()-t0:.2f}s)")
-        return {
-            "running": False,
-            "pid": None,
-            "version": None,
-            "bot_type": None,
-            "outdated": None,
-            "latest_version": latest_versions.get("stable_version")
-        }
+            logging.info(f"[bot_status] bot not running for '{username}' (total {_time.monotonic()-t0:.2f}s)")
+            return {
+                "running": False,
+                "pid": None,
+                "version": None,
+                "bot_type": None,
+                "outdated": None,
+                "latest_version": latest_versions.get("stable_version")
+            }
     except Exception as e:
         logging.error(f"[bot_status] error for '{username}' after {_time.monotonic()-t0:.2f}s: {type(e).__name__}: {e}", exc_info=True)
         return {

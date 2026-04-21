@@ -3,6 +3,7 @@ uvicorn
 aiohttp
 aiomysql
 paramiko
+asyncssh
 pydantic
 python-dotenv
 aioping
