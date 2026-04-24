@@ -358,30 +358,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
             $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = ? WHERE id = ?");
-            mysqli_stmt_bind_param($stmt, 'si', $hashed, $userId);
-            if (mysqli_stmt_execute($stmt)) {
-                $user['app_password'] = $hashed;
-                $_SESSION['profile_message'] = 'App password set successfully.';
-                $_SESSION['profile_alert_class'] = 'is-success';
-                header("Location: " . $_SERVER['REQUEST_URI']);
-                exit();
-            } else {
-                $message = 'Failed to set app password: ' . mysqli_error($conn);
+            if ($stmt === false) {
+                error_log('profile.php set_app_password prepare failed: ' . mysqli_error($conn));
+                $message = 'Unable to set app password right now. Please try again later.';
                 $alertClass = 'is-danger';
+            } else {
+                mysqli_stmt_bind_param($stmt, 'si', $hashed, $userId);
+                if (mysqli_stmt_execute($stmt)) {
+                    mysqli_stmt_close($stmt);
+                    $user['app_password'] = $hashed;
+                    $_SESSION['profile_message'] = 'App password set successfully.';
+                    $_SESSION['profile_alert_class'] = 'is-success';
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit();
+                } else {
+                    $message = 'Failed to set app password: ' . mysqli_error($conn);
+                    $alertClass = 'is-danger';
+                    mysqli_stmt_close($stmt);
+                }
             }
         }
     } elseif ($action === 'clear_app_password') {
         $stmt = mysqli_prepare($conn, "UPDATE users SET app_password = NULL WHERE id = ?");
-        mysqli_stmt_bind_param($stmt, 'i', $userId);
-        if (mysqli_stmt_execute($stmt)) {
-            $user['app_password'] = null;
-            $_SESSION['profile_message'] = 'App password removed.';
-            $_SESSION['profile_alert_class'] = 'is-success';
-            header("Location: " . $_SERVER['REQUEST_URI']);
-            exit();
-        } else {
-            $message = 'Failed to remove app password: ' . mysqli_error($conn);
+        if ($stmt === false) {
+            error_log('profile.php clear_app_password prepare failed: ' . mysqli_error($conn));
+            $message = 'Unable to remove app password right now. Please try again later.';
             $alertClass = 'is-danger';
+        } else {
+            mysqli_stmt_bind_param($stmt, 'i', $userId);
+            if (mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
+                $user['app_password'] = null;
+                $_SESSION['profile_message'] = 'App password removed.';
+                $_SESSION['profile_alert_class'] = 'is-success';
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit();
+            } else {
+                $message = 'Failed to remove app password: ' . mysqli_error($conn);
+                $alertClass = 'is-danger';
+                mysqli_stmt_close($stmt);
+            }
         }
     } elseif ($action === 'save_custom_bot') {
         // Handle saving custom bot
