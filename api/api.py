@@ -507,6 +507,8 @@ _V2_API_KEY_REQUIRED_PATHS = [
     "/discord/twitch-link/confirm",
     "/bot/status",
     "/account/app-login",
+    "/channel/twitch/raids/start",
+    "/channel/twitch/raids/cancel",
 ]
 _V2_API_KEY_REQUIRED_PATHS_SET = set(_V2_API_KEY_REQUIRED_PATHS)
 
