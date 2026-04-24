@@ -56,7 +56,13 @@ $stableLastRestartOutput = '';
 $selectedBot = $_GET['bot'] ?? null;
 if (isset($_GET['bot'])) {
   if (in_array($_GET['bot'], ['stable', 'beta', 'v6'])) {
-    setcookie('selectedBot', $_GET['bot'], time() + (86400 * 30), "/"); // Cookie for 30 days
+    setcookie('selectedBot', $_GET['bot'], [
+      'expires' => time() + (86400 * 30),
+      'path' => '/',
+      'secure' => true,
+      'httponly' => true,
+      'samesite' => 'Lax',
+    ]);
   }
 }
 else if (!isset($_GET['bot']) && isset($_COOKIE['selectedBot']) && in_array($_COOKIE['selectedBot'], ['stable', 'beta', 'v6'])) {
