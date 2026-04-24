@@ -291,7 +291,13 @@ $selected_server = isset($_GET['server']) ? $_GET['server'] : ($cookieConsent &&
 
 // Set the cookie if the server is selected from the dropdown
 if (isset($_GET['server']) && $cookieConsent) {
-    setcookie('selectedStreamServer', $_GET['server'], time() + (86400 * 30), "/"); // Cookie for 30 days
+    setcookie('selectedStreamServer', $_GET['server'], [
+        'expires' => time() + (86400 * 30),
+        'path' => '/',
+        'secure' => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 // Initialize S3 client based on selected server region
