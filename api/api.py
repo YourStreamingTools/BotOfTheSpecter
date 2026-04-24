@@ -215,6 +215,38 @@ async def get_twitch_app_credentials() -> dict | None:
     _twitch_app_creds_cache = {"loaded_at": now, "access_token": access_token, "client_id": client_id}
     return _twitch_app_creds_cache
 
+async def _get_user_twitch_auth(username: str) -> dict | None:
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                """
+                SELECT u.twitch_user_id, t.twitch_access_token, t.updated_at
+                FROM users u
+                LEFT JOIN twitch_bot_access t ON u.twitch_user_id = t.twitch_user_id
+                WHERE u.username = %s
+                """,
+                (username,)
+            )
+            row = await cur.fetchone()
+            if not row or not row.get("twitch_user_id") or not row.get("twitch_access_token"):
+                return None
+            return {
+                "access_token": row["twitch_access_token"],
+                "twitch_user_id": str(row["twitch_user_id"]),
+                "updated_at": row.get("updated_at"),
+            }
+    finally:
+        conn.close()
+
+def _twitch_token_is_stale(updated_at) -> bool:
+    if updated_at is None:
+        return True
+    try:
+        return (datetime.now() - updated_at) >= timedelta(hours=4)
+    except Exception:
+        return True
+
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
 
@@ -252,6 +284,10 @@ tags_metadata = [
     {
         "name": "Extension",
         "description": "Read-only endpoints for the Twitch Extension. No API key required. Uses the broadcaster's Twitch channel ID to identify the channel.",
+    },
+    {
+        "name": "Channel",
+        "description": "Endpoints that act on the authenticated broadcaster's Twitch channel. Requires user API key and a valid Twitch user access token with the necessary scopes.",
     },
 ]
 
@@ -4756,6 +4792,102 @@ async def extension_todos(channel_id: str = Query(..., description="Broadcaster'
     except Exception as e:
         logging.error(f"Extension todos error for channel_id {channel_id}: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving todos")
+
+# Twitch Raid Endpoints
+@app.post(
+    "/channel/twitch/raids/start",
+    summary="Start a Twitch raid",
+    description="Raid another channel by sending the broadcaster's viewers to the targeted channel. Requires the user access token to include the `channel:manage:raids` scope. Rate limited by Twitch to 10 requests per 10 minutes.",
+    tags=["Channel"],
+    operation_id="start_twitch_raid"
+)
+async def start_twitch_raid(
+    api_key: str = Query(...),
+    to_broadcaster_id: str = Query(..., description="The Twitch user ID of the channel to raid."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    auth = await _get_user_twitch_auth(username)
+    if not auth:
+        raise HTTPException(status_code=404, detail="No Twitch credentials on file for this user")
+    if _twitch_token_is_stale(auth.get("updated_at")):
+        auth = await _get_user_twitch_auth(username)
+        if not auth or _twitch_token_is_stale(auth.get("updated_at")):
+            raise HTTPException(status_code=401, detail="Twitch access token is expired")
+    if auth["twitch_user_id"] == str(to_broadcaster_id):
+        raise HTTPException(status_code=400, detail="from_broadcaster_id and to_broadcaster_id cannot be the same")
+    if not CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Twitch client ID is not configured")
+    helix_url = "https://api.twitch.tv/helix/raids"
+    params = {"from_broadcaster_id": auth["twitch_user_id"], "to_broadcaster_id": str(to_broadcaster_id)}
+    headers = {"Authorization": f"Bearer {auth['access_token']}", "Client-Id": CLIENT_ID}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(helix_url, headers=headers, params=params) as resp:
+                status_code = resp.status
+                body = await resp.text()
+    except Exception as e:
+        logging.error(f"Twitch raid start failed for '{username}': {e}")
+        raise HTTPException(status_code=502, detail="Failed to contact Twitch")
+    if status_code == 200:
+        try:
+            data = json.loads(body)
+        except Exception:
+            data = {"raw": body}
+        return {"status": "success", "from_broadcaster_id": auth["twitch_user_id"], "to_broadcaster_id": str(to_broadcaster_id), "data": data.get("data", [])}
+    try:
+        err_json = json.loads(body)
+        detail = err_json.get("message") or err_json
+    except Exception:
+        detail = body or f"Twitch returned HTTP {status_code}"
+    raise HTTPException(status_code=status_code, detail=detail)
+
+@app.delete(
+    "/channel/twitch/raids/cancel",
+    summary="Cancel a pending Twitch raid",
+    description="Cancel a pending raid for the authenticated broadcaster. Requires the user access token to include the `channel:manage:raids` scope. Rate limited by Twitch to 10 requests per 10 minutes.",
+    tags=["Channel"],
+    operation_id="cancel_twitch_raid"
+)
+async def cancel_twitch_raid(
+    api_key: str = Query(...),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    auth = await _get_user_twitch_auth(username)
+    if not auth:
+        raise HTTPException(status_code=404, detail="No Twitch credentials on file for this user")
+    if _twitch_token_is_stale(auth.get("updated_at")):
+        auth = await _get_user_twitch_auth(username)
+        if not auth or _twitch_token_is_stale(auth.get("updated_at")):
+            raise HTTPException(status_code=401, detail="Twitch access token is expired")
+    if not CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Twitch client ID is not configured")
+    helix_url = "https://api.twitch.tv/helix/raids"
+    params = {"broadcaster_id": auth["twitch_user_id"]}
+    headers = {"Authorization": f"Bearer {auth['access_token']}", "Client-Id": CLIENT_ID}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(helix_url, headers=headers, params=params) as resp:
+                status_code = resp.status
+                body = await resp.text()
+    except Exception as e:
+        logging.error(f"Twitch raid cancel failed for '{username}': {e}")
+        raise HTTPException(status_code=502, detail="Failed to contact Twitch")
+    if status_code == 204:
+        return {"status": "success", "broadcaster_id": auth["twitch_user_id"], "message": "Pending raid cancelled"}
+    try:
+        err_json = json.loads(body)
+        detail = err_json.get("message") or err_json
+    except Exception:
+        detail = body or f"Twitch returned HTTP {status_code}"
+    raise HTTPException(status_code=status_code, detail=detail)
 
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
