@@ -1,17 +1,24 @@
 <?php 
 // Initialize the session
+ob_start();
 session_start();
 session_write_close();
 
+function fbs_json_response($status, $payload) {
+    if (ob_get_length() !== false) { ob_clean(); }
+    http_response_code($status);
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+}
+
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
+    fbs_json_response(401, ['error' => 'Not authenticated']);
     exit();
 }
 
 $access_token = $_SESSION['access_token'];
-$broadcasterID = $_SESSION['twitch_user_id'];
+$broadcasterID = $_SESSION['twitchUserId'];
 $clientID = 'mrjucsmsnri89ifucl66jj1n35jkj8';
 
 function getTwitchUserIds($usernames, $accessToken, $clientID) {
@@ -47,7 +54,7 @@ function getBannedUsers($userIds, $accessToken, $broadcasterID, $clientID) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernames'])) {
     $usernames = json_decode($_POST['usernames'], true);
-    if (!is_array($usernames)) { http_response_code(400); echo json_encode(['error' => 'Invalid usernames format']); exit(); }
+    if (!is_array($usernames)) { fbs_json_response(400, ['error' => 'Invalid usernames format']); exit(); }
     $userMap = getTwitchUserIds($usernames, $access_token, $clientID);
     $userIds = array_values($userMap);
     $bannedUserIds = getBannedUsers($userIds, $access_token, $broadcasterID, $clientID);
@@ -57,9 +64,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['usernames'])) {
         $isBanned = $userId && in_array($userId, $bannedUserIds);
         $result['bannedUsers'][$username] = $isBanned;
     }
-    echo json_encode($result);
+    fbs_json_response(200, $result);
 } else {
-    http_response_code(400);
-    echo json_encode(['error' => 'Bad request']);
+    fbs_json_response(400, ['error' => 'Bad request']);
 }
 ?>
