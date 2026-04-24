@@ -98,7 +98,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $_SESSION['access_token'] = $accessToken;
             $_SESSION['refresh_token'] = $refreshToken;
             $_SESSION['username'] = $twitchUsername;
-            $_SESSION['twitch_user_id'] = $twitchUserId;
+            $_SESSION['twitchUserId'] = $twitchUserId;
             $_SESSION['profile_image'] = $profileImageUrl;
             $_SESSION['display_name'] = $twitchDisplayName;
             // Database connect
@@ -308,7 +308,7 @@ if (isset($_GET['code'])) {
         $twitchUserId = $userInfo['data'][0]['id'];
         $email = $userInfo['data'][0]['email'] ?? '';
         $_SESSION['username'] = $twitchUsername;
-        $_SESSION['twitch_user_id'] = $twitchUserId;
+        $_SESSION['twitchUserId'] = $twitchUserId;
         $_SESSION['profile_image'] = $profileImageUrl;
         $_SESSION['display_name'] = $twitchDisplayName;
         // Database connect
