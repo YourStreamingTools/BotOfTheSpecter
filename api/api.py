@@ -4775,7 +4775,7 @@ async def extension_todos(channel_id: str = Query(..., description="Broadcaster'
 )
 async def start_twitch_raid(
     api_key: str = Query(...),
-    to_broadcaster_id: str = Query(..., description="The Twitch user ID of the channel to raid."),
+    to_broadcaster_login: str = Query(..., description="The Twitch username of the channel to raid."),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
@@ -4789,12 +4789,38 @@ async def start_twitch_raid(
         auth = await _get_user_twitch_auth(username)
         if not auth or _twitch_token_is_stale(auth.get("updated_at")):
             raise HTTPException(status_code=401, detail="Twitch access token is expired")
-    if auth["twitch_user_id"] == str(to_broadcaster_id):
-        raise HTTPException(status_code=400, detail="from_broadcaster_id and to_broadcaster_id cannot be the same")
     if not CLIENT_ID:
         raise HTTPException(status_code=500, detail="Twitch client ID is not configured")
+    target_login = to_broadcaster_login.strip().lower()
+    if not target_login:
+        raise HTTPException(status_code=400, detail="to_broadcaster_login is required")
+    app_creds = await get_twitch_app_credentials()
+    if not app_creds:
+        raise HTTPException(status_code=500, detail="Twitch app credentials are unavailable")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.twitch.tv/helix/users",
+                headers={"Client-ID": app_creds["client_id"], "Authorization": f"Bearer {app_creds['access_token']}"},
+                params={"login": target_login},
+            ) as resp:
+                lookup_status = resp.status
+                lookup_body = await resp.json(content_type=None)
+    except Exception as e:
+        logging.error(f"Twitch user lookup failed for '{target_login}': {e}")
+        raise HTTPException(status_code=502, detail="Failed to resolve target broadcaster")
+    if lookup_status != 200:
+        raise HTTPException(status_code=502, detail="Failed to resolve target broadcaster")
+    users_data = (lookup_body or {}).get("data", [])
+    if not users_data:
+        raise HTTPException(status_code=404, detail=f"Twitch user '{target_login}' not found")
+    to_broadcaster_id = str(users_data[0].get("id") or "")
+    if not to_broadcaster_id:
+        raise HTTPException(status_code=502, detail="Failed to resolve target broadcaster")
+    if auth["twitch_user_id"] == to_broadcaster_id:
+        raise HTTPException(status_code=400, detail="You cannot raid your own channel")
     helix_url = "https://api.twitch.tv/helix/raids"
-    params = {"from_broadcaster_id": auth["twitch_user_id"], "to_broadcaster_id": str(to_broadcaster_id)}
+    params = {"from_broadcaster_id": auth["twitch_user_id"], "to_broadcaster_id": to_broadcaster_id}
     headers = {"Authorization": f"Bearer {auth['access_token']}", "Client-Id": CLIENT_ID}
     try:
         async with aiohttp.ClientSession() as session:
@@ -4809,7 +4835,7 @@ async def start_twitch_raid(
             data = json.loads(body)
         except Exception:
             data = {"raw": body}
-        return {"status": "success", "from_broadcaster_id": auth["twitch_user_id"], "to_broadcaster_id": str(to_broadcaster_id), "data": data.get("data", [])}
+        return {"status": "success", "from_broadcaster_id": auth["twitch_user_id"], "to_broadcaster_id": to_broadcaster_id, "to_broadcaster_login": target_login, "data": data.get("data", [])}
     try:
         err_json = json.loads(body)
         detail = err_json.get("message") or err_json
