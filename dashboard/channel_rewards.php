@@ -468,11 +468,7 @@ ob_start();
                             if (!$showNoChannelPoints) {
                                 $tToken = $_SESSION['access_token'];
                                 $tBroadcasterId = $_SESSION['twitchUserId'];
-                                // Get Client ID from config/twitch.php
-                                $tClientId = '';
-                                include '/var/www/config/twitch.php';
-                                if (isset($clientID))
-                                    $tClientId = $clientID;
+                                $tClientId = isset($clientID) ? $clientID : '';
                                 if (!empty($tToken) && !empty($tBroadcasterId)) {
                                     $ch = curl_init();
                                     curl_setopt($ch, CURLOPT_URL, "https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=" . $tBroadcasterId);
