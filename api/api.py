@@ -4769,7 +4769,7 @@ async def extension_todos(channel_id: str = Query(..., description="Broadcaster'
 @app.post(
     "/channel/twitch/raids/start",
     summary="Start a Twitch raid",
-    description="Raid another channel by sending the broadcaster's viewers to the targeted channel. Requires the user access token to include the `channel:manage:raids` scope. Rate limited by Twitch to 10 requests per 10 minutes.",
+    description="Raid another channel by sending the broadcaster's viewers to the targeted channel. Rate limited by Twitch to 10 requests per 10 minutes.",
     tags=["Channel"],
     operation_id="start_twitch_raid"
 )
@@ -4820,7 +4820,7 @@ async def start_twitch_raid(
 @app.delete(
     "/channel/twitch/raids/cancel",
     summary="Cancel a pending Twitch raid",
-    description="Cancel a pending raid for the authenticated broadcaster. Requires the user access token to include the `channel:manage:raids` scope. Rate limited by Twitch to 10 requests per 10 minutes.",
+    description="Cancel a pending raid for the authenticated broadcaster. Rate limited by Twitch to 10 requests per 10 minutes.",
     tags=["Channel"],
     operation_id="cancel_twitch_raid"
 )
