@@ -459,58 +459,30 @@ app.add_middleware(
 
 # v2 header-based API key auth compatibility layer.
 #
-# Existing endpoints continue to support v1 query parameter auth:
-#   /account?api_key=...
-#
-# v2 routes require X-API-KEY header and are mapped to existing handlers:
-#   /v2/account + header X-API-KEY: ...
-_V2_API_KEY_REQUIRED_PATHS = [
-    "/account",
-    "/quotes",
-    "/fortune",
-    "/kill",
-    "/joke",
-    "/sound-alerts",
-    "/custom-commands",
-    "/custom-commands/add",
-    "/custom-commands/update",
-    "/custom-commands/delete",
-    "/builtin-commands",
-    "/builtin-commands/update",
-    "/user-commands/get",
-    "/user-commands/add",
-    "/user-commands/remove",
-    "/weather",
-    "/websocket/tts",
-    "/websocket/walkon",
-    "/websocket/deaths",
-    "/websocket/sound_alert",
-    "/websocket/custom_command",
-    "/websocket/stream_online",
-    "/websocket/raffle_winner",
-    "/websocket/stream_offline",
-    "/SEND_OBS_EVENT",
-    "/user-points",
-    "/user-points/credit",
-    "/user-points/debit",
-    "/weather/location",
-    "/authorizedusers",
-    "/checkkey",
-    "/streamonline",
-    "/deaths",
-    "/deaths/add",
-    "/deaths/remove",
-    "/discord/linked",
-    "/discord/twitch-link",
-    "/discord/twitch-link/request",
-    "/discord/twitch-link/unlink",
-    "/discord/twitch-link/confirm",
-    "/bot/status",
-    "/account/app-login",
-    "/channel/twitch/raids/start",
-    "/channel/twitch/raids/cancel",
-]
-_V2_API_KEY_REQUIRED_PATHS_SET = set(_V2_API_KEY_REQUIRED_PATHS)
+# All authenticated endpoints are auto-mapped to /v2/<path> with X-API-KEY header auth.
+# The only v1-style paths kept in v2 docs are those listed in _V2_PUBLIC_PATHS (no auth)
+# and _V2_WEBHOOK_PATHS (external services that must keep api_key in the URL).
+_v2_api_key_required_paths_cache: set | None = None
+
+def _get_v2_api_key_required_paths() -> set:
+    global _v2_api_key_required_paths_cache
+    if _v2_api_key_required_paths_cache is not None:
+        return _v2_api_key_required_paths_cache
+    excluded = _V2_PUBLIC_PATHS_SET | _V2_WEBHOOK_PATHS_SET | _V2_DOCS_PATHS
+    paths = set()
+    for route in app.routes:
+        path = getattr(route, "path", None)
+        if not path:
+            continue
+        if not getattr(route, "include_in_schema", True):
+            continue
+        if path.startswith("/v2"):
+            continue
+        if path in excluded:
+            continue
+        paths.add(path)
+    _v2_api_key_required_paths_cache = paths
+    return paths
 
 
 def _sanitize_user_command_name(command: str) -> str:
@@ -583,7 +555,7 @@ async def v2_api_key_header_middleware(request: Request, call_next):
     if legacy_path in _V2_PUBLIC_PATHS_SET:
         request.scope["path"] = legacy_path
         return await call_next(request)
-    if legacy_path not in _V2_API_KEY_REQUIRED_PATHS_SET:
+    if legacy_path not in _get_v2_api_key_required_paths():
         return JSONResponse(
             status_code=404,
             content={"detail": "v2 endpoint not found"},
@@ -695,7 +667,6 @@ def build_v2_openapi_schema():
         "email": "questions@botofthespecter.com",
     }
     paths = openapi_schema.setdefault("paths", {})
-
     for legacy_path in _V2_WEBHOOK_PATHS:
         if legacy_path not in paths:
             continue
@@ -708,7 +679,6 @@ def build_v2_openapi_schema():
             v2_operation["operationId"] = f"v2_{operation_id}"
             webhook_operations[method] = v2_operation
         paths[legacy_path] = webhook_operations
-
     for legacy_path in _V2_PUBLIC_PATHS:
         if legacy_path not in paths:
             continue
@@ -721,7 +691,7 @@ def build_v2_openapi_schema():
             v2_operation["operationId"] = f"v2_{operation_id}"
             public_operations[method] = v2_operation
         paths[legacy_path] = public_operations
-    for legacy_path in _V2_API_KEY_REQUIRED_PATHS:
+    for legacy_path in _get_v2_api_key_required_paths():
         if legacy_path not in paths:
             continue
         v2_path = f"/v2{legacy_path}"
