@@ -1,5 +1,5 @@
 <?php
-require 'db_connect.php';
+require '/var/www/config/db_connect.php';
 
 // Start session only if it hasn't already been started
 if (session_status() === PHP_SESSION_NONE) {
