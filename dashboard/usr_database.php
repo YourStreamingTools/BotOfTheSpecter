@@ -1,7 +1,15 @@
 ﻿<?php
 // Database
 include '/var/www/config/database.php';
-$dbname = $_SESSION['username'];
+$dbname = $_SESSION['username'] ?? '';
+
+// $dbname is used as a MySQL identifier in CREATE DATABASE / SHOW TABLES / INFORMATION_SCHEMA lookups
+// throughout this file and cannot be parameterized. Reject anything outside the Twitch username charset
+// to keep those unparameterized splices safe.
+if (!preg_match('/^[a-zA-Z0-9_]{1,64}$/', $dbname)) {
+    error_log('usr_database.php: refusing unsafe dbname: ' . var_export($dbname, true));
+    die('Invalid session username.');
+}
 
 try {
     // Create connection
