@@ -110,7 +110,15 @@ $cookieConsent = isset($_COOKIE['cookie_consent']) && $_COOKIE['cookie_consent']
 // Server selection handling (default to AU)
 $selected_server = isset($_GET['server']) ? $_GET['server'] : ($cookieConsent && isset($_COOKIE['selectedPersistentServer']) ? $_COOKIE['selectedPersistentServer'] : 'australia');
 // Set the cookie if the server is selected from the dropdown
-if (isset($_GET['server']) && $cookieConsent) { setcookie('selectedPersistentServer', $_GET['server'], time() + (86400 * 30), "/"); } // Cookie for 30 days
+if (isset($_GET['server']) && $cookieConsent) {
+    setcookie('selectedPersistentServer', $_GET['server'], [
+        'expires' => time() + (86400 * 30),
+        'path' => '/',
+        'secure' => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
 // Define bucket names and S3 configuration based on selected region
 if ($selected_server == 'australia') {
     $bucket_name = 'botofthespecter-au-persistent';
