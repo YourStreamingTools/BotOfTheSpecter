@@ -1530,7 +1530,7 @@ function getUserAdminGuilds($access_token)
 function fetchGuildChannels($access_token, $guild_id)
 {
   // Load Discord bot token for guild API calls
-  require_once '../config/discord.php';
+  require_once '/var/www/config/discord.php';
   global $bot_token, $consoleLogs;
   if (empty($guild_id)) {
     return false;
@@ -1575,7 +1575,7 @@ function fetchGuildChannels($access_token, $guild_id)
 function fetchGuildVoiceChannels($access_token, $guild_id)
 {
   // Load Discord bot token for guild API calls
-  require_once '../config/discord.php';
+  require_once '/var/www/config/discord.php';
   global $bot_token, $consoleLogs;
   if (empty($guild_id)) {
     return false;
@@ -1619,7 +1619,7 @@ function fetchGuildVoiceChannels($access_token, $guild_id)
 function fetchGuildRoles($guild_id, $access_token)
 {
   // Load Discord bot token for guild API calls
-  require_once '../config/discord.php';
+  require_once '/var/www/config/discord.php';
   global $bot_token, $consoleLogs;
   if (empty($guild_id)) {
     return false;
