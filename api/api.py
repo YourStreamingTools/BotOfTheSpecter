@@ -610,6 +610,40 @@ def _ensure_standard_openapi_responses(openapi_schema: dict) -> dict:
             }
         },
     })
+    schemas.setdefault("StandardError", {
+        "title": "StandardError",
+        "type": "object",
+        "required": ["detail"],
+        "properties": {
+            "detail": {
+                "title": "Detail",
+                "type": "string",
+                "example": "Error message describing what went wrong",
+            }
+        },
+        "example": {"detail": "Error message describing what went wrong"},
+    })
+    schemas.setdefault("StandardSuccessResponse", {
+        "title": "StandardSuccessResponse",
+        "type": "object",
+        "description": "Generic JSON response payload.",
+        "additionalProperties": True,
+        "example": {"status": "success"},
+    })
+    error_ref = {"application/json": {"schema": {"$ref": "#/components/schemas/StandardError"}}}
+    success_ref = {"application/json": {"schema": {"$ref": "#/components/schemas/StandardSuccessResponse"}}}
+
+    def _response_has_schema(resp: dict) -> bool:
+        if not isinstance(resp, dict):
+            return False
+        content = resp.get("content")
+        if not isinstance(content, dict):
+            return False
+        for media in content.values():
+            if isinstance(media, dict) and media.get("schema"):
+                return True
+        return False
+
     paths = openapi_schema.get("paths", {})
     for path_item in paths.values():
         if not isinstance(path_item, dict):
@@ -618,9 +652,27 @@ def _ensure_standard_openapi_responses(openapi_schema: dict) -> dict:
             if method.lower() not in _OPENAPI_HTTP_METHODS or not isinstance(operation, dict):
                 continue
             responses = operation.setdefault("responses", {})
-            has_success_response = any(str(code).isdigit() and str(code).startswith("2") for code in responses.keys())
-            if not has_success_response:
-                responses["200"] = {"description": "Successful Response"}
+            success_codes = [c for c in list(responses.keys()) if str(c).isdigit() and str(c).startswith("2")]
+            if not success_codes:
+                responses["200"] = {"description": "Successful Response", "content": success_ref}
+            else:
+                for code in success_codes:
+                    resp = responses.get(code)
+                    if isinstance(resp, dict) and not _response_has_schema(resp):
+                        resp.setdefault("description", "Successful Response")
+                        resp["content"] = success_ref
+            for code, description in (
+                ("400", "Bad Request"),
+                ("401", "Unauthorized"),
+                ("404", "Not Found"),
+                ("500", "Internal Server Error"),
+            ):
+                existing = responses.get(code)
+                if existing is None:
+                    responses[code] = {"description": description, "content": error_ref}
+                elif isinstance(existing, dict) and not _response_has_schema(existing):
+                    existing.setdefault("description", description)
+                    existing["content"] = error_ref
             responses.setdefault("422", {
                 "description": "Validation Error",
                 "content": {
@@ -4766,12 +4818,69 @@ async def extension_todos(channel_id: str = Query(..., description="Broadcaster'
         raise HTTPException(status_code=500, detail="Error retrieving todos")
 
 # Twitch Raid Endpoints
+class RaidStartDataItem(BaseModel):
+    created_at: str = Field(..., example="2026-04-25T07:20:50.52Z", description="UTC timestamp (RFC3339) of when the raid was requested.")
+    is_mature: bool = Field(False, description="Deprecated by Twitch. Always false.")
+
+class RaidStartResponse(BaseModel):
+    status: str = Field(..., example="success")
+    from_broadcaster_id: str = Field(..., example="12345678", description="Twitch user ID of the raiding broadcaster.")
+    to_broadcaster_id: str = Field(..., example="87654321", description="Twitch user ID of the raided channel.")
+    to_broadcaster_login: str = Field(..., example="somestreamer", description="Twitch username of the raided channel.")
+    data: List[RaidStartDataItem] = Field(default_factory=list, description="Twitch response payload describing the pending raid.")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "success",
+                "from_broadcaster_id": "12345678",
+                "to_broadcaster_id": "87654321",
+                "to_broadcaster_login": "somestreamer",
+                "data": [{"created_at": "2026-04-25T07:20:50.52Z", "is_mature": False}],
+            }
+        }
+
+class RaidCancelResponse(BaseModel):
+    status: str = Field(..., example="success")
+    broadcaster_id: str = Field(..., example="12345678", description="Twitch user ID of the broadcaster whose pending raid was cancelled.")
+    message: str = Field(..., example="Pending raid cancelled")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "success",
+                "broadcaster_id": "12345678",
+                "message": "Pending raid cancelled",
+            }
+        }
+
+class ErrorDetail(BaseModel):
+    detail: str = Field(..., example="Error message describing what went wrong")
+
+_RAID_START_ERROR_RESPONSES = {
+    400: {"model": ErrorDetail, "description": "Invalid target (self-raid, blocked channel, or bad input)."},
+    401: {"model": ErrorDetail, "description": "Invalid API key or the Twitch access token has expired."},
+    404: {"model": ErrorDetail, "description": "Authenticated user has no Twitch credentials on file, or the target Twitch user was not found."},
+    409: {"model": ErrorDetail, "description": "The broadcaster is already raiding another channel."},
+    429: {"model": ErrorDetail, "description": "Rate limit exceeded. Twitch allows 10 raid requests per 10 minutes."},
+    500: {"model": ErrorDetail, "description": "Server misconfiguration (missing Twitch client ID or app credentials)."},
+    502: {"model": ErrorDetail, "description": "Upstream failure contacting Twitch."},
+}
+
+_RAID_CANCEL_ERROR_RESPONSES = {
+    401: {"model": ErrorDetail, "description": "Invalid API key or the Twitch access token has expired."},
+    404: {"model": ErrorDetail, "description": "Authenticated user has no Twitch credentials on file, or there is no pending raid to cancel."},
+    429: {"model": ErrorDetail, "description": "Rate limit exceeded. Twitch allows 10 raid requests per 10 minutes."},
+    500: {"model": ErrorDetail, "description": "Server misconfiguration (missing Twitch client ID)."},
+    502: {"model": ErrorDetail, "description": "Upstream failure contacting Twitch."},
+}
+
 @app.post(
     "/channel/twitch/raids/start",
     summary="Start a Twitch raid",
     description="Raid another channel by sending the broadcaster's viewers to the targeted channel. Rate limited by Twitch to 10 requests per 10 minutes.",
     tags=["Channel"],
-    operation_id="start_twitch_raid"
+    operation_id="start_twitch_raid",
+    response_model=RaidStartResponse,
+    responses=_RAID_START_ERROR_RESPONSES,
 )
 async def start_twitch_raid(
     api_key: str = Query(...),
@@ -4848,7 +4957,9 @@ async def start_twitch_raid(
     summary="Cancel a pending Twitch raid",
     description="Cancel a pending raid for the authenticated broadcaster. Rate limited by Twitch to 10 requests per 10 minutes.",
     tags=["Channel"],
-    operation_id="cancel_twitch_raid"
+    operation_id="cancel_twitch_raid",
+    response_model=RaidCancelResponse,
+    responses=_RAID_CANCEL_ERROR_RESPONSES,
 )
 async def cancel_twitch_raid(
     api_key: str = Query(...),
