@@ -12,7 +12,7 @@ session_start();
 session_write_close();
 
 // Must be logged in to the dashboard
-if (empty($_SESSION['access_token']) || empty($_SESSION['twitch_user_id'])) {
+if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
     $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
     header('Location: /login.php');
     exit;
@@ -33,7 +33,7 @@ if ($conn->connect_error) {
 $token = bin2hex(random_bytes(32));
 
 // Pull session values (set during dashboard login)
-$twitch_user_id  = $_SESSION['twitch_user_id']  ?? '';
+$twitch_user_id  = $_SESSION['twitchUserId']    ?? '';
 $username        = $_SESSION['username']         ?? '';
 $display_name    = $_SESSION['display_name']     ?? $username;
 $access_token    = $_SESSION['access_token']     ?? '';
