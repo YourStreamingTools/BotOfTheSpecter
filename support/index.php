@@ -32,14 +32,19 @@ foreach ($allDocs as $doc) {
     $docsBySection[$doc['section_key']][] = $doc;
 }
 
-// Load built-in commands from JSON
-$commandsJson = @file_get_contents(__DIR__ . '/../api/builtin_commands.json');
-$cmdData      = $commandsJson ? (json_decode($commandsJson, true)['commands'] ?? []) : [];
-$commands     = [];
+// Load built-in commands from the API
+$ch = curl_init('https://api.botofthespecter.com/commands/info');
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT        => 5,
+    CURLOPT_FAILONERROR    => true,
+]);
+$commandsJson = curl_exec($ch);
+curl_close($ch);
+$cmdData  = $commandsJson ? (json_decode($commandsJson, true)['commands'] ?? []) : [];
+$commands = [];
 foreach ($cmdData as $k => $v) {
-    $commands[$k] = is_array($v)
-        ? ['description' => $v['description'] ?? 'No description available']
-        : ['description' => (string)$v];
+    $commands[$k] = is_array($v) ? $v : ['description' => (string)$v];
 }
 ksort($commands);
 
@@ -132,13 +137,47 @@ ob_start();
     </div>
     <?php if (!empty($commands)): ?>
     <div class="sp-table-wrap">
-        <table class="sp-table">
-            <thead><tr><th>Command</th><th>Description</th></tr></thead>
-            <tbody>
-                <?php foreach ($commands as $name => $info): ?>
+        <table class="sp-table sp-table-no-hover">
+            <thead>
                 <tr>
-                    <td><code>!<?php echo htmlspecialchars($name); ?></code></td>
-                    <td><?php echo htmlspecialchars($info['description']); ?></td>
+                    <th style="width:18%;">Command</th>
+                    <th style="width:35%;">Description</th>
+                    <th>Syntax</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($commands as $name => $info):
+                    $aliases    = $info['aliases']     ?? [];
+                    $syntaxRaw  = $info['syntax']      ?? null;
+                    $isMod      = ($info['force_level'] ?? '') === 'mod';
+                    $syntaxList = is_array($syntaxRaw) ? $syntaxRaw : ($syntaxRaw !== null ? [$syntaxRaw] : []);
+                ?>
+                <tr>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+                            <code>!<?php echo htmlspecialchars($name); ?></code>
+                            <?php if ($isMod): ?>
+                            <span class="sp-badge sp-badge-muted" title="Requires moderator or broadcaster">Mod</span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (!empty($aliases)): ?>
+                        <div style="margin-top:0.35rem;display:flex;flex-wrap:wrap;gap:0.3rem;">
+                            <?php foreach ($aliases as $alias): ?>
+                            <code style="font-size:0.78rem;color:var(--text-secondary);">!<?php echo htmlspecialchars($alias); ?></code>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </td>
+                    <td><?php echo htmlspecialchars($info['description'] ?? 'No description available'); ?></td>
+                    <td>
+                        <?php if (!empty($syntaxList)): ?>
+                        <div class="sp-cmd-examples">
+                            <?php foreach ($syntaxList as $example): ?>
+                            <span class="sp-cmd-example"><?php echo htmlspecialchars($example); ?></span>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -147,7 +186,7 @@ ob_start();
     <?php else: ?>
     <div class="sp-alert sp-alert-warning">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        <span>Command list unavailable — the commands JSON could not be loaded.</span>
+        <span>Command list unavailable — could not reach the commands API.</span>
     </div>
     <?php endif; ?>
     <div class="sp-alert sp-alert-info sp-mt-2">

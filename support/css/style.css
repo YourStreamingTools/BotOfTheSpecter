@@ -748,6 +748,26 @@ hr {
 .sp-table tbody tr:hover {
     background: var(--bg-card-hover);
 }
+.sp-table-no-hover tbody tr:hover {
+    background: none;
+}
+.sp-cmd-examples {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+.sp-cmd-example {
+    display: inline-block;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.78rem;
+    padding: 0.15rem 0.5rem;
+    background: var(--bg-input, rgba(255,255,255,0.05));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
 
 .sp-table .ticket-number {
     font-family: 'SFMono-Regular', Consolas, monospace;
@@ -1559,6 +1579,11 @@ hr {
     background: rgba(124, 92, 191, 0.18);
     color: var(--accent);
     border: 1px solid rgba(124, 92, 191, 0.3);
+}
+.sp-badge-muted {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
 }
 
 /* ---- CMS section list cards ---- */
