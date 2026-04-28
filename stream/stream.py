@@ -52,6 +52,8 @@ SERVER_DISPLAY_NAMES = {
 
 DEFAULT_WEB_HOST = "0.0.0.0"
 DEFAULT_WEB_PORT = 8080
+# Where twitch-recorder.py writes its per-user recordings (matches its STREAM_ROOT_PATH default)
+DEFAULT_RECORDER_STORAGE_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
 
 # Parse command line arguments
 def parse_args():
@@ -62,6 +64,8 @@ def parse_args():
                        help='Bind address for the operator web UI')
     parser.add_argument('--web-port', type=int, default=DEFAULT_WEB_PORT,
                        help='Port for the operator web UI')
+    parser.add_argument('--recorder-path', type=str, default=DEFAULT_RECORDER_STORAGE_PATH,
+                       help='Filesystem root where twitch-recorder.py stores per-user recordings')
     return parser.parse_args()
 
 # Load environment variables
@@ -606,16 +610,15 @@ def create_ssl_context(server_location):
     logger.info(f"SSL context created for domain: {domain}")
     return context
 
-DASHBOARD_TEMPLATE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="refresh" content="5">
-<title>{{ server_title }}</title>
-<style>
+_BASE_CSS = """
   body { font-family: ui-sans-serif, system-ui, sans-serif; background: #0e1116; color: #e6edf3; margin: 0; padding: 24px; }
   h1 { margin: 0 0 4px 0; font-size: 20px; }
-  .meta { color: #8b949e; font-size: 12px; margin-bottom: 18px; }
+  h2 { margin: 24px 0 6px 0; font-size: 15px; color: #e6edf3; }
+  .meta { color: #8b949e; font-size: 12px; margin-bottom: 14px; }
+  nav { display: flex; gap: 18px; margin: 4px 0 18px 0; border-bottom: 1px solid #21262d; }
+  nav a { color: #8b949e; text-decoration: none; padding: 6px 0 8px 0; font-size: 13px; }
+  nav a:hover { color: #e6edf3; }
+  nav a.active { color: #e6edf3; border-bottom: 2px solid #58a6ff; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #21262d; vertical-align: top; }
   th { font-weight: 600; color: #8b949e; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
@@ -624,11 +627,26 @@ DASHBOARD_TEMPLATE = """<!doctype html>
   .empty { color: #8b949e; padding: 32px; text-align: center; border: 1px dashed #21262d; border-radius: 4px; }
   .yes { color: #3fb950; }
   .no  { color: #6e7681; }
-</style>
+  section { margin-bottom: 24px; }
+"""
+
+_NAV_HTML = """  <nav>
+    <a href="/" class="{{ 'active' if page == 'dashboard' else '' }}">Live sessions</a>
+    <a href="/recordings" class="{{ 'active' if page == 'recordings' else '' }}">Recordings</a>
+  </nav>
+"""
+
+DASHBOARD_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="5">
+<title>{{ server_title }}</title>
+<style>""" + _BASE_CSS + """</style>
 </head>
 <body>
   <h1>{{ server_title }}</h1>
-  <div class="meta">
+""" + _NAV_HTML + """  <div class="meta">
     {{ sessions|length }} active session{{ '' if sessions|length == 1 else 's' }} ·
     refreshed {{ generated_at }} (auto-refresh 5s)
   </div>
@@ -674,6 +692,47 @@ DASHBOARD_TEMPLATE = """<!doctype html>
 </html>
 """
 
+RECORDINGS_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="30">
+<title>{{ server_title }} &mdash; Recordings</title>
+<style>""" + _BASE_CSS + """</style>
+</head>
+<body>
+  <h1>{{ server_title }}</h1>
+""" + _NAV_HTML + """  <div class="meta">
+    Recorder storage: <code>{{ root_path }}</code> ·
+    {{ users|length }} user folder{{ '' if users|length == 1 else 's' }} ·
+    refreshed {{ generated_at }} (auto-refresh 30s)
+  </div>
+  {% if users %}
+    {% for u in users %}
+    <section>
+      <h2>{{ u.username }}</h2>
+      <div class="meta">{{ u.file_count }} file{{ '' if u.file_count == 1 else 's' }} &middot; {{ u.total_size_str }}</div>
+      <table>
+        <thead><tr><th>File</th><th>Size</th><th>Modified</th></tr></thead>
+        <tbody>
+          {% for f in u.files %}
+          <tr>
+            <td><code>{{ f.name }}</code></td>
+            <td>{{ f.size_str }}</td>
+            <td>{{ f.mtime_str }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endfor %}
+  {% else %}
+    <div class="empty">No recordings found at <code>{{ root_path }}</code>.</div>
+  {% endif %}
+</body>
+</html>
+"""
+
 def _humanize_bytes(n: float) -> str:
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024.0:
@@ -691,7 +750,45 @@ def _humanize_duration(delta: datetime.timedelta) -> str:
         return f"{m}m {s}s"
     return f"{s}s"
 
-def create_web_app(server_title: str, session_registry: SessionRegistry) -> Quart:
+def list_recorder_files(root_path: str) -> list[dict]:
+    if not root_path or not os.path.isdir(root_path):
+        return []
+    try:
+        entries = sorted(os.listdir(root_path))
+    except OSError as e:
+        logger.warning(f"Could not list recorder storage at {root_path}: {e}")
+        return []
+    users = []
+    for entry in entries:
+        user_dir = os.path.join(root_path, entry)
+        if not os.path.isdir(user_dir):
+            continue
+        try:
+            file_entries = os.listdir(user_dir)
+        except OSError:
+            continue
+        files = []
+        total_size = 0
+        for fname in file_entries:
+            fpath = os.path.join(user_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                stat = os.stat(fpath)
+            except OSError:
+                continue
+            files.append({"name": fname, "size": stat.st_size, "mtime": stat.st_mtime})
+            total_size += stat.st_size
+        files.sort(key=lambda f: f["mtime"], reverse=True)
+        users.append({
+            "username": entry,
+            "files": files,
+            "total_size": total_size,
+            "file_count": len(files),
+        })
+    return users
+
+def create_web_app(server_title: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
     @app.get("/")
@@ -731,6 +828,25 @@ def create_web_app(server_title: str, session_registry: SessionRegistry) -> Quar
             server_title=server_title,
             sessions=rows,
             generated_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+            page="dashboard",
+        )
+
+    @app.get("/recordings")
+    async def recordings():
+        now = datetime.datetime.now()
+        users = list_recorder_files(recorder_storage_path)
+        for u in users:
+            u["total_size_str"] = _humanize_bytes(float(u["total_size"]))
+            for f in u["files"]:
+                f["size_str"] = _humanize_bytes(float(f["size"]))
+                f["mtime_str"] = datetime.datetime.fromtimestamp(f["mtime"]).strftime("%Y-%m-%d %H:%M:%S")
+        return await render_template_string(
+            RECORDINGS_TEMPLATE,
+            server_title=server_title,
+            users=users,
+            root_path=recorder_storage_path,
+            generated_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+            page="recordings",
         )
 
     return app
@@ -743,7 +859,7 @@ async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: s
     # Quart delegates to hypercorn under the hood; wants cert/key paths, not an SSLContext.
     await app.run_task(host=host, port=port, certfile=certfile, keyfile=keyfile)
 
-async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int) -> None:
+async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, recorder_storage_path: str) -> None:
     # Determine output directory based on server location
     if twitch_server in ("us-west", "us-east", "eu-central"):
         output_directory = "/mnt/s3/bots-stream"
@@ -761,8 +877,9 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int) ->
     logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL for domain: {domain}")
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
     server_title = SERVER_DISPLAY_NAMES.get(twitch_server, f"RTMP Server - {twitch_server}")
-    web_app = create_web_app(server_title, session_registry)
+    web_app = create_web_app(server_title, session_registry, recorder_storage_path)
     logger.info(f"Operator web UI: https://{domain}:{web_port}/ (binding {web_host}:{web_port})")
+    logger.info(f"Recordings page reading from: {recorder_storage_path}")
     await asyncio.gather(
         _serve_rtmp(server),
         _serve_web(web_app, web_host, web_port, cert_path, key_path),
@@ -770,6 +887,6 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int) ->
 
 if __name__ == "__main__":
     try:
-        asyncio.run(start_rtmp_server(server_location, args.web_host, args.web_port))
+        asyncio.run(start_rtmp_server(server_location, args.web_host, args.web_port, args.recorder_path))
     except KeyboardInterrupt:
         logger.info("Server shutdown gracefully due to CTRL+C")
