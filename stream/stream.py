@@ -1,4 +1,6 @@
 import os
+import sys
+import socket
 import datetime
 import logging
 import ssl
@@ -6,13 +8,14 @@ import asyncio
 import argparse
 import time
 from asyncio import subprocess
+from functools import wraps
 import aiomysql
 from dotenv import load_dotenv
 from pyrtmp import StreamClosedException
 from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
-from quart import Quart, render_template_string
+from quart import Quart, render_template_string, request, jsonify
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -103,6 +106,9 @@ RTMPS_HOST = "0.0.0.0"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+ADMIN_KEY_SERVICE = "rtmp-server"
+SERVER_START_TIME = datetime.datetime.now()
+FFMPEG_VERSION: str = "unknown"
 
 async def access_website_database():
     # Connect to your MySQL database
@@ -161,7 +167,7 @@ class SessionRegistry:
     def __init__(self):
         self._sessions: dict[int, dict] = {}
 
-    def register_connection(self, session_id: int, peer: str) -> None:
+    def register_connection(self, session_id: int, peer: str, disconnect_callback=None) -> None:
         self._sessions[session_id] = {
             "id": session_id,
             "peer": peer,
@@ -171,7 +177,24 @@ class SessionRegistry:
             "flv_file_path": None,
             "publish_started_at": None,
             "forwarding": None,
+            "_disconnect_callback": disconnect_callback,
         }
+
+    def get(self, session_id: int) -> dict | None:
+        return self._sessions.get(session_id)
+
+    def force_disconnect(self, session_id: int) -> bool:
+        s = self._sessions.get(session_id)
+        if s is None:
+            return False
+        cb = s.get("_disconnect_callback")
+        if cb is None:
+            return False
+        try:
+            cb()
+        except Exception as e:
+            logger.warning(f"force_disconnect callback raised: {e}")
+        return True
 
     def attach_publish(self, session_id: int, *, publishing_name: str, username: str, flv_file_path: str) -> None:
         s = self._sessions.get(session_id)
@@ -238,7 +261,6 @@ class _StreamPipeSink:
     def __getattr__(self, name):
         return getattr(self._real, name)
 
-
 class TeeFLVFileWriter(FLVFileWriter):
     def __init__(self, output, sink_stdin):
         super().__init__(output=output)
@@ -266,13 +288,19 @@ class RTMP2FLVController(SimpleRTMPController):
         # Record the connection start time
         session.connection_start_time = datetime.datetime.now()
         session.closed = False
-        # Register with the operator web UI registry
+        # Register with the operator web UI registry, with a callback the API can use to kick the session
         try:
             host, port = session.peername
             peer_str = f"{host}:{port}"
         except Exception:
             peer_str = "unknown"
-        self.session_registry.register_connection(id(session), peer_str)
+        def _force_close():
+            try:
+                if session.writer is not None and not session.writer.is_closing():
+                    session.writer.close()
+            except Exception:
+                pass
+        self.session_registry.register_connection(id(session), peer_str, disconnect_callback=_force_close)
         # Schedule monitoring to disconnect after 48 hours; store so we can cancel on stream close
         session.duration_monitor_task = asyncio.create_task(self.monitor_connection_duration(session))
         await super().on_connect(session, message)
@@ -788,7 +816,91 @@ def list_recorder_files(root_path: str) -> list[dict]:
         })
     return users
 
-def create_web_app(server_title: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
+async def _detect_ffmpeg_version() -> str:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-version",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+        first_line = stdout.decode(errors="replace").splitlines()[0].strip() if stdout else ""
+        return first_line or "unknown"
+    except Exception as e:
+        logger.warning(f"Could not detect ffmpeg version: {e}")
+        return "unknown"
+
+async def _verify_admin_key(api_key: str) -> bool:
+    if not api_key:
+        return False
+    sqldb = None
+    try:
+        sqldb = await access_website_database()
+        async with sqldb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute(
+                "SELECT service FROM admin_api_keys WHERE api_key = %s",
+                (api_key,),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return False
+            service = (row.get("service") or "").lower()
+            if service == "admin":
+                return True
+            if service == ADMIN_KEY_SERVICE.lower():
+                return True
+            logger.warning(f"Admin key for service '{service}' tried to access {ADMIN_KEY_SERVICE}; denied.")
+            return False
+    except Exception as e:
+        logger.error(f"Error verifying admin key: {e}")
+        return False
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
+
+def _require_api_key(view):
+    @wraps(view)
+    async def wrapper(*args, **kwargs):
+        provided = request.headers.get("X-API-Key", "")
+        if not provided:
+            return jsonify({"error": "missing X-API-Key header"}), 401
+        if not await _verify_admin_key(provided):
+            return jsonify({"error": "incorrect API key"}), 401
+        return await view(*args, **kwargs)
+    return wrapper
+
+def _session_to_json(s: dict, now: datetime.datetime) -> dict:
+    flv_path = s.get("flv_file_path")
+    flv_size = None
+    if flv_path and os.path.exists(flv_path):
+        try:
+            flv_size = os.path.getsize(flv_path)
+        except OSError:
+            flv_size = None
+    forwarding = s.get("forwarding")
+    fwd_json = None
+    if forwarding:
+        fwd_json = {
+            "target_url": forwarding["target_url"],
+            "ffmpeg_pid": forwarding["ffmpeg_pid"],
+            "started_at": forwarding["started_at"].isoformat(),
+            "duration_seconds": int((now - forwarding["started_at"]).total_seconds()),
+        }
+    publish_started = s.get("publish_started_at")
+    return {
+        "id": s["id"],
+        "peer": s["peer"],
+        "publishing_name": s.get("publishing_name"),
+        "username": s.get("username"),
+        "connected_at": s["connected_at"].isoformat(),
+        "connected_seconds": int((now - s["connected_at"]).total_seconds()),
+        "publish_started_at": publish_started.isoformat() if publish_started else None,
+        "flv_file_path": flv_path,
+        "flv_size_bytes": flv_size,
+        "forwarding": fwd_json,
+    }
+
+def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
     @app.get("/")
@@ -849,6 +961,78 @@ def create_web_app(server_title: str, session_registry: SessionRegistry, recorde
             page="recordings",
         )
 
+    @app.get("/api/sessions")
+    @_require_api_key
+    async def api_sessions():
+        now = datetime.datetime.now()
+        sessions = [_session_to_json(s, now) for s in session_registry.snapshot()]
+        return jsonify({
+            "sessions": sessions,
+            "count": len(sessions),
+            "generated_at": now.isoformat(),
+        })
+
+    @app.get("/api/sessions/<int:session_id>")
+    @_require_api_key
+    async def api_session_detail(session_id: int):
+        s = session_registry.get(session_id)
+        if s is None:
+            return jsonify({"error": "session not found", "session_id": session_id}), 404
+        return jsonify({"session": _session_to_json(s, datetime.datetime.now())})
+
+    @app.post("/api/sessions/<int:session_id>/disconnect")
+    @_require_api_key
+    async def api_session_disconnect(session_id: int):
+        ok = session_registry.force_disconnect(session_id)
+        if not ok:
+            return jsonify({"error": "session not found", "session_id": session_id}), 404
+        logger.info(f"Admin API force-disconnected session {session_id}")
+        return jsonify({"disconnected": True, "session_id": session_id})
+
+    @app.get("/api/recordings")
+    @_require_api_key
+    async def api_recordings():
+        now = datetime.datetime.now()
+        users = list_recorder_files(recorder_storage_path)
+        out = []
+        for u in users:
+            out.append({
+                "username": u["username"],
+                "file_count": u["file_count"],
+                "total_size_bytes": u["total_size"],
+                "files": [
+                    {
+                        "name": f["name"],
+                        "size_bytes": f["size"],
+                        "modified_at": datetime.datetime.fromtimestamp(f["mtime"]).isoformat(),
+                    }
+                    for f in u["files"]
+                ],
+            })
+        return jsonify({
+            "users": out,
+            "root_path": recorder_storage_path,
+            "generated_at": now.isoformat(),
+        })
+
+    @app.get("/api/server")
+    @_require_api_key
+    async def api_server():
+        now = datetime.datetime.now()
+        uptime = now - SERVER_START_TIME
+        return jsonify({
+            "region": region,
+            "region_display_name": server_title,
+            "hostname": socket.gethostname(),
+            "rtmps_port": RTMPS_PORT,
+            "active_sessions": len(session_registry.snapshot()),
+            "started_at": SERVER_START_TIME.isoformat(),
+            "uptime_seconds": int(uptime.total_seconds()),
+            "ffmpeg_version": FFMPEG_VERSION,
+            "python_version": sys.version.split()[0],
+            "generated_at": now.isoformat(),
+        })
+
     return app
 
 async def _serve_rtmp(server: SimpleServer) -> None:
@@ -860,11 +1044,15 @@ async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: s
     await app.run_task(host=host, port=port, certfile=certfile, keyfile=keyfile)
 
 async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, recorder_storage_path: str) -> None:
+    global FFMPEG_VERSION
     # Determine output directory based on server location
     if twitch_server in ("us-west", "us-east", "eu-central"):
         output_directory = "/mnt/s3/bots-stream"
     else:
         output_directory = os.path.dirname(os.path.abspath(__file__))
+    # Detect ffmpeg up front so /api/server can report it without re-shelling on every request
+    FFMPEG_VERSION = await _detect_ffmpeg_version()
+    logger.info(f"Detected ffmpeg: {FFMPEG_VERSION}")
     ssl_context = create_ssl_context(twitch_server)
     domain, cert_path, key_path = resolve_cert_paths(twitch_server)
     session_registry = SessionRegistry()
@@ -877,7 +1065,7 @@ async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int, re
     logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL for domain: {domain}")
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
     server_title = SERVER_DISPLAY_NAMES.get(twitch_server, f"RTMP Server - {twitch_server}")
-    web_app = create_web_app(server_title, session_registry, recorder_storage_path)
+    web_app = create_web_app(server_title, twitch_server, session_registry, recorder_storage_path)
     logger.info(f"Operator web UI: https://{domain}:{web_port}/ (binding {web_host}:{web_port})")
     logger.info(f"Recordings page reading from: {recorder_storage_path}")
     await asyncio.gather(
