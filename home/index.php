@@ -22,11 +22,11 @@ $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance
     <p class="hs-hero-tagline">The Twitch Chat Bot built to replace them all!</p>
     <div class="hs-hero-ctas">
         <?php if ($bots_logged_in): ?>
-            <a href="https://dashboard.botofthespecter.com/dashboard.php" class="hs-btn hs-btn-primary">
-                <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
+            <a href="/profile.php" class="hs-btn hs-btn-primary">
+                <i class="fa-solid fa-user"></i> View Profile (<?php echo htmlspecialchars($bots_display_name); ?>)
             </a>
             <a href="/logout.php" class="hs-btn hs-btn-ghost">
-                <i class="fa-solid fa-right-from-bracket"></i> Log out (<?php echo htmlspecialchars($bots_display_name); ?>)
+                <i class="fa-solid fa-right-from-bracket"></i> Log out
             </a>
         <?php else: ?>
             <a href="/login.php" class="hs-btn hs-btn-primary">
