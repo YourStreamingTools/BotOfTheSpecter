@@ -12,6 +12,7 @@ from pyrtmp import StreamClosedException
 from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
+from quart import Quart, render_template_string
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -41,11 +42,26 @@ SSL_DOMAIN_MAPPING = {
 
 DEFAULT_INGEST_SERVER = "sydney"
 
+# Display titles for the operator web UI (one UI per server / region)
+SERVER_DISPLAY_NAMES = {
+    "sydney": "RTMP Server - Sydney, Australia (au-east-1)",
+    "us-east": "RTMP Server - Ashburn, Virginia, USA (us-east-1)",
+    "us-west": "RTMP Server - Hillsboro, Oregon, USA (us-west-1)",
+    "eu-central": "RTMP Server - Nuremberg, Germany (eu-central-1)",
+}
+
+DEFAULT_WEB_HOST = "0.0.0.0"
+DEFAULT_WEB_PORT = 8080
+
 # Parse command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description='RTMP Server with Twitch forwarding')
     parser.add_argument('-server', type=str, default=DEFAULT_INGEST_SERVER,
                        help='Twitch ingest server location (sydney, us-west, us-east, eu-central)')
+    parser.add_argument('--web-host', type=str, default=DEFAULT_WEB_HOST,
+                       help='Bind address for the operator web UI')
+    parser.add_argument('--web-port', type=int, default=DEFAULT_WEB_PORT,
+                       help='Port for the operator web UI')
     return parser.parse_args()
 
 # Load environment variables
@@ -137,6 +153,52 @@ async def get_streaming_settings(username):
         if userdb is not None:
             await userdb.ensure_closed()
 
+class SessionRegistry:
+    def __init__(self):
+        self._sessions: dict[int, dict] = {}
+
+    def register_connection(self, session_id: int, peer: str) -> None:
+        self._sessions[session_id] = {
+            "id": session_id,
+            "peer": peer,
+            "connected_at": datetime.datetime.now(),
+            "publishing_name": None,
+            "username": None,
+            "flv_file_path": None,
+            "publish_started_at": None,
+            "forwarding": None,
+        }
+
+    def attach_publish(self, session_id: int, *, publishing_name: str, username: str, flv_file_path: str) -> None:
+        s = self._sessions.get(session_id)
+        if s is None:
+            return
+        s["publishing_name"] = publishing_name
+        s["username"] = username
+        s["flv_file_path"] = flv_file_path
+        s["publish_started_at"] = datetime.datetime.now()
+
+    def attach_forwarding(self, session_id: int, *, target_url: str, ffmpeg_pid: int) -> None:
+        s = self._sessions.get(session_id)
+        if s is None:
+            return
+        # Mask the stream key portion of the Twitch ingest URL
+        masked = target_url
+        if "/app/" in target_url:
+            head, _, _ = target_url.partition("/app/")
+            masked = f"{head}/app/****"
+        s["forwarding"] = {
+            "target_url": masked,
+            "ffmpeg_pid": ffmpeg_pid,
+            "started_at": datetime.datetime.now(),
+        }
+
+    def deregister(self, session_id: int) -> None:
+        self._sessions.pop(session_id, None)
+
+    def snapshot(self) -> list[dict]:
+        return list(self._sessions.values())
+
 class _StreamPipeSink:
     def __init__(self, real_file, ffmpeg_stdin):
         self._real = real_file
@@ -190,15 +252,23 @@ class TeeFLVFileWriter(FLVFileWriter):
         self.buffer = _StreamPipeSink(self.buffer, sink_stdin)
 
 class RTMP2FLVController(SimpleRTMPController):
-    def __init__(self, output_directory: str, twitch_server: str):
+    def __init__(self, output_directory: str, twitch_server: str, session_registry: SessionRegistry):
         self.output_directory = output_directory
         self.twitch_server = twitch_server
+        self.session_registry = session_registry
         super().__init__()
 
     async def on_connect(self, session, message):
         # Record the connection start time
         session.connection_start_time = datetime.datetime.now()
         session.closed = False
+        # Register with the operator web UI registry
+        try:
+            host, port = session.peername
+            peer_str = f"{host}:{port}"
+        except Exception:
+            peer_str = "unknown"
+        self.session_registry.register_connection(id(session), peer_str)
         # Schedule monitoring to disconnect after 48 hours; store so we can cancel on stream close
         session.duration_monitor_task = asyncio.create_task(self.monitor_connection_duration(session))
         await super().on_connect(session, message)
@@ -237,6 +307,9 @@ class RTMP2FLVController(SimpleRTMPController):
         session.flv_file_path = file_path
         session.twitch_key = twitch_key
         session.ffmpeg_process = None
+        self.session_registry.attach_publish(
+            id(session), publishing_name=publishing_name, username=username, flv_file_path=file_path
+        )
         # Set up FLV recording, optionally tee'd to ffmpeg for live Twitch forwarding
         if forward_to_twitch and twitch_key:
             twitch_server_url = TWITCH_INGEST_SERVERS.get(self.twitch_server, TWITCH_INGEST_SERVERS[DEFAULT_INGEST_SERVER])
@@ -290,6 +363,7 @@ class RTMP2FLVController(SimpleRTMPController):
         session.drain_task = asyncio.create_task(self._drain_ffmpeg_stdin(session))
         session.health_monitor_task = asyncio.create_task(self.monitor_ffmpeg_health(session))
         session.ffmpeg_watcher_task = asyncio.create_task(self._watch_ffmpeg(session))
+        self.session_registry.attach_forwarding(id(session), target_url=twitch_url, ffmpeg_pid=proc.pid)
         logger.info(f"Forwarding stream to Twitch via ffmpeg PID {proc.pid}: {twitch_url}")
 
     async def _drain_ffmpeg_stdin(self, session):
@@ -450,6 +524,8 @@ class RTMP2FLVController(SimpleRTMPController):
         await self.terminate_ffmpeg(session)
         # Close the FLV file after the stream ends
         session.state.close()
+        # Remove from the operator web UI registry
+        self.session_registry.deregister(id(session))
         # Convert FLV to MP4 using FFmpeg
         flv_file_path = session.flv_file_path
         asyncio.create_task(self.convert_flv_to_mp4_background(session, flv_file_path))
@@ -497,54 +573,203 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_command_message(session, message)
 
 class SimpleServer(SimpleRTMPServer):
-    def __init__(self, output_directory: str, twitch_server: str):
+    def __init__(self, output_directory: str, twitch_server: str, session_registry: SessionRegistry):
         self.output_directory = output_directory
         self.twitch_server = twitch_server
+        self.session_registry = session_registry
         super().__init__()
 
     async def create(self, host: str, port: int, ssl_context=None):
         loop = asyncio.get_event_loop()
         self.server = await loop.create_server(
-            lambda: RTMPProtocol(controller=RTMP2FLVController(self.output_directory, self.twitch_server)),
+            lambda: RTMPProtocol(controller=RTMP2FLVController(self.output_directory, self.twitch_server, self.session_registry)),
             host=host,
             port=port,
             ssl=ssl_context
         )
 
-def create_ssl_context(server_location):
-    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    # Get the domain for the server location
+def resolve_cert_paths(server_location):
     domain = SSL_DOMAIN_MAPPING.get(server_location, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER])
-    # Let's Encrypt certificate paths for the specific domain
     cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
     key_path = f"/etc/letsencrypt/live/{domain}/privkey.pem"
-    # Fallback to local SSL directory if Let's Encrypt certs don't exist
     if not os.path.exists(cert_path) or not os.path.exists(key_path):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cert_path = f"{current_dir}/ssl/fullchain.pem"
         key_path = f"{current_dir}/ssl/privkey.pem"
         logger.warning(f"Let's Encrypt certificates not found for {domain}, falling back to local SSL directory")
+    return domain, cert_path, key_path
+
+def create_ssl_context(server_location):
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    domain, cert_path, key_path = resolve_cert_paths(server_location)
     context.load_cert_chain(certfile=cert_path, keyfile=key_path)
     logger.info(f"SSL context created for domain: {domain}")
     return context
 
-async def start_rtmp_server(twitch_server):
+DASHBOARD_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="5">
+<title>{{ server_title }}</title>
+<style>
+  body { font-family: ui-sans-serif, system-ui, sans-serif; background: #0e1116; color: #e6edf3; margin: 0; padding: 24px; }
+  h1 { margin: 0 0 4px 0; font-size: 20px; }
+  .meta { color: #8b949e; font-size: 12px; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #21262d; vertical-align: top; }
+  th { font-weight: 600; color: #8b949e; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
+  tr:hover td { background: #161b22; }
+  code { font-family: ui-monospace, SFMono-Regular, monospace; background: #161b22; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+  .empty { color: #8b949e; padding: 32px; text-align: center; border: 1px dashed #21262d; border-radius: 4px; }
+  .yes { color: #3fb950; }
+  .no  { color: #6e7681; }
+</style>
+</head>
+<body>
+  <h1>{{ server_title }}</h1>
+  <div class="meta">
+    {{ sessions|length }} active session{{ '' if sessions|length == 1 else 's' }} ·
+    refreshed {{ generated_at }} (auto-refresh 5s)
+  </div>
+  {% if sessions %}
+  <table>
+    <thead>
+      <tr>
+        <th>API key (stream key)</th>
+        <th>User</th>
+        <th>Incoming peer</th>
+        <th>Connected</th>
+        <th>FLV size</th>
+        <th>Outgoing target</th>
+        <th>FFmpeg PID</th>
+        <th>Forwarding for</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sessions %}
+      <tr>
+        <td><code>{{ s.publishing_name }}</code></td>
+        <td>{{ s.username }}</td>
+        <td><code>{{ s.peer }}</code></td>
+        <td>{{ s.connected_for }}</td>
+        <td>{{ s.flv_size }}</td>
+        {% if s.forwarding_target %}
+          <td class="yes"><code>{{ s.forwarding_target }}</code></td>
+          <td>{{ s.forwarding_pid }}</td>
+          <td>{{ s.forwarding_duration }}</td>
+        {% else %}
+          <td class="no">not forwarding</td>
+          <td class="no">&mdash;</td>
+          <td class="no">&mdash;</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="empty">No active sessions on this server.</div>
+  {% endif %}
+</body>
+</html>
+"""
+
+def _humanize_bytes(n: float) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024.0:
+            return f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} PB"
+
+def _humanize_duration(delta: datetime.timedelta) -> str:
+    total = max(0, int(delta.total_seconds()))
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    if h > 0:
+        return f"{h}h {m}m {s}s"
+    if m > 0:
+        return f"{m}m {s}s"
+    return f"{s}s"
+
+def create_web_app(server_title: str, session_registry: SessionRegistry) -> Quart:
+    app = Quart(__name__)
+
+    @app.get("/")
+    async def dashboard():
+        now = datetime.datetime.now()
+        rows = []
+        for s in session_registry.snapshot():
+            connected_for = _humanize_duration(now - s["connected_at"])
+            publishing = s["publishing_name"] or "(handshake)"
+            username = s["username"] or "—"
+            flv_size_str = "—"
+            flv = s["flv_file_path"]
+            if flv and os.path.exists(flv):
+                flv_size_str = _humanize_bytes(float(os.path.getsize(flv)))
+            forwarding = s["forwarding"]
+            if forwarding:
+                fwd_target = forwarding["target_url"]
+                fwd_pid = forwarding["ffmpeg_pid"]
+                fwd_duration = _humanize_duration(now - forwarding["started_at"])
+            else:
+                fwd_target = None
+                fwd_pid = None
+                fwd_duration = None
+            rows.append({
+                "publishing_name": publishing,
+                "username": username,
+                "peer": s["peer"],
+                "connected_for": connected_for,
+                "flv_size": flv_size_str,
+                "forwarding_target": fwd_target,
+                "forwarding_pid": fwd_pid,
+                "forwarding_duration": fwd_duration,
+            })
+        rows.sort(key=lambda r: r["publishing_name"])
+        return await render_template_string(
+            DASHBOARD_TEMPLATE,
+            server_title=server_title,
+            sessions=rows,
+            generated_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+
+    return app
+
+async def _serve_rtmp(server: SimpleServer) -> None:
+    await server.start()
+    await server.wait_closed()
+
+async def _serve_web(app: Quart, host: str, port: int, certfile: str, keyfile: str) -> None:
+    # Quart delegates to hypercorn under the hood; wants cert/key paths, not an SSLContext.
+    await app.run_task(host=host, port=port, certfile=certfile, keyfile=keyfile)
+
+async def start_rtmp_server(twitch_server: str, web_host: str, web_port: int) -> None:
     # Determine output directory based on server location
     if twitch_server in ("us-west", "us-east", "eu-central"):
         output_directory = "/mnt/s3/bots-stream"
     else:
         output_directory = os.path.dirname(os.path.abspath(__file__))
     ssl_context = create_ssl_context(twitch_server)
-    server = SimpleServer(output_directory=output_directory, twitch_server=twitch_server)
+    domain, cert_path, key_path = resolve_cert_paths(twitch_server)
+    session_registry = SessionRegistry()
+    server = SimpleServer(
+        output_directory=output_directory,
+        twitch_server=twitch_server,
+        session_registry=session_registry,
+    )
     await server.create(host=RTMPS_HOST, port=RTMPS_PORT, ssl_context=ssl_context)
-    domain = SSL_DOMAIN_MAPPING.get(twitch_server, SSL_DOMAIN_MAPPING[DEFAULT_INGEST_SERVER])
     logger.info(f"RTMPS server started on {RTMPS_HOST}:{RTMPS_PORT} with SSL for domain: {domain}")
     logger.info(f"Using Twitch ingest server location: {twitch_server}")
-    await server.start()
-    await server.wait_closed()
+    server_title = SERVER_DISPLAY_NAMES.get(twitch_server, f"RTMP Server - {twitch_server}")
+    web_app = create_web_app(server_title, session_registry)
+    logger.info(f"Operator web UI: https://{domain}:{web_port}/ (binding {web_host}:{web_port})")
+    await asyncio.gather(
+        _serve_rtmp(server),
+        _serve_web(web_app, web_host, web_port, cert_path, key_path),
+    )
 
 if __name__ == "__main__":
     try:
-        asyncio.run(start_rtmp_server(server_location))
+        asyncio.run(start_rtmp_server(server_location, args.web_host, args.web_port))
     except KeyboardInterrupt:
         logger.info("Server shutdown gracefully due to CTRL+C")

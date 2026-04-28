@@ -4,3 +4,4 @@ aiomysql
 python-dotenv
 pyrtmp
 boto3
+quart
