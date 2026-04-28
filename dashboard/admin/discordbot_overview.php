@@ -1,5 +1,5 @@
 ﻿<?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');

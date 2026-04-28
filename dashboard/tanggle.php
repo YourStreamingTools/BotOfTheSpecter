@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 
 // Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {

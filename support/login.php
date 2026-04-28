@@ -32,6 +32,7 @@ if (!empty($_GET['handoff'])) {
                     profile_image, is_admin
              FROM handoff_tokens
              WHERE token = ? AND used = 0 AND expires_at > NOW()
+               AND (target IS NULL OR target = 'support')
              LIMIT 1"
         );
         if ($stmt) {
@@ -158,20 +159,25 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
 }
 
 // ----------------------------------------------------------------
-// No auth data yet — redirect to StreamersConnect unless error
+// No auth data yet — render the login page with both SSO and the
+// existing Twitch fallback. The SSO button is the primary path: if
+// the user is already signed in to home, support gets a handoff
+// token and they're in without re-OAuthing. Twitch stays as a
+// fallback if home/sso is down or for users who prefer it.
 // ----------------------------------------------------------------
+$scheme   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host     = $_SERVER['HTTP_HOST'] ?? 'support.botofthespecter.com';
+$selfUrl  = $scheme . '://' . $host . ($_SERVER['REQUEST_URI'] ?? '/login.php');
+$ssoUrl   = 'https://botofthespecter.com/sso.php?target=support&return=' . urlencode($selfUrl);
+$twitchUrl = 'https://streamersconnect.com/?' . http_build_query([
+    'service'    => 'twitch',
+    'login'      => $host,
+    'scopes'     => 'openid user:read:email',
+    'return_url' => $scheme . '://' . $host . '/login.php',
+]);
 if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && empty($_GET['server_token']) && empty($_GET['handoff'])) {
-    $scheme    = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host      = $_SERVER['HTTP_HOST'] ?? 'support.botofthespecter.com';
-    $returnUrl = $scheme . '://' . $host . '/login.php';
-    $authUrl   = 'https://streamersconnect.com/?' . http_build_query([
-        'service'    => 'twitch',
-        'login'      => $host,
-        'scopes'     => 'openid user:read:email',
-        'return_url' => $returnUrl,
-    ]);
-    header('Location: ' . $authUrl);
-    exit;
+    // Direct visit — show the choice.
+    $info = 'Sign in to access support.';
 }
 ?>
 <!DOCTYPE html>
@@ -191,15 +197,17 @@ if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && 
         <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter" class="sp-login-logo">
         <h1>BotOfTheSpecter Support</h1>
         <p><?php echo htmlspecialchars($info); ?></p>
+        <a href="<?php echo htmlspecialchars($ssoUrl); ?>" class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;">
+            <img src="https://cdn.botofthespecter.com/logo.png" alt="" style="width:18px;height:18px;margin-right:8px;vertical-align:middle;">
+            Sign in with BotOfTheSpecter
+        </a>
+        <a href="<?php echo htmlspecialchars($twitchUrl); ?>" class="sp-btn sp-btn-ghost sp-mt-1" style="width:100%;justify-content:center;">
+            <i class="fa-brands fa-twitch"></i> Sign in with Twitch
+        </a>
         <?php if ($hasError): ?>
-            <a href="/login.php" class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;">
-                <i class="fa-brands fa-twitch"></i> Try Again with Twitch
-            </a>
             <a href="/index.php" class="sp-btn sp-btn-ghost sp-mt-1" style="width:100%;justify-content:center;">
                 <i class="fa-solid fa-arrow-left"></i> Back to Docs
             </a>
-        <?php else: ?>
-            <div class="sp-spinner"></div>
         <?php endif; ?>
     </div>
 </div>

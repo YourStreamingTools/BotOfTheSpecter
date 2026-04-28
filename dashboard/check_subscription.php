@@ -3,7 +3,7 @@
 // This page queries the Twitch API using the broadcaster's token to check if a user is subscribed
 
 ob_start();
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 require_once "userdata.php";

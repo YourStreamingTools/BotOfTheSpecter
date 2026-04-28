@@ -1,6 +1,6 @@
 <?php
 // Initialize the session
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
 if (!isset($_SESSION['username'])) {

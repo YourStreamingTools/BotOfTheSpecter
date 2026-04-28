@@ -11,13 +11,7 @@ if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
     $info = "Please wait while we redirect you to Twitch for authorization.";
 }
 
-// Set session timeout to 24 hours (86400 seconds)
-session_set_cookie_params(86400, "/", "", true, true);
-ini_set('session.gc_maxlifetime', 86400);
-ini_set('session.cookie_lifetime', 86400);
-
-// Start PHP session
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 
 // If the user is already logged in, redirect them to the original page or dashboard
 if (isset($_SESSION['access_token'])) {
@@ -31,24 +25,87 @@ if (isset($_SESSION['access_token'])) {
     exit;
 }
 
-// If the user is not logged in and no authorization code or auth_data is present, redirect to StreamersConnect
-// UNLESS they just logged out (in which case, show them the logout message)
-if (!isset($_SESSION['access_token']) && !isset($_GET['code']) && !isset($_GET['logout']) && !isset($_GET['auth_data'])) {
-    // Build StreamersConnect URL
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
-    $originDomain = $_SERVER['HTTP_HOST'];
-    $returnUrl = $scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
-    $streamersconnectBase = 'https://streamersconnect.com/';
-    $scopes = $IDScope;
-    $authUrl = $streamersconnectBase . '?' . http_build_query([
-        'service' => 'twitch',
-        'login' => $originDomain,
-        'scopes' => $scopes,
-        'return_url' => $returnUrl
-    ]);
-    header('Location: ' . $authUrl);
-    exit;
-} 
+// ----------------------------------------------------------------
+// PATH A — Handoff token from home/sso.php (target='members')
+// Members has its own session-key convention (snake_case + user_email)
+// so we translate the handoff_tokens columns into members' shape and
+// look up email from website.users (the handoff_tokens row doesn't
+// carry it).
+// ----------------------------------------------------------------
+if (!empty($_GET['handoff'])) {
+    $handoffToken = preg_replace('/[^a-f0-9]/i', '', (string)$_GET['handoff']);
+    if (strlen($handoffToken) === 64) {
+        require_once '/var/www/config/database.php';
+        $wdb = new mysqli($db_servername, $db_username, $db_password, 'website');
+        if (!$wdb->connect_error) {
+            $stmt = $wdb->prepare(
+                "SELECT twitch_user_id, username, display_name, access_token, refresh_token,
+                        profile_image
+                 FROM handoff_tokens
+                 WHERE token = ? AND used = 0 AND expires_at > NOW()
+                   AND (target IS NULL OR target = 'members')
+                 LIMIT 1"
+            );
+            if ($stmt) {
+                $stmt->bind_param('s', $handoffToken);
+                $stmt->execute();
+                $stmt->store_result();
+                if ($stmt->num_rows === 1) {
+                    $stmt->bind_result($twid, $uname, $dname, $at, $rt, $pimg);
+                    $stmt->fetch();
+                    $stmt->close();
+                    // Mark token used so it can't be replayed
+                    $u = $wdb->prepare("UPDATE handoff_tokens SET used = 1 WHERE token = ?");
+                    if ($u) { $u->bind_param('s', $handoffToken); $u->execute(); $u->close(); }
+                    // Look up email from website.users (handoff_tokens doesn't carry email)
+                    $userEmail = '';
+                    $eStmt = $wdb->prepare("SELECT email FROM users WHERE twitch_user_id = ? LIMIT 1");
+                    if ($eStmt) {
+                        $eStmt->bind_param('s', $twid);
+                        $eStmt->execute();
+                        $eStmt->bind_result($emailFromDb);
+                        if ($eStmt->fetch()) $userEmail = (string)($emailFromDb ?? '');
+                        $eStmt->close();
+                    }
+                    $wdb->close();
+                    // Set members session — members reads snake_case keys
+                    $_SESSION['access_token']      = $at;
+                    $_SESSION['refresh_token']     = $rt;
+                    $_SESSION['user_email']        = $userEmail;
+                    $_SESSION['twitch_username']   = $uname;
+                    $_SESSION['twitch_user_id']    = $twid;
+                    $_SESSION['profile_image_url'] = $pimg;
+                    $_SESSION['display_name']      = $dname;
+                    if (isset($_SESSION['redirect_url'])) {
+                        $redirectUrl = filter_var($_SESSION['redirect_url'], FILTER_SANITIZE_URL);
+                        unset($_SESSION['redirect_url']);
+                        header("Location: $redirectUrl");
+                    } else {
+                        header('Location: ../');
+                    }
+                    exit;
+                }
+                $stmt->close();
+            }
+            $wdb->close();
+        }
+        // Token invalid / expired — fall through to login page
+        $info = 'Your session link has expired. Please sign in again.';
+    }
+}
+
+// If the user is not logged in and we don't have any auth payload yet, render
+// the login page with both SSO and Twitch buttons (instead of auto-redirecting).
+if (!isset($_SESSION['access_token'])
+    && !isset($_GET['code'])
+    && !isset($_GET['logout'])
+    && !isset($_GET['auth_data'])
+    && !isset($_GET['auth_data_sig'])
+    && !isset($_GET['server_token'])
+    && !isset($_GET['handoff'])
+) {
+    $info = 'Sign in to access the members area.';
+}
 
 // Handle StreamersConnect auth_data response
 if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['server_token'])) {
@@ -228,6 +285,18 @@ if (isset($_GET['code'])) {
         exit;
     }
 }
+
+// Build SSO and Twitch URLs for the login buttons rendered below.
+$scheme    = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host      = $_SERVER['HTTP_HOST'] ?? 'members.botofthespecter.com';
+$selfUrl   = $scheme . '://' . $host . ($_SERVER['REQUEST_URI'] ?? '/login.php');
+$ssoUrl    = 'https://botofthespecter.com/sso.php?target=members&return=' . urlencode($selfUrl);
+$twitchUrl = 'https://streamersconnect.com/?' . http_build_query([
+    'service'    => 'twitch',
+    'login'      => $host,
+    'scopes'     => $IDScope,
+    'return_url' => $selfUrl,
+]);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -250,13 +319,18 @@ if (isset($_GET['code'])) {
                 <div class="sp-alert sp-alert-info" style="margin:1rem 0;">
                     <?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?>
                 </div>
-                <a href="login.php" class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;margin-top:0.5rem;">
-                    <i class="fa-brands fa-twitch"></i> Login with Twitch
-                </a>
             <?php else: ?>
-                <div class="sp-spinner" style="margin:1.5rem auto;"></div>
-                <p style="color:var(--text-muted);font-size:0.9rem;"><?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?></p>
+                <p style="color:var(--text-muted);font-size:0.9rem;margin:1rem 0;">
+                    <?php echo htmlspecialchars($info, ENT_QUOTES, 'UTF-8'); ?>
+                </p>
             <?php endif; ?>
+            <a href="<?php echo htmlspecialchars($ssoUrl); ?>" class="sp-btn sp-btn-primary" style="width:100%;justify-content:center;margin-top:0.5rem;">
+                <img src="https://cdn.botofthespecter.com/logo.png" alt="" style="width:18px;height:18px;margin-right:8px;vertical-align:middle;">
+                Sign in with BotOfTheSpecter
+            </a>
+            <a href="<?php echo htmlspecialchars($twitchUrl); ?>" class="sp-btn sp-btn-ghost" style="width:100%;justify-content:center;margin-top:0.5rem;">
+                <i class="fa-brands fa-twitch"></i> Sign in with Twitch
+            </a>
         </div>
     </div>
 </body>

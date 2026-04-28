@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 // Serve user-uploaded music files to the owner only
 if (!isset($_SESSION['access_token']) || empty($_SESSION['username'])) {

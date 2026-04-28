@@ -4,12 +4,11 @@
 
 if (!function_exists('support_session_start')) {
     function support_session_start() {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_set_cookie_params(86400, '/', '', true, true);
-            ini_set('session.gc_maxlifetime', 86400);
-            ini_set('session.cookie_lifetime', 86400);
-            session_start();
-        }
+        // Now backed by the shared web_sessions row scoped to .botofthespecter.com,
+        // so signing in on home/dashboard auto-authenticates the user here too.
+        // The bootstrap include is idempotent — calling this function from
+        // multiple includes is safe.
+        require_once '/var/www/lib/session_bootstrap.php';
     }
 }
 

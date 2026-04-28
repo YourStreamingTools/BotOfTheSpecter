@@ -1,10 +1,7 @@
 <?php
 require '/var/www/config/db_connect.php';
 
-// Start session only if it hasn't already been started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'regen_api_key') {
