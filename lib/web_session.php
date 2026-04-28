@@ -52,6 +52,19 @@ class WebSessionHandler implements SessionHandlerInterface
         // denormalized columns; the original blob still goes into `data`.
         $decoded = ($data === '') ? [] : @unserialize($data);
         if (!is_array($decoded)) $decoded = [];
+
+        // Don't write empty sessions. Anything with no $_SESSION keys —
+        // typically anonymous visitors who never started a flow, plus
+        // any bot UAs that slipped past the bootstrap short-circuit —
+        // would otherwise become a NULL-token row in web_sessions and
+        // pile up until session_gc runs. Returning true tells PHP "saved";
+        // the session id stays in the cookie but no row exists in DB.
+        // On the next request from a real user we INSERT for the first
+        // time as soon as something meaningful (post_login_redirect,
+        // access_token, etc.) lands in $_SESSION.
+        if (empty($decoded)) {
+            return true;
+        }
         $twitch_user_id = (string)($decoded['twitch_user_id']
             ?? $decoded['twitchUserId']
             ?? '');
