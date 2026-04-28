@@ -28,6 +28,7 @@ if (!function_exists('validate_twitch_token')) {
 if (!function_exists('refresh_twitch_token')) {
     function refresh_twitch_token(string $refresh_token) {
         require_once '/var/www/config/twitch.php';
+        global $clientID, $clientSecret;
         $ch = curl_init('https://id.twitch.tv/oauth2/token');
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
@@ -88,6 +89,7 @@ if (!function_exists('is_staff')) {
 if (!function_exists('support_db')) {
     function support_db(): mysqli {
         require_once '/var/www/config/database.php';
+        global $db_servername, $db_username, $db_password;
         $conn = new mysqli($db_servername, $db_username, $db_password, 'support_tickets');
         if ($conn->connect_error) {
             error_log('support_db connect error: ' . $conn->connect_error);
@@ -100,6 +102,7 @@ if (!function_exists('support_db')) {
 if (!function_exists('website_db')) {
     function website_db(): mysqli {
         require_once '/var/www/config/database.php';
+        global $db_servername, $db_username, $db_password;
         $conn = new mysqli($db_servername, $db_username, $db_password, 'website');
         if ($conn->connect_error) {
             error_log('website_db connect error: ' . $conn->connect_error);
