@@ -17,6 +17,57 @@ if (defined('BOTS_SESSION_BOOTSTRAPPED')) {
 }
 define('BOTS_SESSION_BOOTSTRAPPED', true);
 
+// ----------------------------------------------------------------
+// Bot short-circuit. Crawlers don't honor cookies and never come back
+// with one, so every page hit from them spawns a brand-new session id
+// and writes a fresh empty row into web_sessions. Across all four
+// *.botofthespecter.com subdomains that's measurable garbage.
+//
+// Detect the obvious crawler/preview-bot user agents and bail out
+// BEFORE session_start so they never get a Set-Cookie at all. The
+// bot still receives the page (we don't 403 them — losing SEO on
+// home/support docs would be worse than the DB churn). They just
+// don't get session storage.
+//
+// Pattern is intentionally broad — any false positive just means a
+// "real user" with a botty UA loses session, which they can
+// correct by using a normal browser. The trade is heavily in our
+// favor at the database level.
+// ----------------------------------------------------------------
+$bots_ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+// Categories covered:
+//   Search crawlers: googlebot, bingbot, slurp (yahoo), duckduckbot, baiduspider,
+//                    yandexbot, sogou, exabot, seznambot, petalbot, applebot,
+//                    googleother, google-inspectiontool
+//   Preview bots:    facebookexternalhit, facebot, twitterbot, linkedinbot,
+//                    slackbot, discordbot, telegrambot, whatsapp
+//   SEO scrapers:    semrushbot, ahrefsbot, mj12bot, dotbot, bytespider
+//   AI crawlers:     gptbot, chatgpt-user, claudebot, anthropic-ai, ccbot,
+//                    perplexitybot, amazonbot
+//   Uptime monitors: hetrixtools, uptimerobot, pingdom, statuscake, uptime,
+//                    site24x7, betteruptime, monitorbacklinks, newrelicpinger
+//   Generic:         crawl, spider, scrapy, python-requests, curl/, wget/
+// All matched UAs short-circuit BEFORE session_start — no cookie, no
+// session id generated, no DB row written. They still receive the page
+// (we don't 403 — losing SEO/uptime visibility is worse than the churn).
+if ($bots_ua !== '' && preg_match(
+    '~(?:googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|sogou|exabot|'
+    . 'facebot|facebookexternalhit|twitterbot|linkedinbot|slackbot|discordbot|'
+    . 'telegrambot|whatsapp|applebot|petalbot|semrushbot|ahrefsbot|mj12bot|'
+    . 'dotbot|seznambot|bytespider|gptbot|claudebot|anthropic-ai|ccbot|'
+    . 'googleother|google-inspectiontool|amazonbot|chatgpt-user|perplexitybot|'
+    . 'hetrixtools|uptimerobot|pingdom|statuscake|site24x7|betteruptime|'
+    . 'monitorbacklinks|newrelicpinger|uptime\.com|uptimekuma|nodeping|'
+    . 'crawl|spider|scrapy|python-requests|curl/|wget/)~i',
+    $bots_ua
+)) {
+    // Don't start a session, don't set a cookie, don't write a row.
+    // $_SESSION will be undefined for the rest of the request — code
+    // that does isset()/empty()/$_SESSION[...] reads handles that fine
+    // (PHP returns null for missing superglobal keys without warning).
+    return;
+}
+
 require_once __DIR__ . '/web_session.php';
 require_once '/var/www/config/database.php';
 
