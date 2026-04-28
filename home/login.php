@@ -123,14 +123,18 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
         $dname        = $user['display_name']      ?? ($user['global_name'] ?? $uname);
         $pimg         = $user['profile_image_url'] ?? null;
         if ($accessToken && $twitchUserId) {
-            // Look up is_admin / users.id / api_key / email from website.users
-            // so every *.botofthespecter.com app sees the keys it expects.
-            // (Members reads $_SESSION['user_email']; the bootstrap aliases
-            // the snake_case identity-key variants from the camelCase ones.)
+            // Look up users row by stable twitch_user_id (NOT access_token —
+            // the token rotates every login). If the user exists we UPDATE
+            // their tokens/profile so dashboard's userdata.php — which looks
+            // up by access_token — finds the row. Without this, you log in
+            // here, redirect to dashboard, dashboard's userdata.php sees 0
+            // rows for the new token, redirects to login.php, login.php
+            // sees session and redirects back to dashboard => redirect loop.
             $isAdmin    = 0;
             $userRowId  = 0;
             $apiKey     = '';
-            $userEmail  = '';
+            $userEmail  = (string)($user['email'] ?? '');
+            $emailFromDb = '';
             if (isset($bots_session_db) && $bots_session_db instanceof mysqli) {
                 $stmt = $bots_session_db->prepare(
                     "SELECT id, api_key, is_admin, email FROM users WHERE twitch_user_id = ? LIMIT 1"
@@ -138,14 +142,95 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
                 if ($stmt) {
                     $stmt->bind_param('s', $twitchUserId);
                     $stmt->execute();
-                    $stmt->bind_result($userRowId, $apiKey, $isAdmin, $userEmail);
+                    $stmt->bind_result($userRowId, $apiKey, $isAdmin, $emailFromDb);
                     if (!$stmt->fetch()) {
-                        $userRowId = 0;
-                        $apiKey    = '';
-                        $isAdmin   = 0;
-                        $userEmail = '';
+                        $userRowId   = 0;
+                        $apiKey      = '';
+                        $isAdmin     = 0;
+                        $emailFromDb = '';
                     }
                     $stmt->close();
+                }
+                // Prefer the email Twitch just gave us if present, else
+                // keep what's already in the users table.
+                if ($userEmail === '' && $emailFromDb !== '') {
+                    $userEmail = (string)$emailFromDb;
+                }
+                $nowSql = date('Y-m-d H:i:s');
+                if ($userRowId > 0) {
+                    // Existing user — refresh their tokens + profile.
+                    $u = $bots_session_db->prepare(
+                        "UPDATE users
+                            SET access_token = ?, refresh_token = ?, profile_image = ?,
+                                username = ?, twitch_display_name = ?, last_login = ?,
+                                email = ?
+                          WHERE twitch_user_id = ?"
+                    );
+                    if ($u) {
+                        $u->bind_param('ssssssss',
+                            $accessToken, $refreshToken, $pimg,
+                            $uname, $dname, $nowSql,
+                            $userEmail, $twitchUserId
+                        );
+                        if (!$u->execute()) {
+                            error_log('[home/login.php] users UPDATE failed: ' . $u->error);
+                        }
+                        $u->close();
+                    } else {
+                        error_log('[home/login.php] users UPDATE prepare failed: ' . $bots_session_db->error);
+                    }
+                } else {
+                    // Brand-new user — assign an api_key and insert. Reuse the
+                    // smallest missing id (matches dashboard/login.php's pattern
+                    // so id sequencing stays consistent across login paths).
+                    $apiKey = bin2hex(random_bytes(16));
+                    $bots_session_db->begin_transaction();
+                    try {
+                        $assignedId = 1;
+                        $idRes = $bots_session_db->query(
+                            "SELECT id FROM users ORDER BY id ASC FOR UPDATE"
+                        );
+                        if ($idRes) {
+                            $expected = 1;
+                            while ($row = $idRes->fetch_assoc()) {
+                                $rid = (int)$row['id'];
+                                if ($rid !== $expected) break;
+                                $expected++;
+                            }
+                            $assignedId = $expected;
+                            $idRes->free();
+                        }
+                        $ins = $bots_session_db->prepare(
+                            "INSERT INTO users
+                                (id, username, access_token, refresh_token, api_key,
+                                 profile_image, twitch_user_id, twitch_display_name,
+                                 email, is_admin, last_login)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)"
+                        );
+                        if (!$ins) {
+                            throw new Exception('users INSERT prepare failed: '
+                                . $bots_session_db->error);
+                        }
+                        $ins->bind_param('isssssssss',
+                            $assignedId, $uname, $accessToken, $refreshToken, $apiKey,
+                            $pimg, $twitchUserId, $dname, $userEmail, $nowSql
+                        );
+                        if (!$ins->execute()) {
+                            $err = $ins->error;
+                            $ins->close();
+                            throw new Exception('users INSERT execute failed: ' . $err);
+                        }
+                        $ins->close();
+                        @$bots_session_db->query(
+                            "ALTER TABLE users AUTO_INCREMENT = " . ($assignedId + 1)
+                        );
+                        $bots_session_db->commit();
+                        $userRowId = $assignedId;
+                        $isAdmin   = 0;
+                    } catch (Exception $e) {
+                        @$bots_session_db->rollback();
+                        error_log('[home/login.php] new-user insert failed: ' . $e->getMessage());
+                    }
                 }
             }
             // Mint a fresh session id post-auth (fixation defense).
