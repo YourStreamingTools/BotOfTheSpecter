@@ -13,6 +13,7 @@
 // ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
+require_once '/var/www/config/ipgeolocation.php';
 
 // Must be signed in to view this page.
 if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
@@ -141,6 +142,35 @@ function bots_humanize_ua(?string $ua): string
     return "$browser on $os";
 }
 
+function bots_fetch_ip_geo(string $ip, string $apiKey, string $userAgent = ''): ?array
+{
+    static $cache = [];
+    if (!$apiKey || !$ip || $ip === '—') return null;
+    $cacheKey = $ip . '||' . $userAgent;
+    if (array_key_exists($cacheKey, $cache)) return $cache[$cacheKey];
+
+    $url  = 'https://api.ipgeolocation.io/v3/ipgeo?apiKey=' . urlencode($apiKey)
+          . '&ip=' . urlencode($ip) . '&include=user_agent';
+    $curl = curl_init();
+    $opts = [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 3,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+    ];
+    if ($userAgent !== '') {
+        $opts[CURLOPT_HTTPHEADER] = ['User-Agent: ' . $userAgent];
+    }
+    curl_setopt_array($curl, $opts);
+    $raw = curl_exec($curl);
+    curl_close($curl);
+
+    $data = $raw ? json_decode($raw, true) : null;
+    $cache[$cacheKey] = (is_array($data) && empty($data['error'])) ? $data : null;
+    return $cache[$cacheKey];
+}
+
 function bots_format_when($datetime): string
 {
     if (!$datetime) return '—';
@@ -205,15 +235,36 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
     <?php else: ?>
         <?php foreach ($sessions as $s):
             $isCurrent = ($s['session_id'] === $current_session_id);
+            $geo = bots_fetch_ip_geo($s['ip'] ?? '', $ipgeo_api_key ?? '', $s['user_agent'] ?? '');
         ?>
             <div class="sp-session<?php echo $isCurrent ? ' current' : ''; ?>">
                 <div>
                     <div class="device">
-                        <?php echo htmlspecialchars(bots_humanize_ua($s['user_agent'])); ?>
+                        <?php
+                            $geoUa      = $geo['user_agent']               ?? null;
+                            $geoUaName  = $geoUa['name']                   ?? '';
+                            $geoUaOs    = $geoUa['operating_system']['name'] ?? '';
+                            $deviceName = ($geoUaName && $geoUaOs)
+                                ? $geoUaName . ' on ' . $geoUaOs
+                                : bots_humanize_ua($s['user_agent']);
+                            echo htmlspecialchars($deviceName);
+                        ?>
                         <?php if ($isCurrent): ?><span class="sp-badge">This device</span><?php endif; ?>
                     </div>
                     <div class="meta">
-                        IP <code><?php echo htmlspecialchars($s['ip'] ?? '—'); ?></code><br>
+                        IP <code><?php echo htmlspecialchars($s['ip'] ?? '—'); ?></code>
+                        <?php if ($geo): ?>
+                            <?php
+                                $geoCity    = $geo['location']['city']         ?? '';
+                                $geoCountry = $geo['location']['country_name'] ?? '';
+                                $geoOrg     = $geo['asn']['organization']      ?? '';
+                                $geoLoc     = implode(', ', array_filter([$geoCity, $geoCountry]));
+                            ?>
+                            <span style="color:#6e7681;">
+                                <?php echo htmlspecialchars($geoLoc ?: '—'); ?>
+                                <?php if ($geoOrg): ?>(<?php echo htmlspecialchars($geoOrg); ?>)<?php endif; ?>
+                            </span>
+                        <?php endif; ?><br>
                         Signed in <?php echo bots_format_when($s['created_at']); ?><br>
                         Last seen <?php echo bots_format_when($s['last_seen_at']); ?><br>
                         Twitch token expires <?php echo bots_format_when($s['twitch_expires_at']); ?>
