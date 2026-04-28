@@ -32,17 +32,47 @@ session_write_close();
 $accessToken = $_SESSION['access_token'];
 $userId = $_SESSION['user_id'];
 
-// Fetch all EventSub subscriptions (including stale/disabled)
+// Webhook subs require an app access token.
+// $clientID and $clientSecret are already set by twitch.php (sourced from the database).
+$_appToken = null;
+if (!empty($clientID) && !empty($clientSecret)) {
+    $ch = curl_init('https://id.twitch.tv/oauth2/token');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'client_id' => $clientID, 'client_secret' => $clientSecret, 'grant_type' => 'client_credentials'
+    ]));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $_tr = curl_exec($ch);
+    if (curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200) {
+        $_td = json_decode($_tr, true);
+        $_appToken = $_td['access_token'] ?? null;
+    }
+    curl_close($ch);
+}
+
+// Fetch WebSocket subscriptions with user access token
 $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Authorization: Bearer ' . $accessToken,
-    'Client-Id: ' . $clientID
-]);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken, 'Client-Id: ' . $clientID]);
+$wsResponse = curl_exec($ch);
+$wsHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
+
+// Fetch webhook subscriptions with app access token
+$_webhookSubs = [];
+if ($_appToken) {
+    $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $_appToken, 'Client-Id: ' . $clientID]);
+    $_whResp = curl_exec($ch);
+    if (curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200) {
+        $_whData = json_decode($_whResp, true);
+        foreach ($_whData['data'] ?? [] as $_s) {
+            if (($_s['transport']['method'] ?? '') === 'webhook') $_webhookSubs[] = $_s;
+        }
+    }
+    curl_close($ch);
+}
 
 $subscriptions = [];
 $error = null;
@@ -51,15 +81,16 @@ $maxTotal = 0;
 $totalCost = 0;
 $maxCost = 0;
 
-if ($httpCode === 200) {
-    $data = json_decode($response, true);
-    $subscriptions = $data['data'] ?? [];
-    $totalCount = $data['total'] ?? 0;
+if ($wsHttpCode === 200) {
+    $data = json_decode($wsResponse, true);
+    $_wsSubs = array_values(array_filter($data['data'] ?? [], fn($s) => ($s['transport']['method'] ?? '') === 'websocket'));
+    $subscriptions = array_merge($_wsSubs, $_webhookSubs);
+    $totalCount = ($data['total'] ?? 0) + count($_webhookSubs);
     $maxTotal = $data['max_total_cost'] ?? 0;
-    $totalCost = $data['total_cost'] ?? 0;
+    $totalCost = ($data['total_cost'] ?? 0) + array_sum(array_column($_webhookSubs, 'cost'));
     $maxCost = $data['max_total_cost'] ?? 0;
 } else {
-    $error = "Failed to fetch subscriptions. HTTP Code: $httpCode";
+    $error = "Failed to fetch subscriptions. HTTP Code: $wsHttpCode";
 }
 
 // Group subscriptions by transport type, session, and status
@@ -456,7 +487,7 @@ function buildWebhookSection(data) {
                 <td style="font-size: 11px; color: #aaa; word-break: break-all;">${escapeHtml(callback)}</td>
                 <td><span class="status-badge ${statusClass}">${escapeHtml(sub.status)}</span></td>
                 <td>
-                    <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}')" class="delete-btn">
+                    <button onclick="deleteSingleSubscription('${escapeHtml(sub.id)}', 'webhook')" class="delete-btn">
                         <i class="fas fa-trash"></i> Delete
                     </button>
                 </td>
@@ -472,7 +503,7 @@ function buildWebhookSection(data) {
 }
 
 // Delete single subscription
-async function deleteSingleSubscription(subscriptionId) {
+async function deleteSingleSubscription(subscriptionId, transport = 'websocket') {
     if (!confirm('Are you sure you want to delete this subscription?')) {
         return;
     }
@@ -486,6 +517,7 @@ async function deleteSingleSubscription(subscriptionId) {
         const formData = new FormData();
         formData.append('action', 'delete_subscription');
         formData.append('subscription_id', subscriptionId);
+        formData.append('transport', transport);
         const response = await fetch('notifications_api.php', {
             method: 'POST',
             body: formData

@@ -2535,6 +2535,14 @@ async def TASK_REWARD_TRIGGER(data):
     except Exception as e:
         websocket_logger.error(f"[TASK REWARD] TASK_REWARD_TRIGGER: unexpected error: {e}", exc_info=True)
 
+@specterSocket.event
+async def TWITCH_EXTENSION_BITS(data):
+    websocket_logger.info(f"[TWITCH EXTENSION BITS] Event received")
+    try:
+        await process_twitch_extension_bits_event(data)
+    except Exception as e:
+        websocket_logger.error(f"[TWITCH EXTENSION BITS] Failed to process event: {e}")
+
 # Helper function for manual websocket reconnection (can be called from commands)
 async def force_websocket_reconnect():
     global websocket_connected
@@ -12112,6 +12120,33 @@ async def process_cheer_event(user_id, user_name, bits):
     finally:
         if connection:
             await connection.close()
+
+async def process_twitch_extension_bits_event(data):
+    raw = data.get('data')
+    if isinstance(raw, str):
+        try:
+            payload = json.loads(raw)
+        except Exception as e:
+            event_logger.error(f"[TWITCH EXTENSION BITS] Failed to parse data: {e}")
+            return
+    elif isinstance(raw, dict):
+        payload = raw
+    else:
+        event_logger.error(f"[TWITCH EXTENSION BITS] Unexpected data type: {type(raw)}")
+        return
+    event = payload.get("event", {})
+    product = event.get("product", {})
+    if product.get("in_development"):
+        event_logger.info("[TWITCH EXTENSION BITS] Ignoring in-development transaction")
+        return
+    user_id = event.get("user_id")
+    user_name = event.get("user_name") or event.get("user_login")
+    bits = product.get("bits")
+    if not user_id or not user_name or not bits:
+        event_logger.error(f"[TWITCH EXTENSION BITS] Missing required fields — user_id={user_id}, user_name={user_name}, bits={bits}")
+        return
+    event_logger.info(f"[TWITCH EXTENSION BITS] {user_name} transacted {bits} bits via extension")
+    await process_cheer_event(user_id, user_name, bits)
 
 # Function for Subscriptions
 async def process_subscription_event(user_id, user_name, sub_plan, event_months, is_upgrade=False):

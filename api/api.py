@@ -5,6 +5,7 @@ import json
 import copy
 import secrets
 import hashlib
+import hmac
 import base64
 import time as _time
 import logging
@@ -61,6 +62,7 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
     raise ValueError(f"Missing required database environment variables: {missing_vars}")
 
 ADMIN_KEY = os.getenv('ADMIN_KEY')
+TWITCH_EXTENSION_BITS_SECRET = os.getenv('TWITCH_EXTENSION_BITS_SECRET')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
@@ -910,42 +912,6 @@ async def get_mysql_connection_user(username):
         db=username
     )
 
-async def ensure_discord_twitch_link_tables(conn):
-    async with conn.cursor() as cur:
-        await cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS discord_twitch_links (
-                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                discord_user_id VARCHAR(64) NOT NULL,
-                twitch_user_id VARCHAR(64) NOT NULL,
-                twitch_username VARCHAR(255) DEFAULT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
-                UNIQUE KEY uq_discord_user_id (discord_user_id),
-                UNIQUE KEY uq_twitch_user_id (twitch_user_id),
-                KEY idx_twitch_username (twitch_username)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            """
-        )
-        await cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS discord_twitch_link_tokens (
-                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                discord_user_id VARCHAR(64) NOT NULL,
-                token_hash CHAR(64) NOT NULL,
-                token_expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                used_at DATETIME DEFAULT NULL,
-                PRIMARY KEY (id),
-                UNIQUE KEY uq_token_hash (token_hash),
-                KEY idx_discord_user_id (discord_user_id),
-                KEY idx_token_expires_at (token_expires_at),
-                KEY idx_used_at (used_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            """
-        )
-
 # Check if a host is reachable via ICMP ping
 async def check_icmp_ping(host: str) -> bool:
     try:
@@ -964,6 +930,17 @@ async def verify_api_key(api_key):
             if result is None:
                 return None  # Return None if the API key is invalid
             return result[0]  # Return the username associated with the API key
+    finally:
+        conn.close()
+
+# Get User info from DB using user_id
+async def get_user_info(user_id):
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT * FROM users WHERE twitch_user_id=%s", (user_id,))
+            result = await cur.fetchone()
+            return result  # Returns a dictionary of user info or None if not found
     finally:
         conn.close()
 
@@ -1497,6 +1474,85 @@ class FreeStuffGamesResponse(BaseModel):
                 "count": 5
             }
         }
+
+def _verify_twitch_eventsub_hmac(secret: str | None, message_id: str, timestamp: str, body: bytes, signature_header: str) -> bool:
+    if not secret:
+        logging.warning("[TWITCH EXTENSION BITS] No secret configured — skipping signature verification")
+        return True
+    try:
+        msg = f"{message_id}{timestamp}".encode() + body
+        expected = "sha256=" + hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, signature_header or "")
+    except Exception as e:
+        logging.error(f"[TWITCH EXTENSION BITS] HMAC verification error: {e}")
+        return False
+
+# Define the /twitch/* endpoints
+@app.post(
+    "/twitch/extension/bits",
+    summary="Handle bits event from Twitch Extensions",
+    description="This endpoint receives extension.bits_transaction.create EventSub webhook events from Twitch and forwards them to the WebSocket server.",
+    tags=["Webhooks"],
+    status_code=status.HTTP_200_OK,
+    operation_id="process_twitch_extension_bits"
+)
+async def handle_twitch_extension_bits(request: Request):
+    raw_body = await request.body()
+    message_id = request.headers.get("Twitch-Eventsub-Message-Id", "")
+    timestamp = request.headers.get("Twitch-Eventsub-Message-Timestamp", "")
+    signature = request.headers.get("Twitch-Eventsub-Message-Signature", "")
+    message_type = request.headers.get("Twitch-Eventsub-Message-Type", "notification")
+    if not _verify_twitch_eventsub_hmac(TWITCH_EXTENSION_BITS_SECRET, message_id, timestamp, raw_body, signature):
+        logging.warning(f"[TWITCH EXTENSION BITS] Invalid signature from {request.client.host}")
+        raise HTTPException(status_code=403, detail="Invalid signature")
+    try:
+        event_data = json.loads(raw_body)
+    except Exception as e:
+        logging.error(f"[TWITCH EXTENSION BITS] Invalid JSON payload: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if message_type == "webhook_callback_verification":
+        challenge = event_data.get("challenge")
+        if not challenge:
+            raise HTTPException(status_code=400, detail="Missing challenge")
+        logging.info("[TWITCH EXTENSION BITS] Subscription verification successful")
+        return Response(content=challenge, media_type="text/plain")
+    if message_type == "revocation":
+        reason = (event_data.get("subscription") or {}).get("status", "unknown")
+        logging.warning(f"[TWITCH EXTENSION BITS] Subscription revoked: {reason}")
+        return Response(status_code=204)
+    event = event_data.get("event")
+    if not event:
+        logging.warning("[TWITCH EXTENSION BITS] Notification missing event field")
+        raise HTTPException(status_code=400, detail="Missing event field")
+    broadcaster_user_id = event.get("broadcaster_user_id")
+    if not broadcaster_user_id:
+        raise HTTPException(status_code=400, detail="Missing broadcaster_user_id")
+    user_dat = await get_user_info(broadcaster_user_id)
+    if not user_dat:
+        logging.error(f"[TWITCH EXTENSION BITS] User with Twitch ID {broadcaster_user_id} not found")
+        raise HTTPException(status_code=404, detail="Broadcaster user not found")
+    api_key = user_dat["api_key"]
+    logging.info(f"[TWITCH EXTENSION BITS] Received transaction: user={event.get('user_name')} bits={event.get('product', {}).get('bits')}")
+    async with aiohttp.ClientSession() as session:
+        try:
+            params = {
+                "code": api_key,
+                "event": "TWITCH_EXTENSION_BITS",
+                "data": json.dumps(event_data),
+            }
+            encoded_params = urlencode(params)
+            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    error_detail = f"Failed to send HTTP event 'TWITCH_EXTENSION_BITS' to websocket server. Status code: {response.status}"
+                    logging.error(error_detail)
+                    raise HTTPException(status_code=response.status, detail=error_detail)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"[TWITCH EXTENSION BITS] Error forwarding to websocket: {e}")
+            return JSONResponse(status_code=500, content={"status": "error", "message": "Error forwarding to websocket server"})
+    return {"status": "success", "message": "Twitch Extension Bits event received and processed"}
 
 # Define the /fourthwall endpoint for handling webhook data
 @app.post(
@@ -4209,7 +4265,6 @@ async def discord_twitch_link_status(api_key: str = Query(...), discord_user_id:
     try:
         conn = await get_mysql_connection()
         try:
-            await ensure_discord_twitch_link_tables(conn)
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
                     """
@@ -4248,7 +4303,6 @@ async def discord_twitch_link_request(api_key: str = Query(...), discord_user_id
     try:
         conn = await get_mysql_connection()
         try:
-            await ensure_discord_twitch_link_tables(conn)
             raw_token = secrets.token_urlsafe(32)
             token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
             async with conn.cursor() as cur:
@@ -4296,7 +4350,6 @@ async def discord_twitch_unlink(api_key: str = Query(...), discord_user_id: str 
     try:
         conn = await get_mysql_connection()
         try:
-            await ensure_discord_twitch_link_tables(conn)
             async with conn.cursor() as cur:
                 await cur.execute("DELETE FROM discord_twitch_links WHERE discord_user_id = %s", (discord_user_id,))
                 unlinked_rows = cur.rowcount
@@ -4337,7 +4390,6 @@ async def discord_twitch_link_confirm(api_key: str = Query(...), token: str = Qu
     try:
         conn = await get_mysql_connection()
         try:
-            await ensure_discord_twitch_link_tables(conn)
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
                     """
