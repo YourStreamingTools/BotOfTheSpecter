@@ -20,6 +20,27 @@ define('BOTS_SESSION_BOOTSTRAPPED', true);
 require_once __DIR__ . '/web_session.php';
 require_once '/var/www/config/database.php';
 
+// ----------------------------------------------------------------
+// Promote DB credentials to true $GLOBALS scope.
+//
+// This bootstrap is sometimes require_once'd from *inside* a function
+// (e.g. support_session_start() in support/includes/session.php). When
+// that happens, every variable created at the bootstrap's top level —
+// including the $db_* vars set by database.php — lives only in the
+// caller's local function scope, not in true global scope. Helpers
+// like support_db() / website_db() then do `global $db_servername;`
+// and find nothing → mysqli is constructed with null host and reports
+// "No such file or directory" (it falls through to the Unix socket).
+//
+// Copying explicitly via $GLOBALS works regardless of how this file
+// was included. When bootstrap is at true global scope this is a no-op
+// (the value is already in $GLOBALS); when it isn't, this is what
+// makes the consumers' `global` declarations actually find something.
+// ----------------------------------------------------------------
+if (isset($db_servername)) $GLOBALS['db_servername'] = $db_servername;
+if (isset($db_username))   $GLOBALS['db_username']   = $db_username;
+if (isset($db_password))   $GLOBALS['db_password']   = $db_password;
+
 // 4-hour session lifetime to match Twitch access-token TTL
 $BOTS_SESSION_LIFETIME = 14400;
 
