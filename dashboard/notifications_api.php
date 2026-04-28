@@ -43,17 +43,13 @@ ob_clean();
 $accessToken = $_SESSION['access_token'];
 $userId = $_SESSION['user_id'];
 
-// Webhook subscriptions require an app access token (Twitch docs requirement).
-// $clientID and $clientSecret are already set by twitch.php (sourced from the database).
-$appToken = getAppAccessToken($clientID, $clientSecret);
-
 // Handle AJAX requests
 $action = $_POST['action'] ?? $_GET['action'] ?? null;
 
 try {
     switch ($action) {
         case 'fetch_subscriptions':
-            fetchSubscriptions($accessToken, $appToken, $clientID, $userId, $db);
+            fetchSubscriptions($accessToken, $clientID, $clientSecret, $userId, $db);
             break;
         case 'delete_subscription':
             if (!isset($_POST['subscription_id'])) {
@@ -62,7 +58,7 @@ try {
                 exit();
             }
             $transport = $_POST['transport'] ?? 'websocket';
-            deleteSubscription($_POST['subscription_id'], $accessToken, $appToken, $clientID, $transport);
+            deleteSubscription($_POST['subscription_id'], $accessToken, $clientID, $clientSecret, $transport);
             break;
         case 'delete_session':
             if (!isset($_POST['subscription_ids'])) {
@@ -133,7 +129,7 @@ function twitchGetSubs($token, $clientID) {
     return ($code === 200) ? json_decode($resp, true) : null;
 }
 
-function fetchSubscriptions($userToken, $appToken, $clientID, $userId, $db) {
+function fetchSubscriptions($userToken, $clientID, $clientSecret, $userId, $db) {
     // User access token → returns WebSocket subscriptions for this user
     $wsData = twitchGetSubs($userToken, $clientID);
     if ($wsData === null) {
@@ -145,8 +141,9 @@ function fetchSubscriptions($userToken, $appToken, $clientID, $userId, $db) {
         $wsData['data'] ?? [],
         fn($s) => ($s['transport']['method'] ?? '') === 'websocket'
     ));
-    // App access token → returns webhook subscriptions for this app
+    // App access token → returns webhook subscriptions for this app (fetched only when needed)
     $webhookSubs = [];
+    $appToken = getAppAccessToken($clientID, $clientSecret);
     if ($appToken) {
         $whData = twitchGetSubs($appToken, $clientID);
         if ($whData !== null) {
@@ -202,8 +199,9 @@ function fetchSubscriptions($userToken, $appToken, $clientID, $userId, $db) {
     ]);
 }
 
-function deleteSubscription($subId, $userToken, $appToken, $clientID, $transport = 'websocket') {
+function deleteSubscription($subId, $userToken, $clientID, $clientSecret, $transport = 'websocket') {
     // Webhook subs must be deleted with app token; WebSocket subs with user token
+    $appToken = ($transport === 'webhook') ? getAppAccessToken($clientID, $clientSecret) : null;
     $token = ($transport === 'webhook' && $appToken) ? $appToken : $userToken;
     $ch = curl_init("https://api.twitch.tv/helix/eventsub/subscriptions?id=" . urlencode($subId));
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");

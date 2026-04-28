@@ -1,34 +1,36 @@
 <?php
+ob_start();
 session_start();
 if (!isset($_SESSION['access_token'])) {
+    ob_clean();
     http_response_code(401);
+    header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => 'Not authenticated']);
     exit;
 }
 
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include 'userdata.php';
 session_write_close();
 
+ob_clean();
 header('Content-Type: application/json');
 
-// $clientID and $clientSecret are provided by twitch.php (sourced from the database).
-// Read the webhook secret from bot_chat_token — same table twitch.php uses.
-$webhookSecret = '';
-if (isset($conn) && $conn instanceof mysqli && !$conn->connect_error) {
-    $res = $conn->query("SELECT twitch_extension_bits_secret FROM bot_chat_token ORDER BY id ASC LIMIT 1");
-    if ($res) {
-        $row = $res->fetch_assoc();
-        $webhookSecret = trim((string)($row['twitch_extension_bits_secret'] ?? ''));
-    }
+// Both values are set in the session by userdata.php on every page load.
+$twitchUserId = $_SESSION['twitchUserId'] ?? '';
+$userApiKey   = $_SESSION['api_key'] ?? '';
+
+if (empty($twitchUserId) || empty($userApiKey)) {
+    echo json_encode(['success' => false, 'error' => 'Session data missing — please reload the page']);
+    exit;
 }
 
-$CALLBACK_URL        = 'https://api.botofthespecter.com/twitch/extension/bits';
-$BINGO_EXTENSION_ID  = '2xfbxuwg9rwty88d1qlmbn3j3g5x84';
+// Callback URL uses the Twitch user ID (public info) — API key stays server-side only.
+$CALLBACK_URL       = 'https://api.botofthespecter.com/twitch/extension/bits?twitch_user_id=' . urlencode($twitchUserId);
+$BINGO_EXTENSION_ID = '2xfbxuwg9rwty88d1qlmbn3j3g5x84';
 
-// Get an App Access Token via client_credentials
 function getAppAccessToken($clientID, $clientSecret) {
+    if (empty($clientID) || empty($clientSecret)) return null;
     $ch = curl_init('https://id.twitch.tv/oauth2/token');
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
@@ -49,13 +51,12 @@ function getAppAccessToken($clientID, $clientSecret) {
 
 function twitchRequest($url, $method, $clientID, $accessToken, $body = null) {
     $ch = curl_init($url);
-    $headers = [
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Client-Id: ' . $clientID,
         'Authorization: Bearer ' . $accessToken,
         'Content-Type: application/json',
-    ];
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    ]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     if ($body !== null) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
@@ -66,85 +67,89 @@ function twitchRequest($url, $method, $clientID, $accessToken, $body = null) {
     return ['code' => $httpCode, 'data' => json_decode($response, true)];
 }
 
-if (empty($clientID) || empty($clientSecret)) {
-    echo json_encode(['success' => false, 'error' => 'Server credentials not configured']);
-    exit;
-}
+try {
+    if (empty($clientID) || empty($clientSecret)) {
+        echo json_encode(['success' => false, 'error' => 'Server Twitch credentials not configured']);
+        exit;
+    }
 
-$appToken = getAppAccessToken($clientID, $clientSecret);
-if (!$appToken) {
-    echo json_encode(['success' => false, 'error' => 'Failed to obtain app access token']);
-    exit;
-}
+    $appToken = getAppAccessToken($clientID, $clientSecret);
+    if (!$appToken) {
+        echo json_encode(['success' => false, 'error' => 'Failed to obtain Twitch app access token']);
+        exit;
+    }
 
-$action = $_GET['action'] ?? 'status';
+    $action = $_GET['action'] ?? 'status';
 
-if ($action === 'status') {
-    $result = twitchRequest(
-        'https://api.twitch.tv/helix/eventsub/subscriptions?type=extension.bits_transaction.create',
-        'GET', $clientID, $appToken
-    );
-    if ($result['code'] === 200) {
-        $subs = $result['data']['data'] ?? [];
-        $found = null;
-        foreach ($subs as $sub) {
-            if (
-                ($sub['transport']['callback'] ?? '') === $CALLBACK_URL &&
-                ($sub['condition']['extension_client_id'] ?? '') === $BINGO_EXTENSION_ID
-            ) {
-                $found = $sub;
-                break;
+    if ($action === 'status') {
+        $result = twitchRequest(
+            'https://api.twitch.tv/helix/eventsub/subscriptions?type=extension.bits_transaction.create',
+            'GET', $clientID, $appToken
+        );
+        if ($result['code'] === 200) {
+            $subs = $result['data']['data'] ?? [];
+            $found = null;
+            foreach ($subs as $sub) {
+                if (
+                    ($sub['transport']['callback'] ?? '') === $CALLBACK_URL &&
+                    ($sub['condition']['extension_client_id'] ?? '') === $BINGO_EXTENSION_ID
+                ) {
+                    $found = $sub;
+                    break;
+                }
             }
+            echo json_encode(['success' => true, 'subscription' => $found]);
+        } else {
+            $msg = $result['data']['message'] ?? 'Unknown error';
+            echo json_encode(['success' => false, 'error' => $msg, 'code' => $result['code']]);
         }
-        echo json_encode(['success' => true, 'subscription' => $found]);
+
+    } elseif ($action === 'subscribe' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = [
+            'type'      => 'extension.bits_transaction.create',
+            'version'   => '1',
+            'condition' => ['extension_client_id' => $BINGO_EXTENSION_ID],
+            'transport' => [
+                'method'   => 'webhook',
+                'callback' => $CALLBACK_URL,
+                'secret'   => $userApiKey,
+            ],
+        ];
+        $result = twitchRequest(
+            'https://api.twitch.tv/helix/eventsub/subscriptions',
+            'POST', $clientID, $appToken, $body
+        );
+        if ($result['code'] === 202) {
+            echo json_encode(['success' => true, 'subscription' => $result['data']['data'][0] ?? null]);
+        } else {
+            $msg = $result['data']['message'] ?? 'Unknown error';
+            echo json_encode(['success' => false, 'error' => $msg, 'code' => $result['code']]);
+        }
+
+    } elseif ($action === 'unsubscribe' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $subId = $_POST['subscription_id'] ?? '';
+        if (empty($subId)) {
+            echo json_encode(['success' => false, 'error' => 'Missing subscription_id']);
+            exit;
+        }
+        $result = twitchRequest(
+            'https://api.twitch.tv/helix/eventsub/subscriptions?id=' . urlencode($subId),
+            'DELETE', $clientID, $appToken
+        );
+        if ($result['code'] === 204) {
+            echo json_encode(['success' => true]);
+        } else {
+            $msg = $result['data']['message'] ?? 'Unknown error';
+            echo json_encode(['success' => false, 'error' => $msg, 'code' => $result['code']]);
+        }
+
     } else {
-        $msg = $result['data']['message'] ?? 'Unknown error';
-        echo json_encode(['success' => false, 'error' => $msg, 'code' => $result['code']]);
+        echo json_encode(['success' => false, 'error' => 'Invalid action']);
     }
 
-} elseif ($action === 'subscribe' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (empty($webhookSecret)) {
-        echo json_encode(['success' => false, 'error' => 'TWITCH_EXTENSION_BITS_SECRET not set in server config']);
-        exit;
-    }
-    $body = [
-        'type'      => 'extension.bits_transaction.create',
-        'version'   => '1',
-        'condition' => ['extension_client_id' => $BINGO_EXTENSION_ID],
-        'transport' => [
-            'method'   => 'webhook',
-            'callback' => $CALLBACK_URL,
-            'secret'   => $webhookSecret,
-        ],
-    ];
-    $result = twitchRequest(
-        'https://api.twitch.tv/helix/eventsub/subscriptions',
-        'POST', $clientID, $appToken, $body
-    );
-    if ($result['code'] === 202) {
-        echo json_encode(['success' => true, 'subscription' => $result['data']['data'][0] ?? null]);
-    } else {
-        $msg = $result['data']['message'] ?? 'Unknown error';
-        echo json_encode(['success' => false, 'error' => $msg, 'code' => $result['code']]);
-    }
-
-} elseif ($action === 'unsubscribe' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $subId = $_POST['subscription_id'] ?? '';
-    if (empty($subId)) {
-        echo json_encode(['success' => false, 'error' => 'Missing subscription_id']);
-        exit;
-    }
-    $result = twitchRequest(
-        'https://api.twitch.tv/helix/eventsub/subscriptions?id=' . urlencode($subId),
-        'DELETE', $clientID, $appToken
-    );
-    if ($result['code'] === 204) {
-        echo json_encode(['success' => true]);
-    } else {
-        $msg = $result['data']['message'] ?? 'Unknown error';
-        echo json_encode(['success' => false, 'error' => $msg, 'code' => $result['code']]);
-    }
-
-} else {
-    echo json_encode(['success' => false, 'error' => 'Invalid action']);
+} catch (Throwable $e) {
+    while (ob_get_level()) ob_end_clean();
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
