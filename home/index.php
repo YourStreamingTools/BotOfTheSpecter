@@ -1,4 +1,10 @@
 <?php
+require_once '/var/www/lib/session_bootstrap.php';
+$bots_logged_in   = !empty($_SESSION['access_token']);
+$bots_display_name = $bots_logged_in
+    ? ($_SESSION['display_name'] ?? $_SESSION['username'] ?? 'Account')
+    : null;
+
 ob_start();
 ?>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"BotOfTheSpecter","description":"BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics.","url":"https://botofthespecter.com/"}</script>
@@ -15,12 +21,21 @@ $pageDescription = "BotOfTheSpecter is a powerful bot system designed to enhance
     <h1 class="hs-hero-title">BotOfTheSpecter</h1>
     <p class="hs-hero-tagline">The Twitch Chat Bot built to replace them all!</p>
     <div class="hs-hero-ctas">
-        <a href="https://dashboard.botofthespecter.com/dashboard.php" class="hs-btn hs-btn-primary">
-            <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
-        </a>
-        <a href="https://discord.com/invite/ANwEkpauHJ" class="hs-btn hs-btn-ghost" target="_blank" rel="noopener">
-            <i class="fa-brands fa-discord"></i> Join Discord
-        </a>
+        <?php if ($bots_logged_in): ?>
+            <a href="https://dashboard.botofthespecter.com/dashboard.php" class="hs-btn hs-btn-primary">
+                <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
+            </a>
+            <a href="/logout.php" class="hs-btn hs-btn-ghost">
+                <i class="fa-solid fa-right-from-bracket"></i> Log out (<?php echo htmlspecialchars($bots_display_name); ?>)
+            </a>
+        <?php else: ?>
+            <a href="/login.php" class="hs-btn hs-btn-primary">
+                <i class="fa-brands fa-twitch"></i> Login
+            </a>
+            <a href="https://discord.com/invite/ANwEkpauHJ" class="hs-btn hs-btn-ghost" target="_blank" rel="noopener">
+                <i class="fa-brands fa-discord"></i> Join Discord
+            </a>
+        <?php endif; ?>
     </div>
 </section>
 

@@ -1,7 +1,7 @@
 <?php
 // Initialize the session if not already
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    require_once '/var/www/lib/session_bootstrap.php';
 }
 
 // Include the database credentials

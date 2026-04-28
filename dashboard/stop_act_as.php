@@ -1,7 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once '/var/www/lib/session_bootstrap.php';
 
 if (!isset($_SESSION['admin_act_as_active']) || $_SESSION['admin_act_as_active'] !== true) {
     header('Location: dashboard.php');

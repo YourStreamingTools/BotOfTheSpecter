@@ -1,6 +1,6 @@
 <?php
 // AJAX endpoint to fetch automated shoutout cooldown data
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
 // Check if the user is logged in

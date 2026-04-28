@@ -5,7 +5,7 @@ ini_set('max_execution_time', 8);
 
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
 // Track operation start time for timeout management

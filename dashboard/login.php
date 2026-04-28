@@ -10,7 +10,7 @@ ini_set('session.gc_maxlifetime', 86400);
 ini_set('session.cookie_lifetime', 86400);
 
 // Start PHP session
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 
 // If the user is already logged in, redirect them to the intended page (or dashboard)
 if (isset($_SESSION['access_token'])) {

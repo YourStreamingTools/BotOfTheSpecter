@@ -2,7 +2,7 @@
 // Start output buffering immediately to prevent any accidental output
 ob_start();
 
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 require_once __DIR__ . '/admin_access.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/../lang/i18n.php';

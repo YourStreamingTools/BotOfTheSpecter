@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 header('Content-Type: application/json');
 // Require DB connection
 require_once "/var/www/config/db_connect.php";

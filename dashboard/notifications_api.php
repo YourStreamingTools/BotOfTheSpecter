@@ -3,7 +3,7 @@
 ob_start();
 
 // Initialize the session
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 
 // Set up error handler to catch errors and return as JSON
 set_error_handler(function($errno, $errstr, $errfile, $errline) {

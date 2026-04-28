@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/twitch.php";
 include "userdata.php";

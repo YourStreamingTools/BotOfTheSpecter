@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 include "/var/www/config/streamelements.php";
 include "/var/www/config/db_connect.php";
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');

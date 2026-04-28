@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 require_once __DIR__ . '/admin_access.php';
 
 // Include necessary files to get user data

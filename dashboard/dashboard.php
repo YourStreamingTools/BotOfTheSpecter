@@ -7,7 +7,7 @@ ini_set('session.gc_maxlifetime', 86400);
 ini_set('session.cookie_lifetime', 86400);
 
 // Start session
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 
 // Check if user is logged in
 $isLoggedIn = isset($_SESSION['access_token']);

@@ -1,6 +1,7 @@
 import os
 import sys
 import socket
+import secrets
 import datetime
 import logging
 import ssl
@@ -9,13 +10,14 @@ import argparse
 import time
 from asyncio import subprocess
 from functools import wraps
+from urllib.parse import quote
 import aiomysql
 from dotenv import load_dotenv
 from pyrtmp import StreamClosedException
 from pyrtmp.flv import FLVFileWriter, FLVMediaType
 from pyrtmp.session_manager import SessionManager
 from pyrtmp.rtmp import SimpleRTMPController, RTMPProtocol, SimpleRTMPServer
-from quart import Quart, render_template_string, request, jsonify
+from quart import Quart, render_template_string, request, jsonify, redirect, session
 
 # Patch SessionManager.peername to avoid unpacking None
 def safe_peername(self):
@@ -57,6 +59,29 @@ DEFAULT_WEB_HOST = "0.0.0.0"
 DEFAULT_WEB_PORT = 8080
 # Where twitch-recorder.py writes its per-user recordings (matches its STREAM_ROOT_PATH default)
 DEFAULT_RECORDER_STORAGE_PATH = os.getenv('STREAM_ROOT_PATH', '/mnt/blockstorage')
+
+# ---------------------------------------------------------------------------
+# Cross-eTLD SSO (.com authority -> .video consumer)
+# Browsers can't share a cookie across .botofthespecter.com and .video, so
+# the user is bounced to home/sso.php which mints a single-use handoff token
+# in website.handoff_tokens. We verify the token on /sso/login and create
+# a Quart session cookie scoped to .botofthespecter.video.
+# ---------------------------------------------------------------------------
+SSO_AUTHORITY_URL = "https://botofthespecter.com/sso.php"
+SSO_TARGET_BY_REGION = {
+    "sydney":     "rtmp-sydney",
+    "us-east":    "rtmp-us-east",
+    "us-west":    "rtmp-us-west",
+    "eu-central": "rtmp-eu-central",
+}
+WEB_SESSION_COOKIE_NAME = "bots_video_session"
+WEB_SESSION_COOKIE_DOMAIN = ".botofthespecter.video"
+WEB_SESSION_LIFETIME_SECONDS = 14400  # 4h, matches the .com side
+# Signed-cookie key. Set the SAME value across every regional .env so a single
+# login cookie scopes to .botofthespecter.video and works on every region.
+# Falls back to an ephemeral key if missing — sessions then survive only until
+# this process restarts.
+WEB_SECRET_KEY = os.getenv('WEB_SECRET_KEY')
 
 # Parse command line arguments
 def parse_args():
@@ -903,7 +928,86 @@ def _session_to_json(s: dict, now: datetime.datetime) -> dict:
 def create_web_app(server_title: str, region: str, session_registry: SessionRegistry, recorder_storage_path: str) -> Quart:
     app = Quart(__name__)
 
+    # ------------------------------------------------------------------
+    # Quart session config — signed cookie scoped to .botofthespecter.video
+    # so a single login covers every regional RTMP UI (provided every region
+    # uses the SAME WEB_SECRET_KEY).
+    # ------------------------------------------------------------------
+    if WEB_SECRET_KEY:
+        app.config["SECRET_KEY"] = WEB_SECRET_KEY
+    else:
+        app.config["SECRET_KEY"] = secrets.token_hex(32)
+        logger.warning(
+            "WEB_SECRET_KEY env var not set; using ephemeral key. "
+            "Sessions will be lost on restart and won't share across regions."
+        )
+    app.config["SESSION_COOKIE_NAME"]        = WEB_SESSION_COOKIE_NAME
+    app.config["SESSION_COOKIE_DOMAIN"]      = WEB_SESSION_COOKIE_DOMAIN
+    app.config["SESSION_COOKIE_SECURE"]      = True
+    app.config["SESSION_COOKIE_HTTPONLY"]    = True
+    app.config["SESSION_COOKIE_SAMESITE"]    = "Lax"
+    app.config["PERMANENT_SESSION_LIFETIME"] = WEB_SESSION_LIFETIME_SECONDS
+
+    sso_target = SSO_TARGET_BY_REGION.get(region, f"rtmp-{region}")
+
+    def _require_sso_session(view):
+        @wraps(view)
+        async def wrapper(*args, **kwargs):
+            if not session.get("twitchUserId"):
+                # Stash the path the user was trying to reach so SSO can drop them back.
+                qs = request.query_string.decode() if request.query_string else ""
+                back = request.path + (("?" + qs) if qs else "")
+                return redirect(
+                    f"{SSO_AUTHORITY_URL}?target={sso_target}&return={quote(back, safe='')}"
+                )
+            return await view(*args, **kwargs)
+        return wrapper
+
+    async def _verify_and_consume_handoff(token: str) -> dict | None:
+        """Atomically claim a handoff token. Returns the token's row dict on
+        success, None if the token is missing / expired / wrong target /
+        already used. Marks the row used so it can't be replayed."""
+        if not token:
+            return None
+        sqldb = None
+        try:
+            sqldb = await access_website_database()
+            async with sqldb.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT twitch_user_id, username, display_name, profile_image, "
+                    "       is_admin, used, expires_at, target "
+                    "FROM handoff_tokens WHERE token = %s LIMIT 1",
+                    (token,),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return None
+                if row["used"] or row["expires_at"] < datetime.datetime.now():
+                    return None
+                if (row.get("target") or "") != sso_target:
+                    logger.warning(
+                        f"Handoff token target='{row.get('target')}' presented "
+                        f"to region expecting '{sso_target}'; rejecting."
+                    )
+                    return None
+                # Race-safe consume: only succeed if `used` was still 0 at UPDATE time.
+                await cur.execute(
+                    "UPDATE handoff_tokens SET used = 1 WHERE token = %s AND used = 0",
+                    (token,),
+                )
+                if cur.rowcount != 1:
+                    return None
+                await sqldb.commit()
+                return row
+        except Exception as e:
+            logger.error(f"Handoff token verification failed: {e}")
+            return None
+        finally:
+            if sqldb is not None:
+                await sqldb.ensure_closed()
+
     @app.get("/")
+    @_require_sso_session
     async def dashboard():
         now = datetime.datetime.now()
         rows = []
@@ -944,6 +1048,7 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
         )
 
     @app.get("/recordings")
+    @_require_sso_session
     async def recordings():
         now = datetime.datetime.now()
         users = list_recorder_files(recorder_storage_path)
@@ -1032,6 +1137,41 @@ def create_web_app(server_title: str, region: str, session_registry: SessionRegi
             "python_version": sys.version.split()[0],
             "generated_at": now.isoformat(),
         })
+
+    # ------------------------------------------------------------------
+    # SSO consumer: verify a handoff token minted by home/sso.php and
+    # create the Quart session cookie on .botofthespecter.video.
+    # ------------------------------------------------------------------
+    @app.get("/sso/login")
+    async def sso_login():
+        token = request.args.get("handoff", "")
+        return_path = request.args.get("return", "/")
+        row = await _verify_and_consume_handoff(token)
+        if row is None:
+            # Invalid / expired / wrong target / replayed. Send the user back
+            # through SSO to mint a fresh token.
+            return redirect(
+                f"{SSO_AUTHORITY_URL}?target={sso_target}&return={quote(return_path, safe='')}"
+            )
+        session.clear()
+        session.permanent = True
+        session["twitchUserId"]  = row["twitch_user_id"]
+        session["username"]      = row["username"]
+        session["display_name"]  = row["display_name"]
+        session["profile_image"] = row["profile_image"]
+        session["is_admin"]      = bool(row["is_admin"])
+        session["signed_in_at"]  = datetime.datetime.now().isoformat()
+        # Drop the user back where they were trying to go. Only honour purely
+        # local paths — anything else falls back to "/".
+        safe_return = "/"
+        if isinstance(return_path, str) and return_path.startswith("/") and not return_path.startswith("//"):
+            safe_return = return_path
+        return redirect(safe_return)
+
+    @app.get("/logout")
+    async def logout():
+        session.clear()
+        return redirect("/")
 
     return app
 

@@ -1,7 +1,7 @@
-<?php 
+<?php
 // Initialize the session
 ob_start();
-session_start();
+require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
 function fbs_json_response($status, $payload) {
