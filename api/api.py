@@ -62,7 +62,6 @@ if not all([SQL_HOST, SQL_USER, SQL_PASSWORD]):
     raise ValueError(f"Missing required database environment variables: {missing_vars}")
 
 ADMIN_KEY = os.getenv('ADMIN_KEY')
-TWITCH_EXTENSION_BITS_SECRET = os.getenv('TWITCH_EXTENSION_BITS_SECRET')
 WEATHER_API = os.getenv('WEATHER_API')
 STEAM_API = os.getenv('STEAM_API')
 TWITCH_OAUTH_API_TOKEN = os.getenv('TWITCH_OAUTH_API_TOKEN')
@@ -1490,19 +1489,24 @@ def _verify_twitch_eventsub_hmac(secret: str | None, message_id: str, timestamp:
 # Define the /twitch/* endpoints
 @app.post(
     "/twitch/extension/bits",
-    summary="Handle bits event from Twitch Extensions",
-    description="This endpoint receives extension.bits_transaction.create EventSub webhook events from Twitch and forwards them to the WebSocket server.",
+    summary="Receive Twitch Extension Bits EventSub webhook",
+    description="Receives extension.bits_transaction.create EventSub webhooks. The twitch_user_id query parameter identifies the broadcaster who created the subscription; their Specter API key is used as the HMAC secret.",
     tags=["Webhooks"],
     status_code=status.HTTP_200_OK,
     operation_id="process_twitch_extension_bits"
 )
-async def handle_twitch_extension_bits(request: Request):
+async def handle_twitch_extension_bits(request: Request, twitch_user_id: str = Query(...)):
+    # Look up the subscription creator's API key — this is the HMAC secret
+    user_dat = await get_user_info(twitch_user_id)
+    if not user_dat:
+        raise HTTPException(status_code=404, detail="User not found")
+    creator_api_key = user_dat["api_key"]
     raw_body = await request.body()
     message_id = request.headers.get("Twitch-Eventsub-Message-Id", "")
     timestamp = request.headers.get("Twitch-Eventsub-Message-Timestamp", "")
     signature = request.headers.get("Twitch-Eventsub-Message-Signature", "")
     message_type = request.headers.get("Twitch-Eventsub-Message-Type", "notification")
-    if not _verify_twitch_eventsub_hmac(TWITCH_EXTENSION_BITS_SECRET, message_id, timestamp, raw_body, signature):
+    if not _verify_twitch_eventsub_hmac(creator_api_key, message_id, timestamp, raw_body, signature):
         logging.warning(f"[TWITCH EXTENSION BITS] Invalid signature from {request.client.host}")
         raise HTTPException(status_code=403, detail="Invalid signature")
     try:
@@ -1514,7 +1518,7 @@ async def handle_twitch_extension_bits(request: Request):
         challenge = event_data.get("challenge")
         if not challenge:
             raise HTTPException(status_code=400, detail="Missing challenge")
-        logging.info("[TWITCH EXTENSION BITS] Subscription verification successful")
+        logging.info(f"[TWITCH EXTENSION BITS] Subscription verified for user {twitch_user_id}")
         return Response(content=challenge, media_type="text/plain")
     if message_type == "revocation":
         reason = (event_data.get("subscription") or {}).get("status", "unknown")
@@ -1522,31 +1526,27 @@ async def handle_twitch_extension_bits(request: Request):
         return Response(status_code=204)
     event = event_data.get("event")
     if not event:
-        logging.warning("[TWITCH EXTENSION BITS] Notification missing event field")
         raise HTTPException(status_code=400, detail="Missing event field")
     broadcaster_user_id = event.get("broadcaster_user_id")
     if not broadcaster_user_id:
         raise HTTPException(status_code=400, detail="Missing broadcaster_user_id")
-    user_dat = await get_user_info(broadcaster_user_id)
-    if not user_dat:
-        logging.error(f"[TWITCH EXTENSION BITS] User with Twitch ID {broadcaster_user_id} not found")
+    broadcaster_dat = await get_user_info(broadcaster_user_id)
+    if not broadcaster_dat:
+        logging.error(f"[TWITCH EXTENSION BITS] Broadcaster {broadcaster_user_id} not found")
         raise HTTPException(status_code=404, detail="Broadcaster user not found")
-    api_key = user_dat["api_key"]
-    logging.info(f"[TWITCH EXTENSION BITS] Received transaction: user={event.get('user_name')} bits={event.get('product', {}).get('bits')}")
+    logging.info(f"[TWITCH EXTENSION BITS] {event.get('user_name')} used {event.get('product', {}).get('bits')} bits")
     async with aiohttp.ClientSession() as session:
         try:
             params = {
-                "code": api_key,
+                "code": broadcaster_dat["api_key"],
                 "event": "TWITCH_EXTENSION_BITS",
                 "data": json.dumps(event_data),
             }
-            encoded_params = urlencode(params)
-            url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
+            url = f"https://websocket.botofthespecter.com/notify?{urlencode(params)}"
             async with session.get(url, timeout=10) as response:
                 if response.status != 200:
-                    error_detail = f"Failed to send HTTP event 'TWITCH_EXTENSION_BITS' to websocket server. Status code: {response.status}"
-                    logging.error(error_detail)
-                    raise HTTPException(status_code=response.status, detail=error_detail)
+                    logging.error(f"[TWITCH EXTENSION BITS] WebSocket forward failed: {response.status}")
+                    raise HTTPException(status_code=response.status, detail="Failed to forward to websocket server")
         except HTTPException:
             raise
         except Exception as e:
