@@ -2,7 +2,12 @@
 // Set your Twitch application credentials
 require_once "/var/www/config/twitch.php";
 $redirectURI = 'https://members.botofthespecter.com/login.php';
-$IDScope = 'openid user:read:email';
+// Scope superset shared with home/login.php, support/login.php, and
+// dashboard/login.php. The .botofthespecter.com session is shared across
+// all four apps, so the access_token minted here must satisfy dashboard's
+// mod/chat/channel API calls — otherwise dashboard pages (e.g. bot.php)
+// false-negative on mod-status checks even though the user is logged in.
+$IDScope = 'openid channel:bot moderator:manage:chat_messages user:read:moderated_channels moderator:read:blocked_terms moderator:read:chat_settings moderator:read:vips moderator:read:moderators moderator:read:unban_requests moderator:read:banned_users moderator:read:chat_messages moderator:read:warnings user:bot channel:read:goals channel:moderate channel:manage:moderators user:edit:broadcast channel:manage:redemptions channel:manage:polls moderator:manage:automod moderator:read:suspicious_users channel:read:hype_train channel:manage:broadcast channel:manage:raids channel:read:charity user:read:email user:read:chat user:write:chat user:read:follows chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips user:read:subscriptions channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule channel:manage:clips editor:manage:clips clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users';
 
 // Check if user just logged out
 if (isset($_GET['logout']) && $_GET['logout'] === 'success') {

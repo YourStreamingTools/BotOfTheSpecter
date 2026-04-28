@@ -180,10 +180,16 @@ $scheme   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https'
 $host     = $_SERVER['HTTP_HOST'] ?? 'support.botofthespecter.com';
 $selfUrl  = $scheme . '://' . $host . ($_SERVER['REQUEST_URI'] ?? '/login.php');
 $ssoUrl   = 'https://botofthespecter.com/sso.php?target=support&return=' . urlencode($selfUrl);
+// Scope superset shared with home/login.php and dashboard/login.php.
+// Even though support itself doesn't need most of these, the access_token
+// minted here is reused across the shared .botofthespecter.com session,
+// so it must satisfy dashboard's mod/chat/channel API calls or pages
+// like dashboard/bot.php break with false-negative states.
+$BOTS_SSO_SCOPES = 'openid channel:bot moderator:manage:chat_messages user:read:moderated_channels moderator:read:blocked_terms moderator:read:chat_settings moderator:read:vips moderator:read:moderators moderator:read:unban_requests moderator:read:banned_users moderator:read:chat_messages moderator:read:warnings user:bot channel:read:goals channel:moderate channel:manage:moderators user:edit:broadcast channel:manage:redemptions channel:manage:polls moderator:manage:automod moderator:read:suspicious_users channel:read:hype_train channel:manage:broadcast channel:manage:raids channel:read:charity user:read:email user:read:chat user:write:chat user:read:follows chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips user:read:subscriptions channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule channel:manage:clips editor:manage:clips clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users';
 $twitchUrl = 'https://streamersconnect.com/?' . http_build_query([
     'service'    => 'twitch',
     'login'      => $host,
-    'scopes'     => 'openid user:read:email',
+    'scopes'     => $BOTS_SSO_SCOPES,
     'return_url' => $scheme . '://' . $host . '/login.php',
 ]);
 if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && empty($_GET['server_token']) && empty($_GET['handoff'])) {

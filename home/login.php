@@ -260,6 +260,17 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
 // ----------------------------------------------------------------
 // No auth data yet — bounce to StreamersConnect.
 // ----------------------------------------------------------------
+// Scope list MUST stay in sync with dashboard/login.php's $IDScope.
+// home is the SSO authority for the whole platform, so the access_token
+// it mints has to satisfy every consumer's Twitch API needs:
+//   - dashboard/bot.php -> /helix/moderation/moderators (moderator:read:moderators)
+//   - moderation tools  -> moderation:read, channel:manage:moderators, ...
+//   - chat features     -> chat:read, chat:edit, user:read:chat, user:write:chat
+//   - subs/follows/etc  -> channel:read:subscriptions, moderator:read:followers
+// If you trim this, dashboard pages will silently fail their Twitch
+// calls and show false-negative states (e.g. "bot is not a moderator").
+$BOTS_SSO_SCOPES = 'openid channel:bot moderator:manage:chat_messages user:read:moderated_channels moderator:read:blocked_terms moderator:read:chat_settings moderator:read:vips moderator:read:moderators moderator:read:unban_requests moderator:read:banned_users moderator:read:chat_messages moderator:read:warnings user:bot channel:read:goals channel:moderate channel:manage:moderators user:edit:broadcast channel:manage:redemptions channel:manage:polls moderator:manage:automod moderator:read:suspicious_users channel:read:hype_train channel:manage:broadcast channel:manage:raids channel:read:charity user:read:email user:read:chat user:write:chat user:read:follows chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips user:read:subscriptions channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule channel:manage:clips editor:manage:clips clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users';
+
 if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && empty($_GET['server_token'])) {
     $scheme    = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host      = $_SERVER['HTTP_HOST'] ?? 'botofthespecter.com';
@@ -267,7 +278,7 @@ if (!$hasError && empty($_GET['auth_data']) && empty($_GET['auth_data_sig']) && 
     $authUrl   = 'https://streamersconnect.com/?' . http_build_query([
         'service'    => 'twitch',
         'login'      => $host,
-        'scopes'     => 'openid user:read:email',
+        'scopes'     => $BOTS_SSO_SCOPES,
         'return_url' => $returnUrl,
     ]);
     header('Location: ' . $authUrl);
