@@ -94,7 +94,7 @@ async def access_website_database():
         db="website",
     )
 
-async def userdb_conenct(username):
+async def userdb_connect(username):
     # Connect to the user's database
     return await aiomysql.connect(
         host=SQL_HOST,
@@ -104,52 +104,39 @@ async def userdb_conenct(username):
     )
 
 async def get_username_from_api_key(api_key):
-    # Connect to the website database
+    sqldb = None
     try:
         sqldb = await access_website_database()
-        if sqldb is None:
-            logger.error(f"Failed to connect to database when looking up API key: {api_key}")
-            return None
         async with sqldb.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute("SELECT username FROM users WHERE api_key = %s", (api_key,))
             row = await cursor.fetchone()
-            if row:
-                username = row['username']
-                return username
-            else:
-                return f"Unknown-{api_key}"
-        # Close the database connection
-        await sqldb.close()
+            return row['username'] if row else None
     except Exception as e:
         logger.error(f"Error in get_username_from_api_key: {e}")
         return None
-
-async def get_valid_stream_keys():
-    # Connect to the website database
-    sqldb = await access_website_database()
-    async with sqldb.cursor(aiomysql.DictCursor) as cursor:
-        await cursor.execute("SELECT api_key, username FROM users")
-        rows = await cursor.fetchall()
-        keys = {row['api_key']: row['username'] for row in rows}
-        # Close the database connection
-        sqldb.close()
-        return keys
+    finally:
+        if sqldb is not None:
+            await sqldb.ensure_closed()
 
 async def validate_api_key(api_key):
-    valid_keys = await get_valid_stream_keys()
-    return valid_keys.get(api_key, None)
+    return await get_username_from_api_key(api_key)
 
 async def get_streaming_settings(username):
-    # Connect to the user's database
-    userdb = await userdb_conenct(username)
-    async with userdb.cursor(aiomysql.DictCursor) as cursor:
-        await cursor.execute("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1")
-        row = await cursor.fetchone()
-        # Close the database connection
-        userdb.close()
-        if row:
-            return row['twitch_key'], row['forward_to_twitch']
+    userdb = None
+    try:
+        userdb = await userdb_connect(username)
+        async with userdb.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT twitch_key, forward_to_twitch FROM streaming_settings WHERE id = 1")
+            row = await cursor.fetchone()
+            if row:
+                return row['twitch_key'], row['forward_to_twitch']
+            return None, False
+    except Exception as e:
+        logger.error(f"Error in get_streaming_settings for {username}: {e}")
         return None, False
+    finally:
+        if userdb is not None:
+            await userdb.ensure_closed()
 
 class RTMP2FLVController(SimpleRTMPController):
     def __init__(self, output_directory: str, twitch_server: str):
@@ -160,15 +147,19 @@ class RTMP2FLVController(SimpleRTMPController):
     async def on_connect(self, session, message):
         # Record the connection start time
         session.connection_start_time = datetime.datetime.now()
-        # Schedule monitoring to disconnect after 48 hours
-        asyncio.create_task(self.monitor_connection_duration(session))
+        session.closed = False
+        # Schedule monitoring to disconnect after 48 hours; store so we can cancel on stream close
+        session.duration_monitor_task = asyncio.create_task(self.monitor_connection_duration(session))
         await super().on_connect(session, message)
 
     async def monitor_connection_duration(self, session):
         max_duration = 48 * 3600  # 48 hours in seconds
-        await asyncio.sleep(max_duration)
+        try:
+            await asyncio.sleep(max_duration)
+        except asyncio.CancelledError:
+            return
         if session.writer and not session.writer.is_closing():
-            logger.info(f"Disconnecting session {session.publishing_name} after 48 hours.")
+            logger.info(f"Disconnecting session {getattr(session, 'publishing_name', 'unknown')} after 48 hours.")
             session.writer.close()
             try:
                 await session.writer.wait_closed()
@@ -209,6 +200,7 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_ns_publish(session, message)
 
     async def forward_to_twitch(self, session, twitch_url):
+        MAX_FFMPEG_RESTARTS = 5
         try:
             logger.info(f"Waiting 1 seconds for FLV file to receive initial data...")
             await asyncio.sleep(1)
@@ -268,8 +260,18 @@ class RTMP2FLVController(SimpleRTMPController):
                 # Check if the session is still active (user still streaming)
                 if hasattr(session, "state") and not getattr(session, "closed", False):
                     restart_count += 1
-                    logger.warning(f"Twitch forwarding stopped unexpectedly. Restarting forwarding (restart #{restart_count}) as user is still streaming.")
-                    await asyncio.sleep(2)
+                    if restart_count > MAX_FFMPEG_RESTARTS:
+                        logger.error(
+                            f"Reached max restart count ({MAX_FFMPEG_RESTARTS}); "
+                            f"giving up on Twitch forwarding for {getattr(session, 'publishing_name', 'unknown')}."
+                        )
+                        break
+                    backoff = min(30, 2 ** restart_count)
+                    logger.warning(
+                        f"Twitch forwarding stopped unexpectedly. Restarting forwarding "
+                        f"(restart #{restart_count}) in {backoff}s as user is still streaming."
+                    )
+                    await asyncio.sleep(backoff)
                     continue
                 else:
                     logger.info("Session is closed, not restarting Twitch forwarding.")
@@ -363,6 +365,12 @@ class RTMP2FLVController(SimpleRTMPController):
         await super().on_audio_message(session, message)
 
     async def on_stream_closed(self, session: SessionManager, exception: StreamClosedException) -> None:
+        # Mark closed so any forwarder loop exits instead of restarting ffmpeg
+        session.closed = True
+        # Cancel the 48-hour duration monitor if still pending
+        monitor_task = getattr(session, "duration_monitor_task", None)
+        if monitor_task is not None and not monitor_task.done():
+            monitor_task.cancel()
         # Terminate FFmpeg process if it exists
         await self.terminate_ffmpeg(session)
         # Close the FLV file after the stream ends
@@ -376,6 +384,12 @@ class RTMP2FLVController(SimpleRTMPController):
     async def convert_flv_to_mp4_background(self, session, flv_file_path: str):
         # Get username and set user folder as destination
         username = await get_username_from_api_key(session.publishing_name)
+        if not username:
+            logger.error(
+                f"Could not resolve username for stream key on {flv_file_path}; "
+                f"skipping MP4 conversion and keeping FLV."
+            )
+            return
         user_dir = os.path.join(self.output_directory, username)
         os.makedirs(user_dir, exist_ok=True)
         date_part = os.path.basename(flv_file_path).split('_')[0]
@@ -391,12 +405,15 @@ class RTMP2FLVController(SimpleRTMPController):
         command = ["ffmpeg", "-i", flv_file_path, "-c", "copy", final_mp4_path]
         logger.info(f"Running FFmpeg process in async for {flv_file_path}...")
         process = await asyncio.create_subprocess_exec(*command)
-        if process:
-            await process.communicate()
-        logger.info("FFmpeg process finished.")
-        # Remove the original FLV file after conversion
-        os.remove(flv_file_path)
-        logger.info(f"Converted file saved to {final_mp4_path}")
+        await process.communicate()
+        if process.returncode == 0:
+            os.remove(flv_file_path)
+            logger.info(f"Converted file saved to {final_mp4_path}; removed source {flv_file_path}")
+        else:
+            logger.error(
+                f"FFmpeg conversion failed (exit code {process.returncode}). "
+                f"Keeping FLV file: {flv_file_path}"
+            )
 
     async def on_command_message(self, session, message):
         if message.command in ["releaseStream", "FCPublish", "FCUnpublish"]:
