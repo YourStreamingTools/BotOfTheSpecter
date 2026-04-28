@@ -92,9 +92,12 @@ class WebSessionHandler implements SessionHandlerInterface
                 user_agent        = VALUES(user_agent),
                 last_seen_at      = CURRENT_TIMESTAMP"
         );
-        if (!$stmt) return false;
-        $stmt->bind_param(
-            'sssssisssssss',
+        if (!$stmt) {
+            error_log('[web_session] write prepare failed: ' . $this->db->error);
+            return false;
+        }
+        $bound = $stmt->bind_param(
+            'sssssissssss',
             $id,
             $twitch_user_id,
             $username,
@@ -108,7 +111,15 @@ class WebSessionHandler implements SessionHandlerInterface
             $ip,
             $ua
         );
+        if (!$bound) {
+            error_log('[web_session] write bind_param failed: ' . $stmt->error);
+            $stmt->close();
+            return false;
+        }
         $ok = $stmt->execute();
+        if (!$ok) {
+            error_log('[web_session] write execute failed: ' . $stmt->error);
+        }
         $stmt->close();
         return $ok;
     }
