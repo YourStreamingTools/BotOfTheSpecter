@@ -3046,6 +3046,16 @@ async def process_stream_bingo_message(data):
                 player_id = data.get('playerid')
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra card purchased - {player_name} (ID: {player_id}) bought extra card for {bits} bits")
+                if player_id and bits:
+                    async with user_db.cursor(DictCursor) as cursor:
+                        await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (player_id, player_name))
+                        existing = await cursor.fetchone()
+                        if existing:
+                            new_total = existing['bits'] + int(bits)
+                            await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (new_total, player_id, player_name))
+                        else:
+                            await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (player_id, player_name, int(bits)))
+                        integrations_logger.info(f"[STREAM BINGO] Updated bits_data for {player_name}: +{bits} bits")
                 await send_chat_message(f"@{player_name} grabbed an extra bingo card with {bits} bits!")
                 safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EXTRA_CARD",
@@ -3062,6 +3072,16 @@ async def process_stream_bingo_message(data):
                 player_id = data.get('playerid')
                 bits = data.get('bits')
                 integrations_logger.info(f"[STREAM BINGO] Stream Bingo: Extra vote purchased - {player_name} (ID: {player_id}) bought extra vote for {bits} bits")
+                if player_id and bits:
+                    async with user_db.cursor(DictCursor) as cursor:
+                        await cursor.execute('SELECT bits FROM bits_data WHERE user_id = %s OR user_name = %s', (player_id, player_name))
+                        existing = await cursor.fetchone()
+                        if existing:
+                            new_total = existing['bits'] + int(bits)
+                            await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (new_total, player_id, player_name))
+                        else:
+                            await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (player_id, player_name, int(bits)))
+                        integrations_logger.info(f"[STREAM BINGO] Updated bits_data for {player_name}: +{bits} bits")
                 await send_chat_message(f"@{player_name} got an extra bingo vote with {bits} bits!")
                 safe_create_task(websocket_notice(
                     event="STREAM_BINGO_EXTRA_CARD",
