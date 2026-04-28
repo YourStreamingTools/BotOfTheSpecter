@@ -67,6 +67,10 @@ PyNaCl
 # Secure remote command execution and file transfer (async-native)
 asyncssh
 
+# For SSH connections
+# Secure remote command execution and file transfer
+paramiko
+
 # YouTube video downloader
 # Media extraction; can indirectly depend on AWS-related tooling
 yt_dlp
