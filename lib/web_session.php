@@ -72,12 +72,17 @@ class WebSessionHandler implements SessionHandlerInterface
         $ua = isset($_SERVER['HTTP_USER_AGENT'])
             ? substr((string)$_SERVER['HTTP_USER_AGENT'], 0, 255)
             : null;
+        // last_seen_at is set explicitly on INSERT (not just on UPDATE)
+        // so the column has a real timestamp from the very first write.
+        // If the schema doesn't default it to CURRENT_TIMESTAMP, fresh
+        // rows would otherwise be NULL — and the session_gc cron would
+        // skip them because NULL < NOW() - INTERVAL is itself NULL.
         $stmt = $this->db->prepare(
             "INSERT INTO web_sessions
                 (session_id, twitch_user_id, username, display_name, profile_image,
                  is_admin, access_token, refresh_token, twitch_expires_at,
-                 data, ip, user_agent)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 data, ip, user_agent, last_seen_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
              ON DUPLICATE KEY UPDATE
                 twitch_user_id    = VALUES(twitch_user_id),
                 username          = VALUES(username),
