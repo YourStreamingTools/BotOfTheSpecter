@@ -43,42 +43,42 @@ ob_clean();
 $accessToken = $_SESSION['access_token'];
 $userId = $_SESSION['user_id'];
 
+// Webhook subscriptions require an app access token (Twitch docs requirement).
+// $clientID and $clientSecret are already set by twitch.php (sourced from the database).
+$appToken = getAppAccessToken($clientID, $clientSecret);
+
 // Handle AJAX requests
 $action = $_POST['action'] ?? $_GET['action'] ?? null;
 
 try {
     switch ($action) {
         case 'fetch_subscriptions':
-            fetchSubscriptions($accessToken, $clientID, $userId, $db);
+            fetchSubscriptions($accessToken, $appToken, $clientID, $userId, $db);
             break;
-        
         case 'delete_subscription':
             if (!isset($_POST['subscription_id'])) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Missing subscription_id']);
                 exit();
             }
-            deleteSubscription($_POST['subscription_id'], $accessToken, $clientID);
+            $transport = $_POST['transport'] ?? 'websocket';
+            deleteSubscription($_POST['subscription_id'], $accessToken, $appToken, $clientID, $transport);
             break;
-        
         case 'delete_session':
             if (!isset($_POST['subscription_ids'])) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Missing subscription_ids']);
                 exit();
             }
+            // Bulk session deletes are always WebSocket subs — user token is correct
             deleteSession($_POST['subscription_ids'], $accessToken, $clientID);
             break;
-
         case 'cleanup_sessions':
-            // Remove session rows from the user's DB that no longer exist in Twitch subscriptions
             cleanupSessions($accessToken, $clientID, $db);
             break;
-
         case 'fetch_internal_websocket':
             fetchInternalWebsocketClients($user['api_key'] ?? '');
             break;
-
         case 'disconnect_internal_websocket':
             if (!isset($_POST['sid'])) {
                 http_response_code(400);
@@ -87,7 +87,6 @@ try {
             }
             disconnectInternalWebsocketClient($_POST['sid'], $user['api_key'] ?? '', $admin_key ?? '');
             break;
-        
         default:
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Invalid action']);
@@ -101,65 +100,77 @@ try {
     ]);
 }
 
-function fetchSubscriptions($accessToken, $clientID, $userId, $db) {
-    // Fetch all EventSub subscriptions
+function getAppAccessToken($clientID, $clientSecret) {
+    if (empty($clientID) || empty($clientSecret)) return null;
+    $ch = curl_init('https://id.twitch.tv/oauth2/token');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'client_id'     => $clientID,
+        'client_secret' => $clientSecret,
+        'grant_type'    => 'client_credentials',
+    ]));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code === 200) {
+        $data = json_decode($resp, true);
+        return $data['access_token'] ?? null;
+    }
+    return null;
+}
+
+function twitchGetSubs($token, $clientID) {
     $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
-        'Client-Id: ' . $clientID
+        'Authorization: Bearer ' . $token,
+        'Client-Id: ' . $clientID,
     ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
-    if ($curlError) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => "cURL error: $curlError"]);
-        exit();
+    return ($code === 200) ? json_decode($resp, true) : null;
+}
+
+function fetchSubscriptions($userToken, $appToken, $clientID, $userId, $db) {
+    // User access token → returns WebSocket subscriptions for this user
+    $wsData = twitchGetSubs($userToken, $clientID);
+    if ($wsData === null) {
+        http_response_code(502);
+        echo json_encode(['success' => false, 'error' => 'Failed to fetch WebSocket subscriptions from Twitch']);
+        return;
     }
-    
-    if ($httpCode !== 200) {
-        http_response_code($httpCode);
-        echo json_encode(['success' => false, 'error' => "Failed to fetch subscriptions. HTTP Code: $httpCode"]);
-        exit();
-    }
-    
-    $data = json_decode($response, true);
-    $subscriptions = $data['data'] ?? [];
-    
-    // Group subscriptions by transport type, session, and status
-    $websocketSubsEnabled = [];
-    $websocketSubsDisabled = [];
+    $wsSubs = array_values(array_filter(
+        $wsData['data'] ?? [],
+        fn($s) => ($s['transport']['method'] ?? '') === 'websocket'
+    ));
+    // App access token → returns webhook subscriptions for this app
     $webhookSubs = [];
-    $sessionGroups = [];
-    $sessionGroupsDisabled = [];
-    
-    foreach ($subscriptions as $sub) {
-        if ($sub['transport']['method'] === 'websocket') {
-            $sessionId = $sub['transport']['session_id'] ?? 'unknown';
-            $isEnabled = ($sub['status'] === 'enabled');
-            
-            if ($isEnabled) {
-                $websocketSubsEnabled[] = $sub;
-                if (!isset($sessionGroups[$sessionId])) {
-                    $sessionGroups[$sessionId] = [];
-                }
-                $sessionGroups[$sessionId][] = $sub;
-            } else {
-                $websocketSubsDisabled[] = $sub;
-                if (!isset($sessionGroupsDisabled[$sessionId])) {
-                    $sessionGroupsDisabled[$sessionId] = [];
-                }
-                $sessionGroupsDisabled[$sessionId][] = $sub;
-            }
-        } else {
-            $webhookSubs[] = $sub;
+    if ($appToken) {
+        $whData = twitchGetSubs($appToken, $clientID);
+        if ($whData !== null) {
+            $webhookSubs = array_values(array_filter(
+                $whData['data'] ?? [],
+                fn($s) => ($s['transport']['method'] ?? '') === 'webhook'
+            ));
         }
     }
-    
+    // Group WebSocket subs by session and enabled status
+    $websocketSubsEnabled  = [];
+    $websocketSubsDisabled = [];
+    $sessionGroups         = [];
+    $sessionGroupsDisabled = [];
+    foreach ($wsSubs as $sub) {
+        $sessionId = $sub['transport']['session_id'] ?? 'unknown';
+        if ($sub['status'] === 'enabled') {
+            $websocketSubsEnabled[]      = $sub;
+            $sessionGroups[$sessionId][] = $sub;
+        } else {
+            $websocketSubsDisabled[]             = $sub;
+            $sessionGroupsDisabled[$sessionId][] = $sub;
+        }
+    }
     // Query session names from the database
     $sessionNames = [];
     try {
@@ -173,62 +184,54 @@ function fetchSubscriptions($accessToken, $clientID, $userId, $db) {
     } catch (Exception $e) {
         error_log("Failed to fetch session names: " . $e->getMessage());
     }
-    
+    $whCost = count($webhookSubs) > 0 ? array_sum(array_column($webhookSubs, 'cost')) : 0;
     echo json_encode([
         'success' => true,
         'data' => [
-            'totalCount' => $data['total'] ?? 0,
-            'totalCost' => $data['total_cost'] ?? 0,
-            'maxCost' => $data['max_total_cost'] ?? 0,
-            'websocketSubsEnabled' => $websocketSubsEnabled,
+            'totalCount'            => ($wsData['total'] ?? 0) + count($webhookSubs),
+            'totalCost'             => ($wsData['total_cost'] ?? 0) + $whCost,
+            'maxCost'               => $wsData['max_total_cost'] ?? 10000,
+            'websocketSubsEnabled'  => $websocketSubsEnabled,
             'websocketSubsDisabled' => $websocketSubsDisabled,
-            'webhookSubs' => $webhookSubs,
-            'sessionGroups' => $sessionGroups,
+            'webhookSubs'           => $webhookSubs,
+            'sessionGroups'         => $sessionGroups,
             'sessionGroupsDisabled' => $sessionGroupsDisabled,
-            'sessionNames' => $sessionNames,
-            'userId' => $userId
+            'sessionNames'          => $sessionNames,
+            'userId'                => $userId,
         ]
     ]);
 }
 
-function deleteSubscription($subId, $accessToken, $clientID) {
+function deleteSubscription($subId, $userToken, $appToken, $clientID, $transport = 'websocket') {
+    // Webhook subs must be deleted with app token; WebSocket subs with user token
+    $token = ($transport === 'webhook' && $appToken) ? $appToken : $userToken;
     $ch = curl_init("https://api.twitch.tv/helix/eventsub/subscriptions?id=" . urlencode($subId));
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
+        'Authorization: Bearer ' . $token,
         'Client-Id: ' . $clientID
     ]);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
     if ($httpCode === 204) {
-        echo json_encode([
-            'success' => true,
-            'message' => 'Successfully deleted subscription'
-        ]);
+        echo json_encode(['success' => true, 'message' => 'Successfully deleted subscription']);
     } else {
         http_response_code($httpCode);
-        echo json_encode([
-            'success' => false,
-            'error' => "Failed to delete subscription. HTTP Code: $httpCode"
-        ]);
+        echo json_encode(['success' => false, 'error' => "Failed to delete subscription. HTTP Code: $httpCode"]);
     }
 }
 
 function deleteSession($subscriptionIdsJson, $accessToken, $clientID) {
     $subIds = json_decode($subscriptionIdsJson, true);
-    
     if (!is_array($subIds) || count($subIds) === 0) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Invalid subscription_ids']);
         exit();
     }
-    
     $deletedCount = 0;
-    $failedCount = 0;
-    
+    $failedCount  = 0;
     foreach ($subIds as $subId) {
         $ch = curl_init("https://api.twitch.tv/helix/eventsub/subscriptions?id=" . urlencode($subId));
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
@@ -240,88 +243,42 @@ function deleteSession($subscriptionIdsJson, $accessToken, $clientID) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
         if ($httpCode === 204) {
             $deletedCount++;
         } else {
             $failedCount++;
         }
-        
-        // Small delay to avoid rate limiting
-        usleep(100000); // 0.1 seconds
+        usleep(100000); // 0.1s to avoid rate limiting
     }
-    
     if ($deletedCount > 0 && $failedCount === 0) {
-        echo json_encode([
-            'success' => true,
-            'message' => "Successfully deleted {$deletedCount} subscription(s) from session."
-        ]);
+        echo json_encode(['success' => true, 'message' => "Successfully deleted {$deletedCount} subscription(s) from session."]);
     } elseif ($deletedCount > 0 && $failedCount > 0) {
-        echo json_encode([
-            'success' => true,
-            'message' => "Deleted {$deletedCount} subscription(s), but {$failedCount} failed.",
-            'partial' => true
-        ]);
+        echo json_encode(['success' => true, 'message' => "Deleted {$deletedCount} subscription(s), but {$failedCount} failed.", 'partial' => true]);
     } else {
         http_response_code(500);
-        echo json_encode([
-            'success' => false,
-            'error' => "Failed to delete subscriptions from session."
-        ]);
+        echo json_encode(['success' => false, 'error' => "Failed to delete subscriptions from session."]);
     }
 }
 
-/**
- * Cleanup function - removes eventsub_sessions rows that are not present in Twitch subscriptions
- */
 function cleanupSessions($accessToken, $clientID, $db) {
-    // Fetch current Twitch EventSub subscriptions
-    $ch = curl_init('https://api.twitch.tv/helix/eventsub/subscriptions');
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
-        'Client-Id: ' . $clientID
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    if ($curlError) {
+    $data = twitchGetSubs($accessToken, $clientID);
+    if ($data === null) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => "cURL error: $curlError"]);
+        echo json_encode(['success' => false, 'error' => 'Failed to fetch subscriptions from Twitch']);
         return;
     }
-
-    if ($httpCode !== 200) {
-        http_response_code($httpCode);
-        echo json_encode(['success' => false, 'error' => "Failed to fetch subscriptions. HTTP Code: $httpCode"]);
-        return;
-    }
-
-    $data = json_decode($response, true);
-    $subscriptions = $data['data'] ?? [];
-
-    // Gather live websocket session IDs
     $liveSessionIds = [];
-    foreach ($subscriptions as $sub) {
+    foreach ($data['data'] ?? [] as $sub) {
         if (isset($sub['transport']['method']) && $sub['transport']['method'] === 'websocket') {
             $sid = $sub['transport']['session_id'] ?? null;
-            if ($sid) {
-                $liveSessionIds[$sid] = true;
-            }
+            if ($sid) $liveSessionIds[$sid] = true;
         }
     }
-
-    // Iterate user's stored sessions and delete ones not present in liveSessionIds
     $stmt = $db->prepare("SELECT session_id FROM eventsub_sessions");
     $stmt->execute();
     $result = $stmt->get_result();
-
     $deleted = 0;
     $deletedSessions = [];
-
     while ($row = $result->fetch_assoc()) {
         $sid = $row['session_id'];
         if (!isset($liveSessionIds[$sid])) {
@@ -335,12 +292,10 @@ function cleanupSessions($accessToken, $clientID, $db) {
             $del->close();
         }
     }
-
     $stmt->close();
-
     echo json_encode([
-        'success' => true,
-        'deleted' => $deleted,
+        'success'          => true,
+        'deleted'          => $deleted,
         'deleted_sessions' => $deletedSessions
     ]);
 }
@@ -351,43 +306,38 @@ function fetchInternalWebsocketClients($userApiKey) {
         echo json_encode(['success' => false, 'error' => 'API key not found for user']);
         return;
     }
-
     $url = 'https://websocket.botofthespecter.com/clients';
     $context = stream_context_create([
         'http' => [
             'timeout' => 10,
-            'method' => 'GET',
-            'header' => [
+            'method'  => 'GET',
+            'header'  => [
                 'User-Agent: BotOfTheSpecter Dashboard',
                 'Accept: application/json'
             ]
         ]
     ]);
-
     $response = @file_get_contents($url, false, $context);
     if ($response === false) {
         http_response_code(502);
         echo json_encode(['success' => false, 'error' => 'Failed to contact internal websocket server']);
         return;
     }
-
     $data = json_decode($response, true);
     if (!is_array($data) || !isset($data['clients']) || !is_array($data['clients'])) {
         http_response_code(502);
         echo json_encode(['success' => false, 'error' => 'Unexpected response from internal websocket server']);
         return;
     }
-
     $clients = [];
     if (isset($data['clients'][$userApiKey]) && is_array($data['clients'][$userApiKey])) {
         $clients = $data['clients'][$userApiKey];
     }
-
     echo json_encode([
         'success' => true,
         'data' => [
             'clientCount' => count($clients),
-            'clients' => $clients
+            'clients'     => $clients
         ]
     ]);
 }
@@ -398,26 +348,22 @@ function disconnectInternalWebsocketClient($sid, $userApiKey, $adminKey) {
         echo json_encode(['success' => false, 'error' => 'Socket ID is required']);
         return;
     }
-
     if (empty($userApiKey)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'API key not found for user']);
         return;
     }
-
     if (empty($adminKey)) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Server is not configured for disconnect']);
         return;
     }
-
-    // Verify the SID belongs to this user before disconnecting
     $url = 'https://websocket.botofthespecter.com/clients';
     $context = stream_context_create([
         'http' => [
             'timeout' => 10,
-            'method' => 'GET',
-            'header' => [
+            'method'  => 'GET',
+            'header'  => [
                 'User-Agent: BotOfTheSpecter Dashboard',
                 'Accept: application/json'
             ]
@@ -429,7 +375,6 @@ function disconnectInternalWebsocketClient($sid, $userApiKey, $adminKey) {
         echo json_encode(['success' => false, 'error' => 'Failed to contact internal websocket server']);
         return;
     }
-
     $data = json_decode($response, true);
     $ownedClients = $data['clients'][$userApiKey] ?? [];
     $owned = false;
@@ -445,20 +390,18 @@ function disconnectInternalWebsocketClient($sid, $userApiKey, $adminKey) {
             }
         }
     }
-
     if (!$owned) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Socket ID not found for your API key']);
         return;
     }
-
-    $disconnectUrl = 'https://websocket.botofthespecter.com/admin/disconnect?admin_key=' . urlencode($adminKey);
-    $postData = json_encode(['sid' => $sid]);
+    $disconnectUrl  = 'https://websocket.botofthespecter.com/admin/disconnect?admin_key=' . urlencode($adminKey);
+    $postData       = json_encode(['sid' => $sid]);
     $disconnectContext = stream_context_create([
         'http' => [
             'timeout' => 10,
-            'method' => 'POST',
-            'header' => [
+            'method'  => 'POST',
+            'header'  => [
                 'Content-Type: application/json',
                 'User-Agent: BotOfTheSpecter Dashboard'
             ],
@@ -471,19 +414,14 @@ function disconnectInternalWebsocketClient($sid, $userApiKey, $adminKey) {
         echo json_encode(['success' => false, 'error' => 'Failed to send disconnect request']);
         return;
     }
-
     $disconnectResult = json_decode($disconnectResponse, true);
     if (!is_array($disconnectResult) || empty($disconnectResult['success'])) {
         http_response_code(400);
         echo json_encode([
             'success' => false,
-            'error' => $disconnectResult['message'] ?? 'Disconnect failed'
+            'error'   => $disconnectResult['message'] ?? 'Disconnect failed'
         ]);
         return;
     }
-
-    echo json_encode([
-        'success' => true,
-        'message' => 'Client disconnected successfully'
-    ]);
+    echo json_encode(['success' => true, 'message' => 'Client disconnected successfully']);
 }
