@@ -149,26 +149,34 @@ function bots_fetch_ip_geo(string $ip, string $apiKey, string $userAgent = ''): 
     $cacheKey = $ip . '||' . $userAgent;
     if (array_key_exists($cacheKey, $cache)) return $cache[$cacheKey];
 
-    $url  = 'https://api.ipgeolocation.io/v3/ipgeo?apiKey=' . urlencode($apiKey)
-          . '&ip=' . urlencode($ip) . '&include=user_agent';
-    $curl = curl_init();
-    $opts = [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 3,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-    ];
+    $url = 'https://api.ipgeolocation.io/v3/ipgeo?apiKey=' . urlencode($apiKey)
+         . '&ip=' . urlencode($ip) . '&include=user_agent';
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
     if ($userAgent !== '') {
-        $opts[CURLOPT_HTTPHEADER] = ['User-Agent: ' . $userAgent];
+        curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
     }
-    curl_setopt_array($curl, $opts);
-    $raw = curl_exec($curl);
-    curl_close($curl);
+    $raw      = curl_exec($ch);
+    $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_err = curl_error($ch);
+    curl_close($ch);
 
-    $data = $raw ? json_decode($raw, true) : null;
-    $cache[$cacheKey] = (is_array($data) && isset($data['ip'], $data['location'])) ? $data : null;
-    return $cache[$cacheKey];
+    if (!$raw || $curl_err) {
+        error_log('[profile.php] ipgeo curl failed ip=' . $ip . ' err=' . $curl_err);
+        $cache[$cacheKey] = null;
+        return null;
+    }
+    $data = json_decode($raw, true);
+    if (!is_array($data) || !isset($data['ip'], $data['location'])) {
+        error_log('[profile.php] ipgeo bad response ip=' . $ip . ' http=' . $http . ' body=' . substr($raw, 0, 300));
+        $cache[$cacheKey] = null;
+        return null;
+    }
+    $cache[$cacheKey] = $data;
+    return $data;
 }
 
 function bots_format_when($datetime): string
