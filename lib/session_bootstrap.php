@@ -82,8 +82,11 @@ foreach ($BOTS_SESSION_ALIASES as $primary => $alias) {
 // Twitch token validation.
 // Calls id.twitch.tv/oauth2/validate at most every 5 minutes per session
 // (or sooner if our stored expires_at says we're already past).
-// On success: refresh twitch_expires_at from the response's expires_in.
-// On failure (401): destroy the session so the next page redirects to login.
+//   ok          -> refresh twitch_expires_at + last_validated_at
+//   invalid 401 -> destroy session so next page bounces to SSO
+//   transient   -> log + push validation forward 60s, KEEP the session.
+//                  A flaky id.twitch.tv or egress blip must not log
+//                  every active user out across all four apps.
 // ----------------------------------------------------------------
 if (!empty($_SESSION['access_token'])) {
     $now           = time();
@@ -93,10 +96,17 @@ if (!empty($_SESSION['access_token'])) {
         || ($expires_at > 0 && $expires_at <= $now)
         || (($now - $last_validate) > 300);
     if ($needs_validate) {
-        $payload = bots_twitch_validate($_SESSION['access_token']);
-        if ($payload === null) {
-            // Token revoked / invalid — wipe the session row so consumers
-            // see no auth on the next page load and bounce to SSO.
+        $result = bots_twitch_validate($_SESSION['access_token']);
+        if (!empty($result['ok'])) {
+            $payload = $result['payload'];
+            $_SESSION['twitch_expires_at']  = $now + (int)($payload['expires_in'] ?? 0);
+            $_SESSION['last_validated_at']  = $now;
+        } elseif (($result['reason'] ?? '') === 'invalid') {
+            // Twitch returned 401 — token revoked or expired. Wipe the
+            // shared session row so every *.botofthespecter.com app sees
+            // no auth and bounces to SSO.
+            error_log('[session_bootstrap] twitch validate 401, destroying session for sid='
+                . session_id());
             $_SESSION = [];
             if (ini_get('session.use_cookies')) {
                 $params = session_get_cookie_params();
@@ -108,8 +118,12 @@ if (!empty($_SESSION['access_token'])) {
             }
             session_destroy();
         } else {
-            $_SESSION['twitch_expires_at']  = $now + (int)($payload['expires_in'] ?? 0);
-            $_SESSION['last_validated_at']  = $now;
+            // Transient — keep the session, retry in ~60s.
+            error_log('[session_bootstrap] twitch validate transient failure http='
+                . ($result['http'] ?? '?')
+                . ' err=' . ($result['err'] ?? '')
+                . ' — keeping session');
+            $_SESSION['last_validated_at'] = $now - 240; // retry in 60s instead of 300s
         }
     }
 }

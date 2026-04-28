@@ -55,6 +55,12 @@ if (!empty($_GET['handoff'])) {
                 $_SESSION['display_name']  = $dname;
                 $_SESSION['profile_image'] = $pimg;
                 $_SESSION['is_admin']      = (int)$iadmin;
+                // home/login.php verified the token recently before minting
+                // this handoff. Skip the bootstrap's immediate revalidate so
+                // a transient id.twitch.tv hiccup can't sign the user out
+                // on their first support page load.
+                $_SESSION['last_validated_at'] = time();
+                $_SESSION['twitch_expires_at'] = time() + 14400;
                 $redirect = $_SESSION['redirect_url'] ?? '/index.php';
                 unset($_SESSION['redirect_url']);
                 header('Location: ' . $redirect);
@@ -148,6 +154,11 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $_SESSION['display_name']   = $dname;
             $_SESSION['profile_image']  = $pimg;
             $_SESSION['is_admin']       = (int)$isAdmin;
+            // StreamersConnect just minted this token, so skip the bootstrap's
+            // immediate id.twitch.tv revalidate on the next page load.
+            $expiresIn = isset($decoded['expires_in']) ? (int)$decoded['expires_in'] : 14400;
+            $_SESSION['twitch_expires_at'] = time() + $expiresIn;
+            $_SESSION['last_validated_at'] = time();
             $redirect = $_SESSION['redirect_url'] ?? '/index.php';
             unset($_SESSION['redirect_url']);
             header('Location: ' . $redirect);

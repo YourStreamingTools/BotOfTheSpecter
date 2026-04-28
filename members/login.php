@@ -76,6 +76,10 @@ if (!empty($_GET['handoff'])) {
                     $_SESSION['twitch_user_id']    = $twid;
                     $_SESSION['profile_image_url'] = $pimg;
                     $_SESSION['display_name']      = $dname;
+                    // home/login.php verified the token before minting the
+                    // handoff. Skip the bootstrap's immediate revalidate.
+                    $_SESSION['last_validated_at'] = time();
+                    $_SESSION['twitch_expires_at'] = time() + 14400;
                     if (isset($_SESSION['redirect_url'])) {
                         $redirectUrl = filter_var($_SESSION['redirect_url'], FILTER_SANITIZE_URL);
                         unset($_SESSION['redirect_url']);
@@ -166,6 +170,11 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $_SESSION['twitch_user_id'] = $twitchUserId;
             $_SESSION['profile_image_url'] = $profileImageUrl;
             $_SESSION['display_name'] = $twitchDisplayName;
+            // StreamersConnect just minted this token — skip the bootstrap's
+            // immediate id.twitch.tv revalidate on the next page load.
+            $expiresIn = isset($decoded['expires_in']) ? (int)$decoded['expires_in'] : 14400;
+            $_SESSION['twitch_expires_at'] = time() + $expiresIn;
+            $_SESSION['last_validated_at'] = time();
 
             // Redirect to the original page or the dashboard
             if (isset($_SESSION['redirect_url'])) {
@@ -230,6 +239,11 @@ if (isset($_GET['code'])) {
 
     // Store the access token and refresh token in the session
     $_SESSION['access_token'] = $accessToken;
+    // Mark this token as just-validated so the bootstrap doesn't immediately
+    // re-hit id.twitch.tv on the next page load.
+    $expiresIn = isset($responseData['expires_in']) ? (int)$responseData['expires_in'] : 14400;
+    $_SESSION['twitch_expires_at'] = time() + $expiresIn;
+    $_SESSION['last_validated_at'] = time();
 
     // Fetch the user's Twitch username, profile image URL, and email address
     $userInfoURL = 'https://api.twitch.tv/helix/users';
