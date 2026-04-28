@@ -167,7 +167,7 @@ function bots_fetch_ip_geo(string $ip, string $apiKey, string $userAgent = ''): 
     curl_close($curl);
 
     $data = $raw ? json_decode($raw, true) : null;
-    $cache[$cacheKey] = (is_array($data) && empty($data['error'])) ? $data : null;
+    $cache[$cacheKey] = (is_array($data) && isset($data['ip'], $data['location'])) ? $data : null;
     return $cache[$cacheKey];
 }
 
