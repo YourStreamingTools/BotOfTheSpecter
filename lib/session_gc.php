@@ -26,7 +26,11 @@
 // before/after counts to stdout for cron-mail / log capture.
 //
 // Flags:
-//   --dry-run   Show what would be deleted, don't actually delete.
+//   --dry-run        Show what would be deleted, don't actually delete.
+//   --purge-empty    Delete every empty-token web_sessions row IGNORING
+//                    the grace window. Use for one-off cleanup of test
+//                    debris when you don't want to wait for the grace
+//                    period to expire.
 // ----------------------------------------------------------------
 
 if (PHP_SAPI !== 'cli') {
@@ -35,13 +39,15 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
-$dryRun = in_array('--dry-run', $argv ?? [], true);
+$args        = $argv ?? [];
+$dryRun      = in_array('--dry-run', $args, true);
+$purgeEmpty  = in_array('--purge-empty', $args, true);
 
 require_once '/var/www/config/database.php';
 
 // Tunables. Adjust here if you want to be more or less aggressive.
 $STALE_SESSION_HOURS       = 4;   // matches session.gc_maxlifetime in the bootstrap
-$INCOMPLETE_AUTH_GRACE_MIN = 30;  // give the SC round-trip plenty of time
+$INCOMPLETE_AUTH_GRACE_MIN = 10;  // SC round-trip is seconds; 10 min is a generous safety margin
 $HANDOFF_DEBRIS_DAYS       = 1;   // handoff_tokens are 5min TTL; 1d is conservative
 
 $conn = new mysqli($db_servername, $db_username, $db_password, 'website');
@@ -64,8 +70,9 @@ $emptyToken    = (int)$conn->query("SELECT COUNT(*) FROM web_sessions WHERE acce
 $totalHandoffs = (int)$conn->query("SELECT COUNT(*) FROM handoff_tokens")->fetch_row()[0];
 
 printf(
-    "[session_gc] pre  total=%d null_last_seen=%d empty_token=%d handoff_total=%d\n",
-    $totalSessions, $nullLastSeen, $emptyToken, $totalHandoffs
+    "[session_gc] pre  total=%d null_last_seen=%d empty_token=%d handoff_total=%d%s\n",
+    $totalSessions, $nullLastSeen, $emptyToken, $totalHandoffs,
+    $purgeEmpty ? ' [--purge-empty]' : ''
 );
 
 // ----------------------------------------------------------------
@@ -79,11 +86,18 @@ $sql1 = "DELETE FROM web_sessions
 // ----------------------------------------------------------------
 // Sweep 2 — never-finished-auth rows. access_token blank AND row is
 // older than the SC grace window (or has no last_seen_at at all).
+// With --purge-empty the age guard is dropped entirely — every
+// empty-token row goes, regardless of how recently it was touched.
 // ----------------------------------------------------------------
-$sql2 = "DELETE FROM web_sessions
-          WHERE (access_token IS NULL OR access_token = '')
-            AND (last_seen_at IS NULL
-                 OR last_seen_at < NOW() - INTERVAL ? MINUTE)";
+if ($purgeEmpty) {
+    $sql2 = "DELETE FROM web_sessions
+              WHERE access_token IS NULL OR access_token = ''";
+} else {
+    $sql2 = "DELETE FROM web_sessions
+              WHERE (access_token IS NULL OR access_token = '')
+                AND (last_seen_at IS NULL
+                     OR last_seen_at < NOW() - INTERVAL ? MINUTE)";
+}
 
 // ----------------------------------------------------------------
 // Sweep 3 — old handoff_tokens.
@@ -98,12 +112,14 @@ if ($dryRun) {
           WHERE last_seen_at IS NULL
              OR last_seen_at < NOW() - INTERVAL {$STALE_SESSION_HOURS} HOUR"
     )->fetch_row()[0];
-    $countIncomplete = (int)$conn->query(
-        "SELECT COUNT(*) FROM web_sessions
-          WHERE (access_token IS NULL OR access_token = '')
-            AND (last_seen_at IS NULL
-                 OR last_seen_at < NOW() - INTERVAL {$INCOMPLETE_AUTH_GRACE_MIN} MINUTE)"
-    )->fetch_row()[0];
+    $countIncompleteSql = $purgeEmpty
+        ? "SELECT COUNT(*) FROM web_sessions
+            WHERE access_token IS NULL OR access_token = ''"
+        : "SELECT COUNT(*) FROM web_sessions
+            WHERE (access_token IS NULL OR access_token = '')
+              AND (last_seen_at IS NULL
+                   OR last_seen_at < NOW() - INTERVAL {$INCOMPLETE_AUTH_GRACE_MIN} MINUTE)";
+    $countIncomplete = (int)$conn->query($countIncompleteSql)->fetch_row()[0];
     $countHandoff = (int)$conn->query(
         "SELECT COUNT(*) FROM handoff_tokens
           WHERE expires_at < NOW() - INTERVAL {$HANDOFF_DEBRIS_DAYS} DAY"
@@ -123,7 +139,9 @@ $staleDeleted = $stmt->affected_rows;
 $stmt->close();
 
 $stmt = $conn->prepare($sql2);
-$stmt->bind_param('i', $INCOMPLETE_AUTH_GRACE_MIN);
+if (!$purgeEmpty) {
+    $stmt->bind_param('i', $INCOMPLETE_AUTH_GRACE_MIN);
+}
 $stmt->execute();
 $incompleteDeleted = $stmt->affected_rows;
 $stmt->close();
