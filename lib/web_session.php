@@ -138,24 +138,39 @@ class WebSessionHandler implements SessionHandlerInterface
 
 // ----------------------------------------------------------------
 // Twitch token validation against id.twitch.tv/oauth2/validate.
-// Returns the JSON payload on 200 (with client_id/login/scopes/user_id/expires_in),
-// null on any non-200 or transport error.
+// Returns:
+//   ['ok' => true,  'payload' => array]            -> 200, valid token
+//   ['ok' => false, 'reason' => 'invalid']         -> 401, token revoked / expired
+//   ['ok' => false, 'reason' => 'transient',
+//                   'http' => int, 'err' => string]-> network error / 5xx / weird response
+//
+// Callers should only sign the user out on reason='invalid'. Transient
+// failures must NOT destroy the session — a flaky id.twitch.tv response
+// or a 30-second egress hiccup should not log every active user out.
 // ----------------------------------------------------------------
-function bots_twitch_validate(string $access_token): ?array
+function bots_twitch_validate(string $access_token): array
 {
-    if ($access_token === '') return null;
+    if ($access_token === '') {
+        return ['ok' => false, 'reason' => 'invalid'];
+    }
     $ch = curl_init('https://id.twitch.tv/oauth2/validate');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: OAuth ' . $access_token]);
     curl_setopt($ch, CURLOPT_TIMEOUT, 8);
-    $resp = curl_exec($ch);
-    $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $resp     = curl_exec($ch);
+    $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_err = curl_error($ch);
     curl_close($ch);
     if ($http === 200 && is_string($resp) && $resp !== '') {
         $j = json_decode($resp, true);
         if (is_array($j) && !empty($j['user_id'])) {
-            return $j;
+            return ['ok' => true, 'payload' => $j];
         }
+        // 200 but malformed body — treat as transient, don't sign out.
+        return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => 'malformed response body'];
     }
-    return null;
+    if ($http === 401) {
+        return ['ok' => false, 'reason' => 'invalid'];
+    }
+    return ['ok' => false, 'reason' => 'transient', 'http' => $http, 'err' => (string)$curl_err];
 }

@@ -4,12 +4,8 @@ require_once "/var/www/config/twitch.php";
 $IDScope = 'openid channel:bot moderator:manage:chat_messages user:read:moderated_channels moderator:read:blocked_terms moderator:read:chat_settings moderator:read:vips moderator:read:moderators moderator:read:unban_requests moderator:read:banned_users moderator:read:chat_messages moderator:read:warnings user:bot channel:read:goals channel:moderate channel:manage:moderators user:edit:broadcast channel:manage:redemptions channel:manage:polls moderator:manage:automod moderator:read:suspicious_users channel:read:hype_train channel:manage:broadcast channel:manage:raids channel:read:charity user:read:email user:read:chat user:write:chat user:read:follows chat:read chat:edit moderation:read moderator:read:followers channel:read:redemptions channel:read:vips channel:manage:vips user:read:subscriptions channel:read:subscriptions moderator:read:chatters bits:read channel:manage:ads channel:read:ads channel:manage:schedule channel:manage:clips editor:manage:clips clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:shoutouts moderator:manage:shoutouts user:read:blocked_users user:manage:blocked_users';
 $info = "Please wait while we redirect you to Twitch for authorization.";
 
-// Set session timeout to 24 hours (86400 seconds)
-session_set_cookie_params(86400, "/", "", true, true);
-ini_set('session.gc_maxlifetime', 86400);
-ini_set('session.cookie_lifetime', 86400);
-
-// Start PHP session
+// Cookie + session config is owned by the shared bootstrap (cookie scoped
+// to .botofthespecter.com, sessions stored in website.web_sessions).
 require_once '/var/www/lib/session_bootstrap.php';
 
 // If the user is already logged in, redirect them to the intended page (or dashboard)
@@ -101,6 +97,13 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
             $_SESSION['twitchUserId'] = $twitchUserId;
             $_SESSION['profile_image'] = $profileImageUrl;
             $_SESSION['display_name'] = $twitchDisplayName;
+            // Tell the bootstrap we just verified this token via StreamersConnect
+            // so it doesn't immediately re-validate against id.twitch.tv on the
+            // very next page load. Without this, last_validated_at=0 -> forced
+            // validate -> any transient failure used to wipe the session.
+            $expiresIn = isset($decoded['expires_in']) ? (int)$decoded['expires_in'] : 14400;
+            $_SESSION['twitch_expires_at'] = time() + $expiresIn;
+            $_SESSION['last_validated_at'] = time();
             // Database connect
             require_once "/var/www/config/db_connect.php";
             // Check if the user is in the restricted list
@@ -279,6 +282,12 @@ if (isset($_GET['code'])) {
     // Store the access token and refresh token in the session
     $_SESSION['access_token'] = $accessToken;
     $_SESSION['refresh_token'] = $refreshToken;
+    // Mark this token as just-validated so the bootstrap doesn't try to re-hit
+    // id.twitch.tv on the next page load. Twitch's response to grant-code
+    // exchange already includes expires_in.
+    $expiresIn = isset($responseData['expires_in']) ? (int)$responseData['expires_in'] : 14400;
+    $_SESSION['twitch_expires_at'] = time() + $expiresIn;
+    $_SESSION['last_validated_at'] = time();
     // Fetch the user's Twitch username, profile image URL, and email address
     $userInfoURL = 'https://api.twitch.tv/helix/users';
     $curl = curl_init($userInfoURL);

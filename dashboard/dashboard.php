@@ -1,12 +1,10 @@
 <?php
-// Dashboard landing page - main entry point
-
-// Set session timeout to 24 hours (86400 seconds)
-session_set_cookie_params(86400, "/", "", true, true);
-ini_set('session.gc_maxlifetime', 86400);
-ini_set('session.cookie_lifetime', 86400);
-
-// Start session
+// Dashboard landing page - main entry point.
+// Cookie + session config is owned by the shared bootstrap so the cookie
+// is scoped to .botofthespecter.com and the session row lives in
+// website.web_sessions. Do not re-call session_set_cookie_params() here:
+// passing domain="" used to override the bootstrap's .botofthespecter.com
+// scope, which broke the shared login across home/dashboard/support/members.
 require_once '/var/www/lib/session_bootstrap.php';
 
 // Check if user is logged in
