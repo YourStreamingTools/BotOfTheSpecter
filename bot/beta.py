@@ -1429,7 +1429,7 @@ async def process_twitch_eventsub_message(message):
                     elif notice_type == "watch_streak":
                         global _streak_schema_ready
                         ws_data = event_data.get("watch_streak", {}) or {}
-                        ws_value = int(ws_data.get("consecutive_streak", 0) or 0)
+                        ws_value = int(ws_data.get("streak_count", 0) or 0)
                         ws_display = event_data.get("chatter_user_name", "")
                         event_logger.info(f"[EVENTSUB] Watch streak: {ws_display} has watched {ws_value} consecutive streams")
                         ws_streak_result = None
