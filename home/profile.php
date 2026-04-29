@@ -13,7 +13,7 @@
 // ----------------------------------------------------------------
 
 require_once '/var/www/lib/session_bootstrap.php';
-require_once '/var/www/config/ipgeolocation.php';
+require_once '/var/www/config/iplocate.php';
 
 // Must be signed in to view this page.
 if (empty($_SESSION['access_token']) || empty($_SESSION['twitchUserId'])) {
@@ -142,40 +142,41 @@ function bots_humanize_ua(?string $ua): string
     return "$browser on $os";
 }
 
-function bots_fetch_ip_geo(string $ip, string $apiKey, string $userAgent = ''): ?array
+function bots_fetch_ip_geo(string $ip, string $apiKey): ?array
 {
     static $cache = [];
     if (!$apiKey || !$ip || $ip === '—') return null;
-    $cacheKey = $ip . '||' . $userAgent;
-    if (array_key_exists($cacheKey, $cache)) return $cache[$cacheKey];
+    if (array_key_exists($ip, $cache)) return $cache[$ip];
 
-    $url = 'https://api.ipgeolocation.io/v3/ipgeo?apiKey=' . urlencode($apiKey)
-         . '&ip=' . urlencode($ip) . '&include=user_agent';
+    $url = 'https://iplocate.io/api/lookup/' . urlencode($ip);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 8);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-    if ($userAgent !== '') {
-        curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
-    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-Key: ' . $apiKey]);
     $raw      = curl_exec($ch);
     $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_err = curl_error($ch);
     curl_close($ch);
 
     if (!$raw || $curl_err) {
-        error_log('[profile.php] ipgeo curl failed ip=' . $ip . ' err=' . $curl_err);
-        $cache[$cacheKey] = null;
+        error_log('[profile.php] iplocate curl failed ip=' . $ip . ' err=' . $curl_err);
+        $cache[$ip] = null;
+        return null;
+    }
+    if ($http === 429) {
+        error_log('[profile.php] iplocate rate limit exceeded ip=' . $ip);
+        $cache[$ip] = null;
         return null;
     }
     $data = json_decode($raw, true);
-    if (!is_array($data) || !isset($data['ip'], $data['location'])) {
-        error_log('[profile.php] ipgeo bad response ip=' . $ip . ' http=' . $http . ' body=' . substr($raw, 0, 300));
-        $cache[$cacheKey] = null;
+    if (!is_array($data) || $http !== 200) {
+        error_log('[profile.php] iplocate bad response ip=' . $ip . ' http=' . $http . ' body=' . substr($raw, 0, 300));
+        $cache[$ip] = null;
         return null;
     }
-    $cache[$cacheKey] = $data;
+    $cache[$ip] = $data;
     return $data;
 }
 
@@ -243,30 +244,25 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
     <?php else: ?>
         <?php foreach ($sessions as $s):
             $isCurrent = ($s['session_id'] === $current_session_id);
-            $geo = bots_fetch_ip_geo($s['ip'] ?? '', $ipgeo_api_key ?? '', $s['user_agent'] ?? '');
+            $geo = bots_fetch_ip_geo($s['ip'] ?? '', $iplocate_api_key ?? '');
         ?>
             <div class="sp-session<?php echo $isCurrent ? ' current' : ''; ?>">
                 <div>
                     <div class="device">
-                        <?php
-                            $geoUa      = $geo['user_agent']               ?? null;
-                            $geoUaName  = $geoUa['name']                   ?? '';
-                            $geoUaOs    = $geoUa['operating_system']['name'] ?? '';
-                            $deviceName = ($geoUaName && $geoUaOs)
-                                ? $geoUaName . ' on ' . $geoUaOs
-                                : bots_humanize_ua($s['user_agent']);
-                            echo htmlspecialchars($deviceName);
-                        ?>
+                        <?php echo htmlspecialchars(bots_humanize_ua($s['user_agent'])); ?>
                         <?php if ($isCurrent): ?><span class="sp-badge">This device</span><?php endif; ?>
                     </div>
                     <div class="meta">
                         IP <code><?php echo htmlspecialchars($s['ip'] ?? '—'); ?></code>
                         <?php if ($geo): ?>
                             <?php
-                                $geoCity    = $geo['location']['city']         ?? '';
-                                $geoCountry = $geo['location']['country_name'] ?? '';
-                                $geoOrg     = $geo['asn']['organization']      ?? '';
-                                $geoLoc     = implode(', ', array_filter([$geoCity, $geoCountry]));
+                                $geoCity        = $geo['city']                    ?? '';
+                                $geoSubdivision = $geo['subdivision']             ?? '';
+                                $geoCountry     = $geo['country']                 ?? '';
+                                $geoAsn         = $geo['asn']['name']             ?? '';
+                                $geoHosting     = $geo['hosting']['provider']    ?? '';
+                                $geoOrg         = $geoHosting ?: $geoAsn;
+                                $geoLoc         = implode(', ', array_filter([$geoCity, $geoSubdivision, $geoCountry]));
                             ?>
                             <span style="color:#6e7681;">
                                 <?php echo htmlspecialchars($geoLoc ?: '—'); ?>
