@@ -142,7 +142,7 @@ if ($res) $programs = $res->fetch_all(MYSQLI_ASSOC);
                         <td>
                             <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
                                 <button class="sp-btn sp-btn-sm" title="Edit"
-                                    onclick="openEditProgram(<?php echo (int)$prog['id']; ?>, <?php echo json_encode($prog['name']); ?>, <?php echo json_encode($prog['description'] ?? ''); ?>)">
+                                    onclick="openEditProgram(<?php echo (int)$prog['id']; ?>, <?php echo htmlspecialchars(json_encode($prog['name']), ENT_QUOTES); ?>, <?php echo htmlspecialchars(json_encode($prog['description'] ?? ''), ENT_QUOTES); ?>)">
                                     <i class="fa-solid fa-pen"></i>
                                 </button>
                                 <button class="sp-btn sp-btn-sm" title="Toggle active"
@@ -150,7 +150,7 @@ if ($res) $programs = $res->fetch_all(MYSQLI_ASSOC);
                                     <i class="fa-solid <?php echo $prog['is_active'] ? 'fa-eye-slash' : 'fa-eye'; ?>"></i>
                                 </button>
                                 <button class="sp-btn sp-btn-danger sp-btn-sm" title="Delete"
-                                    onclick="deleteProgram(<?php echo (int)$prog['id']; ?>, <?php echo json_encode($prog['name']); ?>)">
+                                    onclick="deleteProgram(<?php echo (int)$prog['id']; ?>, <?php echo htmlspecialchars(json_encode($prog['name']), ENT_QUOTES); ?>)">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
