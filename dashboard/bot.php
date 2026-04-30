@@ -7,7 +7,6 @@ $backup_system = false;
 
 require_once __DIR__ . '/api/twitch_token_validate.php';
 
-// Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
   $returnTo = $_SERVER['REQUEST_URI'];
   session_unset();
@@ -17,23 +16,7 @@ if (!isset($_SESSION['access_token'])) {
   header('Location: login.php');
   exit();
 }
-
-// Validate the Twitch token
-$tokenData = validateTwitchToken($_SESSION['access_token']);
 $consoleLog = '';
-if (!$tokenData) {
-  // Token is invalid, clear session and redirect to login
-  $returnTo = $_SERVER['REQUEST_URI'];
-  session_unset();
-  session_destroy();
-  session_start();
-  $_SESSION['redirect_after_login'] = $returnTo;
-  header('Location: login.php');
-  exit();
-} else {
-  // Prepare console log for validation info (without exposing sensitive data)
-  $consoleLog = "<script>console.log('Token validated: " . addslashes($tokenData['login']) . " | " . addslashes($tokenData['user_id']) . " | " . addslashes($tokenData['expires_in']) . "');</script>";
-}
 
 // Page Title and Initial Variables
 $pageTitle = t('bot_management_title');
@@ -144,18 +127,6 @@ $_SESSION['tier'] = $betaResult['tier'];
 $BotIsBanned = false;
 $BotBanReason = '';
 if ($username !== 'botofthespecter') {
-  // Validate token before making Twitch API calls
-  $tokenData = validateTwitchToken($_SESSION['access_token']);
-  if (!$tokenData) {
-    // Token is invalid, clear session and redirect to login
-    $returnTo = $_SERVER['REQUEST_URI'];
-    session_unset();
-    session_destroy();
-    session_start();
-    $_SESSION['redirect_after_login'] = $returnTo;
-    header('Location: login.php');
-    exit();
-  }
   $BotIsMod = checkBotIsMod($twitchUserId, $authToken, $clientID);
   // Only check ban status if bot is NOT a moderator
   if (!$BotIsMod) {
@@ -211,18 +182,6 @@ if (isset($username) && $username !== '') {
     $dbStatus = null;
   }
   $stmt->close();
-  // Validate token before making Twitch API calls
-  $tokenData = validateTwitchToken($_SESSION['access_token']);
-  if (!$tokenData) {
-    // Token is invalid, clear session and redirect to login
-    $returnTo = $_SERVER['REQUEST_URI'];
-    session_unset();
-    session_destroy();
-    session_start();
-    $_SESSION['redirect_after_login'] = $returnTo;
-    header('Location: login.php');
-    exit();
-  }
   // Check 2: SSH file status
   $sshStatus = checkSSHFileStatus($username);
   // Check 3: Twitch API status (authoritative for online, never for offline)
