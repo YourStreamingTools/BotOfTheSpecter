@@ -236,6 +236,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restrict_action'])) {
     exit;
 }
 
+// Handle AJAX beta_programs add/remove request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_programs_action'])) {
+    $action   = $_POST['beta_programs_action'];
+    $user_id  = isset($_POST['user_id'])  ? (int) $_POST['user_id']            : 0;
+    $program  = isset($_POST['program'])  ? trim($_POST['program'])             : '';
+    $response = ['success' => false, 'msg' => ''];
+    if (($action !== 'add' && $action !== 'remove') || $user_id <= 0 || $program === '') {
+        $response['msg'] = 'Invalid beta programs request.';
+        echo json_encode($response);
+        exit;
+    }
+    $fetchStmt = $conn->prepare("SELECT beta_programs FROM users WHERE id = ? LIMIT 1");
+    $fetchStmt->bind_param("i", $user_id);
+    $fetchStmt->execute();
+    $fetchStmt->bind_result($raw);
+    $fetchStmt->fetch();
+    $fetchStmt->close();
+    $programs = json_decode($raw ?? '[]', true) ?? [];
+    if ($action === 'add') {
+        if (!in_array($program, $programs)) {
+            $programs[] = $program;
+        }
+    } else {
+        $programs = array_values(array_filter($programs, fn($p) => $p !== $program));
+    }
+    $newJson = json_encode(array_values($programs));
+    $updStmt = $conn->prepare("UPDATE users SET beta_programs = ? WHERE id = ?");
+    $updStmt->bind_param("si", $newJson, $user_id);
+    if ($updStmt->execute()) {
+        $response['success'] = true;
+    } else {
+        $response['msg'] = 'Could not update beta programs.';
+    }
+    $updStmt->close();
+    echo json_encode($response);
+    exit;
+}
+
 // Handle AJAX beta access grant request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['beta_action'])) {
     $action = $_POST['beta_action'];
@@ -380,6 +418,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         <th style="text-align:center;">Admin</th>
                         <th style="text-align:center;">Super Admin</th>
                         <th style="text-align:center;">Beta</th>
+                        <th style="text-align:center;">Beta Programs</th>
                         <th style="text-align:center;">Premium</th>
                         <th style="text-align:center;">Signup</th>
                         <th style="text-align:center;">Last Login</th>
@@ -458,6 +497,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                         </td>
                         <td style="text-align:center;vertical-align:middle;">
                             <?php
+                            $userPrograms = json_decode($user['beta_programs'] ?? '[]', true) ?? [];
+                            if (!empty($userPrograms)):
+                                foreach ($userPrograms as $prog):
+                                    echo '<span class="sp-badge sp-badge-blue" style="margin:1px;">' . htmlspecialchars($prog) . '</span>';
+                                endforeach;
+                            else:
+                            ?>
+                                <span class="sp-badge sp-badge-grey"><i class="fas fa-minus"></i></span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="text-align:center;vertical-align:middle;">
+                            <?php
                             if (!empty($user['twitch_user_id'])) {
                                 $tier = getTwitchSubTier($user['twitch_user_id']);
                                 if ($tier === "1000") {
@@ -518,6 +569,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deceased_action'])) {
                                         <span class="icon"><i class="fas fa-flask"></i></span>
                                     </button>
                                 <?php endif; ?>
+                                <button class="sp-btn sp-btn-primary sp-btn-sm" onclick="manageBetaPrograms(<?php echo (int) $user['id']; ?>)" title="Manage Beta Programs" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
+                                    <span class="icon"><i class="fas fa-list-check"></i></span>
+                                </button>
                                 <?php if ($is_restricted): ?>
                                     <button class="sp-btn sp-btn-warning sp-btn-sm" title="Unrestrict"
                                         onclick="toggleRestrictUser(<?php echo (int) $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['twitch_user_id']); ?>', false)" <?php if ($is_deceased): ?>disabled<?php endif; ?>>
@@ -628,6 +682,10 @@ function showSensitiveModal(userId) {
                     <tr>
                         <th>Beta Access</th>
                         <td>${user.beta_access ? '<span class="sp-badge sp-badge-green">True</span>' : '<span class="sp-badge sp-badge-red">False</span>'}</td>
+                    </tr>
+                    <tr>
+                        <th>Beta Programs</th>
+                        <td>${(user.beta_programs && JSON.parse(user.beta_programs || '[]').length) ? JSON.parse(user.beta_programs).map(p => `<span class="sp-badge sp-badge-blue">${p}</span>`).join(' ') : '<span class="sp-badge sp-badge-grey">None</span>'}</td>
                     </tr>
                     <tr>
                         <th>Premium Access</th>
@@ -915,6 +973,61 @@ function removeBetaAccess(userId) {
                 Swal.fire('Updated', 'Beta access removed.', 'success').then(() => location.reload());
             } else {
                 Swal.fire('Error', data.msg || 'Could not update beta access.', 'error');
+            }
+        });
+    });
+}
+function manageBetaPrograms(userId) {
+    const user = usersData.find(u => u.id == userId);
+    if (!user) return;
+    const programs = JSON.parse(user.beta_programs || '[]');
+    const currentList = programs.length
+        ? programs.map(p => `<span class="sp-badge sp-badge-blue" style="margin:2px;cursor:pointer;" onclick="removeBetaProgram(${userId},'${p}')">${p} &times;</span>`).join(' ')
+        : '<em>None</em>';
+    Swal.fire({
+        title: `Beta Programs — ${user.username}`,
+        html: `
+            <p style="margin-bottom:0.5rem;">Current programs (click to remove):</p>
+            <div id="swal-programs-list" style="margin-bottom:1rem;">${currentList}</div>
+            <div style="display:flex;gap:0.5rem;">
+                <input id="swal-program-input" class="swal2-input" style="margin:0;flex:1;" placeholder="Program name (e.g. streaming)">
+                <button class="swal2-confirm swal2-styled" style="margin:0;" onclick="addBetaProgram(${userId})">Add</button>
+            </div>`,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'Close',
+    });
+}
+function addBetaProgram(userId) {
+    const program = document.getElementById('swal-program-input').value.trim().toLowerCase();
+    if (!program) return;
+    $.post('', { beta_programs_action: 'add', user_id: userId, program }, function(resp) {
+        let data = {};
+        try { data = JSON.parse(resp); } catch {}
+        if (data.success) {
+            Swal.fire('Added', `Added <b>${program}</b> to beta programs.`, 'success').then(() => location.reload());
+        } else {
+            Swal.fire('Error', data.msg || 'Could not update beta programs.', 'error');
+        }
+    });
+}
+function removeBetaProgram(userId, program) {
+    Swal.fire({
+        title: 'Remove program?',
+        html: `Remove <b>${program}</b> from this user's beta programs?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remove',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        $.post('', { beta_programs_action: 'remove', user_id: userId, program }, function(resp) {
+            let data = {};
+            try { data = JSON.parse(resp); } catch {}
+            if (data.success) {
+                Swal.fire('Removed', `Removed <b>${program}</b> from beta programs.`, 'success').then(() => location.reload());
+            } else {
+                Swal.fire('Error', data.msg || 'Could not update beta programs.', 'error');
             }
         });
     });

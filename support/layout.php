@@ -120,15 +120,17 @@ $v = uuidv4();
             </div>
             <!-- Support Tickets section -->
             <div class="sp-nav-section">
-                <div class="sp-nav-label">Support Tickets</div>
+                <div class="sp-nav-label">Support</div>
                 <?php if ($isLoggedIn): ?>
                     <a href="/tickets.php"               class="sp-nav-link"><i class="fa-solid fa-ticket"></i> My Tickets</a>
                     <a href="/tickets.php?action=new"    class="sp-nav-link"><i class="fa-solid fa-plus"></i> Submit a Ticket</a>
+                    <a href="/beta.php"                  class="sp-nav-link"><i class="fa-solid fa-flask"></i> Beta Programs</a>
                     <?php if ($userIsStaff): ?>
-                        <a href="/tickets.php?view=staff" class="sp-nav-link"><i class="fa-solid fa-headset"></i> Staff Queue</a>
+                        <a href="/tickets.php?view=queue" class="sp-nav-link sp-nav-link-staff"><i class="fa-solid fa-headset"></i> Staff Queue <span class="sp-badge sp-badge-accent" style="margin-left:auto;font-size:0.65rem;">Staff</span></a>
                     <?php endif; ?>
                 <?php else: ?>
                     <a href="/login.php"                  class="sp-nav-link"><i class="fa-solid fa-right-to-bracket"></i> Log in to Submit</a>
+                    <a href="/beta.php"                   class="sp-nav-link"><i class="fa-solid fa-flask"></i> Beta Programs</a>
                 <?php endif; ?>
             </div>
         </nav>

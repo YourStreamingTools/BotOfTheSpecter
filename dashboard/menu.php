@@ -84,6 +84,7 @@ function getMenuItems($role = 'default') {
         [ 'divider' => true ],
         [ 'label' => 'Log Management', 'icon' => 'fas fa-clipboard-list', 'href' => 'logs.php' ],
         [ 'label' => 'Feedback', 'icon' => 'fas fa-comments', 'href' => 'feedback.php' ],
+        [ 'label' => 'Beta Programs', 'icon' => 'fas fa-flask', 'href' => 'beta_programs.php' ],
         [ 'divider' => true ],
         [ 'label' => 'Twitch Tokens', 'icon' => 'fab fa-twitch', 'href' => 'twitch_tokens.php' ],
         [ 'label' => 'Discord Bot Overview', 'icon' => 'fab fa-discord', 'href' => 'discordbot_overview.php' ],
