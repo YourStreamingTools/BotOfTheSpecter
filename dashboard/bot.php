@@ -1332,34 +1332,49 @@ document.addEventListener('DOMContentLoaded', function() {
     const map = { success: 'sp-alert-success', danger: 'sp-alert-danger', warning: 'sp-alert-warning', info: 'sp-alert-info', update: 'sp-alert-warning' };
     return map[type] || 'sp-alert-info';
   }
+  // Get or create the fixed toast container (top-right, never affects page layout)
+  function getToastContainer() {
+    let c = document.getElementById('sp-toast-container');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'sp-toast-container';
+      c.style.cssText = [
+        'position:fixed',
+        'top:1.25rem',
+        'right:1.25rem',
+        'z-index:9999',
+        'display:flex',
+        'flex-direction:column',
+        'gap:0.5rem',
+        'max-width:420px',
+        'width:calc(100% - 2.5rem)',
+        'pointer-events:none',
+      ].join(';');
+      document.body.appendChild(c);
+    }
+    return c;
+  }
   // Function to show notifications
   function showNotification(message, type) {
     // Remove existing notifications with the same message and type
     document.querySelectorAll(`.sp-notif.sp-notif-${type}`).forEach(n => {
       // Skip removing update notifications here; they are persistent and handled separately
-      if (type === 'update' || n.classList.contains('bot-operation-persistent')) {
-        return;
-      }
-      if (n.textContent.trim() === message.trim()) {
-        n.parentNode.removeChild(n);
-      }
+      if (type === 'update' || n.classList.contains('bot-operation-persistent')) return;
+      if (n.textContent.trim() === message.trim()) n.remove();
     });
     // Remove previous status checking notifications when showing new ones
     if (message.includes('command sent') || message.includes('Checking') || message.includes('is now running')) {
       document.querySelectorAll('.sp-notif.sp-notif-info').forEach(n => {
-        // Don't remove update notifications or persistent notifications
-        if (n.classList.contains('bot-operation-persistent') || n.querySelector('.fas.fa-exclamation-triangle')) {
-          return;
-        }
+        if (n.classList.contains('bot-operation-persistent') || n.querySelector('.fas.fa-exclamation-triangle')) return;
         if (n.textContent.includes('command sent') || n.textContent.includes('Checking') || n.textContent.includes('status check timed out')) {
-          n.parentNode.removeChild(n);
+          n.remove();
         }
       });
     }
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `sp-alert ${notifClass(type)} sp-notif sp-notif-${type}`;
-    notification.style.cssText = 'margin-bottom:0.75rem; display:flex; align-items:flex-start; gap:0.5rem;';
+    notification.style.cssText = 'display:flex; align-items:flex-start; gap:0.5rem; pointer-events:auto; box-shadow:0 4px 14px rgba(0,0,0,0.3); margin:0;';
     // Add special handling for bot run operations in progress
     const isPersistentBotOperation = message.includes('currently starting up') || message.includes('Cannot switch bot types');
     // Add special handling for update notifications
@@ -1367,9 +1382,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // If this is an update notification, avoid creating duplicate persistent update notices
     if (isUpdateNotification) {
       try {
-        if (window._seenUpdateNotifications && window._seenUpdateNotifications.has(message.trim())) {
-          return;
-        }
+        if (window._seenUpdateNotifications && window._seenUpdateNotifications.has(message.trim())) return;
         const existing = Array.from(document.querySelectorAll('.bot-operation-persistent'))
           .find(n => n.textContent && n.textContent.trim() === message.trim());
         if (existing) {
@@ -1383,38 +1396,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isPersistentBotOperation || isUpdateNotification) {
       notification.classList.add('bot-operation-persistent');
       if (isUpdateNotification) {
-        // Update notifications are completely persistent with no delete button
-        notification.innerHTML = `
-          <i class="fas fa-exclamation-triangle"></i>
-          ${message}
-        `;
+        notification.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
       } else {
-        // Other persistent notifications get delete button
-        notification.innerHTML = `
-          <button class="sp-notif-close" aria-label="Dismiss">&times;</button>
-          <i class="fas fa-exclamation-triangle"></i>
-          ${message}
-        `;
-        // Add delete button functionality for non-update persistent notifications
-        const deleteBtn = notification.querySelector('.sp-notif-close');
-        deleteBtn.addEventListener('click', () => {
-          notification.parentNode.removeChild(notification);
-        });
+        notification.innerHTML = `<button class="sp-notif-close" aria-label="Dismiss">&times;</button><i class="fas fa-exclamation-triangle"></i> ${message}`;
+        notification.querySelector('.sp-notif-close').addEventListener('click', () => notification.remove());
       }
     } else {
-      notification.innerHTML = `
-        <button class="sp-notif-close" aria-label="Dismiss">&times;</button>
-        ${message}
-      `;
-      // Add delete button functionality
-      const deleteBtn = notification.querySelector('.sp-notif-close');
-      deleteBtn.addEventListener('click', () => {
-        notification.parentNode.removeChild(notification);
-      });
+      notification.innerHTML = `<button class="sp-notif-close" aria-label="Dismiss">&times;</button> ${message}`;
+      notification.querySelector('.sp-notif-close').addEventListener('click', () => notification.remove());
     }
-    // Add to the page
-    const container = document.querySelector('.sp-content');
-    container.insertBefore(notification, container.firstChild);
+    // Append to fixed overlay — never touches page layout
+    getToastContainer().appendChild(notification);
     // If this was an update notification, remember we've shown it this session
     if (isUpdateNotification) {
       try { window._seenUpdateNotifications.add(message.trim()); } catch(e) {}
@@ -1422,11 +1414,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-remove after time (except for persistent bot operation messages and update notifications)
     if (!isPersistentBotOperation && !isUpdateNotification) {
       const autoRemoveTime = type === 'info' ? 3000 : 5000;
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, autoRemoveTime);
+      setTimeout(() => { if (notification.parentNode) notification.remove(); }, autoRemoveTime);
     }
   }
   setInterval(function() {
