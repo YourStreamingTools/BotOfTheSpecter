@@ -11,14 +11,10 @@ ini_set('max_execution_time', 15);
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
 
-// Token validation function
-require_once __DIR__ . '/api/twitch_token_validate.php';
-
-// Check if the user is logged in
 if (!isset($_SESSION['access_token'])) {
   ob_clean();
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Authentication required']);
+  echo json_encode(['success' => false, 'message' => 'Authentication required', 'redirect' => 'login.php']);
   exit();
 }
 
@@ -26,18 +22,6 @@ if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] 
   ob_clean();
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'message' => 'Bot start/stop is disabled while acting as another channel.']);
-  exit();
-}
-
-// Validate the Twitch token before proceeding
-$tokenData = validateTwitchToken($_SESSION['access_token']);
-if (!$tokenData) {
-  // Token is invalid, clear session and return error
-  session_unset();
-  session_destroy();
-  ob_clean();
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Token expired', 'redirect' => 'login.php']);
   exit();
 }
 
