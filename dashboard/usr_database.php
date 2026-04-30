@@ -834,6 +834,17 @@ try {
                 text_color VARCHAR(20) NOT NULL DEFAULT '#FFFFFF',
                 font_family VARCHAR(100) NOT NULL DEFAULT 'Arial',
                 looping TINYINT(1) NOT NULL DEFAULT 1
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'song_request_analytics' => "
+            CREATE TABLE IF NOT EXISTS song_request_analytics (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                song_name VARCHAR(255) NOT NULL,
+                artist_name VARCHAR(255) NOT NULL,
+                requested_by VARCHAR(255) NOT NULL,
+                source VARCHAR(50) DEFAULT 'Twitch',
+                requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_requested_at (requested_at),
+                INDEX idx_song_name (song_name)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
