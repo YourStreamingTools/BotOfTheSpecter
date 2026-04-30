@@ -21,6 +21,13 @@ $db      = support_db();
 $success = '';
 $errors  = [];
 
+// Active beta programs — fetched from website DB (authoritative source)
+$betaPrograms = [];
+$_bpWdb = website_db();
+$_bpRes = $_bpWdb->query('SELECT slug, name FROM beta_programs WHERE is_active = 1 ORDER BY name ASC');
+if ($_bpRes) $betaPrograms = $_bpRes->fetch_all(MYSQLI_ASSOC);
+$_bpWdb->close();
+
 // Check if the logged-in user is a registered BotOfTheSpecter user
 $isRegisteredUser = is_staff(); // staff always pass
 if (!$isRegisteredUser) {
@@ -36,6 +43,74 @@ if (!$isRegisteredUser) {
     $wdb->close();
 }
 // ----------------------------------------------------------------
+// POST: Staff — approve or decline a beta program request
+// ----------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action'])
+    && in_array($_POST['_action'], ['approve_beta', 'decline_beta'], true)) {
+    if (!is_staff()) {
+        $errors[] = 'Insufficient permissions.';
+    } elseif (!verify_csrf()) {
+        $errors[] = 'Security token mismatch.';
+    } else {
+        $bAction   = $_POST['_action'];
+        $bTicketId = (int)($_POST['ticket_id'] ?? 0);
+        $tstmt = $db->prepare('SELECT id, ticket_number, twitch_user_id, display_name, meta FROM tickets WHERE id = ? AND category = ?');
+        $catKey = 'beta_request';
+        $tstmt->bind_param('is', $bTicketId, $catKey);
+        $tstmt->execute();
+        $trow = $tstmt->get_result()->fetch_assoc();
+        $tstmt->close();
+        if ($trow) {
+            $bMeta    = json_decode($trow['meta'] ?? '{}', true);
+            $bSlug    = $bMeta['program'] ?? '';
+            $bProgName = $bMeta['program_name'] ?? $bSlug;
+            if ($bAction === 'approve_beta' && $bSlug) {
+                // Add program to website.users.beta_programs
+                $wdb   = website_db();
+                $wstmt = $wdb->prepare('SELECT beta_programs FROM users WHERE twitch_user_id = ? LIMIT 1');
+                $wstmt->bind_param('s', $trow['twitch_user_id']);
+                $wstmt->execute();
+                $wstmt->bind_result($rawProgs);
+                $wstmt->fetch();
+                $wstmt->close();
+                $enrolled = json_decode($rawProgs ?? '[]', true) ?? [];
+                if (!in_array($bSlug, $enrolled, true)) {
+                    $enrolled[] = $bSlug;
+                }
+                $newJson = json_encode(array_values($enrolled));
+                $uw = $wdb->prepare('UPDATE users SET beta_programs = ? WHERE twitch_user_id = ?');
+                $uw->bind_param('ss', $newJson, $trow['twitch_user_id']);
+                $uw->execute();
+                $uw->close();
+                $wdb->close();
+                // Staff reply
+                $staffName  = $_SESSION['display_name'] ?? $_SESSION['username'] ?? 'Staff';
+                $approveMsg = "Your request for access to the \"{$bProgName}\" beta program has been approved! You now have access — head to your dashboard to get started.";
+                $rs = $db->prepare('INSERT INTO ticket_replies (ticket_id, author_twitch_id, author_display_name, is_staff, message) VALUES (?, ?, ?, 1, ?)');
+                $rs->bind_param('isss', $bTicketId, $_SESSION['twitch_user_id'], $staffName, $approveMsg);
+                $rs->execute();
+                $rs->close();
+                $db->query("UPDATE tickets SET status = 'resolved' WHERE id = {$bTicketId}");
+            } elseif ($bAction === 'decline_beta') {
+                $staffName  = $_SESSION['display_name'] ?? $_SESSION['username'] ?? 'Staff';
+                $reason = trim($_POST['reason'] ?? '');
+                $declineMsg = "Your request for access to the \"{$bProgName}\" beta program has been declined."
+                    . ($reason ? "\n\nReason: {$reason}" : '');
+                $rs = $db->prepare('INSERT INTO ticket_replies (ticket_id, author_twitch_id, author_display_name, is_staff, message) VALUES (?, ?, ?, 1, ?)');
+                $rs->bind_param('isss', $bTicketId, $_SESSION['twitch_user_id'], $staffName, $declineMsg);
+                $rs->execute();
+                $rs->close();
+                $db->query("UPDATE tickets SET status = 'closed' WHERE id = {$bTicketId}");
+            }
+            header('Location: /tickets.php?id=' . urlencode($trow['ticket_number']));
+            exit;
+        } else {
+            $errors[] = 'Ticket not found or is not a beta request.';
+        }
+    }
+}
+
+// ----------------------------------------------------------------
 // POST: Submit new ticket
 // ----------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST['_action'] === 'new_ticket') {
@@ -46,18 +121,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
         $category = $_POST['category']  ?? 'general';
         $priority = $_POST['priority']  ?? 'normal';
         $message  = trim($_POST['message'] ?? '');
-        $validCats  = ['billing', 'technical', 'account', 'general', 'feedback'];
+        $validCats  = ['billing', 'technical', 'account', 'general', 'feedback', 'beta_request'];
         $validPrios = ['low', 'normal', 'high'];
         $allowedPrios = is_staff() ? $validPrios : ['low', 'normal'];
+        $ticketMeta = null;
         // Feedback tickets get auto-generated subject and default priority
         if ($category === 'feedback') {
             $subject  = 'Feedback from ' . ($_SESSION['display_name'] ?? $_SESSION['username'] ?? 'Unknown');
             $priority = 'normal';
         }
-        if (strlen($subject) < 5)               $errors[] = 'Subject must be at least 5 characters.';
-        if (strlen($subject) > 255)             $errors[] = 'Subject must be 255 characters or fewer.';
+        // Beta request tickets get auto-generated subject and program stored in meta
+        if ($category === 'beta_request') {
+            $reqSlug = trim($_POST['program_slug'] ?? '');
+            $bpMap   = array_column($betaPrograms, 'name', 'slug');
+            if (!isset($bpMap[$reqSlug])) {
+                $errors[] = 'Please select a valid beta program.';
+            } else {
+                // Prevent duplicate pending requests
+                $dupStmt = $db->prepare(
+                    "SELECT id FROM tickets WHERE twitch_user_id = ? AND category = 'beta_request'
+                     AND JSON_EXTRACT(meta, '$.program') = ? AND status IN ('open','in_progress') LIMIT 1"
+                );
+                $dupStmt->bind_param('ss', $_SESSION['twitch_user_id'], $reqSlug);
+                $dupStmt->execute();
+                $dupStmt->store_result();
+                if ($dupStmt->num_rows > 0) {
+                    $errors[] = 'You already have a pending request for that beta program.';
+                }
+                $dupStmt->close();
+                $subject    = 'Beta Access Request: ' . $bpMap[$reqSlug];
+                $priority   = 'normal';
+                $ticketMeta = json_encode(['program' => $reqSlug, 'program_name' => $bpMap[$reqSlug]]);
+            }
+        }
+        if ($category !== 'feedback' && $category !== 'beta_request' && strlen($subject) < 5)   $errors[] = 'Subject must be at least 5 characters.';
+        if ($category !== 'feedback' && $category !== 'beta_request' && strlen($subject) > 255) $errors[] = 'Subject must be 255 characters or fewer.';
         if (!in_array($category, $validCats, true)) $errors[] = 'Invalid category.';
-        if ($category !== 'feedback' && !in_array($priority, $allowedPrios, true)) $errors[] = 'Invalid priority.';
+        if ($category !== 'feedback' && $category !== 'beta_request' && !in_array($priority, $allowedPrios, true)) $errors[] = 'Invalid priority.';
         if (strlen($message) < 20)              $errors[] = 'Message must be at least 20 characters.';
         if (strlen($message) > 5000)            $errors[] = 'Message must be 5000 characters or fewer.';
         if (empty($errors)) {
@@ -69,18 +169,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_action']) && $_POST[
             $tickNum = 'SPT-' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
             $stmt->close();
             $stmt = $db->prepare(
-                'INSERT INTO tickets (ticket_number, twitch_user_id, username, display_name, category, subject, status, priority)
-                 VALUES (?, ?, ?, ?, ?, ?, "open", ?)'
+                'INSERT INTO tickets (ticket_number, twitch_user_id, username, display_name, category, subject, status, priority, meta)
+                 VALUES (?, ?, ?, ?, ?, ?, "open", ?, ?)'
             );
             $stmt->bind_param(
-                'sssssss',
+                'ssssssss',
                 $tickNum,
                 $_SESSION['twitch_user_id'],
                 $_SESSION['username'],
                 $_SESSION['display_name'],
                 $category,
                 $subject,
-                $priority
+                $priority,
+                $ticketMeta
             );
             $stmt->execute();
             $newTicketId = $stmt->insert_id;
@@ -205,8 +306,8 @@ function prio_badge(string $p): string {
     return '<span class="sp-badge ' . $cls . '"><i class="fa-solid ' . $ic . '"></i> ' . ucfirst($p) . '</span>';
 }
 function cat_label(string $c): string {
-    $map = ['billing'=>'Billing','technical'=>'Technical','account'=>'Account','general'=>'General','feedback'=>'Feedback'];
-    return $map[$c] ?? ucfirst($c);
+    $map = ['billing'=>'Billing','technical'=>'Technical','account'=>'Account','general'=>'General','feedback'=>'Feedback','beta_request'=>'Beta Program Request'];
+    return $map[$c] ?? ucfirst(str_replace('_', ' ', $c));
 }
 function time_ago(string $dt): string {
     $diff = time() - strtotime($dt);
@@ -296,7 +397,46 @@ if ($ticketId):
     <span><i class="fa-regular fa-user"></i> Opened by <strong><?php echo htmlspecialchars($ticket['display_name'] ?: $ticket['username']); ?></strong></span>
     <span><i class="fa-regular fa-clock"></i> <?php echo date('d M Y, H:i', strtotime($ticket['created_at'])); ?></span>
     <span><i class="fa-regular fa-rotate"></i> Updated <?php echo time_ago($ticket['updated_at']); ?></span>
+    <?php if ($ticket['category'] === 'beta_request'): ?>
+    <?php $tMeta = json_decode($ticket['meta'] ?? '{}', true); $tProgName = $tMeta['program_name'] ?? $tMeta['program'] ?? 'Unknown'; ?>
+    <span><i class="fa-solid fa-flask"></i> Program: <strong><?php echo htmlspecialchars($tProgName); ?></strong></span>
+    <?php endif; ?>
 </div>
+
+<?php if (is_staff() && $ticket['category'] === 'beta_request' && in_array($ticket['status'], ['open','in_progress'], true)): ?>
+<div class="sp-card sp-mt-3" style="border-left:3px solid var(--accent,#7c3aed);">
+    <div class="sp-card-header"><i class="fa-solid fa-flask"></i> Beta Request — <?php echo htmlspecialchars($tProgName); ?></div>
+    <div class="sp-card-body">
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
+            <form method="POST" action="/tickets.php">
+                <input type="hidden" name="_action"    value="approve_beta">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                <input type="hidden" name="ticket_id"  value="<?php echo (int)$ticket['id']; ?>">
+                <button type="submit" class="sp-btn sp-btn-primary">
+                    <i class="fa-solid fa-circle-check"></i> Approve
+                </button>
+            </form>
+            <div>
+                <button type="button" class="sp-btn sp-btn-danger" onclick="document.getElementById('decline-form').style.display=''">
+                    <i class="fa-solid fa-circle-xmark"></i> Decline
+                </button>
+                <form id="decline-form" method="POST" action="/tickets.php" style="display:none;margin-top:0.75rem;">
+                    <input type="hidden" name="_action"    value="decline_beta">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                    <input type="hidden" name="ticket_id"  value="<?php echo (int)$ticket['id']; ?>">
+                    <div class="sp-form-group">
+                        <textarea name="reason" class="sp-textarea" rows="3"
+                            placeholder="Optional: reason for declining…"></textarea>
+                    </div>
+                    <button type="submit" class="sp-btn sp-btn-danger">
+                        <i class="fa-solid fa-circle-xmark"></i> Confirm Decline
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Thread -->
 <div class="sp-ticket-thread">
@@ -377,6 +517,10 @@ elseif ($action === 'new'):
 <div class="sp-card" style="max-width:640px;<?php echo !$isRegisteredUser ? 'opacity:0.5;pointer-events:none;' : ''; ?>">
     <div class="sp-card-header"><i class="fa-solid fa-ticket"></i> New Ticket</div>
     <div class="sp-card-body">
+        <?php
+        $preCategory = $_GET['category'] ?? ($_POST['category'] ?? 'general');
+        $preProgram  = $_GET['program']  ?? ($_POST['program_slug'] ?? '');
+        ?>
         <form method="POST" action="/tickets.php" data-once>
             <input type="hidden" name="_action"    value="new_ticket">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
@@ -384,11 +528,14 @@ elseif ($action === 'new'):
                 <div class="sp-form-group">
                     <label class="sp-label" for="ticket_category">Category</label>
                     <select id="ticket_category" name="category" class="sp-select">
-                        <option value="general">General</option>
-                        <option value="technical">Technical</option>
-                        <option value="account">Account</option>
-                        <option value="billing">Billing</option>
-                        <option value="feedback">Feedback</option>
+                        <option value="general"       <?php echo $preCategory==='general'       ?'selected':''; ?>>General</option>
+                        <option value="technical"     <?php echo $preCategory==='technical'     ?'selected':''; ?>>Technical</option>
+                        <option value="account"       <?php echo $preCategory==='account'       ?'selected':''; ?>>Account</option>
+                        <option value="billing"       <?php echo $preCategory==='billing'       ?'selected':''; ?>>Billing</option>
+                        <option value="feedback"      <?php echo $preCategory==='feedback'      ?'selected':''; ?>>Feedback</option>
+                        <?php if (!empty($betaPrograms)): ?>
+                        <option value="beta_request"  <?php echo $preCategory==='beta_request'  ?'selected':''; ?>>Beta Program Request</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div class="sp-form-group" id="priority_group">
@@ -401,6 +548,19 @@ elseif ($action === 'new'):
                         <?php endif; ?>
                     </select>
                 </div>
+            </div>
+            <!-- Beta program picker (shown only for beta_request category) -->
+            <div class="sp-form-group" id="program_group" style="display:none;">
+                <label class="sp-label" for="ticket_program">Beta Program <span class="sp-req">*</span></label>
+                <select id="ticket_program" name="program_slug" class="sp-select">
+                    <option value="">— Select a program —</option>
+                    <?php foreach ($betaPrograms as $bp): ?>
+                    <option value="<?php echo htmlspecialchars($bp['slug']); ?>"
+                        <?php echo $preProgram === $bp['slug'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($bp['name']); ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="sp-form-group" id="subject_group">
                 <label class="sp-label" for="ticket_subject">Subject <span class="sp-req">*</span></label>
@@ -424,29 +584,37 @@ elseif ($action === 'new'):
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var catSelect = document.getElementById('ticket_category');
-    var subjectGroup = document.getElementById('subject_group');
+    var catSelect     = document.getElementById('ticket_category');
+    var subjectGroup  = document.getElementById('subject_group');
     var priorityGroup = document.getElementById('priority_group');
-    var messageLabel = document.querySelector('label[for="ticket_message"]');
-    var messageTextarea = document.getElementById('ticket_message');
-    var submitBtn = document.getElementById('submit_ticket_btn');
+    var programGroup  = document.getElementById('program_group');
+    var messageLabel  = document.querySelector('label[for="ticket_message"]');
+    var messageTa     = document.getElementById('ticket_message');
+    var submitBtn     = document.getElementById('submit_ticket_btn');
     if (!catSelect) return;
-    function toggleFeedback() {
-        var isFeedback = catSelect.value === 'feedback';
-        subjectGroup.style.display = isFeedback ? 'none' : '';
-        priorityGroup.style.display = isFeedback ? 'none' : '';
+    function updateForm() {
+        var v = catSelect.value;
+        var isFeedback = v === 'feedback';
+        var isBeta     = v === 'beta_request';
+        subjectGroup.style.display  = (isFeedback || isBeta) ? 'none' : '';
+        priorityGroup.style.display = (isFeedback || isBeta) ? 'none' : '';
+        programGroup.style.display  = isBeta ? '' : 'none';
         if (isFeedback) {
             messageLabel.innerHTML = 'Your Feedback <span class="sp-req">*</span>';
-            messageTextarea.placeholder = 'Tell us what you think — what\'s working, what\'s not, or what you\'d like to see improved.';
-            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Feedback';
+            messageTa.placeholder  = 'Tell us what you think — what\'s working, what\'s not, or what you\'d like to see improved.';
+            submitBtn.innerHTML    = '<i class="fa-solid fa-paper-plane"></i> Submit Feedback';
+        } else if (isBeta) {
+            messageLabel.innerHTML = 'Why do you want access? <span class="sp-req">*</span>';
+            messageTa.placeholder  = 'Tell us a little about yourself and why you\'d like to join this beta program.';
+            submitBtn.innerHTML    = '<i class="fa-solid fa-paper-plane"></i> Submit Request';
         } else {
             messageLabel.innerHTML = 'Description <span class="sp-req">*</span>';
-            messageTextarea.placeholder = 'Please describe the issue in detail - what happened, what you expected, and any error messages you saw.';
-            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Ticket';
+            messageTa.placeholder  = 'Please describe the issue in detail - what happened, what you expected, and any error messages you saw.';
+            submitBtn.innerHTML    = '<i class="fa-solid fa-paper-plane"></i> Submit Ticket';
         }
     }
-    catSelect.addEventListener('change', toggleFeedback);
-    toggleFeedback();
+    catSelect.addEventListener('change', updateForm);
+    updateForm();
 });
 </script>
 <?php

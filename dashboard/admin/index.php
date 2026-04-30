@@ -1694,6 +1694,10 @@ ob_start();
                 <span class="icon"><i class="fas fa-terminal"></i></span>
                 <span>Web Terminal</span>
             </a>
+            <a href="beta_programs.php" class="sp-btn sp-btn-secondary">
+                <span class="icon"><i class="fas fa-flask"></i></span>
+                <span>Beta Programs</span>
+            </a>
         </div>
     </div>
 </div>

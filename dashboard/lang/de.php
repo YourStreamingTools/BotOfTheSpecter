@@ -801,6 +801,11 @@ return [
     'streaming_file_renamed_success' => 'Datei erfolgreich umbenannt!',
     'streaming_file_rename_error' => 'Fehler beim Umbenennen der Datei.',
     'streaming_error_fetching_updated_data' => 'Fehler beim Abrufen der aktualisierten Stream-Daten:',
+    // Streaming beta gate
+    'streaming_beta_title' => 'Streaming — Begrenzte Tests',
+    'streaming_beta_description' => 'Der Streaming-Dienst ist derzeit nur für eine begrenzte Anzahl von Testern verfügbar, während wir unsere neue Infrastruktur einführen. Zugang ist nur auf Einladung möglich.',
+    'streaming_beta_request_access' => 'Um Zugang anzufordern, besuchen Sie bitte unsere Support-Seite und stellen Sie eine Testanfrage. Unser Team wird Ihre Anfrage prüfen.',
+    'streaming_beta_support_link' => 'Support-Seite besuchen',
     // Persistent Storage Page
     'persistent_storage_title' => 'Permanenter Speicher',
     'persistent_storage_file_deleted_success' => 'Datei wurde erfolgreich gelöscht.',

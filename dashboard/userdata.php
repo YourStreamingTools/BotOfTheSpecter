@@ -73,6 +73,7 @@ $twitch_profile_image_url = $user['profile_image'];
 $email = $user['email'];
 $is_admin = ($user['is_admin'] == 1);
 $betaAccess = ($user['beta_access'] == 1);
+$betaPrograms = json_decode($user['beta_programs'] ?? '[]', true) ?? [];
 $twitchUserId = $user['twitch_user_id'];
 $refreshToken = $user['refresh_token'];
 $api_key = $user['api_key'];
@@ -89,6 +90,7 @@ $_SESSION['api_key'] = $api_key;
 $_SESSION['user_data'] = $user;
 $_SESSION['is_admin'] = $is_admin;
 $_SESSION['beta_access'] = $betaAccess;
+$_SESSION['beta_programs'] = $betaPrograms;
 $_SESSION['use_custom'] = $use_custom;
 $_SESSION['use_self'] = $use_self;
 

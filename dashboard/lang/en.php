@@ -859,6 +859,11 @@ return [
     'streaming_enter_valid_title' => 'Please enter a valid title',
     'streaming_file_rename_error' => 'An error occurred while renaming the file.',
     'streaming_error_fetching_updated_data' => 'Error fetching updated stream data:',
+    // Streaming beta gate
+    'streaming_beta_title' => 'Streaming — Limited Testing',
+    'streaming_beta_description' => 'The streaming service is currently available to a limited number of testers as we roll out our new infrastructure. Access is by invitation only.',
+    'streaming_beta_request_access' => 'To request access, please visit our support page and submit a testing request. Our team will review your request and grant access as capacity allows.',
+    'streaming_beta_support_link' => 'Visit Support Page',
     // Persistent Storage Page
     'persistent_storage_title' => 'Persistent Storage',
     'persistent_storage_file_deleted_success' => 'File has been successfully deleted.',
