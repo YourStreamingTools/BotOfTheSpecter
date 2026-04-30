@@ -339,6 +339,111 @@ ob_start();
                     </p>
                 </div>
             </div>
+            <?php
+            // Song Request Analytics - only query if table exists (table created by usr_database.php on first load)
+            $analyticsTableExists = $db->query("SHOW TABLES LIKE 'song_request_analytics'")->num_rows > 0;
+            if ($analyticsTableExists):
+                $srTotalResult = $db->query("SELECT COUNT(*) AS total FROM song_request_analytics");
+                $srTotal = $srTotalResult ? (int)$srTotalResult->fetch_assoc()['total'] : 0;
+                $srTopSongs = $db->query("SELECT song_name, artist_name, COUNT(*) AS request_count FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY request_count DESC LIMIT 10");
+                $srTopSongs = $srTopSongs ? $srTopSongs->fetch_all(MYSQLI_ASSOC) : [];
+                $srRecentRequests = $db->query("SELECT song_name, artist_name, requested_by, requested_at FROM song_request_analytics ORDER BY requested_at DESC LIMIT 10");
+                $srRecentRequests = $srRecentRequests ? $srRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
+            endif;
+            ?>
+            <?php if ($analyticsTableExists): ?>
+            <div class="sp-card" style="margin-top: 1.5rem;">
+                <div class="sp-card-header">
+                    <div class="sp-card-title">
+                        <i class="fas fa-chart-bar" style="color: var(--blue);"></i>
+                        Song Request Analytics
+                    </div>
+                    <span style="background: var(--blue); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.05em;">Beta 5.8</span>
+                </div>
+                <div class="sp-card-body">
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                        <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--green);"><?php echo number_format($srTotal); ?></div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">Total Requests</div>
+                        </div>
+                        <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--blue);"><?php echo count($srTopSongs); ?></div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">Unique Songs</div>
+                        </div>
+                    </div>
+                    <?php if (!empty($srTopSongs)): ?>
+                    <div class="sp-card" style="margin-bottom: 1.5rem;">
+                        <div class="sp-card-header">
+                            <div class="sp-card-title" style="font-size: 0.95rem;">
+                                <i class="fas fa-trophy" style="color: var(--yellow, #f5c542);"></i>
+                                Top Requested Songs
+                            </div>
+                        </div>
+                        <div class="sp-card-body" style="padding: 0;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">#</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Song</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Artist</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;">Requests</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($srTopSongs as $i => $row): ?>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo $i + 1; ?></td>
+                                        <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['song_name']); ?></td>
+                                        <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['artist_name']); ?></td>
+                                        <td style="padding: 0.6rem 1rem; text-align: right; color: var(--green); font-weight: 600;"><?php echo $row['request_count']; ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (!empty($srRecentRequests)): ?>
+                    <div class="sp-card">
+                        <div class="sp-card-header">
+                            <div class="sp-card-title" style="font-size: 0.95rem;">
+                                <i class="fas fa-history" style="color: var(--text-secondary);"></i>
+                                Recent Requests
+                            </div>
+                        </div>
+                        <div class="sp-card-body" style="padding: 0;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Song</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Artist</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Requested By</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($srRecentRequests as $row): ?>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['song_name']); ?></td>
+                                        <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['artist_name']); ?></td>
+                                        <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['requested_by']); ?></td>
+                                        <td style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); white-space: nowrap;"><?php echo htmlspecialchars($row['requested_at']); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (empty($srTopSongs) && empty($srRecentRequests)): ?>
+                    <div class="sp-alert sp-alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        No song requests have been recorded yet. Analytics will appear here once viewers start using <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest</code>.
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         <?php else: ?>
             <div style="text-align: center;">
                 <div style="max-width: 700px; margin: 0 auto 1.5rem;">

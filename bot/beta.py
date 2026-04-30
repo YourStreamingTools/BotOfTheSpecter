@@ -5735,8 +5735,15 @@ class TwitchBot(commands.Bot):
                 async with queue_session.post(request_url, headers=headers) as response:
                     if response.status == 200:
                         await send_chat_message(f"The song {song_name} by {artist_name} has been added to the queue.")
-                        # Record usage
                         add_usage('songrequest', bucket_key, cooldown_bucket)
+                        try:
+                            async with connection.cursor() as analytics_cursor:
+                                await analytics_cursor.execute(
+                                    "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
+                                    (song_name, artist_name, ctx.message.author.name)
+                                )
+                        except Exception as analytics_err:
+                            api_logger.error(f"[SONG REQUEST] Failed to record analytics: {analytics_err}")
                     else:
                         api_logger.error(f"[SONG REQUEST] Spotify returned response code: {response.status}")
                         error_message = SPOTIFY_ERROR_MESSAGES.get(response.status, "Spotify gave me an unknown error. Try again in a moment.")
