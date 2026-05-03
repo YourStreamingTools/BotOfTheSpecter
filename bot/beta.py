@@ -9736,6 +9736,26 @@ async def is_valid_twitch_user(user_name):
                 # If there's an error with the request or response, return False
                 return False
 
+# Returns (user_id_str, display_name) for a given Twitch login, or (None, None) if not found
+async def get_twitch_user_by_login(login_name):
+    global CLIENT_ID, CHANNEL_AUTH
+    url = f"https://api.twitch.tv/helix/users?login={login_name}"
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    try:
+        async with httpClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('data'):
+                        user_data = data['data'][0]
+                        return str(user_data['id']), user_data['display_name']
+    except Exception:
+        pass
+    return None, None
+
 # Function to get the diplay name of the user from their user id
 async def get_display_name(user_id):
     global CLIENT_ID, CHANNEL_AUTH
@@ -10159,7 +10179,7 @@ DYNAMIC_VARIABLE_SWITCHES = (
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
-    '(call.',
+    '(call.', '(shoutout.',
     # Channel-point-specific variables (only processed when channel_point_data is provided)
     '(userstreak)', '(track)', '(tts)', '(tts.message)',
     '(lotto)', '(fortune)', '(message)', '(vip)', '(vip.today)',
@@ -10418,6 +10438,21 @@ async def process_dynamic_variables(
                         match_call = calling_match.group(1)
                         response = response.replace(f"(call.{match_call})", "")
                         pending_calls.append(match_call)
+                # Handle (shoutout.username) - trigger a shoutout for a named user
+                if '(shoutout.' in response:
+                    so_match = re.search(r'\(shoutout\.(\w+)\)', response)
+                    if so_match:
+                        so_username = so_match.group(1)
+                        response = response.replace(f"(shoutout.{so_username})", "")
+                        try:
+                            so_user_id, so_display_name = await get_twitch_user_by_login(so_username)
+                            if so_user_id:
+                                so_message = await get_shoutout_message(so_user_id, so_display_name or so_username, "variable")
+                                await add_shoutout(so_display_name or so_username, so_user_id, is_automated=True, shoutout_message=so_message, source="variable")
+                            else:
+                                chat_logger.warning(f"[MESSAGE VARS] (shoutout.{so_username}): user not found on Twitch, shoutout skipped")
+                        except Exception as so_err:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (shoutout.{so_username}): {so_err}")
                 # Handle (command.) - reference other commands
                 if '(command.' in response:
                     command_match = re.search(r'\(command\.(\w+)\)', response)
