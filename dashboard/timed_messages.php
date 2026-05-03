@@ -271,6 +271,10 @@ ob_start();
                             <span><?php echo t('custom_commands_view_variables') ?: 'View Custom Variables'; ?></span>
                         </a>
                     </div>
+                    <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
+                        <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
+                        <label for="betaBotToggle">Using Beta Bot? <strong>Enables 500 character limit.</strong></label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -480,6 +484,18 @@ ob_start();
 ?>
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
 <script>
+var charLimit = 255;
+function applyBetaBotCharLimit(enabled) {
+    charLimit = enabled ? 500 : 255;
+    localStorage.setItem('betaBotMode', enabled ? '1' : '0');
+    ['message', 'edit_message_content'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.setAttribute('maxlength', charLimit);
+    });
+    updateCharCount('message', 'charCount');
+    updateCharCount('edit_message_content', 'editCharCount');
+}
+
 // Returns true if the given input's value contains a (shoutout.username) variable
 function hasShoutoutVar(inputId) {
     var val = document.getElementById(inputId) ? document.getElementById(inputId).value : '';
@@ -550,7 +566,7 @@ function showMessage() {
 function updateCharCount(inputId, counterId) {
     const input = document.getElementById(inputId);
     const counter = document.getElementById(counterId);
-    const maxLength = 255;
+    const maxLength = charLimit;
     const currentLength = input.value.length;
     // Update the counter text
     counter.textContent = currentLength + '/' + maxLength + ' characters';
@@ -707,6 +723,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Call the function initially to pre-fill the fields if a default message is selected
 window.onload = function() {
+    var betaEnabled = localStorage.getItem('betaBotMode') === '1';
+    var toggle = document.getElementById('betaBotToggle');
+    if (toggle) toggle.checked = betaEnabled;
+    applyBetaBotCharLimit(betaEnabled);
     toggleAddTriggerType();
     showResponse();
     updateCharCount('message', 'charCount');

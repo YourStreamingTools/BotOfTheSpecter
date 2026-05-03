@@ -405,6 +405,10 @@ ob_start();
                         message to both chat and text-to-speech.</li>
                     <li><span style="font-weight:700;">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
                 </ul>
+                <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
+                    <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
+                    <label for="betaBotToggle">Using Beta Bot? <strong>Enables 500 character limit.</strong></label>
+                </div>
             </div>
             <!-- Tabs -->
             <ul class="sp-tabs-nav" style="margin-bottom:1.25rem;">
@@ -798,7 +802,21 @@ if (!empty($channelPointRewards)) {
     const rewardMap = <?php echo json_encode($rewardMap); ?>;
     const allRewardIds = Object.keys(rewardMap);
     let allRedemptions = [];
+    var charLimit = 255;
+    function applyBetaBotCharLimit(enabled) {
+        charLimit = enabled ? 500 : 255;
+        localStorage.setItem('betaBotMode', enabled ? '1' : '0');
+        document.querySelectorAll('.custom-message').forEach(function(el) {
+            el.setAttribute('maxlength', charLimit);
+            var rewardid = el.getAttribute('data-reward-id');
+            if (rewardid) updateCharCount(rewardid);
+        });
+    }
     document.addEventListener('DOMContentLoaded', function () {
+        var betaEnabled = localStorage.getItem('betaBotMode') === '1';
+        var toggle = document.getElementById('betaBotToggle');
+        if (toggle) toggle.checked = betaEnabled;
+        applyBetaBotCharLimit(betaEnabled);
         if (allRewardIds.length > 0) {
             fetchAllRedemptions();
         } else {
@@ -1324,8 +1342,8 @@ if (!empty($channelPointRewards)) {
         const textarea = document.querySelector(`.custom-message[data-reward-id="${rewardid}"]`);
         const countDiv = document.getElementById('count-' + rewardid);
         const length = textarea.value.length;
-        countDiv.textContent = length + ' / 255 characters';
-        if (length > 255) {
+        countDiv.textContent = length + ' / ' + charLimit + ' characters';
+        if (length > charLimit) {
             countDiv.style.color = 'red';
         } else {
             countDiv.style.color = '';
