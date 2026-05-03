@@ -592,6 +592,12 @@ ob_start();
                                                     <button class="sp-btn sp-btn-info sp-btn-sm edit-btn"
                                                         data-reward-id="<?php echo $rId; ?>"><i
                                                             class="fas fa-pencil-alt"></i></button>
+                                                    <?php if ($managedBy === 'specter'): ?>
+                                                    <button class="sp-btn sp-btn-secondary sp-btn-sm edit-reward-btn"
+                                                        data-reward-id="<?php echo htmlspecialchars($rId, ENT_QUOTES, 'UTF-8'); ?>"
+                                                        title="Edit reward on Twitch"
+                                                        style="margin-left:0.25rem;"><i class="fas fa-cog"></i></button>
+                                                    <?php endif; ?>
                                                     <div class="save-cancel" id="save-cancel-<?php echo $rId; ?>"
                                                         style="display: none;">
                                                         <button class="sp-btn sp-btn-success sp-btn-sm save-btn"
@@ -782,6 +788,83 @@ ob_start();
         </div>
     </div>
 </div>
+<!-- Edit Reward Modal -->
+<div id="edit-reward-modal" class="modal">
+    <div class="modal-background" onclick="closeEditRewardModal()"></div>
+    <div class="modal-card">
+        <div class="modal-card-head">
+            <p class="modal-card-title"><i class="fas fa-cog" style="margin-right:0.5rem;"></i> Edit Reward on Twitch</p>
+            <button class="modal-close" onclick="closeEditRewardModal()"></button>
+        </div>
+        <div class="modal-card-body">
+            <input type="hidden" id="edit-reward-id">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div class="sp-form-group">
+                    <label class="sp-label">Title *</label>
+                    <input class="sp-input" type="text" id="edit-reward-title" maxlength="45" required placeholder="Reward title">
+                </div>
+                <div class="sp-form-group">
+                    <label class="sp-label">Cost *</label>
+                    <input class="sp-input" type="number" id="edit-reward-cost" min="1" required>
+                </div>
+            </div>
+            <div class="sp-form-group">
+                <label class="sp-label">Prompt <span style="font-weight:400; text-transform:none; color:var(--text-muted);">(shown when redeeming, max 200 chars)</span></label>
+                <textarea class="sp-input" id="edit-reward-prompt" maxlength="200" placeholder="Describe this reward..." style="min-height:4rem; resize:vertical;"></textarea>
+            </div>
+            <div class="sp-form-group">
+                <label class="sp-label">Background Color</label>
+                <input class="sp-input" type="color" id="edit-reward-bg-color" style="height:40px; padding:2px; width:80px;">
+            </div>
+            <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; margin-bottom:0.75rem;">
+                <div class="sp-form-group">
+                    <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
+                        <input type="checkbox" id="edit-toggle-max-stream"> Max per stream
+                    </label>
+                    <div id="edit-field-max-stream" style="display:none; margin-top:0.5rem;">
+                        <input class="sp-input" type="number" id="edit-max-per-stream" min="1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="sp-form-group">
+                    <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
+                        <input type="checkbox" id="edit-toggle-max-user"> Max per user/stream
+                    </label>
+                    <div id="edit-field-max-user" style="display:none; margin-top:0.5rem;">
+                        <input class="sp-input" type="number" id="edit-max-per-user-stream" min="1" placeholder="Max">
+                    </div>
+                </div>
+                <div class="sp-form-group">
+                    <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
+                        <input type="checkbox" id="edit-toggle-cooldown"> Cooldown
+                    </label>
+                    <div id="edit-field-cooldown" style="display:none; margin-top:0.5rem;">
+                        <input class="sp-input" type="number" id="edit-cooldown-seconds" min="1" placeholder="Seconds">
+                    </div>
+                </div>
+            </div>
+            <div class="sp-form-group">
+                <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
+                    <input type="checkbox" id="edit-user-input-required"> Require user input
+                </label>
+            </div>
+            <div class="sp-form-group">
+                <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
+                    <input type="checkbox" id="edit-skip-queue"> Skip request queue (auto-fulfill)
+                </label>
+            </div>
+            <div class="sp-form-group">
+                <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
+                    <input type="checkbox" id="edit-is-paused"> Pause reward
+                </label>
+            </div>
+        </div>
+        <div class="modal-card-foot">
+            <button class="sp-btn sp-btn-secondary" onclick="closeEditRewardModal()">Cancel</button>
+            <button class="sp-btn sp-btn-primary" id="edit-reward-submit">Save Changes</button>
+        </div>
+    </div>
+</div>
 <?php
 // Prepare reward IDs for JS
 $rewardMap = [];
@@ -797,10 +880,20 @@ if (!empty($channelPointRewards)) {
         }
     }
 }
+$specterRewardsData = [];
+if (!empty($twitchRewards)) {
+    foreach ($twitchRewards as $r) {
+        $rId = $r['id'] ?? '';
+        if (!empty($rId) && isset($dbRewardsMap[$rId]) && ($dbRewardsMap[$rId]['managed_by'] ?? '') === 'specter') {
+            $specterRewardsData[$rId] = $r;
+        }
+    }
+}
 ?>
 <script>
     const rewardMap = <?php echo json_encode($rewardMap); ?>;
     const allRewardIds = Object.keys(rewardMap);
+    const specterRewardsData = <?php echo json_encode($specterRewardsData); ?>;
     let allRedemptions = [];
     var charLimit = 255;
     function applyBetaBotCharLimit(enabled) {
@@ -1455,6 +1548,112 @@ if (!empty($channelPointRewards)) {
                         });
                     });
             });
+        }
+    });
+    // Edit Reward Modal
+    function openEditRewardModal(rewardId) {
+        var r = specterRewardsData[rewardId];
+        if (!r) {
+            Swal.fire({ title: 'Error', text: 'Could not find reward data. Try syncing first.', icon: 'error', background: '#333', color: '#fff' });
+            return;
+        }
+        document.getElementById('edit-reward-id').value = rewardId;
+        document.getElementById('edit-reward-title').value = r.title || '';
+        document.getElementById('edit-reward-cost').value = r.cost || 1;
+        document.getElementById('edit-reward-prompt').value = r.prompt || '';
+        document.getElementById('edit-reward-bg-color').value = r.background_color || '#00E5CB';
+        document.getElementById('edit-user-input-required').checked = !!r.is_user_input_required;
+        document.getElementById('edit-skip-queue').checked = !!r.should_redemptions_skip_request_queue;
+        document.getElementById('edit-is-paused').checked = !!r.is_paused;
+        var maxStreamEnabled = r.max_per_stream_setting && r.max_per_stream_setting.is_enabled;
+        document.getElementById('edit-toggle-max-stream').checked = !!maxStreamEnabled;
+        document.getElementById('edit-field-max-stream').style.display = maxStreamEnabled ? 'block' : 'none';
+        document.getElementById('edit-max-per-stream').value = (r.max_per_stream_setting && r.max_per_stream_setting.max_per_stream) || '';
+        var maxUserEnabled = r.max_per_user_per_stream_setting && r.max_per_user_per_stream_setting.is_enabled;
+        document.getElementById('edit-toggle-max-user').checked = !!maxUserEnabled;
+        document.getElementById('edit-field-max-user').style.display = maxUserEnabled ? 'block' : 'none';
+        document.getElementById('edit-max-per-user-stream').value = (r.max_per_user_per_stream_setting && r.max_per_user_per_stream_setting.max_per_user_per_stream) || '';
+        var cooldownEnabled = r.global_cooldown_setting && r.global_cooldown_setting.is_enabled;
+        document.getElementById('edit-toggle-cooldown').checked = !!cooldownEnabled;
+        document.getElementById('edit-field-cooldown').style.display = cooldownEnabled ? 'block' : 'none';
+        document.getElementById('edit-cooldown-seconds').value = (r.global_cooldown_setting && r.global_cooldown_setting.global_cooldown_seconds) || '';
+        document.getElementById('edit-reward-modal').classList.add('is-active');
+    }
+    function closeEditRewardModal() {
+        document.getElementById('edit-reward-modal').classList.remove('is-active');
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('edit-toggle-max-stream').addEventListener('change', function () {
+            document.getElementById('edit-field-max-stream').style.display = this.checked ? 'block' : 'none';
+        });
+        document.getElementById('edit-toggle-max-user').addEventListener('change', function () {
+            document.getElementById('edit-field-max-user').style.display = this.checked ? 'block' : 'none';
+        });
+        document.getElementById('edit-toggle-cooldown').addEventListener('change', function () {
+            document.getElementById('edit-field-cooldown').style.display = this.checked ? 'block' : 'none';
+        });
+        document.getElementById('edit-reward-submit').addEventListener('click', function () {
+            var rewardId = document.getElementById('edit-reward-id').value;
+            var title = document.getElementById('edit-reward-title').value.trim();
+            var cost = document.getElementById('edit-reward-cost').value;
+            if (!title || !cost) {
+                Swal.fire({ title: 'Error', text: 'Title and Cost are required.', icon: 'error', background: '#333', color: '#fff' });
+                return;
+            }
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            var formData = new FormData();
+            formData.append('reward_id', rewardId);
+            formData.append('title', title);
+            formData.append('cost', cost);
+            formData.append('prompt', document.getElementById('edit-reward-prompt').value);
+            formData.append('background_color', document.getElementById('edit-reward-bg-color').value);
+            formData.append('is_user_input_required', document.getElementById('edit-user-input-required').checked ? 'true' : 'false');
+            formData.append('should_redemptions_skip_request_queue', document.getElementById('edit-skip-queue').checked ? 'true' : 'false');
+            formData.append('is_paused', document.getElementById('edit-is-paused').checked ? 'true' : 'false');
+            formData.append('is_max_per_stream_enabled', document.getElementById('edit-toggle-max-stream').checked ? 'true' : 'false');
+            if (document.getElementById('edit-toggle-max-stream').checked) {
+                formData.append('max_per_stream', document.getElementById('edit-max-per-stream').value);
+            }
+            formData.append('is_max_per_user_per_stream_enabled', document.getElementById('edit-toggle-max-user').checked ? 'true' : 'false');
+            if (document.getElementById('edit-toggle-max-user').checked) {
+                formData.append('max_per_user_per_stream', document.getElementById('edit-max-per-user-stream').value);
+            }
+            formData.append('is_global_cooldown_enabled', document.getElementById('edit-toggle-cooldown').checked ? 'true' : 'false');
+            if (document.getElementById('edit-toggle-cooldown').checked) {
+                formData.append('global_cooldown_seconds', document.getElementById('edit-cooldown-seconds').value);
+            }
+            fetch('edit_reward.php', { method: 'POST', body: formData })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Save Changes';
+                    if (data.success) {
+                        closeEditRewardModal();
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'Reward updated successfully.',
+                            icon: 'success',
+                            background: '#333',
+                            color: '#fff'
+                        }).then(function () { location.reload(); });
+                    } else {
+                        Swal.fire({ title: 'Error', text: data.error || 'Failed to update reward.', icon: 'error', background: '#333', color: '#fff' });
+                    }
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Save Changes';
+                    Swal.fire({ title: 'Error', text: 'Network error occurred.', icon: 'error', background: '#333', color: '#fff' });
+                });
+        });
+    });
+    document.addEventListener('click', function (e) {
+        if (e.target && e.target.closest('.edit-reward-btn')) {
+            var btn = e.target.closest('.edit-reward-btn');
+            var rewardId = btn.getAttribute('data-reward-id');
+            if (rewardId) openEditRewardModal(rewardId);
         }
     });
 </script>
