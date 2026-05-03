@@ -8075,6 +8075,10 @@ class TwitchBot(commands.Bot):
                     chat_logger.info(f"[ADD COMMAND] Creating custom command '{command}' as override for disabled built-in command")
             # Insert the command and response into the database
             async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute('SELECT command FROM custom_commands WHERE command = %s', (command,))
+                if await cursor.fetchone():
+                    await send_chat_message(f"Command !{command} already exists. Use !editcommand to change it.")
+                    return
                 await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
                 await connection.commit()
             chat_logger.info(f"[ADD COMMAND] {ctx.author.name} has added the command !{command} with the response: {response}")
