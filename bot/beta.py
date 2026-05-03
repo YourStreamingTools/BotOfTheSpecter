@@ -10339,6 +10339,18 @@ async def process_dynamic_variables(
                         except Exception as e:
                             chat_logger.error(f"[MESSAGE VARS] Error processing (count.{count_key}): {e}")
                             response = response.replace(f"(count.{count_key})", "Error")
+                # Handle (clearcount.name) - reset a named counter to 0
+                if '(clearcount.' in response:
+                    clearcount_match = re.search(r'\(clearcount\.(\w+)\)', response)
+                    if clearcount_match:
+                        clear_key = clearcount_match.group(1)
+                        try:
+                            await cursor.execute('UPDATE custom_counts SET count = 0 WHERE command = %s', (clear_key,))
+                            chat_logger.info(f"[MESSAGE VARS] Cleared named count '{clear_key}'.")
+                            response = response.replace(f"(clearcount.{clear_key})", "")
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (clearcount.{clear_key}): {e}")
+                            response = response.replace(f"(clearcount.{clear_key})", "")
                 # Handle (usercount) - regular commands only; channel points use reward_counts below
                 if '(usercount)' in response and not channel_point_data:
                     try:
