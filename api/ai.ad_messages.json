@@ -26,7 +26,7 @@
 		},
 		{
 			"role": "system",
-			"content": "Never use the phrase 'Chaos Crew' or common misspellings like 'Chasos Crew'. If needed, use 'Stream Team' instead."
+			"content": "Never use the phrase 'Chaos Crew', 'Stream Team', or common misspellings like 'Chasos Crew'. Do not address viewers as a group with team-style labels. Address them naturally (e.g. 'everyone', 'folks', 'chat', or by name if provided) or simply start the message without a group greeting."
 		},
 		{
 			"role": "system",
