@@ -67,12 +67,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST['message']) && isset($_POST['trigger_type'])) {
         $message = $_POST['message'];
         $trigger_type = in_array($_POST['trigger_type'], ['timer', 'chat_lines', 'both']) ? $_POST['trigger_type'] : 'timer';
+        $has_shoutout_var = (bool)preg_match('/\(shoutout\.\w+\)/', $message);
         $interval = null;
         $chat_line_trigger = null;
         if ($trigger_type === 'timer' || $trigger_type === 'both') {
-            $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+            $int_min = $has_shoutout_var ? 60 : 5;
+            $interval = filter_input(INPUT_POST, 'interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => $int_min, "max_range" => 480)));
             if ($interval === false || $interval === null) {
-                $errorMessage = "Interval must be a valid integer between 5 and 60.";
+                $errorMessage = $has_shoutout_var
+                    ? "Interval must be at least 60 minutes when using (shoutout.username)."
+                    : "Interval must be a valid integer between 5 and 480.";
             }
         }
         if (empty($errorMessage) && ($trigger_type === 'chat_lines' || $trigger_type === 'both')) {
@@ -157,12 +161,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $edit_message_content = $_POST['edit_message_content'];
         $edit_status = $_POST['edit_status'];
         $edit_trigger_type = in_array($_POST['edit_trigger_type'], ['timer', 'chat_lines', 'both']) ? $_POST['edit_trigger_type'] : 'timer';
+        $edit_has_shoutout_var = (bool)preg_match('/\(shoutout\.\w+\)/', $edit_message_content);
         $edit_interval = null;
         $edit_chat_line_trigger = null;
         if ($edit_trigger_type === 'timer' || $edit_trigger_type === 'both') {
-            $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => 5, "max_range" => 60)));
+            $edit_int_min = $edit_has_shoutout_var ? 60 : 5;
+            $edit_interval = filter_input(INPUT_POST, 'edit_interval', FILTER_VALIDATE_INT, array("options" => array("min_range" => $edit_int_min, "max_range" => 480)));
             if ($edit_interval === false || $edit_interval === null) {
-                $errorMessage = "Interval must be a valid integer between 5 and 60.";
+                $errorMessage = $edit_has_shoutout_var
+                    ? "Interval must be at least 60 minutes when using (shoutout.username)."
+                    : "Interval must be a valid integer between 5 and 480.";
             }
         }
         if (empty($errorMessage) && ($edit_trigger_type === 'chat_lines' || $edit_trigger_type === 'both')) {
@@ -284,8 +292,9 @@ ob_start();
                     <form id="addMessageForm" method="post" action="" onsubmit="return validateForm()">
                         <div class="sp-form-group">
                             <label class="sp-label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
-                            <input class="sp-input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); toggleAddButton();">
+                            <input class="sp-input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); updateShoutoutHint('message', 'interval', 'shoutoutHint'); toggleAddButton();">
                             <small id="charCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
+                            <small id="shoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>Using <code>(shoutout.username)</code> requires a minimum interval of 60 minutes.</small>
                             <small id="messageError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></small>
                         </div>
                         <div class="sp-form-group">
@@ -299,7 +308,7 @@ ob_start();
                         </div>
                         <div class="sp-form-group" id="add_interval_field">
                             <label class="sp-label" for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
-                            <input class="sp-input" type="number" name="interval" id="interval" min="5" max="60" value="5" oninput="toggleAddButton();">
+                            <input class="sp-input" type="number" name="interval" id="interval" min="5" max="480" value="5" oninput="toggleAddButton();">
                             <small id="intervalError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_interval_error'); ?></small>
                         </div>
                         <div class="sp-form-group" id="add_chat_line_field" style="display:none;">
@@ -343,7 +352,7 @@ ob_start();
                         </div>
                         <div class="sp-form-group" id="edit_interval_field">
                             <label class="sp-label" for="edit_interval"><?php echo t('timed_messages_interval_label'); ?></label>
-                            <input class="sp-input" type="number" name="edit_interval" id="edit_interval" min="5" max="60" oninput="toggleEditButton();">
+                            <input class="sp-input" type="number" name="edit_interval" id="edit_interval" min="5" max="480" oninput="toggleEditButton();">
                         </div>
                         <div class="sp-form-group" id="edit_chat_line_field" style="display:none;">
                             <label class="sp-label" for="edit_chat_line_trigger"><?php echo t('timed_messages_chat_line_trigger_label'); ?></label>
@@ -351,8 +360,9 @@ ob_start();
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
-                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); toggleEditButton();">
+                            <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint'); toggleEditButton();">
                             <small id="editCharCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
+                            <small id="editShoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>Using <code>(shoutout.username)</code> requires a minimum interval of 60 minutes.</small>
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_status"><?php echo t('timed_messages_status_label'); ?></label>
@@ -470,6 +480,25 @@ ob_start();
 ?>
 <script src="js/yourlinks-shortener.js?v=<?php echo filemtime(__DIR__ . '/js/yourlinks-shortener.js'); ?>"></script>
 <script>
+// Returns true if the given input's value contains a (shoutout.username) variable
+function hasShoutoutVar(inputId) {
+    var val = document.getElementById(inputId) ? document.getElementById(inputId).value : '';
+    return /\(shoutout\.\w+\)/.test(val);
+}
+
+// Show/update the shoutout hint and enforce the interval minimum
+function updateShoutoutHint(msgInputId, intervalInputId, hintId) {
+    var hint = document.getElementById(hintId);
+    var intervalInput = document.getElementById(intervalInputId);
+    if (!hint || !intervalInput) return;
+    var needsMin60 = hasShoutoutVar(msgInputId);
+    hint.style.display = needsMin60 ? '' : 'none';
+    intervalInput.min = needsMin60 ? '60' : '5';
+    if (needsMin60 && Number(intervalInput.value) < 60) {
+        intervalInput.value = '60';
+    }
+}
+
 // Function to show response for editing
 function showResponse() {
     var editMessage = document.getElementById('edit_message').value;
@@ -487,6 +516,7 @@ function showResponse() {
         if (editStatus) editStatus.value = (messageData.status == 1) ? 'True' : 'False';
         if (editTriggerType) editTriggerType.value = messageData.trigger_type || 'timer';
         updateCharCount('edit_message_content', 'editCharCount');
+        updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint');
         toggleEditTriggerType();
     } else {
         editMessageContent.value = '';
@@ -496,6 +526,7 @@ function showResponse() {
         if (editTriggerType) editTriggerType.value = 'timer';
         document.getElementById('editCharCount').textContent = '0/255 characters';
         document.getElementById('editCharCount').className = 'sp-help';
+        updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint');
         toggleEditTriggerType();
     }
     toggleEditButton();
@@ -556,9 +587,10 @@ function toggleAddButton() {
     var triggerType = document.getElementById('trigger_type').value;
     var addBtn = document.getElementById('addMessageButton');
     var valid = message.length > 0;
+    var intMin = hasShoutoutVar('message') ? 60 : 5;
     if (triggerType === 'timer' || triggerType === 'both') {
         var interval = document.getElementById('interval').value;
-        valid = valid && interval !== "" && !isNaN(interval) && Number(interval) >= 5 && Number(interval) <= 60;
+        valid = valid && interval !== "" && !isNaN(interval) && Number(interval) >= intMin && Number(interval) <= 480;
     }
     if (triggerType === 'chat_lines' || triggerType === 'both') {
         var chatLine = document.getElementById('chat_line_trigger').value;
@@ -576,9 +608,10 @@ function toggleEditButton() {
     var editBtn = document.getElementById('editMessageButton');
     if (!editBtn) return;
     var valid = editMessage !== "" && editMessageContent.length > 0 && editMessageContent.length <= 255 && editStatus !== "";
+    var editIntMin = hasShoutoutVar('edit_message_content') ? 60 : 5;
     if (editTriggerType === 'timer' || editTriggerType === 'both') {
         var editInterval = document.getElementById('edit_interval').value;
-        valid = valid && editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= 5 && Number(editInterval) <= 60;
+        valid = valid && editInterval !== "" && !isNaN(editInterval) && Number(editInterval) >= editIntMin && Number(editInterval) <= 480;
     }
     if (editTriggerType === 'chat_lines' || editTriggerType === 'both') {
         var editChatLineTrigger = document.getElementById('edit_chat_line_trigger').value;
@@ -606,8 +639,9 @@ function validateForm() {
     // Validate trigger-type-specific field
     const triggerType = document.getElementById('trigger_type').value;
     if (triggerType === 'timer' || triggerType === 'both') {
+        const intMin = hasShoutoutVar('message') ? 60 : 5;
         const intervalInput = document.getElementById('interval');
-        if (intervalInput.value < 5 || intervalInput.value > 60) {
+        if (Number(intervalInput.value) < intMin || Number(intervalInput.value) > 480) {
             document.getElementById('intervalError').style.display = 'block';
             return false;
         }
@@ -621,6 +655,15 @@ function validateEditForm() {
     if (editMessageContent.value.length > 255) {
         alert('<?php echo t('timed_messages_char_limit_alert'); ?>');
         return false;
+    }
+    const editTriggerType = document.getElementById('edit_trigger_type') ? document.getElementById('edit_trigger_type').value : 'timer';
+    if (editTriggerType === 'timer' || editTriggerType === 'both') {
+        const editIntMin = hasShoutoutVar('edit_message_content') ? 60 : 5;
+        const editIntervalInput = document.getElementById('edit_interval');
+        if (editIntervalInput && (Number(editIntervalInput.value) < editIntMin || Number(editIntervalInput.value) > 480)) {
+            alert(editIntMin === 60 ? 'Interval must be at least 60 minutes when using (shoutout.username).' : 'Interval must be between 5 and 480 minutes.');
+            return false;
+        }
     }
     return true;
 }
@@ -667,6 +710,7 @@ window.onload = function() {
     toggleAddTriggerType();
     showResponse();
     updateCharCount('message', 'charCount');
+    updateShoutoutHint('message', 'interval', 'shoutoutHint');
     showMessage();
     toggleEditButton();
     toggleRemoveButton();
@@ -678,7 +722,10 @@ window.onload = function() {
 
 // In case user types or changes values, keep button states updated
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('message').addEventListener('input', toggleAddButton);
+    document.getElementById('message').addEventListener('input', function() {
+        updateShoutoutHint('message', 'interval', 'shoutoutHint');
+        toggleAddButton();
+    });
     document.getElementById('interval').addEventListener('input', toggleAddButton);
     document.getElementById('chat_line_trigger').addEventListener('input', toggleAddButton);
     document.getElementById('trigger_type').addEventListener('change', function() {
