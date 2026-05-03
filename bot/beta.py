@@ -8057,12 +8057,34 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('addcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
-            # Parse the command and response from the message
-            try:
-                command, response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-            except ValueError:
-                await send_chat_message(f"Invalid command format. Use: !addcommand [command] [response]")
+            # Parse: !addcommand <cmd> "<response>" [permission]  or legacy: !addcommand <cmd> <response>
+            _VALID_PERMS = {'everyone', 'mod', 'mods', 'vip', 'subscribers', 'broadcaster'}
+            _PERM_ALIASES = {'mods': 'mod', 'subscribers': 'all-subs'}
+            _raw = ctx.message.content.strip().split(' ', 1)
+            if len(_raw) < 2 or not _raw[1].strip():
+                await send_chat_message('Invalid command format. Use: !addcommand [command] [response] or !addcommand [command] "[response]" [permission]')
                 return
+            try:
+                command, _rest = _raw[1].split(' ', 1)
+            except ValueError:
+                await send_chat_message('Invalid command format. Use: !addcommand [command] [response] or !addcommand [command] "[response]" [permission]')
+                return
+            permission = 'everyone'
+            if _rest.startswith('"'):
+                _close = _rest.find('"', 1)
+                if _close == -1:
+                    await send_chat_message("Missing closing quote in response.")
+                    return
+                response = _rest[1:_close]
+                _after = _rest[_close + 1:].strip()
+                if _after:
+                    _perm_input = _after.split()[0].lower()
+                    if _perm_input not in _VALID_PERMS:
+                        await send_chat_message(f"Unknown permission '{_perm_input}'. Valid: everyone, mod, vip, subscribers, broadcaster")
+                        return
+                    permission = _PERM_ALIASES.get(_perm_input, _perm_input)
+            else:
+                response = _rest
             # Check if command name conflicts with an enabled built-in command
             if command in builtin_commands or command in mod_commands or command in builtin_aliases:
                 async with connection.cursor(DictCursor) as cursor:
@@ -8071,7 +8093,6 @@ class TwitchBot(commands.Bot):
                     if builtin_result and builtin_result.get("status") != 'Disabled':
                         await send_chat_message(f"Cannot create custom command '!{command}' - this is an enabled built-in command. Disable the built-in command first to create a custom override.")
                         return
-                    # If built-in is disabled, allow custom command creation
                     chat_logger.info(f"[ADD COMMAND] Creating custom command '{command}' as override for disabled built-in command")
             # Insert the command and response into the database
             async with connection.cursor(DictCursor) as cursor:
@@ -8079,10 +8100,10 @@ class TwitchBot(commands.Bot):
                 if await cursor.fetchone():
                     await send_chat_message(f"Command !{command} already exists. Use !editcommand to change it.")
                     return
-                await cursor.execute('INSERT INTO custom_commands (command, response, status) VALUES (%s, %s, %s)', (command, response, 'Enabled'))
+                await cursor.execute('INSERT INTO custom_commands (command, response, status, permission) VALUES (%s, %s, %s, %s)', (command, response, 'Enabled', permission))
                 await connection.commit()
-            chat_logger.info(f"[ADD COMMAND] {ctx.author.name} has added the command !{command} with the response: {response}")
-            await send_chat_message(f'Custom command added: !{command}')
+            chat_logger.info(f"[ADD COMMAND] {ctx.author.name} has added the command !{command} with response: {response} (permission: {permission})")
+            await send_chat_message(f'Custom command added: !{command} (permission: {permission})')
             # Record usage
             add_usage('addcommand', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -8117,18 +8138,44 @@ class TwitchBot(commands.Bot):
             bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
             if not await check_cooldown('editcommand', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                 return
-            # Parse the command and new response from the message
-            try:
-                command, new_response = ctx.message.content.strip().split(' ', 1)[1].split(' ', 1)
-            except ValueError:
-                await send_chat_message(f"Invalid command format. Use: !editcommand [command] [new_response]")
+            # Parse: !editcommand <cmd> "<response>" [permission]  or legacy: !editcommand <cmd> <response>
+            _VALID_PERMS = {'everyone', 'mod', 'mods', 'vip', 'subscribers', 'broadcaster'}
+            _PERM_ALIASES = {'mods': 'mod', 'subscribers': 'all-subs'}
+            _raw = ctx.message.content.strip().split(' ', 1)
+            if len(_raw) < 2 or not _raw[1].strip():
+                await send_chat_message('Invalid command format. Use: !editcommand [command] [new_response] or !editcommand [command] "[new_response]" [permission]')
                 return
-            # Update the command's response in the database
+            try:
+                command, _rest = _raw[1].split(' ', 1)
+            except ValueError:
+                await send_chat_message('Invalid command format. Use: !editcommand [command] [new_response] or !editcommand [command] "[new_response]" [permission]')
+                return
+            new_permission = None  # None = leave existing permission unchanged
+            if _rest.startswith('"'):
+                _close = _rest.find('"', 1)
+                if _close == -1:
+                    await send_chat_message("Missing closing quote in response.")
+                    return
+                new_response = _rest[1:_close]
+                _after = _rest[_close + 1:].strip()
+                if _after:
+                    _perm_input = _after.split()[0].lower()
+                    if _perm_input not in _VALID_PERMS:
+                        await send_chat_message(f"Unknown permission '{_perm_input}'. Valid: everyone, mod, vip, subscribers, broadcaster")
+                        return
+                    new_permission = _PERM_ALIASES.get(_perm_input, _perm_input)
+            else:
+                new_response = _rest
+            # Update the command's response (and permission if provided) in the database
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
+                if new_permission is not None:
+                    await cursor.execute('UPDATE custom_commands SET response = %s, permission = %s WHERE command = %s', (new_response, new_permission, command))
+                else:
+                    await cursor.execute('UPDATE custom_commands SET response = %s WHERE command = %s', (new_response, command))
                 await connection.commit()
-            chat_logger.info(f"[EDIT COMMAND] {ctx.author.name} has edited the command !{command} to have the new response: {new_response}")
-            await send_chat_message(f'Custom command edited: !{command}')
+            _perm_note = f" (permission: {new_permission})" if new_permission else ""
+            chat_logger.info(f"[EDIT COMMAND] {ctx.author.name} has edited !{command}: response={new_response}{_perm_note}")
+            await send_chat_message(f'Custom command edited: !{command}{_perm_note}')
             # Record usage
             add_usage('editcommand', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -10183,7 +10230,7 @@ DYNAMIC_VARIABLE_SWITCHES = (
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
-    '(call.', '(shoutout.', '(count.',
+    '(call.', '(shoutout.', '(count.', '(clearcount.',
     # Channel-point-specific variables (only processed when channel_point_data is provided)
     '(userstreak)', '(track)', '(tts)', '(tts.message)',
     '(lotto)', '(fortune)', '(message)', '(vip)', '(vip.today)',
