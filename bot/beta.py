@@ -10179,7 +10179,7 @@ DYNAMIC_VARIABLE_SWITCHES = (
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
-    '(call.', '(shoutout.',
+    '(call.', '(shoutout.', '(count.',
     # Channel-point-specific variables (only processed when channel_point_data is provided)
     '(userstreak)', '(track)', '(tts)', '(tts.message)',
     '(lotto)', '(fortune)', '(message)', '(vip)', '(vip.today)',
@@ -10263,6 +10263,31 @@ async def process_dynamic_variables(
                     except Exception as e:
                         chat_logger.error(f"[MESSAGE VARS] Error processing (count): {e}")
                         response = response.replace('(count)', "Error")
+                # Handle (count.name) - named counter shared across commands
+                if '(count.' in response:
+                    count_name_match = re.search(r'\(count\.(\w+)\)', response)
+                    if count_name_match:
+                        count_key = count_name_match.group(1)
+                        try:
+                            count_increment = 1
+                            if arg is not None:
+                                try:
+                                    count_increment = int(arg)
+                                except (ValueError, TypeError):
+                                    count_increment = 1
+                            await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (count_key,))
+                            cc_result = await cursor.fetchone()
+                            if cc_result:
+                                new_count = (cc_result.get("count") or 0) + count_increment
+                                await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, count_key))
+                            else:
+                                new_count = count_increment
+                                await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (count_key, new_count))
+                            chat_logger.info(f"[MESSAGE VARS] Updated named count '{count_key}' to {new_count}.")
+                            response = response.replace(f"(count.{count_key})", str(new_count))
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (count.{count_key}): {e}")
+                            response = response.replace(f"(count.{count_key})", "Error")
                 # Handle (usercount) - regular commands only; channel points use reward_counts below
                 if '(usercount)' in response and not channel_point_data:
                     try:
