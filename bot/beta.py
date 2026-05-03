@@ -10230,10 +10230,13 @@ DYNAMIC_VARIABLE_SWITCHES = (
     '(random.percent)', '(random.number)', '(random.percent.',
     '(random.number.', '(random.pick)', '(random.pick.', '(math.',
     '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
-    '(call.', '(shoutout.', '(count.', '(clearcount.',
+    '(call.', '(shoutout.', '(count.', '(clearcount.', '(todo.add.',
     # Channel-point-specific variables (only processed when channel_point_data is provided)
     '(userstreak)', '(track)', '(tts)', '(tts.message)',
-    '(lotto)', '(fortune)', '(message)', '(vip)', '(vip.today)',
+    '(lotto)', '(fortune)', '(message)',
+    '(redeem.title)', '(redeem.input)', '(redeem.cost)', '(redeem.prompt)',
+    '(redeem.id)', '(redeem.status)', '(redeem.redeemed_at)',
+    '(vip)', '(vip.today)',
 )
 
 def has_dynamic_variables(text):
@@ -10420,6 +10423,21 @@ async def process_dynamic_variables(
                     # Handle (message) - user input from the redemption
                     if '(message)' in response:
                         response = response.replace('(message)', cp_user_input)
+                    # Handle (redeem.*) variables - channel point reward data
+                    if '(redeem.input)' in response:
+                        response = response.replace('(redeem.input)', cp_user_input)
+                    if '(redeem.title)' in response:
+                        response = response.replace('(redeem.title)', channel_point_data.get("reward_title", ""))
+                    if '(redeem.cost)' in response:
+                        response = response.replace('(redeem.cost)', channel_point_data.get("reward_cost", ""))
+                    if '(redeem.prompt)' in response:
+                        response = response.replace('(redeem.prompt)', channel_point_data.get("reward_prompt", ""))
+                    if '(redeem.id)' in response:
+                        response = response.replace('(redeem.id)', channel_point_data.get("redemption_id", ""))
+                    if '(redeem.status)' in response:
+                        response = response.replace('(redeem.status)', channel_point_data.get("redemption_status", ""))
+                    if '(redeem.redeemed_at)' in response:
+                        response = response.replace('(redeem.redeemed_at)', channel_point_data.get("redeemed_at", ""))
                     # Handle (usercount) - per-user reward counter (uses reward_counts table)
                     if '(usercount)' in response:
                         try:
@@ -10541,6 +10559,27 @@ async def process_dynamic_variables(
                                 chat_logger.warning(f"[MESSAGE VARS] (shoutout.{so_username}): user not found on Twitch, shoutout skipped")
                         except Exception as so_err:
                             chat_logger.error(f"[MESSAGE VARS] Error processing (shoutout.{so_username}): {so_err}")
+                # Handle (todo.add.category.[description]) - silently add an item to the todo list
+                if '(todo.add.' in response:
+                    todo_match = re.search(r'\(todo\.add\.(\w+)\.\[([^\]]*)\]\)', response)
+                    if todo_match:
+                        todo_full = todo_match.group(0)
+                        todo_category_raw = todo_match.group(1)
+                        todo_desc = todo_match.group(2)
+                        try:
+                            try:
+                                todo_cat_id = int(todo_category_raw)
+                            except ValueError:
+                                todo_cat_id = 1
+                            await cursor.execute(
+                                'INSERT INTO todos (objective, category, private) VALUES (%s, %s, %s)',
+                                (todo_desc, todo_cat_id, 0)
+                            )
+                            chat_logger.info(f"[MESSAGE VARS] Added todo item via variable: '{todo_desc}' in category {todo_cat_id}.")
+                            response = response.replace(todo_full, "")
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (todo.add.): {e}")
+                            response = response.replace(todo_full, "")
                 # Handle (command.) - reference other commands
                 if '(command.' in response:
                     command_match = re.search(r'\(command\.(\w+)\)', response)
@@ -13243,6 +13282,12 @@ async def process_channel_point_rewards(event_data, event_type):
                         "reward_id": reward_id,
                         "user_id": user_id,
                         "user_input": event_data.get("user_input", ""),
+                        "reward_title": reward_title,
+                        "reward_cost": str(reward_data.get("cost", "")),
+                        "reward_prompt": reward_data.get("prompt", ""),
+                        "redemption_id": event_data.get("id", ""),
+                        "redemption_status": event_data.get("status", ""),
+                        "redeemed_at": event_data.get("redeemed_at", ""),
                         "original_message": original_message,
                     }
                     # Process all variables through the shared function
