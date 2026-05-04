@@ -59,9 +59,6 @@ if (isset($_POST['background_color'])) {
 
 $boolFields = [
     'is_user_input_required',
-    'is_max_per_stream_enabled',
-    'is_max_per_user_per_stream_enabled',
-    'is_global_cooldown_enabled',
     'is_paused',
     'should_redemptions_skip_request_queue',
 ];
@@ -71,14 +68,18 @@ foreach ($boolFields as $f) {
     }
 }
 
-if (!empty($_POST['max_per_stream'])) {
-    $body['max_per_stream'] = (int)$_POST['max_per_stream'];
+// Twitch requires these limit fields to be sent as pairs — both the boolean and the numeric value
+if (isset($_POST['is_max_per_stream_enabled'])) {
+    $body['is_max_per_stream_enabled'] = filter_var($_POST['is_max_per_stream_enabled'], FILTER_VALIDATE_BOOLEAN);
+    $body['max_per_stream'] = !empty($_POST['max_per_stream']) ? (int)$_POST['max_per_stream'] : 1;
 }
-if (!empty($_POST['max_per_user_per_stream'])) {
-    $body['max_per_user_per_stream'] = (int)$_POST['max_per_user_per_stream'];
+if (isset($_POST['is_max_per_user_per_stream_enabled'])) {
+    $body['is_max_per_user_per_stream_enabled'] = filter_var($_POST['is_max_per_user_per_stream_enabled'], FILTER_VALIDATE_BOOLEAN);
+    $body['max_per_user_per_stream'] = !empty($_POST['max_per_user_per_stream']) ? (int)$_POST['max_per_user_per_stream'] : 1;
 }
-if (!empty($_POST['global_cooldown_seconds'])) {
-    $body['global_cooldown_seconds'] = (int)$_POST['global_cooldown_seconds'];
+if (isset($_POST['is_global_cooldown_enabled'])) {
+    $body['is_global_cooldown_enabled'] = filter_var($_POST['is_global_cooldown_enabled'], FILTER_VALIDATE_BOOLEAN);
+    $body['global_cooldown_seconds'] = !empty($_POST['global_cooldown_seconds']) ? (int)$_POST['global_cooldown_seconds'] : 1;
 }
 
 if (empty($body)) {
