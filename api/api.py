@@ -38,6 +38,7 @@ from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlencode, parse_qsl, quote
 from contextlib import asynccontextmanager
+import math
 import ipaddress
 
 # Load ENV file
@@ -5026,7 +5027,8 @@ async def get_stored_redeems(
     api_key: str = Query(...),
     reward_id: str = Query(None, description="Filter by a specific reward ID."),
     username: str = Query(None, description="Filter by a specific username."),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of rows to return."),
+    page: int = Query(1, ge=1, description="Page number (1-based)."),
+    limit: int = Query(100, ge=1, le=1000, description="Rows per page."),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
@@ -5037,7 +5039,6 @@ async def get_stored_redeems(
         conn = await get_mysql_connection_user(auth_username)
         try:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                query = "SELECT id, reward_id, username, redeemed_at FROM stored_redeems"
                 conditions = []
                 params = []
                 if reward_id:
@@ -5046,21 +5047,65 @@ async def get_stored_redeems(
                 if username:
                     conditions.append("username = %s")
                     params.append(username)
-                if conditions:
-                    query += " WHERE " + " AND ".join(conditions)
-                query += " ORDER BY redeemed_at DESC LIMIT %s"
-                params.append(limit)
-                await cur.execute(query, params)
+                where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+                await cur.execute(f"SELECT COUNT(*) AS total FROM stored_redeems{where}", params)
+                total = (await cur.fetchone())["total"]
+                offset = (page - 1) * limit
+                await cur.execute(
+                    f"SELECT id, reward_id, username, redeemed_at FROM stored_redeems{where} ORDER BY redeemed_at DESC LIMIT %s OFFSET %s",
+                    params + [limit, offset]
+                )
                 rows = await cur.fetchall()
                 for row in rows:
                     if row.get("redeemed_at") and hasattr(row["redeemed_at"], "isoformat"):
                         row["redeemed_at"] = row["redeemed_at"].isoformat()
-            return {"channel": auth_username, "count": len(rows), "redeems": rows}
+            return {
+                "channel": auth_username,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "pages": math.ceil(total / limit) if total else 1,
+                "count": len(rows),
+                "redeems": rows,
+            }
         finally:
             conn.close()
     except Exception as e:
         logging.error(f"Error fetching stored_redeems for '{auth_username}': {e}")
         raise HTTPException(status_code=500, detail="Error retrieving stored redeems")
+
+@app.delete(
+    "/channel/twitch/redeems/store/{id}",
+    summary="Delete a stored reward redemption",
+    description="Removes a single entry from the stored_redeems table by its row ID.",
+    tags=["Channel"],
+    operation_id="delete_stored_redeem",
+)
+async def delete_stored_redeem(
+    id: int,
+    api_key: str = Query(...),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    auth_username = resolve_username(key_info, channel)
+    try:
+        conn = await get_mysql_connection_user(auth_username)
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute("DELETE FROM stored_redeems WHERE id = %s", (id,))
+                await conn.commit()
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail=f"No stored redeem found with id {id}")
+            return {"status": "success", "deleted_id": id}
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting stored_redeem id={id} for '{auth_username}': {e}")
+        raise HTTPException(status_code=500, detail="Error deleting stored redeem")
 
 @app.get(
     "/channel/twitch/bits",
