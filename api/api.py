@@ -5062,6 +5062,45 @@ async def get_stored_redeems(
         logging.error(f"Error fetching stored_redeems for '{auth_username}': {e}")
         raise HTTPException(status_code=500, detail="Error retrieving stored redeems")
 
+@app.get(
+    "/channel/twitch/bits",
+    summary="Get bits leaderboard",
+    description="Returns total bits cheered per user for the authenticated channel, aggregated from the bits_data table and ordered by total bits descending.",
+    tags=["Channel"],
+    operation_id="get_bits_leaderboard",
+)
+async def get_bits_leaderboard(
+    api_key: str = Query(...),
+    username: str = Query(None, description="Filter to a specific username."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    auth_username = resolve_username(key_info, channel)
+    try:
+        conn = await get_mysql_connection_user(auth_username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                if username:
+                    await cur.execute(
+                        "SELECT user_id, user_name, SUM(bits) AS total_bits, COUNT(*) AS cheer_count "
+                        "FROM bits_data WHERE user_name = %s GROUP BY user_id, user_name",
+                        (username,)
+                    )
+                else:
+                    await cur.execute(
+                        "SELECT user_id, user_name, SUM(bits) AS total_bits, COUNT(*) AS cheer_count "
+                        "FROM bits_data GROUP BY user_id, user_name ORDER BY total_bits DESC"
+                    )
+                rows = await cur.fetchall()
+            return {"channel": auth_username, "count": len(rows), "bits": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Error fetching bits leaderboard for '{auth_username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving bits data")
+
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():
