@@ -234,6 +234,19 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
                                 <?php echo htmlspecialchars($geoLoc ?: '—'); ?>
                                 <?php if ($geoOrg): ?>(<?php echo htmlspecialchars($geoOrg); ?>)<?php endif; ?>
                             </span>
+                            <?php
+                                $priv      = $geo['privacy'] ?? [];
+                                $privFlags = [];
+                                if (!empty($priv['is_vpn']))          $privFlags[] = ['VPN',          'vpn'];
+                                if (!empty($priv['is_proxy']))         $privFlags[] = ['Proxy',        'proxy'];
+                                if (!empty($priv['is_tor']))           $privFlags[] = ['Tor',          'tor'];
+                                if (!empty($priv['is_icloud_relay']))  $privFlags[] = ['iCloud Relay', 'relay'];
+                            ?>
+                            <?php foreach ($privFlags as [$label, $type]): ?>
+                                <span class="sp-privacy-flag sp-privacy-<?php echo $type; ?>">
+                                    <i class="fa-solid fa-shield-halved"></i> <?php echo $label; ?>
+                                </span>
+                            <?php endforeach; ?>
                         <?php endif; ?><br>
                         Signed in <?php echo bots_format_when($s['created_at']); ?><br>
                         Last seen <?php echo bots_format_when($s['last_seen_at']); ?><br>
