@@ -4970,6 +4970,52 @@ async def cancel_twitch_raid(
     raise HTTPException(status_code=status_code, detail=detail)
 
 @app.get(
+    "/channel/twitch/redeems",
+    summary="Get tracked reward redemption counts",
+    description="Returns all tracked reward redemption counts from the reward_counts table for the authenticated channel, showing how many times each user has redeemed each reward.",
+    tags=["Channel"],
+    operation_id="get_tracked_redeems",
+)
+async def get_tracked_redeems(
+    api_key: str = Query(...),
+    reward_id: str = Query(None, description="Filter by a specific reward ID."),
+    username: str = Query(None, description="Filter by a specific username."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    auth_username = resolve_username(key_info, channel)
+    try:
+        conn = await get_mysql_connection_user(auth_username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                query = (
+                    "SELECT rc.id, rc.reward_id, rc.user, rc.count, c.reward_title "
+                    "FROM reward_counts AS rc "
+                    "LEFT JOIN channel_point_rewards AS c ON rc.reward_id = c.reward_id"
+                )
+                conditions = []
+                params = []
+                if reward_id:
+                    conditions.append("rc.reward_id = %s")
+                    params.append(reward_id)
+                if username:
+                    conditions.append("rc.user = %s")
+                    params.append(username)
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
+                query += " ORDER BY rc.count DESC"
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
+            return {"channel": auth_username, "count": len(rows), "redeems": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Error fetching reward_counts for '{auth_username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving tracked redeems")
+
+@app.get(
     "/channel/twitch/redeems/store",
     summary="Get stored reward redemptions",
     description="Returns all redemptions recorded in the stored_redeems table for the authenticated channel. Each row contains the reward ID, the username who redeemed it, and the timestamp.",
