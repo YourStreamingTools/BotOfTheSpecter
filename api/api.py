@@ -4969,6 +4969,53 @@ async def cancel_twitch_raid(
         detail = body or f"Twitch returned HTTP {status_code}"
     raise HTTPException(status_code=status_code, detail=detail)
 
+@app.get(
+    "/channel/twitch/redeems/store",
+    summary="Get stored reward redemptions",
+    description="Returns all redemptions recorded in the stored_redeems table for the authenticated channel. Each row contains the reward ID, the username who redeemed it, and the timestamp.",
+    tags=["Channel"],
+    operation_id="get_stored_redeems",
+)
+async def get_stored_redeems(
+    api_key: str = Query(...),
+    reward_id: str = Query(None, description="Filter by a specific reward ID."),
+    username: str = Query(None, description="Filter by a specific username."),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of rows to return."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    auth_username = resolve_username(key_info, channel)
+    try:
+        conn = await get_mysql_connection_user(auth_username)
+        try:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                query = "SELECT id, reward_id, username, redeemed_at FROM stored_redeems"
+                conditions = []
+                params = []
+                if reward_id:
+                    conditions.append("reward_id = %s")
+                    params.append(reward_id)
+                if username:
+                    conditions.append("username = %s")
+                    params.append(username)
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
+                query += " ORDER BY redeemed_at DESC LIMIT %s"
+                params.append(limit)
+                await cur.execute(query, params)
+                rows = await cur.fetchall()
+                for row in rows:
+                    if row.get("redeemed_at") and hasattr(row["redeemed_at"], "isoformat"):
+                        row["redeemed_at"] = row["redeemed_at"].isoformat()
+            return {"channel": auth_username, "count": len(rows), "redeems": rows}
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.error(f"Error fetching stored_redeems for '{auth_username}': {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving stored redeems")
+
 # Any root request go to the docs page
 @app.get("/", include_in_schema=False)
 async def read_root():

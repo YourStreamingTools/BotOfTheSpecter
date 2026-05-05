@@ -845,6 +845,15 @@ try {
                 requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_requested_at (requested_at),
                 INDEX idx_song_name (song_name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'stored_redeems' => "
+            CREATE TABLE IF NOT EXISTS stored_redeems (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                reward_id VARCHAR(255) NOT NULL,
+                username VARCHAR(255) NOT NULL,
+                redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_reward_id (reward_id),
+                INDEX idx_username (username)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically

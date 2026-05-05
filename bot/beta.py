@@ -10236,7 +10236,7 @@ DYNAMIC_VARIABLE_SWITCHES = (
     '(lotto)', '(fortune)', '(message)',
     '(redeem.title)', '(redeem.input)', '(redeem.cost)', '(redeem.prompt)',
     '(redeem.id)', '(redeem.status)', '(redeem.redeemed_at)',
-    '(vip)', '(vip.today)',
+    '(vip)', '(vip.today)', '(storeredeem)',
 )
 
 def has_dynamic_variables(text):
@@ -10524,6 +10524,17 @@ async def process_dynamic_variables(
                             chat_logger.error(f"[MESSAGE VARS] Error processing (vip)/(vip.today): {e}")
                             response = response.replace('(vip)', '')
                             response = response.replace('(vip.today)', '')
+                    # Handle (storeredeem) - record this redemption to stored_redeems table
+                    if '(storeredeem)' in response:
+                        try:
+                            await cursor.execute(
+                                "INSERT INTO stored_redeems (reward_id, username) VALUES (%s, %s)",
+                                (cp_reward_id, user)
+                            )
+                            chat_logger.info(f"[MESSAGE VARS] Stored redeem for reward {cp_reward_id} by {user}")
+                        except Exception as e:
+                            chat_logger.error(f"[MESSAGE VARS] Error processing (storeredeem): {e}")
+                        response = response.replace('(storeredeem)', '')
                 # Handle (pronouns), (pronouns.they), (pronouns.them)
                 if '(pronouns)' in response or '(pronouns.they)' in response or '(pronouns.them)' in response:
                     try:
