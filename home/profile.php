@@ -42,7 +42,6 @@ $flash = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token  = $_POST['csrf']   ?? '';
     $action = $_POST['action'] ?? '';
-
     if (!is_string($token) || !hash_equals($csrf, $token)) {
         $flash = ['type' => 'error', 'msg' => 'Security token mismatch — please reload and try again.'];
     } elseif ($action === 'remove' && !empty($_POST['session_id'])) {
@@ -131,14 +130,12 @@ function bots_humanize_ua(?string $ua): string
     elseif (preg_match('/Android/i', $ua))            $os = 'Android';
     elseif (preg_match('/Linux/i', $ua))              $os = 'Linux';
     else                                              $os = 'Unknown OS';
-
     if (preg_match('/Edg\//i', $ua))           $browser = 'Edge';
     elseif (preg_match('/OPR\//i', $ua))       $browser = 'Opera';
     elseif (preg_match('/Firefox\//i', $ua))   $browser = 'Firefox';
     elseif (preg_match('/Chrome\//i', $ua))    $browser = 'Chrome';
     elseif (preg_match('/Safari\//i', $ua))    $browser = 'Safari';
     else                                       $browser = 'Browser';
-
     return "$browser on $os";
 }
 
@@ -147,7 +144,6 @@ function bots_fetch_ip_geo(string $ip, string $apiKey): ?array
     static $cache = [];
     if (!$apiKey || !$ip || $ip === '—') return null;
     if (array_key_exists($ip, $cache)) return $cache[$ip];
-
     $url = 'https://iplocate.io/api/lookup/' . urlencode($ip);
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -159,7 +155,6 @@ function bots_fetch_ip_geo(string $ip, string $apiKey): ?array
     $http     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_err = curl_error($ch);
     curl_close($ch);
-
     if (!$raw || $curl_err) {
         error_log('[profile.php] iplocate curl failed ip=' . $ip . ' err=' . $curl_err);
         $cache[$ip] = null;
@@ -198,33 +193,6 @@ ob_start();
 $pageTitle       = 'Active Sessions — BotOfTheSpecter';
 $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSpecter account.';
 ?>
-<style>
-  .sp-acct { max-width: 920px; margin: 32px auto; padding: 0 16px; }
-  .sp-acct h1 { margin: 0 0 6px 0; }
-  .sp-acct .sub { color: #8b949e; margin-bottom: 24px; }
-  .sp-flash { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
-  .sp-flash.ok    { background: #0f2a1a; color: #3fb950; border: 1px solid #1f6f3f; }
-  .sp-flash.error { background: #2a0f0f; color: #f85149; border: 1px solid #6f1f1f; }
-  .sp-session { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start;
-                background: #161b22; border: 1px solid #21262d; border-radius: 8px;
-                padding: 14px 16px; margin-bottom: 10px; }
-  .sp-session.current { border-color: #58a6ff; background: #161b22; }
-  .sp-session .device { font-weight: 600; }
-  .sp-session .meta { color: #8b949e; font-size: 13px; line-height: 1.6; }
-  .sp-session .meta code { background: #0e1116; padding: 1px 6px; border-radius: 3px; }
-  .sp-badge { display: inline-block; background: #58a6ff; color: #0e1116;
-              font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-left: 6px;
-              font-weight: 600; letter-spacing: 0.02em; }
-  .sp-actions { display: flex; flex-direction: column; gap: 6px; }
-  .sp-btn-tiny { background: #21262d; color: #e6edf3; border: 1px solid #30363d;
-                 padding: 6px 12px; border-radius: 4px; font-size: 13px; cursor: pointer;
-                 font-family: inherit; }
-  .sp-btn-tiny:hover  { background: #30363d; }
-  .sp-btn-tiny.danger { color: #f85149; border-color: #6f1f1f; }
-  .sp-btn-tiny.danger:hover { background: #2a0f0f; }
-  .sp-bulk { margin-top: 24px; padding-top: 16px; border-top: 1px solid #21262d;
-             display: flex; gap: 8px; flex-wrap: wrap; }
-</style>
 <div class="sp-acct">
     <h1>Active Sessions</h1>
     <p class="sub">
@@ -232,13 +200,11 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
         Each row below is a browser or device that's currently signed in to your BotOfTheSpecter account.
         Remove any session you don't recognise.
     </p>
-
     <?php if ($flash): ?>
         <div class="sp-flash <?php echo htmlspecialchars($flash['type']); ?>">
             <?php echo htmlspecialchars($flash['msg']); ?>
         </div>
     <?php endif; ?>
-
     <?php if (!$sessions): ?>
         <p class="sub">No active sessions found. Try signing out and back in.</p>
     <?php else: ?>
@@ -264,7 +230,7 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
                                 $geoOrg         = $geoHosting ?: $geoAsn;
                                 $geoLoc         = implode(', ', array_filter([$geoCity, $geoSubdivision, $geoCountry]));
                             ?>
-                            <span style="color:#6e7681;">
+                            <span class="sp-geo">
                                 <?php echo htmlspecialchars($geoLoc ?: '—'); ?>
                                 <?php if ($geoOrg): ?>(<?php echo htmlspecialchars($geoOrg); ?>)<?php endif; ?>
                             </span>
@@ -286,7 +252,6 @@ $pageDescription = 'Manage the devices and browsers signed in to your BotOfTheSp
                 </div>
             </div>
         <?php endforeach; ?>
-
         <div class="sp-bulk">
             <?php if (count($sessions) > 1): ?>
                 <form method="post" action="/profile.php" onsubmit="return confirm('Sign out of every other device? You will stay signed in here.');">
