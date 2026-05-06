@@ -248,6 +248,43 @@ def _twitch_token_is_stale(updated_at) -> bool:
     except Exception:
         return True
 
+async def _get_twitch_profile_images(logins) -> dict:
+    if not logins:
+        return {}
+    unique_logins = list({(l or "").strip().lower() for l in logins if l and (l or "").strip()})
+    if not unique_logins:
+        return {}
+    app_creds = await get_twitch_app_credentials()
+    if not app_creds:
+        return {}
+    headers = {
+        "Client-ID": app_creds["client_id"],
+        "Authorization": f"Bearer {app_creds['access_token']}",
+    }
+    result = {}
+    chunk_size = 100
+    try:
+        async with aiohttp.ClientSession() as session:
+            for i in range(0, len(unique_logins), chunk_size):
+                chunk = unique_logins[i:i + chunk_size]
+                params = [("login", l) for l in chunk]
+                async with session.get(
+                    "https://api.twitch.tv/helix/users",
+                    headers=headers,
+                    params=params,
+                ) as resp:
+                    if resp.status != 200:
+                        continue
+                    body = await resp.json(content_type=None)
+                    for entry in (body or {}).get("data", []) or []:
+                        login = (entry.get("login") or "").lower()
+                        image = entry.get("profile_image_url")
+                        if login and image:
+                            result[login] = image
+    except Exception as e:
+        logging.warning(f"Twitch profile image lookup failed: {e}")
+    return result
+
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
 
@@ -3249,9 +3286,12 @@ async def get_user_managed_commands(
                     "cooldown": cmd["cooldown"],
                     "username": cmd["user_id"],
                 })
+            profile_images = await _get_twitch_profile_images([target_username])
+            profile_image_url = profile_images.get(target_username.lower())
             return {
                 "user": owner_username,
                 "target_username": target_username,
+                "profile_image_url": profile_image_url,
                 "total_commands": len(command_list),
                 "commands": command_list,
             }
@@ -3262,6 +3302,61 @@ async def get_user_managed_commands(
     except Exception as e:
         logging.error(f"Error retrieving user managed commands for user '{owner_username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving user managed commands: {str(e)}")
+
+@app.get(
+    "/user-commands/get/all",
+    summary="Get all user managed commands",
+    description="Retrieve every user managed command in your database, across all target users.",
+    tags=["Commands"],
+    operation_id="get_all_user_managed_commands"
+)
+async def get_all_user_managed_commands(
+    api_key: str = Query(...),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    owner_username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(owner_username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    """
+                    SELECT command, response, status, cooldown, user_id
+                    FROM custom_user_commands
+                    ORDER BY user_id ASC, command ASC
+                    """
+                )
+                commands = await cursor.fetchall()
+            grouped: dict[str, list] = {}
+            for cmd in commands:
+                username_key = cmd["user_id"] or ""
+                grouped.setdefault(username_key, []).append({
+                    "command": cmd["command"],
+                    "response": cmd["response"],
+                    "status": cmd["status"],
+                    "cooldown": cmd["cooldown"],
+                })
+            profile_images_lookup = await _get_twitch_profile_images(list(grouped.keys()))
+            profile_images = {
+                username_key: profile_images_lookup.get(username_key.lower())
+                for username_key in grouped.keys()
+            }
+            return {
+                "user": owner_username,
+                "total_commands": len(commands),
+                "commands": grouped,
+                "profile_images": profile_images,
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving all user managed commands for user '{owner_username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving all user managed commands: {str(e)}")
 
 @app.post(
     "/user-commands/add",
@@ -3327,7 +3422,89 @@ async def add_user_managed_command(
         logging.error(f"Error adding user managed command for user '{owner_username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error adding user managed command: {str(e)}")
 
-@app.post(
+@app.put(
+    "/user-commands/update",
+    summary="Update a user managed command",
+    description="Update an existing user managed command. Only provided fields are changed.",
+    tags=["Commands"],
+    operation_id="update_user_managed_command"
+)
+async def update_user_managed_command(
+    api_key: str = Query(...),
+    command: str = Query(..., description="Existing command name to update (without ! prefix)"),
+    username: str = Query(..., description="Target username this command belongs to"),
+    new_command: str = Query(None, description="New command name to rename to (without ! prefix)"),
+    response: str = Query(None, description="New response text", max_length=500),
+    cooldown: int = Query(None, description="New cooldown in seconds", ge=1),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    owner_username = resolve_username(key_info, channel)
+    command_name = _sanitize_user_command_name(command)
+    if not command_name:
+        raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    target_username = username.strip()
+    if not target_username:
+        raise HTTPException(status_code=400, detail="username is required")
+    renamed_command = None
+    if new_command is not None:
+        renamed_command = _sanitize_user_command_name(new_command)
+        if not renamed_command:
+            raise HTTPException(status_code=400, detail="new_command is invalid after sanitization")
+    fields, values = [], []
+    if renamed_command is not None and renamed_command != command_name:
+        fields.append("command = %s"); values.append(renamed_command)
+    if response is not None:
+        fields.append("response = %s"); values.append(response)
+    if cooldown is not None:
+        fields.append("cooldown = %s"); values.append(cooldown)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+    values.extend([command_name, target_username])
+    try:
+        connection = await get_mysql_connection_user(owner_username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                if renamed_command is not None and renamed_command != command_name:
+                    await cursor.execute(
+                        "SELECT command FROM custom_user_commands WHERE command = %s",
+                        (renamed_command,),
+                    )
+                    if await cursor.fetchone():
+                        raise HTTPException(
+                            status_code=409,
+                            detail=f"Command '{renamed_command}' already exists. Please choose a different name.",
+                        )
+                await cursor.execute(
+                    f"UPDATE custom_user_commands SET {', '.join(fields)} WHERE command = %s AND user_id = %s",
+                    values,
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Command '{command_name}' for username '{target_username}' not found",
+                    )
+            final_name = renamed_command if renamed_command is not None else command_name
+            return {
+                "status": "success",
+                "user": owner_username,
+                "command": final_name,
+                "previous_command": command_name if renamed_command and renamed_command != command_name else None,
+                "username": target_username,
+                "message": f"User command '{final_name}' for username '{target_username}' updated successfully!",
+            }
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating user managed command for user '{owner_username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating user managed command: {str(e)}")
+
+@app.delete(
     "/user-commands/remove",
     summary="Remove a user managed command",
     description="Remove a user managed command by command name.",
@@ -3337,38 +3514,46 @@ async def add_user_managed_command(
 async def remove_user_managed_command(
     api_key: str = Query(...),
     command: str = Query(..., description="Command name to remove (without ! prefix)"),
+    username: str = Query(..., description="Target username this command belongs to"),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
     if not key_info:
         raise HTTPException(status_code=401, detail="Invalid API Key")
-    username = resolve_username(key_info, channel)
+    owner_username = resolve_username(key_info, channel)
     command_name = _sanitize_user_command_name(command)
     if not command_name:
         raise HTTPException(status_code=400, detail="Command name is invalid after sanitization")
+    target_username = username.strip()
+    if not target_username:
+        raise HTTPException(status_code=400, detail="username is required")
     try:
-        connection = await get_mysql_connection_user(username)
+        connection = await get_mysql_connection_user(owner_username)
         try:
             async with connection.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
-                    "DELETE FROM custom_user_commands WHERE command = %s",
-                    (command_name,),
+                    "DELETE FROM custom_user_commands WHERE command = %s AND user_id = %s",
+                    (command_name, target_username),
                 )
                 await connection.commit()
                 if cursor.rowcount <= 0:
-                    raise HTTPException(status_code=404, detail=f"{command_name} not found")
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Command '{command_name}' for username '{target_username}' not found",
+                    )
             return {
                 "status": "success",
-                "user": username,
+                "user": owner_username,
                 "command": command_name,
-                "message": f"User command {command_name} deleted successfully!",
+                "username": target_username,
+                "message": f"User command '{command_name}' for username '{target_username}' deleted successfully!",
             }
         finally:
             connection.close()
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error removing user managed command for user '{username}': {e}")
+        logging.error(f"Error removing user managed command for user '{owner_username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error removing user managed command: {str(e)}")
 
 # Weather Data Endpoint
