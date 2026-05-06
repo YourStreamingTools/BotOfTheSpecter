@@ -5030,6 +5030,35 @@ _RAID_CANCEL_ERROR_RESPONSES = {
     502: {"model": ErrorDetail, "description": "Upstream failure contacting Twitch."},
 }
 
+class ShoutoutResponse(BaseModel):
+    status: str = Field(..., example="success")
+    from_broadcaster_id: str = Field(..., example="12345678", description="Twitch user ID of the broadcaster sending the shoutout.")
+    to_broadcaster_id: str = Field(..., example="87654321", description="Twitch user ID of the broadcaster receiving the shoutout.")
+    to_broadcaster_login: str = Field(..., example="somestreamer", description="Twitch username of the broadcaster receiving the shoutout.")
+    moderator_id: str = Field(..., example="12345678", description="Twitch user ID of the moderator that sent the shoutout (matches the access token user).")
+    message: str = Field(..., example="Shoutout sent")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "success",
+                "from_broadcaster_id": "12345678",
+                "to_broadcaster_id": "87654321",
+                "to_broadcaster_login": "somestreamer",
+                "moderator_id": "12345678",
+                "message": "Shoutout sent",
+            }
+        }
+
+_SHOUTOUT_ERROR_RESPONSES = {
+    400: {"model": ErrorDetail, "description": "Invalid target (self-shoutout, broadcaster not live, no viewers, or bad input)."},
+    401: {"model": ErrorDetail, "description": "Invalid API key, missing moderator:manage:shoutouts scope, or the Twitch access token has expired."},
+    403: {"model": ErrorDetail, "description": "The authenticated user is not a moderator of the broadcaster, or the broadcaster may not shout out the target."},
+    404: {"model": ErrorDetail, "description": "Authenticated user has no Twitch credentials on file, or the target Twitch user was not found."},
+    429: {"model": ErrorDetail, "description": "Rate limit exceeded. Twitch allows one shoutout every 2 minutes, and one to the same target every 60 minutes."},
+    500: {"model": ErrorDetail, "description": "Server misconfiguration (missing Twitch client ID or app credentials)."},
+    502: {"model": ErrorDetail, "description": "Upstream failure contacting Twitch."},
+}
+
 @app.post(
     "/channel/twitch/raids/start",
     summary="Start a Twitch raid",
@@ -5148,6 +5177,92 @@ async def cancel_twitch_raid(
         raise HTTPException(status_code=502, detail="Failed to contact Twitch")
     if status_code == 204:
         return {"status": "success", "broadcaster_id": auth["twitch_user_id"], "message": "Pending raid cancelled"}
+    try:
+        err_json = json.loads(body)
+        detail = err_json.get("message") or err_json
+    except Exception:
+        detail = body or f"Twitch returned HTTP {status_code}"
+    raise HTTPException(status_code=status_code, detail=detail)
+
+@app.post(
+    "/channel/twitch/shoutout",
+    summary="Send a Twitch shoutout",
+    description="Send a shoutout from the authenticated broadcaster's channel to another broadcaster. Rate limited by Twitch: one shoutout every 2 minutes, one to the same target every 60 minutes. The target broadcaster must be live with at least one viewer.",
+    tags=["Channel"],
+    operation_id="send_twitch_shoutout",
+    response_model=ShoutoutResponse,
+    responses=_SHOUTOUT_ERROR_RESPONSES,
+)
+async def send_twitch_shoutout(
+    api_key: str = Query(...),
+    to_broadcaster_login: str = Query(..., description="The Twitch username of the channel to shout out."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    auth = await _get_user_twitch_auth(username)
+    if not auth:
+        raise HTTPException(status_code=404, detail="No Twitch credentials on file for this user")
+    if _twitch_token_is_stale(auth.get("updated_at")):
+        auth = await _get_user_twitch_auth(username)
+        if not auth or _twitch_token_is_stale(auth.get("updated_at")):
+            raise HTTPException(status_code=401, detail="Twitch access token is expired")
+    if not CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Twitch client ID is not configured")
+    target_login = to_broadcaster_login.strip().lower()
+    if not target_login:
+        raise HTTPException(status_code=400, detail="to_broadcaster_login is required")
+    app_creds = await get_twitch_app_credentials()
+    if not app_creds:
+        raise HTTPException(status_code=500, detail="Twitch app credentials are unavailable")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.twitch.tv/helix/users",
+                headers={"Client-ID": app_creds["client_id"], "Authorization": f"Bearer {app_creds['access_token']}"},
+                params={"login": target_login},
+            ) as resp:
+                lookup_status = resp.status
+                lookup_body = await resp.json(content_type=None)
+    except Exception as e:
+        logging.error(f"Twitch user lookup failed for '{target_login}': {e}")
+        raise HTTPException(status_code=502, detail="Failed to resolve target broadcaster")
+    if lookup_status != 200:
+        raise HTTPException(status_code=502, detail="Failed to resolve target broadcaster")
+    users_data = (lookup_body or {}).get("data", [])
+    if not users_data:
+        raise HTTPException(status_code=404, detail=f"Twitch user '{target_login}' not found")
+    to_broadcaster_id = str(users_data[0].get("id") or "")
+    if not to_broadcaster_id:
+        raise HTTPException(status_code=502, detail="Failed to resolve target broadcaster")
+    if auth["twitch_user_id"] == to_broadcaster_id:
+        raise HTTPException(status_code=400, detail="You cannot shout out your own channel")
+    helix_url = "https://api.twitch.tv/helix/chat/shoutouts"
+    params = {
+        "from_broadcaster_id": auth["twitch_user_id"],
+        "to_broadcaster_id": to_broadcaster_id,
+        "moderator_id": auth["twitch_user_id"],
+    }
+    headers = {"Authorization": f"Bearer {auth['access_token']}", "Client-Id": CLIENT_ID}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(helix_url, headers=headers, params=params) as resp:
+                status_code = resp.status
+                body = await resp.text()
+    except Exception as e:
+        logging.error(f"Twitch shoutout failed for '{username}': {e}")
+        raise HTTPException(status_code=502, detail="Failed to contact Twitch")
+    if status_code == 204:
+        return {
+            "status": "success",
+            "from_broadcaster_id": auth["twitch_user_id"],
+            "to_broadcaster_id": to_broadcaster_id,
+            "to_broadcaster_login": target_login,
+            "moderator_id": auth["twitch_user_id"],
+            "message": "Shoutout sent",
+        }
     try:
         err_json = json.loads(body)
         detail = err_json.get("message") or err_json
