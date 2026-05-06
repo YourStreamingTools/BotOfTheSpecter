@@ -3265,6 +3265,45 @@ class TwitchBot(commands.Bot):
         super().__init__(token=token, prefix=prefix, initial_channels=[channel_name], case_insensitive=True)
         self.channel_name = channel_name
         self.running_commands = set()
+        self._event_task_refs = set()
+
+    def run_event(self, event_name, *args):
+        name = f"event_{event_name}"
+
+        async def wrapped(func):
+            try:
+                await func(*args)
+            except Exception as e:
+                if name == "event_error":
+                    raise
+                self.run_event("error", e)
+
+        def _track(task):
+            self._event_task_refs.add(task)
+            task.add_done_callback(self._event_task_refs.discard)
+            return task
+
+        inner_cb = getattr(self, name, None)
+        if inner_cb is not None:
+            if inspect.iscoroutinefunction(inner_cb):
+                _track(self.loop.create_task(wrapped(inner_cb)))
+            else:
+                import warnings
+                warnings.warn(
+                    f"event '{name}' callback is not a coroutine",
+                    category=RuntimeWarning,
+                )
+
+        if name in self._events:
+            for event in self._events[name]:
+                _track(self.loop.create_task(wrapped(event)))
+
+        for e, check, future in self._waiting:
+            if e == event_name:
+                if check(*args):
+                    future.set_result(args)
+            if future.done():
+                self._waiting.remove((e, check, future))
 
     async def event_ready(self):
         bot_logger.info(f'[BOT READY] Logged in as "{self.nick}"')
