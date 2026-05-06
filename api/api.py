@@ -402,6 +402,47 @@ async def _read_version_file(conn, version_file: str, command_timeout: int) -> s
     except Exception:
         return None
 
+async def _get_user_custom_bot_params(user_id: str, twitch_user_id: str, use_custom: bool, use_self: bool) -> dict:
+    params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": bool(use_self)}
+    if not use_custom:
+        return params
+    lookup_id = (user_id or "").strip()
+    legacy_id = (twitch_user_id or "").strip()
+    if not lookup_id and not legacy_id:
+        return params
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            row = None
+            if lookup_id:
+                await cur.execute(
+                    "SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = %s LIMIT 1",
+                    (lookup_id,),
+                )
+                row = await cur.fetchone()
+            if not row and legacy_id:
+                await cur.execute(
+                    "SELECT bot_username, is_verified FROM custom_bots WHERE channel_id = %s LIMIT 1",
+                    (legacy_id,),
+                )
+                row = await cur.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        logging.warning(f"_get_user_custom_bot_params: no custom_bots row for channel_id={lookup_id or legacy_id}")
+        return params
+    if int(row.get("is_verified") or 0) != 1:
+        logging.warning(f"_get_user_custom_bot_params: custom bot exists but not verified for channel_id={lookup_id or legacy_id}")
+        return params
+    bot_username = (row.get("bot_username") or "").strip()
+    if not bot_username:
+        logging.warning(f"_get_user_custom_bot_params: bot_username empty for channel_id={lookup_id or legacy_id}")
+        return params
+    params["use_custom_bot"] = True
+    params["custom_bot_username"] = bot_username
+    params["use_self"] = False
+    return params
+
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
 
@@ -4871,6 +4912,7 @@ async def bot_status(api_key: str = Query(..., description="Your API key for aut
 
 class BotActionResponse(BaseModel):
     success: bool = Field(..., example=True)
+    state: str = Field(..., example="started", description="Discriminator for the result. One of: started, already_running, stopped, already_stopped, start_pending.")
     running: bool = Field(..., example=True, description="Whether the bot is currently running after the action.")
     pid: int | None = Field(None, example=12345, description="PID of the running bot process, if any.")
     bot_type: str = Field(..., example="stable", description="Bot variant (stable or beta).")
@@ -4888,8 +4930,8 @@ class BotActionResponse(BaseModel):
 async def start_bot(
     api_key: str = Query(..., description="Your API key for authentication"),
     bot_type: str = Query("stable", description="Bot variant to start (stable or beta)."),
-    custom_bot_username: str = Query(None, description="Beta only: custom bot account username. Implies -custom mode."),
-    use_self: bool = Query(None, description="Beta only: launch with the -self flag. Defaults to users.use_self."),
+    custom: bool = Query(False, description="Beta only: launch with -custom mode using the channel's verified custom bot account. Mutually exclusive with self."),
+    self_mode: bool = Query(False, alias="self", description="Beta only: launch with the -self flag. Mutually exclusive with custom."),
     channel: str = Query(None),
 ):
     key_info = await verify_key(api_key)
@@ -4900,6 +4942,16 @@ async def start_bot(
         raise HTTPException(
             status_code=400,
             detail=f"Invalid bot_type. Must be one of: {', '.join(BOT_SCRIPT_PATHS.keys())}",
+        )
+    if custom and self_mode:
+        raise HTTPException(
+            status_code=400,
+            detail="custom and self are mutually exclusive. Provide only one.",
+        )
+    if bot_type != "beta" and (custom or self_mode):
+        raise HTTPException(
+            status_code=400,
+            detail="custom and self flags are only valid when bot_type=beta.",
         )
     creds = await _get_user_bot_launch_credentials(username)
     if not creds:
@@ -4921,8 +4973,23 @@ async def start_bot(
     version_file = BOT_VERSION_FILE_TEMPLATES[bot_type].format(username=username)
     crash_log = f"/home/botofthespecter/logs/{username}_crash.log"
     screen_session = "specter_" + re.sub(r'[^a-zA-Z0-9_]', '_', username)
-    effective_use_self = use_self if use_self is not None else creds["use_self"]
-    custom_bot_username_clean = (custom_bot_username or "").strip()
+    if bot_type == "beta":
+        if custom:
+            beta_params = await _get_user_custom_bot_params(
+                creds["user_id"], creds["twitch_user_id"],
+                use_custom=True, use_self=False,
+            )
+            if not beta_params["use_custom_bot"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="custom mode requested but no verified custom bot is configured for this channel.",
+                )
+        elif self_mode:
+            beta_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": True}
+        else:
+            beta_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": False}
+    else:
+        beta_params = {"use_custom_bot": False, "custom_bot_username": None, "use_self": False}
     connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
     command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
     try:
@@ -4934,24 +5001,40 @@ async def start_bot(
             connect_timeout=connect_timeout,
         ) as conn:
             running_pid = await _check_bot_pid(conn, bot_type, username, command_timeout)
-            if running_pid:
-                version = await _read_version_file(conn, version_file, command_timeout)
-                return BotActionResponse(
-                    success=True, running=True, pid=running_pid, bot_type=bot_type,
-                    version=version, message=f"Bot already running (PID {running_pid})",
-                )
             other_msg = ""
             for other_type in BOT_SCRIPT_PATHS:
                 if other_type == bot_type:
                     continue
                 other_pid = await _check_bot_pid(conn, other_type, username, command_timeout)
                 if other_pid:
+                    other_script = BOT_SCRIPT_PATHS[other_type]
+                    pgrep_cmd = f"pgrep -f 'python.*{other_script} -channel {username}'"
+                    pgrep_result = await asyncio.wait_for(
+                        conn.run(pgrep_cmd), timeout=command_timeout,
+                    )
+                    pids_to_kill = [p.strip() for p in (pgrep_result.stdout or "").split("\n") if p.strip().isdigit()]
+                    if not pids_to_kill:
+                        pids_to_kill = [str(other_pid)]
+                    for pid in pids_to_kill:
+                        await asyncio.wait_for(
+                            conn.run(f"kill -s kill {pid}"),
+                            timeout=command_timeout,
+                        )
+                    other_screen = "specter_" + re.sub(r'[^a-zA-Z0-9_]', '_', username)
                     await asyncio.wait_for(
-                        conn.run(f"kill -s kill {other_pid}"),
+                        conn.run(f"screen -S {shlex.quote(other_screen)} -X quit 2>/dev/null; true"),
                         timeout=command_timeout,
                     )
                     await asyncio.sleep(0.5)
-                    other_msg += f"Stopped existing {other_type} bot. "
+                    other_msg += f"Stopped {other_type} bot (PIDs: {', '.join(pids_to_kill)}). "
+            if running_pid:
+                version = await _read_version_file(conn, version_file, command_timeout)
+                return BotActionResponse(
+                    success=True, state="already_running",
+                    running=True, pid=running_pid, bot_type=bot_type,
+                    version=version,
+                    message=f"{other_msg}Bot is already running (PID {running_pid}). No action taken.",
+                )
             args = [
                 "python", "-u",
                 shlex.quote(bot_script),
@@ -4961,9 +5044,9 @@ async def start_bot(
                 "-refresh", shlex.quote(fresh_refresh),
                 "-apitoken", shlex.quote(creds["api_key"]),
             ]
-            if bot_type == "beta" and custom_bot_username_clean:
-                args.extend(["-custom", "-botusername", shlex.quote(custom_bot_username_clean)])
-            if bot_type == "beta" and effective_use_self:
+            if bot_type == "beta" and beta_params["use_custom_bot"] and beta_params["custom_bot_username"]:
+                args.extend(["-custom", "-botusername", shlex.quote(beta_params["custom_bot_username"])])
+            if bot_type == "beta" and beta_params["use_self"]:
                 args.append("-self")
             bot_invocation = " ".join(args)
             wrapped = f"bash -c {shlex.quote(bot_invocation + ' 2>&1 | tee -a ' + crash_log)}"
@@ -4974,11 +5057,13 @@ async def start_bot(
             if new_pid:
                 version = await _read_version_file(conn, version_file, command_timeout)
                 return BotActionResponse(
-                    success=True, running=True, pid=new_pid, bot_type=bot_type,
+                    success=True, state="started",
+                    running=True, pid=new_pid, bot_type=bot_type,
                     version=version, message=f"{other_msg}Bot started successfully",
                 )
             return BotActionResponse(
-                success=True, running=False, pid=None, bot_type=bot_type,
+                success=True, state="start_pending",
+                running=False, pid=None, bot_type=bot_type,
                 version=None,
                 message=f"{other_msg}Bot start command sent. Status will update shortly.",
             )
@@ -5046,13 +5131,16 @@ async def stop_bot(
                     timeout=command_timeout,
                 )
                 return BotActionResponse(
-                    success=True, running=False, pid=None, bot_type=bot_type,
+                    success=True, state="stopped",
+                    running=False, pid=None, bot_type=bot_type,
                     version=None,
                     message=f"Bot stopped (killed PIDs: {', '.join(killed)})",
                 )
             return BotActionResponse(
-                success=True, running=False, pid=None, bot_type=bot_type,
-                version=None, message="Bot is not running",
+                success=True, state="already_stopped",
+                running=False, pid=None, bot_type=bot_type,
+                version=None,
+                message="Bot is not running. No action taken.",
             )
     except HTTPException:
         raise
