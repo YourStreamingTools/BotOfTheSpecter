@@ -16,6 +16,7 @@ import socket
 from datetime import datetime, timedelta, timezone
 import traceback
 import re
+import shlex
 
 # Third-party imports
 import aiohttp
@@ -284,6 +285,122 @@ async def _get_twitch_profile_images(logins) -> dict:
     except Exception as e:
         logging.warning(f"Twitch profile image lookup failed: {e}")
     return result
+
+# Bot launch / control helpers
+BOT_SCRIPT_PATHS = {
+    "stable": "/home/botofthespecter/bot.py",
+    "beta": "/home/botofthespecter/beta.py",
+}
+BOT_VERSION_FILE_TEMPLATES = {
+    "stable": "/home/botofthespecter/logs/version/{username}_version_control.txt",
+    "beta": "/home/botofthespecter/logs/version/beta/{username}_beta_version_control.txt",
+}
+BOT_STATUS_SCRIPT = "/home/botofthespecter/status.py"
+
+async def _get_user_bot_launch_credentials(username: str) -> dict | None:
+    conn = await get_mysql_connection()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                """
+                SELECT id, twitch_user_id, access_token, refresh_token, api_key, use_custom, use_self
+                FROM users
+                WHERE username = %s
+                LIMIT 1
+                """,
+                (username,)
+            )
+            row = await cur.fetchone()
+            if not row:
+                return None
+            return {
+                "user_id": str(row.get("id") or ""),
+                "twitch_user_id": str(row.get("twitch_user_id") or ""),
+                "access_token": (row.get("access_token") or "").strip(),
+                "refresh_token": (row.get("refresh_token") or "").strip(),
+                "api_key": (row.get("api_key") or "").strip(),
+                "use_custom": int(row.get("use_custom") or 0) == 1,
+                "use_self": int(row.get("use_self") or 0) == 1,
+            }
+    finally:
+        conn.close()
+
+async def _refresh_twitch_user_token(twitch_user_id: str, refresh_token: str) -> tuple:
+    if not (CLIENT_ID and CLIENT_SECRET and refresh_token):
+        return None, None
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://id.twitch.tv/oauth2/token",
+                data={
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                },
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    logging.warning(f"Twitch token refresh failed for twitch_user_id={twitch_user_id}: HTTP {resp.status}: {body[:200]}")
+                    return None, None
+                payload = await resp.json(content_type=None)
+                new_access = payload.get("access_token")
+                new_refresh = payload.get("refresh_token") or refresh_token
+                if not new_access:
+                    return None, None
+                conn = await get_mysql_connection()
+                try:
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "UPDATE users SET access_token = %s, refresh_token = %s WHERE twitch_user_id = %s",
+                            (new_access, new_refresh, twitch_user_id),
+                        )
+                    await conn.commit()
+                finally:
+                    conn.close()
+                return new_access, new_refresh
+    except Exception as e:
+        logging.error(f"Twitch token refresh exception for twitch_user_id={twitch_user_id}: {e}")
+        return None, None
+
+async def _ensure_fresh_twitch_token(twitch_user_id: str, access_token: str, refresh_token: str) -> tuple:
+    if access_token:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://id.twitch.tv/oauth2/validate",
+                    headers={"Authorization": f"OAuth {access_token}"},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status == 200:
+                        return access_token, refresh_token
+        except Exception as e:
+            logging.warning(f"Twitch token validate failed for twitch_user_id={twitch_user_id}: {e}")
+    return await _refresh_twitch_user_token(twitch_user_id, refresh_token)
+
+async def _check_bot_pid(conn, bot_type: str, username: str, command_timeout: int) -> int | None:
+    result = await asyncio.wait_for(
+        conn.run(f"python {BOT_STATUS_SCRIPT} -system {bot_type} -channel {username}"),
+        timeout=command_timeout,
+    )
+    output = (result.stdout or "").strip()
+    m = re.search(r'process ID:\s*(\d+)', output, re.IGNORECASE) or re.search(r'PID\s+(\d+)', output, re.IGNORECASE)
+    if m:
+        pid = int(m.group(1))
+        return pid if pid > 0 else None
+    return None
+
+async def _read_version_file(conn, version_file: str, command_timeout: int) -> str | None:
+    try:
+        result = await asyncio.wait_for(
+            conn.run(f"cat {shlex.quote(version_file)}"),
+            timeout=command_timeout,
+        )
+        v = (result.stdout or "").strip()
+        return v or None
+    except Exception:
+        return None
 
 # Process start time for basic uptime reporting
 _process_start_time = datetime.now()
@@ -2930,6 +3047,63 @@ async def get_sound_alerts(api_key: str = Query(...), channel: str = Query(None)
         logging.error(f"Error retrieving sound alerts for user '{channel}': {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving sound alerts: {str(e)}")
 
+# Walkons Endpoint
+@app.get(
+    "/walkons",
+    summary="Get list of walkons for your channel",
+    description="Retrieve every walkon audio/video file configured for your channel, mapping each viewer username to its file extension and public URL.",
+    tags=["Commands"],
+    operation_id="get_walkons"
+)
+async def get_walkons(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        website_ssh_host = os.getenv('WEB-HOST')
+        website_ssh_username = os.getenv('SSH_USERNAME')
+        website_ssh_password = os.getenv('SSH_PASSWORD')
+        walkons_dir = f"/var/www/walkons/{username}"
+        command = f'ls -1 "{walkons_dir}" 2>/dev/null | while read f; do [ -f "{walkons_dir}/$f" ] && echo "$f"; done | sort'
+        async with asyncssh.connect(
+            website_ssh_host, port=22,
+            username=website_ssh_username, password=website_ssh_password,
+            known_hosts=None, connect_timeout=10,
+        ) as conn:
+            result = await conn.run(command)
+        if result.exit_status != 0:
+            error_msg = result.stderr.strip()
+            if "No such file" in error_msg or "cannot access" in error_msg:
+                raise HTTPException(status_code=404, detail=f"No walkons directory found for user '{username}'")
+            logging.error(f"Error listing walkons for '{username}': {error_msg}")
+            raise HTTPException(status_code=500, detail="Error retrieving walkons")
+        output = result.stdout.strip()
+        walkons = []
+        if output:
+            valid_extensions = (".mp3", ".mp4")
+            for filename in output.split('\n'):
+                ext = os.path.splitext(filename)[1].lower()
+                if ext not in valid_extensions:
+                    continue
+                viewer = filename[:-len(ext)]
+                walkons.append({
+                    "username": viewer,
+                    "ext": ext,
+                    "filename": filename,
+                    "url": f"https://walkons.botofthespecter.com/{username}/{filename}",
+                })
+        return {
+            "user": username,
+            "total_walkons": len(walkons),
+            "walkons": walkons,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving walkons for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving walkons: {str(e)}")
+
 # Custom Commands Endpoint
 @app.get(
     "/custom-commands",
@@ -4694,6 +4868,197 @@ async def bot_status(api_key: str = Query(..., description="Your API key for aut
     # Get bot status via SSH
     bot_status_info = await get_bot_status_via_ssh(username)
     return BotStatusResponse(**bot_status_info)
+
+class BotActionResponse(BaseModel):
+    success: bool = Field(..., example=True)
+    running: bool = Field(..., example=True, description="Whether the bot is currently running after the action.")
+    pid: int | None = Field(None, example=12345, description="PID of the running bot process, if any.")
+    bot_type: str = Field(..., example="stable", description="Bot variant (stable or beta).")
+    version: str | None = Field(None, example="6.7", description="Version of the running bot, if known.")
+    message: str = Field(..., example="Bot started successfully")
+
+@app.post(
+    "/bot/start",
+    summary="Start the chat bot",
+    description="Start the chat bot for the authenticated user. Validates the user's Twitch access token (refreshing it via the user's refresh token if expired) before launching, and stops any other bot variant that is running for this user. Idempotent — if the requested bot variant is already running, returns success with the existing PID.",
+    tags=["User Account"],
+    operation_id="start_bot",
+    response_model=BotActionResponse,
+)
+async def start_bot(
+    api_key: str = Query(..., description="Your API key for authentication"),
+    bot_type: str = Query("stable", description="Bot variant to start (stable or beta)."),
+    custom_bot_username: str = Query(None, description="Beta only: custom bot account username. Implies -custom mode."),
+    use_self: bool = Query(None, description="Beta only: launch with the -self flag. Defaults to users.use_self."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    username = resolve_username(key_info, channel)
+    if bot_type not in BOT_SCRIPT_PATHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bot_type. Must be one of: {', '.join(BOT_SCRIPT_PATHS.keys())}",
+        )
+    creds = await _get_user_bot_launch_credentials(username)
+    if not creds:
+        raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+    missing = [k for k in ("twitch_user_id", "access_token", "refresh_token", "api_key") if not creds.get(k)]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing required user data: {', '.join(missing)}")
+    fresh_access, fresh_refresh = await _ensure_fresh_twitch_token(
+        creds["twitch_user_id"], creds["access_token"], creds["refresh_token"]
+    )
+    if not fresh_access or not fresh_refresh:
+        raise HTTPException(
+            status_code=401,
+            detail="Twitch access token is expired and refresh failed; user must re-authorize.",
+        )
+    if not all([BOTS_SSH_HOST, SSH_USERNAME, SSH_PASSWORD]):
+        raise HTTPException(status_code=500, detail="Bot host SSH credentials are not configured")
+    bot_script = BOT_SCRIPT_PATHS[bot_type]
+    version_file = BOT_VERSION_FILE_TEMPLATES[bot_type].format(username=username)
+    crash_log = f"/home/botofthespecter/logs/{username}_crash.log"
+    screen_session = "specter_" + re.sub(r'[^a-zA-Z0-9_]', '_', username)
+    effective_use_self = use_self if use_self is not None else creds["use_self"]
+    custom_bot_username_clean = (custom_bot_username or "").strip()
+    connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
+    command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
+    try:
+        async with asyncssh.connect(
+            BOTS_SSH_HOST,
+            username=SSH_USERNAME,
+            password=SSH_PASSWORD,
+            known_hosts=None,
+            connect_timeout=connect_timeout,
+        ) as conn:
+            running_pid = await _check_bot_pid(conn, bot_type, username, command_timeout)
+            if running_pid:
+                version = await _read_version_file(conn, version_file, command_timeout)
+                return BotActionResponse(
+                    success=True, running=True, pid=running_pid, bot_type=bot_type,
+                    version=version, message=f"Bot already running (PID {running_pid})",
+                )
+            other_msg = ""
+            for other_type in BOT_SCRIPT_PATHS:
+                if other_type == bot_type:
+                    continue
+                other_pid = await _check_bot_pid(conn, other_type, username, command_timeout)
+                if other_pid:
+                    await asyncio.wait_for(
+                        conn.run(f"kill -s kill {other_pid}"),
+                        timeout=command_timeout,
+                    )
+                    await asyncio.sleep(0.5)
+                    other_msg += f"Stopped existing {other_type} bot. "
+            args = [
+                "python", "-u",
+                shlex.quote(bot_script),
+                "-channel", shlex.quote(username),
+                "-channelid", shlex.quote(creds["twitch_user_id"]),
+                "-token", shlex.quote(fresh_access),
+                "-refresh", shlex.quote(fresh_refresh),
+                "-apitoken", shlex.quote(creds["api_key"]),
+            ]
+            if bot_type == "beta" and custom_bot_username_clean:
+                args.extend(["-custom", "-botusername", shlex.quote(custom_bot_username_clean)])
+            if bot_type == "beta" and effective_use_self:
+                args.append("-self")
+            bot_invocation = " ".join(args)
+            wrapped = f"bash -c {shlex.quote(bot_invocation + ' 2>&1 | tee -a ' + crash_log)}"
+            start_cmd = f"screen -dmS {shlex.quote(screen_session)} {wrapped}"
+            await asyncio.wait_for(conn.run(start_cmd), timeout=command_timeout)
+            await asyncio.sleep(0.5)
+            new_pid = await _check_bot_pid(conn, bot_type, username, command_timeout)
+            if new_pid:
+                version = await _read_version_file(conn, version_file, command_timeout)
+                return BotActionResponse(
+                    success=True, running=True, pid=new_pid, bot_type=bot_type,
+                    version=version, message=f"{other_msg}Bot started successfully",
+                )
+            return BotActionResponse(
+                success=True, running=False, pid=None, bot_type=bot_type,
+                version=None,
+                message=f"{other_msg}Bot start command sent. Status will update shortly.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Bot start failed for '{username}' ({bot_type}): {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Bot start failed: {e}")
+
+@app.post(
+    "/bot/stop",
+    summary="Stop the chat bot",
+    description="Stop the chat bot for the authenticated user. Sends SIGKILL to all matching bot processes and tears down the screen session.",
+    tags=["User Account"],
+    operation_id="stop_bot",
+    response_model=BotActionResponse,
+)
+async def stop_bot(
+    api_key: str = Query(..., description="Your API key for authentication"),
+    bot_type: str = Query("stable", description="Bot variant to stop (stable or beta)."),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    username = resolve_username(key_info, channel)
+    if bot_type not in BOT_SCRIPT_PATHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bot_type. Must be one of: {', '.join(BOT_SCRIPT_PATHS.keys())}",
+        )
+    if not all([BOTS_SSH_HOST, SSH_USERNAME, SSH_PASSWORD]):
+        raise HTTPException(status_code=500, detail="Bot host SSH credentials are not configured")
+    bot_script = BOT_SCRIPT_PATHS[bot_type]
+    screen_session = "specter_" + re.sub(r'[^a-zA-Z0-9_]', '_', username)
+    connect_timeout = int(os.getenv("BOTS_SSH_TIMEOUT", "25"))
+    command_timeout = int(os.getenv("BOTS_SSH_COMMAND_TIMEOUT", "20"))
+    try:
+        async with asyncssh.connect(
+            BOTS_SSH_HOST,
+            username=SSH_USERNAME,
+            password=SSH_PASSWORD,
+            known_hosts=None,
+            connect_timeout=connect_timeout,
+        ) as conn:
+            pgrep_cmd = f"pgrep -f 'python.*{bot_script} -channel {username}'"
+            result = await asyncio.wait_for(conn.run(pgrep_cmd), timeout=command_timeout)
+            output = (result.stdout or "").strip()
+            killed = []
+            if output:
+                for line in output.split("\n"):
+                    line = line.strip()
+                    if line.isdigit():
+                        await asyncio.wait_for(
+                            conn.run(f"kill -s kill {line}"),
+                            timeout=command_timeout,
+                        )
+                        killed.append(line)
+                await asyncio.wait_for(
+                    conn.run(f"screen -S {shlex.quote(screen_session)} -X quit 2>/dev/null; true"),
+                    timeout=command_timeout,
+                )
+                await asyncio.wait_for(
+                    conn.run(f"tmux kill-session -t {shlex.quote(screen_session)} 2>/dev/null; true"),
+                    timeout=command_timeout,
+                )
+                return BotActionResponse(
+                    success=True, running=False, pid=None, bot_type=bot_type,
+                    version=None,
+                    message=f"Bot stopped (killed PIDs: {', '.join(killed)})",
+                )
+            return BotActionResponse(
+                success=True, running=False, pid=None, bot_type=bot_type,
+                version=None, message="Bot is not running",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Bot stop failed for '{username}' ({bot_type}): {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Bot stop failed: {e}")
 
 # ─── Twitch Extension Endpoints ──────────────────────────────────────────────
 # Read-only, no API key required. Uses the broadcaster's Twitch channel ID
