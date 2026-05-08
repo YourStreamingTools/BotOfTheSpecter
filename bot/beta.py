@@ -261,6 +261,7 @@ hyperate_task = None                                                            
 TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)                                  # Global cooldown for shoutouts
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)                                   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                                                       # Last time a shoutout was performed
+shoutout_in_flight = False                                                              # Whether the shoutout worker is currently processing an item
 websocket_connected = False                                                             # Whether the websocket is currently connected
 bot_owner = "gfaundead"                                                                 # Bot owner's username
 streamelements_token = None                                                             # StreamElements OAuth2 access token
@@ -8049,6 +8050,12 @@ class TwitchBot(commands.Bot):
                 return
             shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "command")
             chat_logger.info(f"[SHOUTOUT] {shoutout_message}")
+            now = time_right_now()
+            in_global_cooldown = (
+                last_shoutout_time != datetime.min
+                and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN
+            )
+            will_be_queued = shoutout_in_flight or not shoutout_queue.empty() or in_global_cooldown
             queued = await add_shoutout(
                 user_to_shoutout,
                 user_id,
@@ -8062,6 +8069,8 @@ class TwitchBot(commands.Bot):
                     f"Sorry, this person has received a shoutout within the last {cooldown_minutes} minutes, please wait for the cooldown to end before sending a shoutout for this user again."
                 )
                 return
+            if will_be_queued:
+                await send_chat_message(f"Got it, @{ctx.author.name}, the shoutout is currently in the queue.")
             # Record usage
             add_usage('shoutout', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -11081,9 +11090,10 @@ async def add_shoutout(user_to_shoutout, user_id, is_automated=True, shoutout_me
 
 # Worker to process shoutout queue
 async def shoutout_worker():
-    global last_shoutout_time
+    global last_shoutout_time, shoutout_in_flight
     while True:
         user_to_shoutout, user_id, is_automated, shoutout_message, source, trigger_api = await shoutout_queue.get()
+        shoutout_in_flight = True
         try:
             now = time_right_now()
             # Check per-user cooldown FIRST (before waiting for global cooldown)
@@ -11117,6 +11127,7 @@ async def shoutout_worker():
             twitch_logger.error(f"[SHOUTOUT] Unhandled error in shoutout_worker while processing shoutout for {user_to_shoutout}: {e}")
         finally:
             # Always mark the task done so the queue doesn't stall
+            shoutout_in_flight = False
             shoutout_queue.task_done()
 
 # Function to trigger a Twitch shoutout via Twitch API
