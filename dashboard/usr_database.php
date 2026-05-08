@@ -615,6 +615,8 @@ try {
                 ad_snoozed_message VARCHAR(255),
                 enable_ad_notice TINYINT(1) DEFAULT 1,
                 enable_upcoming_ad_message TINYINT(1) DEFAULT 1,
+                ad_1min_message VARCHAR(255),
+                enable_1min_ad_message TINYINT(1) DEFAULT 0,
                 enable_start_ad_message TINYINT(1) DEFAULT 1,
                 enable_end_ad_message TINYINT(1) DEFAULT 1,
                 enable_snoozed_ad_message TINYINT(1) DEFAULT 1,
@@ -1065,7 +1067,7 @@ try {
             async_log("Default group $group_name ensured.");
         }
     }
-    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 1, 1, 1, 1, 1, 0 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
+    if ($usrDBconn->query("INSERT INTO ad_notice_settings (ad_start_message, ad_end_message, ad_upcoming_message, ad_snoozed_message, ad_1min_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks) SELECT 'Ads are running for (duration). We''ll be right back after these ads.', 'Thanks for sticking with us through the ads! Welcome back, everyone!', 'Ads will be starting in (minutes).', 'Ads have been snoozed.', 'Ads are starting in 1 minute!', 1, 1, 0, 1, 1, 1, 0 WHERE NOT EXISTS (SELECT 1 FROM ad_notice_settings)") === TRUE && $usrDBconn->affected_rows > 0) {
         async_log('Default ad_notice_settings options ensured.');
     }
     // Ensure default row for Tanggle puzzle stats exists
@@ -1129,6 +1131,24 @@ try {
             } else {
                 async_log("Error adding $column column: " . $usrDBconn->error);
             }
+        }
+    }
+    // Migration for 1-minute ad warning message column
+    $check_1min_msg = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'ad_1min_message'");
+    if ($check_1min_msg->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD ad_1min_message VARCHAR(255) DEFAULT NULL AFTER ad_upcoming_message") === TRUE) {
+            async_log('Successfully added ad_1min_message column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding ad_1min_message column: ' . $usrDBconn->error);
+        }
+    }
+    // Migration for 1-minute ad warning enable toggle
+    $check_1min_toggle = $usrDBconn->query("SHOW COLUMNS FROM ad_notice_settings LIKE 'enable_1min_ad_message'");
+    if ($check_1min_toggle->num_rows == 0) {
+        if ($usrDBconn->query("ALTER TABLE ad_notice_settings ADD enable_1min_ad_message TINYINT(1) DEFAULT 0 AFTER enable_upcoming_ad_message") === TRUE) {
+            async_log('Successfully added enable_1min_ad_message column to ad_notice_settings table.');
+        } else {
+            async_log('Error adding enable_1min_ad_message column: ' . $usrDBconn->error);
         }
     }
     // Ensure default options for new BETA chat alert types

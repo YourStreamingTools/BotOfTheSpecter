@@ -110,48 +110,56 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     elseif (isset($_POST['ad_start_message'])) {
         $activeTab = "ad-notices";
         $ad_upcoming_message = $_POST['ad_upcoming_message'];
+        $ad_1min_message = $_POST['ad_1min_message'];
         $ad_start_message = $_POST['ad_start_message'];
         $ad_end_message = $_POST['ad_end_message'];
         $ad_snoozed_message = $_POST['ad_snoozed_message'];
         $enable_ad_notice = isset($_POST['enable_ad_notice']) ? 1 : 0;
         $enable_upcoming_ad_message = isset($_POST['enable_upcoming_ad_message']) ? 1 : 0;
+        $enable_1min_ad_message = isset($_POST['enable_1min_ad_message']) ? 1 : 0;
         $enable_start_ad_message = isset($_POST['enable_start_ad_message']) ? 1 : 0;
         $enable_end_ad_message = isset($_POST['enable_end_ad_message']) ? 1 : 0;
         $enable_snoozed_ad_message = isset($_POST['enable_snoozed_ad_message']) ? 1 : 0;
         $enable_ai_ad_breaks = isset($_POST['enable_ai_ad_breaks']) ? 1 : 0;
         $update_sql = "INSERT INTO ad_notice_settings 
-            (id, ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 ad_upcoming_message = ?,
+                ad_1min_message = ?,
                 ad_start_message = ?,
                 ad_end_message = ?,
                 ad_snoozed_message = ?,
                 enable_ad_notice = ?,
                 enable_upcoming_ad_message = ?,
+                enable_1min_ad_message = ?,
                 enable_start_ad_message = ?,
                 enable_end_ad_message = ?,
                 enable_snoozed_ad_message = ?,
                 enable_ai_ad_breaks = ?";
         $update_stmt = $db->prepare($update_sql);
         $update_stmt->bind_param(
-            'ssssiiiiiissssiiiiii',
+            'sssssiiiiiiisssssiiiiiii',
             $ad_upcoming_message,
+            $ad_1min_message,
             $ad_start_message,
             $ad_end_message,
             $ad_snoozed_message,
             $enable_ad_notice,
             $enable_upcoming_ad_message,
+            $enable_1min_ad_message,
             $enable_start_ad_message,
             $enable_end_ad_message,
             $enable_snoozed_ad_message,
             $enable_ai_ad_breaks,
             $ad_upcoming_message,
+            $ad_1min_message,
             $ad_start_message,
             $ad_end_message,
             $ad_snoozed_message,
             $enable_ad_notice,
             $enable_upcoming_ad_message,
+            $enable_1min_ad_message,
             $enable_start_ad_message,
             $enable_end_ad_message,
             $enable_snoozed_ad_message,

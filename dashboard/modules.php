@@ -227,26 +227,30 @@ $stmt->close();
 // Load ad notice settings from the database before rendering the form
 // Default values in case the fetch fails or columns don't exist yet
 $ad_upcoming_message = '';
+$ad_1min_message = '';
 $ad_start_message = '';
 $ad_end_message = '';
 $ad_snoozed_message = '';
 $enable_ad_notice = 0;
 $enable_upcoming_ad_message = 1;
+$enable_1min_ad_message = 0;
 $enable_start_ad_message = 1;
 $enable_end_ad_message = 1;
 $enable_snoozed_ad_message = 1;
 $enable_ai_ad_breaks = 0;
 
-$stmt = $db->prepare("SELECT ad_upcoming_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks FROM ad_notice_settings LIMIT 1");
+$stmt = $db->prepare("SELECT ad_upcoming_message, ad_1min_message, ad_start_message, ad_end_message, ad_snoozed_message, enable_ad_notice, enable_upcoming_ad_message, enable_1min_ad_message, enable_start_ad_message, enable_end_ad_message, enable_snoozed_ad_message, enable_ai_ad_breaks FROM ad_notice_settings LIMIT 1");
 if ($stmt) {
     $stmt->execute();
     $stmt->bind_result(
         $fetched_upcoming,
+        $fetched_1min,
         $fetched_start,
         $fetched_end,
         $fetched_snoozed,
         $fetched_enable_global,
         $fetched_enable_upcoming,
+        $fetched_enable_1min,
         $fetched_enable_start,
         $fetched_enable_end,
         $fetched_enable_snoozed,
@@ -254,11 +258,13 @@ if ($stmt) {
     );
     if ($stmt->fetch()) {
         $ad_upcoming_message = $fetched_upcoming;
+        $ad_1min_message = $fetched_1min;
         $ad_start_message = $fetched_start;
         $ad_end_message = $fetched_end;
         $ad_snoozed_message = $fetched_snoozed;
         $enable_ad_notice = $fetched_enable_global;
         $enable_upcoming_ad_message = $fetched_enable_upcoming;
+        $enable_1min_ad_message = $fetched_enable_1min;
         $enable_start_ad_message = $fetched_enable_start;
         $enable_end_ad_message = $fetched_enable_end;
         $enable_snoozed_ad_message = $fetched_enable_snoozed;
@@ -1121,7 +1127,7 @@ ob_start();
                                         Advertisement Messages
                                     </h5>
                                 </div>
-                                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
                                     <div class="sp-form-group">
                                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
                                             <label class="sp-label" style="margin:0;">
@@ -1141,6 +1147,27 @@ ob_start();
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?></textarea>
                                         <p class="field-help">
                                             <span class="char-count" data-field="ad_upcoming_message">0</span>/255 characters
+                                        </p>
+                                    </div>
+                                    <div class="sp-form-group">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                            <label class="sp-label" style="margin:0;">
+                                                <i class="fas fa-hourglass-half"></i>
+                                                <?php echo t('modules_ad_1min_message'); ?>
+                                            </label>
+                                            <label for="enable_1min_ad_message" style="cursor: pointer;">
+                                                <input id="enable_1min_ad_message" type="checkbox"
+                                                    name="enable_1min_ad_message" value="1"
+                                                    <?php echo (!empty($enable_1min_ad_message) ? 'checked' : ''); ?>
+                                                    style="display: none;">
+                                                <i class="fas fa-toggle-<?php echo (!empty($enable_1min_ad_message) ? 'on' : 'off'); ?> fa-2x" style="color:<?php echo (!empty($enable_1min_ad_message) ? 'var(--green)' : 'var(--text-muted)'); ?>;"></i>
+                                            </label>
+                                        </div>
+                                        <textarea class="sp-textarea ad-notice-input" name="ad_1min_message"
+                                            maxlength="255" placeholder="<?php echo t('modules_ad_1min_message_placeholder'); ?>"
+                                            rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_1min_message ?? ''); ?></textarea>
+                                        <p class="field-help">
+                                            <span class="char-count" data-field="ad_1min_message">0</span>/255 characters
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
