@@ -1871,8 +1871,9 @@ async def process_twitch_eventsub_message(message):
                         global shoutout_user
                         user_id = event_data['to_broadcaster_user_id']
                         user_to_shoutout = event_data['to_broadcaster_user_name']
-                        # Check if this shoutout was triggered by a command (stored in shoutout_user dict)
-                        if user_to_shoutout in shoutout_user:
+                        # Check if this shoutout was triggered by a command. Keyed on lowercase login for stable lookups across casing variants.
+                        shoutout_user_key = (event_data.get('to_broadcaster_user_login') or user_to_shoutout or "").lower()
+                        if shoutout_user_key and shoutout_user_key in shoutout_user:
                             twitch_logger.info(f"[EVENTSUB] Skipping EventSub shoutout message for {user_to_shoutout} - command-triggered shoutout already sent message.")
                             return
                         # This is a manual/UI-triggered shoutout, send a chat message
@@ -11103,11 +11104,16 @@ async def shoutout_worker():
                     f"[SHOUTOUT] Skipping shoutout for {user_to_shoutout}. User cooldown in effect ({cooldown_minutes} minute window, {remaining_minutes} minute(s) remaining). [source={source}]"
                 )
                 continue
-            # Check global cooldown (only if user passed per-user cooldown check)
-            if last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
+            # Global cooldown only matters when we're calling the Twitch API; chat-only items skip the wait.
+            if trigger_api and last_shoutout_time and now - last_shoutout_time < TWITCH_SHOUTOUT_GLOBAL_COOLDOWN:
                 wait_time = (TWITCH_SHOUTOUT_GLOBAL_COOLDOWN - (now - last_shoutout_time)).total_seconds()
                 twitch_logger.info(f"[SHOUTOUT] Waiting {wait_time} seconds for global cooldown.")
                 await sleep(wait_time)
+            # Set the dedupe marker BEFORE the API call so a fast-firing channel.shoutout.create webhook still sees it.
+            shoutout_user_key = user_to_shoutout.lower() if user_to_shoutout else ""
+            if trigger_api and shoutout_user_key:
+                shoutout_user[shoutout_user_key] = {"timestamp": time.time()}
+                safe_create_task(remove_shoutout_user(shoutout_user_key, 60))
             # Trigger Twitch shoutout when applicable
             if trigger_api:
                 shoutout_sent = await trigger_twitch_shoutout(user_to_shoutout, user_id)
@@ -11116,13 +11122,11 @@ async def shoutout_worker():
             if shoutout_message:
                 await send_chat_message(shoutout_message)
             twitch_logger.info(f"[SHOUTOUT] Shoutout processed for {user_to_shoutout}. [source={source}]")
-            if trigger_api:
-                shoutout_user[user_to_shoutout] = {"timestamp": time.time()}
-                safe_create_task(remove_shoutout_user(user_to_shoutout, 60))
             # Record shoutout for per-user cooldown tracking regardless of source
             await record_automated_shoutout(user_id, user_to_shoutout)
-            # Update cooldown trackers
-            last_shoutout_time = time_right_now()
+            # Only bump the global cooldown when we actually called the Twitch API
+            if trigger_api:
+                last_shoutout_time = time_right_now()
         except Exception as e:
             twitch_logger.error(f"[SHOUTOUT] Unhandled error in shoutout_worker while processing shoutout for {user_to_shoutout}: {e}")
         finally:
