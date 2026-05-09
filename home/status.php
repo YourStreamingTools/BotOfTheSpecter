@@ -238,7 +238,11 @@ function checkServiceStatus($serviceName, $serviceData) {
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
         .metric-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.03em; }
         .user-list {
-            column-count: 2;
+            /* column-width sets a target per-column width; browser fits as many
+               columns as the container allows. At ~620px (half-page on a 1280px
+               viewport) that's 3 columns; at ~940px (half-page on 1920px) it's 4.
+               When names overflow vertically the container scrolls. */
+            column-width: 200px;
             column-gap: 1.25rem;
             column-fill: balance;
             max-height: calc(100vh - 360px);
