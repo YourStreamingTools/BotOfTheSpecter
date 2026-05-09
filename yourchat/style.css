@@ -441,6 +441,36 @@ body {
     line-height: 1;
 }
 
+.chat-overlay-wrapper {
+    position: relative;
+    width: calc(100% - 40px);
+    max-width: 1160px;
+    margin: 0 auto;
+}
+
+.scroll-to-bottom-btn {
+    position: sticky;
+    bottom: 10px;
+    align-self: center;
+    background: rgba(145, 71, 255, 0.92);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 7px 18px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    z-index: 20;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    transition: background 0.2s;
+    white-space: nowrap;
+    margin-top: auto;
+}
+
+.scroll-to-bottom-btn:hover {
+    background: rgba(145, 71, 255, 1);
+}
+
 .chat-overlay {
     background: rgba(0, 0, 0, 0.8);
     border-radius: 15px;
@@ -455,9 +485,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    width: calc(100% - 40px);
-    max-width: 1160px;
-    margin: 0 auto;
+    width: 100%;
     box-sizing: border-box;
 }
 
@@ -725,10 +753,10 @@ body {
 
 /* On small screens let the overlay occupy available width */
 @media (max-width: 720px) {
+    .chat-overlay-wrapper {
+        width: calc(100% - 24px);
+    }
     .chat-overlay {
-        width: calc(100% - 40px);
-        max-width: calc(100% - 40px);
-        margin: 0 auto;
         border-radius: 12px;
     }
 }
