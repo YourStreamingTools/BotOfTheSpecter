@@ -115,7 +115,7 @@ while ($row = $result->fetch_assoc()) {
 // Do not preload beta users on the initial render so the client-side
 // polling (AJAX) always fetches the latest data. The AJAX endpoint below
 // still queries the database for fresh beta users on each request.
-$userColumns = [[], []];
+$betaUsers = [];
 
 // Fetch total users
 $totalUsers = $conn->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
@@ -187,10 +187,7 @@ if (isset($_GET['ajax'])) {
     while ($row = $result->fetch_assoc()) {
         $betaUsersAjax[] = $row['twitch_display_name'];
     }
-    $leftUsersAjax = array_slice($betaUsersAjax, 0, 16);
-    $rightUsersAjax = array_slice($betaUsersAjax, 16, 16);
-    $data['betaUsersLeft'] = $leftUsersAjax;
-    $data['betaUsersRight'] = $rightUsersAjax;
+    $data['betaUsers'] = $betaUsersAjax;
     echo json_encode($data);
     exit;
 }
@@ -240,9 +237,21 @@ function checkServiceStatus($serviceName, $serviceData) {
         #system-metrics .status-item > div:last-child { text-align: left; line-height: 1.45; }
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
         .metric-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.03em; }
-        .beta-users { }
-        .user-list { max-height: calc(100vh - 360px); min-height: 280px; overflow-y: auto; }
-        .user-list .info-item { padding: 3px 0; font-size: 0.97em; }
+        .user-list {
+            column-count: 2;
+            column-gap: 1.25rem;
+            column-fill: balance;
+            max-height: calc(100vh - 360px);
+            min-height: 280px;
+            overflow-y: auto;
+        }
+        .user-list .info-item {
+            padding: 3px 0;
+            font-size: 0.97em;
+            break-inside: avoid;
+            -webkit-column-break-inside: avoid;
+            page-break-inside: avoid;
+        }
         #signups-section h2 { margin-bottom: 2px; font-size: 1em; }
         #signups-section .info-item { padding: 2px 0; }
         #signups-section .columns { margin-bottom: 0; }
@@ -379,15 +388,9 @@ function checkServiceStatus($serviceName, $serviceData) {
             <!-- Beta Users -->
             <div class="section">
                 <h2>Friends that use BotOfTheSpecter</h2>
-                <div class="beta-users columns">
-                    <?php foreach ($userColumns as $column): ?>
-                    <div class="column is-half">
-                        <div class="user-list">
-                            <?php foreach ($column as $user): ?>
-                            <div class="info-item"><span><?= htmlspecialchars($user); ?></span></div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
+                <div class="beta-users user-list">
+                    <?php foreach ($betaUsers as $user): ?>
+                    <div class="info-item"><span><?= htmlspecialchars($user); ?></span></div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -511,15 +514,10 @@ function fetchAndUpdateStatus() {
             }
             // Update beta users if the AJAX response includes them.
             // Use strict undefined check so empty arrays (no users) still replace the DOM.
-            if (data.betaUsersLeft !== undefined && data.betaUsersRight !== undefined) {
-                const userColumns = [data.betaUsersLeft, data.betaUsersRight];
+            if (data.betaUsers !== undefined) {
                 let usersHtml = '';
-                userColumns.forEach(column => {
-                    usersHtml += `<div class="column is-half"><div class="user-list">`;
-                    column.forEach(user => {
-                        usersHtml += `<div class="info-item"><span>${user}</span></div>`;
-                    });
-                    usersHtml += `</div></div>`;
+                data.betaUsers.forEach(user => {
+                    usersHtml += `<div class="info-item"><span>${user}</span></div>`;
                 });
                 document.querySelector('.beta-users').innerHTML = usersHtml;
             }
