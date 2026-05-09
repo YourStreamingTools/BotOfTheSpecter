@@ -22,6 +22,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+require_once __DIR__ . '/upload_helpers.php';
 session_write_close();
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
 $stmt->execute();
@@ -285,25 +286,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fileName = $_FILES["filesToUpload"]["name"][$key];
                 $fileSize = $_FILES["filesToUpload"]["size"][$key];
                 $fileError = $_FILES["filesToUpload"]["error"][$key] ?? 0;
+                $displayName = htmlspecialchars(basename($fileName));
                 if ($fileError !== UPLOAD_ERR_OK) {
-                    $uploadStatus .= "Error uploading " . htmlspecialchars(basename($fileName)) . ".<br>";
+                    $uploadStatus .= "Error uploading " . $displayName . ".<br>";
+                    continue;
+                }
+                if (!is_uploaded_file($tmp_name)) {
+                    $uploadStatus .= "Failed to upload " . $displayName . ". Invalid upload.<br>";
                     continue;
                 }
                 if ($current_storage_used + $fileSize > $max_storage_size) {
-                    $uploadStatus .= "Failed to upload " . htmlspecialchars(basename($fileName)) . ". Storage limit exceeded.<br>";
+                    $uploadStatus .= "Failed to upload " . $displayName . ". Storage limit exceeded.<br>";
                     continue;
                 }
                 $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-                if (!in_array($fileType, $allowedExts)) {
-                    $uploadStatus .= "Failed to upload " . htmlspecialchars(basename($fileName)) . ". Only " . $extLabel . " files are allowed.<br>";
+                if (!in_array($fileType, $allowedExts, true)) {
+                    $uploadStatus .= "Failed to upload " . $displayName . ". Only " . $extLabel . " files are allowed.<br>";
                     continue;
                 }
-                $targetFile = $targetDir . '/' . basename($fileName);
-                if (move_uploaded_file($tmp_name, $targetFile)) {
+                if (!upload_validate_extension_and_mime($tmp_name, $fileType, $allowedExts)) {
+                    $uploadStatus .= "Failed to upload " . $displayName . ". File contents do not match the declared file type.<br>";
+                    continue;
+                }
+                $safeName = upload_sanitize_filename($fileName, $fileType);
+                $target = upload_unique_target($targetDir, $safeName);
+                if (move_uploaded_file($tmp_name, $target['path'])) {
                     $current_storage_used += $fileSize;
-                    $uploadStatus .= "The file " . htmlspecialchars(basename($fileName)) . " has been uploaded.<br>";
+                    $uploadStatus .= "The file " . htmlspecialchars($target['name']) . " has been uploaded.<br>";
                 } else {
-                    $uploadStatus .= "Sorry, there was an error uploading " . htmlspecialchars(basename($fileName)) . ".<br>";
+                    $uploadStatus .= "Sorry, there was an error uploading " . $displayName . ".<br>";
                 }
             }
             $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
