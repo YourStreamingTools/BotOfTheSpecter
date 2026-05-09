@@ -83,7 +83,8 @@ help/search_index.json
 *.exe
 *test*
 bot/export_user_data.log
-/.claude
+# Commiting the .claude folder, which contains settings, memory and other data for the AI assistant Claude, for when we want to use it.
+#/.claude
 bot/custom_channel_modules/.gitattributes
 bot/custom_channel_modules/.gitignore
 
