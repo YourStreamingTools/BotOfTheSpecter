@@ -1,47 +1,48 @@
 ---
 name: ui-theme
-description: BotOfTheSpecter UI theme system — covers every visible surface of the project. Use when creating or modifying any HTML, PHP, or CSS that produces UI on the dashboard, admin, overlays, members portal, support portal, roadmap, landing/home page, SpecterBotApp, YourLinks, YourChat, or the Twitch extension. The project has 13 stylesheets across 12 surfaces — this skill maps each one to its purpose, lists the design tokens and class namespaces in use, and gives the rules for picking the right file to edit. NEVER invent colours, spacing, or component classes — always reuse the matching file's existing system.
+description: BotOfTheSpecter UI theme system — covers every visible surface of the project. Use when creating or modifying any HTML, PHP, or CSS that produces UI on the dashboard, admin, overlays, members portal, support portal, roadmap, landing/home page, SpecterBotApp, YourLinks, YourChat, or the Twitch extension. The project has 11 stylesheets plus inline extension CSS across 11 surfaces — this skill maps each one to its purpose, lists the design tokens and class namespaces in use, and gives the rules for picking the right file to edit. NEVER invent colours, spacing, or component classes — always reuse the matching file's existing system.
 ---
 
 # BotOfTheSpecter UI Theme
 
-The project ships **12 stylesheets** across **11 distinct surfaces**. Every surface is dark-themed (except YourChat, which is a gradient theme) and most descend from a shared `sp-*` base, but they live in separate files because each one is deployed as its own subdomain or PHP entrypoint. **You must pick the right file for the surface you're editing.** Editing dashboard.css does not propagate to members or support; each portal has its own copy.
+The project ships **11 stylesheets plus inline extension CSS** across **11 distinct surfaces**. Every surface is dark-themed (except YourChat, which is a gradient theme) and most descend from a shared `sp-*` base, but they live in separate files because each one is deployed as its own subdomain or PHP entrypoint. **You must pick the right file for the surface you're editing.** Editing dashboard.css does not propagate to members or support; each portal has its own copy.
 
-Bulma is no longer used anywhere in the project. The `dashboard.css` file still contains a Bulma-alias layer (`.button.is-primary`, `.field`, `.column`, `.modal`, etc.) so existing markup keeps rendering — treat those classes as *aliases* of the `sp-*` system, not as a separate framework.
+Bulma is no longer loaded anywhere in the project — every CDN import was removed. The `dashboard.css` and `home/style.css` files still contain alias layers (`.button.is-primary`, `.field`, `.column`, `.modal-card`, `.tag.is-success`, etc.) so existing markup keeps rendering — treat those classes as *aliases* of the `sp-*` / `hs-*` system, not as a separate framework. The `./help/` directory exists in the repo as legacy code but is **no longer deployed** — its docs live in the support portal CMS now. Don't audit, edit, or build features against it.
 
 ## Surface → file map
 
 | # | Surface | URL (rough) | Stylesheet | Lines | Convention |
 | - | ------- | ----------- | ---------- | ----- | ---------- |
-| 1 | **Dashboard** (main UI users log into) | `dashboard.botofthespecter.com` | `./dashboard/css/dashboard.css` | 3346 | `sp-*` + Bulma-alias aliases (`.button.is-primary`, `.field`, `.column`, etc.) |
+| 1 | **Dashboard** (main UI users log into; also `login.php` + `restricted.php`) | `dashboard.botofthespecter.com` | `./dashboard/css/dashboard.css` | 3346 | `sp-*` + Bulma-style aliases (`.button.is-primary`, `.field`, `.column`, etc.) |
 | 2 | **Admin** (admin pages within the dashboard) | `dashboard.botofthespecter.com/admin/*` | `./dashboard/css/admin.css` | 525 | Additive layer on top of `dashboard.css`. Adds `admin-*`, `discord-config-card-*`, `search-*`, `bot-message-*`, `hover-box`, `.config-card` |
 | 3 | **Alerts configurator** (alerts builder UI on the dashboard) | `dashboard.botofthespecter.com/alerts/*` | `./dashboard/css/alerts.css` | 454 | Additive layer. `alerts-*` namespace for the sidebar + preview + settings 3-column builder. Uses Twitch purple `#9147ff` for active states (deliberate — it's the alerts builder for Twitch alerts) |
-| 4 | **Help** (variable-grid help page) | `dashboard.botofthespecter.com/help/*` | `./help/css/custom.css` | 16 | Tiny additive layer. Just `.help-variable-grid > .column > .card` adjustments. Sits on top of `dashboard.css` |
-| 5 | **Members portal** | `members.botofthespecter.com` | `./members/style.css` | 1656 | Self-contained: own `:root`, own sp-* base, plus `ms-*` for members features (search, games, autocomplete), `ac-*` (autocomplete dropdown), `memorial-*` (in-memoriam page with candle/dove/star animations), `tab-item`, `reward-filter-btn`, `data-tabs` |
-| 6 | **Support portal** | `support.botofthespecter.com` | `./support/css/style.css` | 1902 | Self-contained: own `:root`, own sp-* base, plus support-ticket UI |
-| 7 | **Roadmap portal** | `roadmap.botofthespecter.com` | `./roadmap/css/style.css` | 1587 | Self-contained: own `:root`, own sp-* base, **extra status colours** (`--purple`, `--purple-bg`, `--teal`, `--teal-bg`, `--orange`, `--orange-bg`) for roadmap categories |
-| 8 | **Marketing home page** | `botofthespecter.com` | `./home/style.css` | 585 | Own `hs-*` namespace (`hs-topnav`, `hs-btn`, `hs-mobile-nav`, `hs-container`). No sidebar — top-nav only. Same `:root` palette as the dashboard |
-| 9 | **SpecterBotApp** (separate web app for the Specter bot) | `specterbotapp.botofthespecter.com` (or similar) | `./specterbotapp/home/css/custom.css` | 677 | Self-contained: own `:root`, own sp-* base, top-fixed `.navbar` (no sidebar) |
-| 10 | **YourLinks** (short-link service, separate domain) | `yourlinks.click` | `./yourlinks.click/yourlinks.click/css/site.css` | 3144 | **Forked from `dashboard.css`** plus `yl-*` for YourLinks-specific UI (`yl-topbar`, `yl-main`, `yl-form-row`, `yl-modal*`, `yl-profile-*`, `yl-category-grid`). Custom Toastify themes |
-| 11 | **YourChat** (lightweight chat overlay/window) | `yourchat.botofthespecter.com` | `./yourchat/style.css` | 1371 | **Different aesthetic** — gradient background (`#667eea` → `#764ba2` indigo→purple), white translucent panels with `backdrop-filter: blur`. NOT the dark `sp-*` system. Class names: `.header`, `.status-bar`, `.compact-actions`, `.chat-overlay`, etc. |
-| 12 | **Overlays** (OBS browser sources for streamers) | served via `dashboard.botofthespecter.com/overlay/...` | `./overlay/index.css` | 1450 | `{name}-overlay-page-*` namespace per overlay (deaths, weather, discord, twitch, fourthwall, kofi, chat, study, credits, todolist, subathon, video-alert, plus the configurable `twitch-alert-*` engine). Transparent body, hidden scrollbars, animation-driven `.show`/`.hide` states |
+| 4 | **Members portal** | `members.botofthespecter.com` | `./members/style.css` | 1656 | Self-contained: own `:root`, own sp-* base, plus `ms-*` for members features (search, games, autocomplete), `ac-*` (autocomplete dropdown), `memorial-*` (in-memoriam page with candle/dove/star animations), `tab-item`, `reward-filter-btn`, `data-tabs` |
+| 5 | **Support portal** (also hosts user-facing docs / help via CMS) | `support.botofthespecter.com` | `./support/css/style.css` | 1902 | Self-contained: own `:root`, own sp-* base, plus support-ticket UI and CMS-driven docs pages |
+| 6 | **Roadmap portal** | `roadmap.botofthespecter.com` | `./roadmap/css/style.css` | 1587 | Self-contained: own `:root`, own sp-* base, **extra status colours** (`--purple`, `--purple-bg`, `--teal`, `--teal-bg`, `--orange`, `--orange-bg`) for roadmap categories |
+| 7 | **Marketing home page** (also `home/status.php`, `specterbotsystems/index.php`, `specterbotsystems/mybot/custombot.php`) | `botofthespecter.com` | `./home/style.css` | 595 | Own `hs-*` namespace (`hs-topnav`, `hs-btn`, `hs-mobile-nav`, `hs-container`). No sidebar — top-nav only. Same `:root` palette as the dashboard. Has an alias layer covering `.column.is-half`, `.is-one-quarter`, `.is-three-quarters`, `.columns.is-mobile`, `.has-text-weight-bold` |
+| 8 | **SpecterBotApp** (separate web app for the Specter bot) | `specterbotapp.botofthespecter.com` | `./specterbotapp/home/css/custom.css` | 677 | Self-contained: own `:root`, own sp-* base, top-fixed `.navbar` (no sidebar) |
+| 9 | **YourLinks** (short-link service, separate domain) | `yourlinks.click` | `./yourlinks.click/yourlinks.click/css/site.css` | 3144 | **Forked from `dashboard.css`** plus `yl-*` for YourLinks-specific UI (`yl-topbar`, `yl-main`, `yl-form-row`, `yl-modal*`, `yl-profile-*`, `yl-category-grid`). Custom Toastify themes |
+| 10 | **YourChat** (lightweight chat overlay/window) | `yourchat.botofthespecter.com` | `./yourchat/style.css` | 1371 | **Different aesthetic** — gradient background (`#667eea` → `#764ba2` indigo→purple), white translucent panels with `backdrop-filter: blur`. NOT the dark `sp-*` system. Class names: `.header`, `.status-bar`, `.compact-actions`, `.chat-overlay`, etc. |
+| 11 | **Overlays** (OBS browser sources for streamers) | served via `dashboard.botofthespecter.com/overlay/...` | `./overlay/index.css` | 1465 | `{name}-overlay-page-*` namespace per overlay (deaths, weather, discord, twitch, fourthwall, kofi, chat, study, credits, todolist, subathon, video-alert, plus the configurable `twitch-alert-*` engine). Transparent body, hidden scrollbars, animation-driven `.show`/`.hide` states. Credits overlay has its own scoped Bulma-style base layer (`.credits-overlay-page .container`, `.section`, `.title`, `.columns`, `.column`) since it can't load `dashboard.css` |
+| 12 | **Twitch Extension** (panel + config; separate Twitch-hosted package) | served by Twitch | `./extension/panel.html` + `./extension/config.html` (inline `<style>`) | inline | Self-contained: tokens (`--bg-base`, `--accent`, `--text-primary` etc.) inlined in HTML `<style>`. Class namespace `ext-*` (`.ext-container`, `.ext-title`, `.ext-subtitle`, `.ext-section-title`, `.ext-btn`, `.ext-btn-primary`, `.ext-btn-link`, `.ext-button-row`, `.ext-table-wrap`, `.ext-table`, `.ext-muted`, `.ext-danger`, `.ext-meta`, `.ext-info`, `.ext-config-title`, `.ext-config-container`). Cannot load any project CSS — Twitch sandboxes the iframe |
 
 ## Hard rules
 
 1. **Always edit the matching surface file.** Dashboard work → `dashboard.css`. Admin pages on the dashboard → `admin.css`. Members portal → `members/style.css`. And so on. Never push members-only styles into `dashboard.css`, and don't import one surface's CSS into another.
-2. **Don't create new top-level CSS files.** If you need new styles for an existing surface, add them to that surface's file as a new numbered section. New surfaces are a product decision — confirm with the user before adding a 13th file.
-3. **Inside dark sp-\* surfaces (1, 2, 3, 4, 5, 6, 7, 8, 9, 10): use the local `:root` variables.** Do not hardcode hex/rgb colours. If a variable doesn't exist for what you need, ask first — adding a new token is a deliberate change.
-4. **Inside `overlay/index.css` (12):** brand colours (Twitch `#9146ff` / `#9147ff`, Discord blurple, Ko-fi `#29abe0`, Fourthwall `#9b59b6`) are deliberately hardcoded. For neutral overlay chrome, follow the existing `rgba(0, 0, 0, 0.8)` panel + `#ffffff` text pattern.
-5. **Inside `yourchat/style.css` (11):** the gradient aesthetic is the brand — don't refactor it to match the dark dashboard. White translucent panels with `backdrop-filter: blur(10px)` and the indigo→purple gradient are deliberate.
-6. **Token drift exists between portal copies.** Members, support, roadmap, and specterbotapp each have their own `:root` block. Some values have drifted (e.g., dashboard's `--border: rgba(255, 255, 255, 0.07)` vs members/support's `--border: #2a2a35`; dashboard's `--amber: #fbbf24` vs members/support's `--amber: #f0a500`). When changing a token in one file, decide whether the other portals should follow — usually yes for genuine palette changes, no for surface-specific tweaks. Ask the user when unsure.
-7. **No new CSS framework imports.** No Tailwind, no Bootstrap, **no Bulma** (it was removed — don't bring it back). The codebase has its own systems already.
-8. **No inline `<style>` blocks** in PHP/HTML for things that belong in a stylesheet. Inline `style="..."` is OK only for dynamic values set by JS (user-configured colours, calculated positions).
-9. **Dark theme only on surfaces 1–10 and 12.** Don't introduce light-theme variants without explicit user authorisation.
-10. **Mobile-aware on dashboard surfaces.** Reuse the established breakpoints: `1200`, `1100`, `1023`, `900`, `768`, `640`, `600`, `480`. Overlays (12) should render cleanly at 1080p / 1440p / 4K — don't hardcode pixel widths that clip.
+2. **Don't create new top-level CSS files.** If you need new styles for an existing surface, add them to that surface's file as a new numbered section. New surfaces are a product decision — confirm with the user before adding a 12th file.
+3. **Inside dark sp-\* surfaces (1, 2, 3, 4, 5, 6, 7, 8, 9): use the local `:root` variables.** Do not hardcode hex/rgb colours. If a variable doesn't exist for what you need, ask first — adding a new token is a deliberate change.
+4. **Inside `overlay/index.css` (11):** brand colours (Twitch `#9146ff` / `#9147ff`, Discord blurple, Ko-fi `#29abe0`, Fourthwall `#9b59b6`) are deliberately hardcoded. For neutral overlay chrome, follow the existing `rgba(0, 0, 0, 0.8)` panel + `#ffffff` text pattern.
+5. **Inside `yourchat/style.css` (10):** the gradient aesthetic is the brand — don't refactor it to match the dark dashboard. White translucent panels with `backdrop-filter: blur(10px)` and the indigo→purple gradient are deliberate.
+6. **Inside the Twitch Extension (12):** tokens are inlined in `<style>` blocks; classes use the `ext-*` namespace. Cannot import any project CSS — Twitch sandboxes the iframe.
+7. **Token drift exists between portal copies.** Members, support, roadmap, and specterbotapp each have their own `:root` block. Some values have drifted (e.g., dashboard's `--border: rgba(255, 255, 255, 0.07)` vs members/support's `--border: #2a2a35`; dashboard's `--amber: #fbbf24` vs members/support's `--amber: #f0a500`). When changing a token in one file, decide whether the other portals should follow — usually yes for genuine palette changes, no for surface-specific tweaks. Ask the user when unsure.
+8. **No new CSS framework imports.** No Tailwind, no Bootstrap, **no Bulma** (it was removed — don't bring it back). The codebase has its own systems already.
+9. **No inline `<style>` blocks** in PHP/HTML for things that belong in a stylesheet. Inline `style="..."` is OK only for dynamic values set by JS (user-configured colours, calculated positions). Exceptions: the Twitch Extension (Surface 12) deliberately inlines its `<style>` because Twitch's iframe sandbox blocks external CSS.
+10. **Dark theme only on surfaces 1–9, 11, 12.** Don't introduce light-theme variants without explicit user authorisation.
+11. **Mobile-aware on dashboard surfaces.** Reuse the established breakpoints: `1200`, `1100`, `1023`, `900`, `768`, `640`, `600`, `480`. Overlays (11) should render cleanly at 1080p / 1440p / 4K — don't hardcode pixel widths that clip.
 
 ## The shared `sp-*` design system
 
-Surfaces 1, 2, 3, 4, 5, 6, 7, 9, 10 all use the `sp-*` system. The **canonical version is `./dashboard/css/dashboard.css`** — that's the most complete, has the most components, and is the model the others were forked from.
+Surfaces 1, 2, 3, 4, 5, 6, 8, 9 all use the `sp-*` system. The **canonical version is `./dashboard/css/dashboard.css`** — that's the most complete, has the most components, and is the model the others were forked from. Surface 7 (`home/style.css`) uses its own `hs-*` namespace but shares the same palette.
 
 ### Canonical design tokens (from `./dashboard/css/dashboard.css` `:root`)
 
@@ -157,13 +158,9 @@ The alerts configurator has a very specific layout (sidebar list of alerts → c
 
 Notable: this file uses Twitch purple `#9147ff` for active states — that's a deliberate brand cue, not a violation of the dark-theme palette. Don't normalise it to `--accent`.
 
-### Surface 4 — `./help/css/custom.css`
+### Surfaces 4 / 5 — `./members/style.css` and `./support/css/style.css`
 
-Tiny additive layer for the help page. Just makes `.help-variable-grid > .column > .card > .card-content` allow content to overflow rather than truncate. If you find yourself adding more than a few rules here, consider whether they belong in `dashboard.css` instead.
-
-### Surfaces 5 / 6 — `./members/style.css` and `./support/css/style.css`
-
-Both portals are siblings. Same `:root`, same sp-* base, same shell (sidebar + topbar + content). They diverge in their portal-specific helpers (`ms-*` for members, support-specific for support). When changing the shared base in one, consider mirroring in the other.
+Both portals are siblings. Same `:root`, same sp-* base, same shell (sidebar + topbar + content). They diverge in their portal-specific helpers (`ms-*` for members, support-specific for support). The support portal also hosts the project's user-facing docs/help via a CMS — when adding doc-style pages, look at the support portal first; the legacy `./help/` directory is no longer deployed. When changing the shared base in one, consider mirroring in the other.
 
 Members-specific patterns:
 - `.ms-search-card`, `.ms-search-row`
@@ -174,19 +171,21 @@ Members-specific patterns:
 - `.memorial-page` family — candle/wick/flame/dove/star animations for the in-memoriam page (`memorial-twinkle`, `memorial-float`, `memorial-glow`, `candle-flicker` keyframes). Has its own purple `#c39bd3` / `#9b59b6` accent for memorial pages
 - `.memorial-helplines`, `.memorial-local-helpline` — crisis helpline display (handle with care; the page is sensitive)
 
-### Surface 7 — `./roadmap/css/style.css`
+### Surface 6 — `./roadmap/css/style.css`
 
 Self-contained sp-* portal with **extra status colours** for roadmap categories: `--purple`, `--teal`, `--orange` and their `*-bg` pairs. Use these for category swatches/labels — don't reach for `--accent` for non-purple categories.
 
-### Surface 8 — `./home/style.css`
+### Surface 7 — `./home/style.css`
 
-The marketing landing page. Uses `hs-*` namespace (top-nav layout instead of sidebar). Same dark palette as the dashboard, but doesn't include any `sp-*` shell — only `hs-topnav`, `hs-btn`, `hs-mobile-nav`, `hs-container`, `hs-main`, etc. If you find yourself wanting a card here, check whether you need `.hs-*` or just plain markup with the shared tokens.
+The marketing landing page (`botofthespecter.com`). Uses `hs-*` namespace (top-nav layout instead of sidebar). Same dark palette as the dashboard, but doesn't include any `sp-*` shell — only `hs-topnav`, `hs-btn`, `hs-mobile-nav`, `hs-container`, `hs-main`, etc. If you find yourself wanting a card here, check whether you need `.hs-*` or just plain markup with the shared tokens.
 
-### Surface 9 — `./specterbotapp/home/css/custom.css`
+It also hosts a few standalone status pages that use the alias layer rather than `hs-*`: `./home/status.php`, `./specterbotsystems/index.php` (loads `../home/style.css`), and `./specterbotsystems/mybot/custombot.php` (loads `dashboard.css`). These pages keep their existing markup — the alias layer covers `.column.is-half`, `.is-one-quarter`, `.is-three-quarters`, `.columns.is-mobile`, `.has-text-weight-bold` plus the original `.box`, `.notification`, `.button`, etc.
+
+### Surface 8 — `./specterbotapp/home/css/custom.css`
 
 SpecterBotApp landing/home with a fixed `.navbar` (no sidebar). Self-contained sp-* + `.navbar`-based top navigation. Adds `--navbar-height` and `--footer-height` tokens. Treat as its own portal — don't share styles with `home/style.css`.
 
-### Surface 10 — `./yourlinks.click/yourlinks.click/css/site.css`
+### Surface 9 — `./yourlinks.click/yourlinks.click/css/site.css`
 
 Forked from `dashboard.css` (you'll see identical sp-* base for the first ~2700 lines), then adds `yl-*` for YourLinks-specific UI:
 - `.yl-topbar`, `.yl-main`, `.yl-form-row`
@@ -197,15 +196,41 @@ Forked from `dashboard.css` (you'll see identical sp-* base for the first ~2700 
 
 When upgrading a shared sp-* component in `dashboard.css`, decide whether to mirror it into `yourlinks.click/.../site.css`. Usually yes for visual fixes, no for dashboard-only feature components.
 
-### Surface 11 — `./yourchat/style.css`
+### Surface 10 — `./yourchat/style.css`
 
 **Different aesthetic.** Gradient background `linear-gradient(135deg, #667eea 0%, #764ba2 100%)`, white translucent panels (`rgba(255, 255, 255, 0.1)` + `backdrop-filter: blur(10px)`), rounded 15px boxes. This is intentional — YourChat is a lightweight chat overlay/window with its own brand. Class names are unprefixed (`.header`, `.status-bar`, `.compact-actions`, `.chat-overlay`, `.status-indicator`, `.status-light`).
 
 **Do not refactor it to match the dashboard.** The gradient/glassmorphism look is the brand. The custom `::-webkit-scrollbar` styling (gradient thumb) is part of that look — keep it.
 
-### Surface 12 — `./overlay/index.css`
+### Surface 11 — `./overlay/index.css`
 
 OBS browser-source overlays. See the dedicated section below.
+
+### Surface 12 — `./extension/panel.html` + `./extension/config.html` (inline `<style>`)
+
+The Twitch Extension is a separate package shipped to Twitch and rendered in their iframe sandbox. **It cannot load any project CSS** — Twitch blocks external stylesheets except their own helper. Tokens are inlined in each HTML file's `<style>` block; classes use the `ext-*` namespace.
+
+Inlined tokens (kept in sync with `dashboard.css` `:root`):
+- `--bg-base`, `--bg-surface`, `--bg-card`, `--bg-card-hover`
+- `--accent`, `--accent-hover`, `--accent-light`
+- `--text-primary`, `--text-secondary`, `--text-muted`
+- `--border`, `--border-hover`
+- `--green`, `--blue`, `--red` (only the colours actually used; not the full status set)
+- `--radius`, `--radius-lg`, `--transition`
+
+Class inventory (`ext-*`):
+- Containers: `.ext-container`, `.ext-config-container`
+- Typography: `.ext-title`, `.ext-subtitle`, `.ext-section-title`, `.ext-config-title`, `.ext-meta`, `.ext-muted`, `.ext-danger`
+- Buttons: `.ext-btn`, `.ext-btn-primary`, `.ext-btn-link`, `.ext-button-row`
+- Tables: `.ext-table-wrap`, `.ext-table`
+- Notification: `.ext-info`
+
+Rules:
+- Don't import `dashboard.css` or any project stylesheet — Twitch will reject it.
+- Keep `panel.html` and `config.html` `<style>` blocks in sync with each other; they redeclare the same tokens.
+- When a token changes in `dashboard.css` `:root`, mirror the change into both extension HTML files.
+- `panel.js` injects DOM dynamically — it must use `ext-*` classes, never Bulma classes or arbitrary inline styles.
+- Twitch panel height is constrained (~300px); content longer than that needs `overflow-y: auto` on a scrollable region.
 
 ## Overlay stylesheet — `./overlay/index.css` in detail
 
@@ -296,7 +321,9 @@ New styles go at the bottom of the portal's `style.css`. If a member-specific he
 
 ### Adding a Twitch Extension panel
 
-`./extension/` is a separate package. Twitch extension iframes have their own constraints. Inline the design tokens you need from `:root`, then build with the same component patterns (cards, badges, stats). Don't import `dashboard.css` directly.
+`./extension/` is a separate package — see Surface 12 above for the full rules and class inventory. Add markup using the `ext-*` classes already defined in `panel.html`'s `<style>` block. If you need a new component, add the class in the `<style>` block of the file that uses it (and mirror it into `config.html`'s `<style>` if both panels need it).
+
+For DOM injected from JS (`panel.js`): use `ext-*` classes only, never Bulma classes or arbitrary inline styles. Tokens (`--accent`, `--bg-base`, etc.) are reachable via `getComputedStyle(document.documentElement).getPropertyValue('--accent')` if a JS-driven dynamic colour is needed.
 
 ## Quick verification before shipping UI
 
@@ -311,4 +338,4 @@ New styles go at the bottom of the portal's `style.css`. If a member-specific he
 9. **Naming check (overlays):** new classes use `{name}-overlay-page-{element}` — they don't reuse another overlay's root.
 10. **Aesthetic check (yourchat):** if you're touching `yourchat/style.css`, the gradient + glassmorphism aesthetic is preserved.
 
-This skill is the contract: every visible surface across BotOfTheSpecter — dashboard, admin, alerts builder, help, members, support, roadmap, home, SpecterBotApp, YourLinks, YourChat, overlays, and the Twitch extension — has a designated stylesheet and a designated namespace. Pick the right one, and the project's visual coherence is preserved.
+This skill is the contract: every visible surface across BotOfTheSpecter — dashboard, admin, alerts builder, members, support (including docs CMS), roadmap, home + status pages, SpecterBotApp, YourLinks, YourChat, overlays, and the Twitch extension — has a designated stylesheet (or inline-CSS block, for the extension) and a designated namespace. Pick the right one, and the project's visual coherence is preserved.
