@@ -12,7 +12,9 @@ Three-version Twitch chat bot system based on TwitchIO:
 - **beta.py (v5.8 BETA)**: Testing ground for features before stable release, TwitchIO 2.10.0
 - **beta-v6.py (v6.0 REWRITE)**: Major rewrite using TwitchIO 3.2.2 with native EventSub support
 
-Plus: **specterdiscord.py (v6.1)** - Separate Discord bot using discord.py
+Plus companion bots (separate platforms, share databases/integrations):
+- **specterdiscord.py** - Discord bot using discord.py
+- **kick.py** - Kick.com bot (companion to the Twitch bot for streamers active on Kick)
 
 ## Core Architecture
 
@@ -234,10 +236,13 @@ Plus: **specterdiscord.py (v6.1)** - Separate Discord bot using discord.py
 
 ## Configuration Files
 
-- **Main Entry**: `/P:\GitHub\BotOfTheSpecter\bot\bot.py` (3000+ lines)
-- **Custom Modules**: `/P:\GitHub\BotOfTheSpecter\bot\custom_channel_modules/*.py`
-- **Token Refresh Scripts**: `refresh_twitch_tokens.py`, `refresh_spotify_tokens.py`, `refresh_streamelements_tokens.py`, `refresh_discord_tokens.py`
-- **Discord Bot**: `/P:\GitHub\BotOfTheSpecter\bot\specterdiscord.py`
+- **Main Entry**: `./bot/bot.py` (~10,600 lines)
+- **Beta Variants**: `./bot/beta.py` (~15,500 lines), `./bot/beta-v6.py` (~12,800 lines)
+- **Custom Modules**: `./bot/custom_channel_modules/*.py`
+- **Token Refresh Scripts**: `./bot/refresh_custom_bot_tokens.py`, `./bot/refresh_spotify_tokens.py`, `./bot/refresh_streamelements_tokens.py`, `./bot/refresh_discord_tokens.py` (Twitch token refresh is handled in-process by bot.py's `twitch_token_refresh()` background task, not a standalone script)
+- **Auxiliary Scripts**: `./bot/setup.py`, `./bot/status.py`, `./bot/status_monitor.py`, `./bot/running_bots.py`, `./bot/export_queue_worker.py`, `./bot/export_user_data.py`, `./bot/sync-channel-rewards.py`, `./bot/system_boot_marker.py`
+- **Discord Bot**: `./bot/specterdiscord.py`
+- **Kick.com Bot**: `./bot/kick.py`
 - **AI History Storage**: `/home/botofthespecter/ai/chat-history/{user_id}.json`
 - **Logs**: `/home/botofthespecter/logs/logs/{log_type}/{channel}.txt`
 
