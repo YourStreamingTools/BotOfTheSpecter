@@ -19,6 +19,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
+require_once __DIR__ . '/upload_helpers.php';
 session_write_close();
 
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
@@ -167,10 +168,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             exit;
         }
         $file = $_FILES['media_file'];
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'message' => 'Upload failed.']);
+            exit;
+        }
+        if (!is_uploaded_file($file['tmp_name'] ?? '')) {
+            echo json_encode(['success' => false, 'message' => 'Invalid upload.']);
+            exit;
+        }
         $allowedExts = ['webm', 'gif', 'png', 'jpg', 'jpeg', 'mp3'];
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        if (!in_array($ext, $allowedExts)) {
+        if (!in_array($ext, $allowedExts, true)) {
             echo json_encode(['success' => false, 'message' => 'Invalid file type. Allowed: ' . implode(', ', $allowedExts)]);
+            exit;
+        }
+        if (!upload_validate_extension_and_mime($file['tmp_name'], $ext, $allowedExts)) {
+            echo json_encode(['success' => false, 'message' => 'File contents do not match the declared file type.']);
             exit;
         }
         $remaining = $max_storage_size - $current_storage_used;
@@ -181,9 +194,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         if (!is_dir($media_path)) {
             mkdir($media_path, 0755, true);
         }
-        $targetFile = $media_path . '/' . basename($file['name']);
-        if (move_uploaded_file($file['tmp_name'], $targetFile)) {
-            echo json_encode(['success' => true, 'filename' => basename($file['name']), 'message' => 'File uploaded.']);
+        $safeName = upload_sanitize_filename($file['name'], $ext);
+        $target = upload_unique_target($media_path, $safeName);
+        if (move_uploaded_file($file['tmp_name'], $target['path'])) {
+            echo json_encode(['success' => true, 'filename' => $target['name'], 'message' => 'File uploaded.']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Upload failed.']);
         }
