@@ -218,33 +218,42 @@ function checkServiceStatus($serviceName, $serviceData) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; }
-        body { display: block; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 5px; }
+        body { display: block; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 4px; font-size: 13px; line-height: 1.35; }
         .container { width: 100%; max-width: 100%; margin: 0; }
         .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0px; }
         .columns { margin-bottom: 0; }
-        h1 { text-align: center; margin-bottom: 0px; font-size: 1.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .section { background: #292929; border-radius: 10px; padding: 10px; backdrop-filter: blur(10px); margin: 0; }
-        .section h2 { margin-bottom: 5px; font-size: 1.1em; border-bottom: 2px solid #ffffff; padding-bottom: 5px; }
-        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 5px; }
-        .status-item { background: rgba(255,255,255,0.05); padding: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .status-item strong { font-size: 1.1em; }
-        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.2em; }
+        h1 { text-align: center; margin-bottom: 0px; font-size: 1.25em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .section { background: #292929; border-radius: 8px; padding: 6px 8px; backdrop-filter: blur(10px); margin: 0; }
+        .section h2 { margin-bottom: 3px; font-size: 1em; border-bottom: 2px solid #ffffff; padding-bottom: 3px; }
+        .status-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+        .status-item { background: rgba(255,255,255,0.05); padding: 4px 6px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .status-item strong { font-size: 1em; }
+        .heartbeat { color: #ff4d4d; transition: transform 0.2s ease; font-size: 1.1em; }
         .heartbeat.beating { color: #76ff7a; animation: beat 1s infinite; }
         @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .info-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #292929; }
+        .info-item { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #292929; }
         .info-item:last-child { border-bottom: none; }
         .error { color: #ff4d4d; }
-        .last-updated { text-align: center; margin-top: 5px; font-size: 0.9em; opacity: 0.8; }
-        #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; }
-        #system-metrics .status-item > div:last-child { text-align: left; }
+        .last-updated { text-align: center; margin-top: 3px; font-size: 0.85em; opacity: 0.8; }
+        #system-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+        #system-metrics .status-item { background: transparent; align-items: flex-start; flex-direction: column; position: relative; padding: 3px 4px; gap: 1px; font-size: 0.92em; }
+        #system-metrics .status-item > div:last-child { text-align: left; line-height: 1.3; }
         #system-metrics .status-item small { position: absolute; top: 0; right: 0; }
         .metric-header { display: flex; justify-content: space-between; align-items: center; }
         .beta-users { }
-        .user-list { max-height: 500px; overflow-y: auto; }
-        #signups-section h2 { margin-bottom: 0; font-size: 1em; }
+        .user-list { max-height: 360px; overflow-y: auto; }
+        .user-list .info-item { padding: 1px 0; font-size: 0.92em; }
+        #signups-section h2 { margin-bottom: 0; font-size: 0.95em; }
         #signups-section .info-item { padding: 1px 0; }
         #signups-section .columns { margin-bottom: 0; }
-        .bottom-row .section { padding-top: 0; }
+        .bottom-row .section { padding-top: 4px; }
+        @media (max-width: 1100px) {
+            .status-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .status-grid { grid-template-columns: repeat(2, 1fr); }
+            #system-metrics { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
