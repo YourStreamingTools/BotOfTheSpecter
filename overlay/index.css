@@ -1171,6 +1171,24 @@ html, body {
 
 /* ===== Credits Overlay ===== */
 
+/* Scoped base layout (replaces former Bulma dependency for the credits overlay).
+   These rules apply ONLY within .credits-overlay-page so they cannot leak into
+   any other overlay. */
+.credits-overlay-page .container { width: 100%; margin: 0 auto; }
+.credits-overlay-page .container.is-fluid { max-width: none; }
+.credits-overlay-page .section { padding: 1.5rem; }
+.credits-overlay-page .title { font-size: 2rem; font-weight: 700; line-height: 1.125; margin: 0 0 1rem; }
+.credits-overlay-page .subtitle { font-size: 1.25rem; font-weight: 400; line-height: 1.25; margin: 0 0 1rem; }
+.credits-overlay-page .content { font-size: 1rem; line-height: 1.5; }
+.credits-overlay-page .content ul { list-style: disc outside; margin-left: 2em; margin-top: 1em; }
+.credits-overlay-page .content ul ul { list-style-type: circle; }
+.credits-overlay-page .content li + li { margin-top: 0.25em; }
+.credits-overlay-page .columns { display: flex; margin: -0.75rem; }
+.credits-overlay-page .columns:last-child { margin-bottom: -0.75rem; }
+.credits-overlay-page .column { flex: 1 1 0; padding: 0.75rem; }
+.credits-overlay-page .has-text-white { color: #ffffff; }
+
+
 .credits-overlay-page,
 html:has(body.credits-overlay-page) {
     --credits-text-color: #FFFFFF;
