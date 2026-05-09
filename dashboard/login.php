@@ -470,7 +470,7 @@ if (isset($_GET['code'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BotOfTheSpecter - Twitch Login</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <link rel="stylesheet" href="css/dashboard.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="192x192">
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">

@@ -37,7 +37,7 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 $user = mysqli_fetch_assoc($result);
 $isTechnical = isset($user['is_technical']) ? (bool)$user['is_technical'] : false;
-$profileImageUrl = $user['profile_image'] ?? ($twitch_profile_image_url ?? ($_SESSION['profile_image'] ?? 'https://bulma.io/images/placeholders/128x128.png'));
+$profileImageUrl = $user['profile_image'] ?? ($twitch_profile_image_url ?? ($_SESSION['profile_image'] ?? 'https://cdn.botofthespecter.com/logo.png'));
 
 // Include language file based on user preference
 $userLanguage = isset($user['language']) ? $user['language'] : 'EN';

@@ -2045,7 +2045,7 @@ ob_start();
             var checkedBoxes = $('input[name="delete_files[]"]:checked').length;
             $('#deleteSelectedBtn').prop('disabled', checkedBoxes < 2);
         });
-        // Update file name display for Bulma file input
+        // Update file name display for the file input
         $('#filesToUpload').on('change', function () {
             let files = this.files;
             let fileNames = [];
