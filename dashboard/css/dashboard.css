@@ -3322,3 +3322,25 @@ label.checkbox input[type="checkbox"] {
 .ml-3 { margin-left: 0.75rem; }
 .ml-4 { margin-left: 1rem; }
 .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+
+/* ----------------------------------------------------------
+   Mobile table safety net
+   Many pages place bare <table> inside .sp-card-body or .sp-content
+   without wrapping in .sp-table-wrap / .table-container. On narrow
+   viewports an unwrapped table forces horizontal overflow on the
+   whole page. This gives the parent its own scroll instead.
+   ---------------------------------------------------------- */
+@media (max-width: 768px) {
+    .sp-card-body > table,
+    .sp-content > table,
+    .sp-content > div > table:not(.sp-table-wrap table):not(.table-container table) {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+    .sp-table-wrap,
+    .table-container {
+        -webkit-overflow-scrolling: touch;
+    }
+}
