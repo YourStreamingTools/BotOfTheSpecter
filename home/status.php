@@ -217,8 +217,9 @@ function checkServiceStatus($serviceName, $serviceData) {
     <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 5px; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        html, body { width: 100%; }
+        body { display: block; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #292929; color: #ffffff; min-height: 100vh; padding: 5px; }
+        .container { width: 100%; max-width: 100%; margin: 0; }
         .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0px; }
         .columns { margin-bottom: 0; }
         h1 { text-align: center; margin-bottom: 0px; font-size: 1.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
