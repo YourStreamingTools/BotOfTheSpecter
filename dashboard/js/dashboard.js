@@ -73,16 +73,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const botStatus = document.getElementById('botStatus');
             sendStreamEvent('STREAM_ONLINE');
             botStatus.textContent = 'STATUS: ONLINE';
-            botStatus.style.color = '#24c760';
+            botStatus.style.color = 'var(--green)';
         });
     }
-    
+
     if (forceOfflineBtn) {
         forceOfflineBtn.addEventListener('click', function() {
             const botStatus = document.getElementById('botStatus');
             sendStreamEvent('STREAM_OFFLINE');
             botStatus.textContent = 'STATUS: OFFLINE';
-            botStatus.style.color = '#e9d96c';
+            botStatus.style.color = 'var(--amber)';
         });
     }
     
@@ -203,6 +203,64 @@ function setCookie(name, value, days) {
     var d = new Date();
     d.setTime(d.getTime() + (days*24*60*60*1000));
     document.cookie = name + "=" + value + ";expires=" + d.toUTCString() + ";path=/";
+}
+
+// Global network-failure handlers. The dashboard has many AJAX calls
+// without per-call .catch() — without these, a dropped connection or
+// 500 produces a silent no-op that confuses users.
+(function setupGlobalAjaxErrorHandling() {
+    const showNetworkError = (msg) => {
+        if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Network error',
+                text: msg,
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true
+            });
+        } else if (typeof showNotification === 'function') {
+            showNotification(msg, 'danger', 4000);
+        } else {
+            console.error('[network]', msg);
+        }
+    };
+
+    if (typeof jQuery !== 'undefined' && jQuery && typeof jQuery.ajaxSetup === 'function') {
+        jQuery(document).ajaxError(function (event, xhr, settings, thrownError) {
+            // Skip aborted requests and intentional 4xx responses (those
+            // are usually validation messages the page already displays).
+            if (!xhr || xhr.status === 0 || xhr.statusText === 'abort') return;
+            if (xhr.status >= 400 && xhr.status < 500) return;
+            showNetworkError('Could not reach the server. Please try again.');
+        });
+    }
+
+    window.addEventListener('unhandledrejection', function (event) {
+        const reason = event.reason;
+        const isFetchError = reason instanceof TypeError && /fetch|network|failed/i.test(String(reason.message || ''));
+        if (!isFetchError) return;
+        showNetworkError('Could not reach the server. Please try again.');
+    });
+})();
+
+// Convenience wrapper for new code. Returns parsed JSON on 2xx, throws
+// on non-JSON or network failure. Existing call sites continue to work
+// untouched — the global handlers above protect callers that forgot
+// .catch().
+async function specterFetch(url, options) {
+    const opts = Object.assign({ credentials: 'same-origin' }, options || {});
+    const response = await fetch(url, opts);
+    const contentType = response.headers.get('Content-Type') || '';
+    let body = null;
+    if (contentType.indexOf('application/json') !== -1) {
+        body = await response.json().catch(() => null);
+    } else {
+        body = await response.text().catch(() => null);
+    }
+    return { ok: response.ok, status: response.status, body };
 }
 
 // Function to create toast notifications
