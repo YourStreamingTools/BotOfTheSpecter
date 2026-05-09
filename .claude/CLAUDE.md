@@ -6,9 +6,21 @@ This is a **multi-system streaming operations platform** with a Twitch bot, API 
 
 **Before making any changes, read the relevant memory file below.** They contain the complete architecture, integration points, and how systems work together.
 
-## Memory Files (Read These First!)
+## Project Rules (Read Before Editing!)
 
-All detailed system documentation lives in `.claude/memory/`:
+Short, enforceable rules live in `.claude/rules/`. Check the relevant one before making changes:
+
+- **[bot-versions.md](./.claude/rules/bot-versions.md)** — Stable/beta/v6 policy, when to edit which file
+- **[paths.md](./.claude/rules/paths.md)** — `./` for repo paths, server paths labeled separately
+- **[data-flow.md](./.claude/rules/data-flow.md)** — WebSocket vs API vs direct DB decision
+- **[database.md](./.claude/rules/database.md)** — `website` vs per-user DB scoping, async aiomysql
+- **[secrets.md](./.claude/rules/secrets.md)** — No hardcoded credentials, signature verification
+- **[php-config.md](./.claude/rules/php-config.md)** — **HARD RULE:** PHP never reads `.env`; always uses `./config/{service}.php`
+- **[overlays.md](./.claude/rules/overlays.md)** — Browser-source constraints, queueing, auto-reconnect
+
+## Memory Files (Architecture Reference)
+
+Detailed system documentation lives in `.claude/memory/`:
 
 - **[system_bot.md](./.claude/memory/system_bot.md)** - Twitch chat bot (3 versions: stable/beta/v6)
   - Use this when: adding bot commands, modifying event handling, integrating external services
