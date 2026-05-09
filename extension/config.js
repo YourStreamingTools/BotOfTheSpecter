@@ -1,23 +1,9 @@
 // config.js for BotOfTheSpecter Twitch Extension
+// Currently no broadcaster-configurable settings exist; this file is a graceful no-op
+// that still registers the auth handler so the extension reports as configured.
 window.Twitch.ext.onAuthorized(function(auth) {
-    // Load config if available
+    // Future: read configuration and populate any form controls here.
     window.Twitch.ext.configuration.onChanged(function() {
-        if (window.Twitch.ext.configuration.broadcaster) {
-            const config = JSON.parse(window.Twitch.ext.configuration.broadcaster.content || '{}');
-            document.getElementById('enableCommands').checked = !!config.enableCommands;
-        }
-    });
-
-    // Save config on form submit
-    document.getElementById('configForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const config = {
-            enableCommands: document.getElementById('enableCommands').checked
-        };
-        window.Twitch.ext.configuration.set('broadcaster', '1.0', JSON.stringify(config));
-        const status = document.getElementById('saveStatus');
-        status.textContent = 'Settings saved!';
-        status.classList.remove('is-hidden');
-        setTimeout(() => status.classList.add('is-hidden'), 2000);
+        // Future: handle config changes here.
     });
 });

@@ -1,4 +1,4 @@
-console.log('panel.js loaded: v2');
+console.log('panel.js loaded: v3');
 window.Twitch.ext.onAuthorized((auth) => {
     const channelId = auth.channelId;
     const API_BASE = 'https://api.botofthespecter.com';
@@ -17,20 +17,21 @@ window.Twitch.ext.onAuthorized((auth) => {
         return parts.slice(0, 2).join(', ') || 'Less than a minute';
     }
     function showLoading(container, title) {
-        container.innerHTML = `<h3 class="title is-6 mt-2">${title}</h3><p class="has-text-grey-light">Loading...</p>`;
+        container.innerHTML = `<h3 class="ext-section-title">${title}</h3><p class="ext-muted">Loading...</p>`;
     }
     function showError(container, title) {
-        container.innerHTML = `<h3 class="title is-6 mt-2">${title}</h3><p class="has-text-danger">Could not load data.</p>`;
+        container.innerHTML = `<h3 class="ext-section-title">${title}</h3><p class="ext-danger">Could not load data.</p>`;
     }
     function makeTable(headers, rows) {
-        if (!rows.length) return '<p class="has-text-grey-light">No data yet.</p>';
+        if (!rows.length) return '<p class="ext-muted">No data yet.</p>';
         const ths = headers.map(h => `<th>${h}</th>`).join('');
         const trs = rows.map(r => `<tr>${r.map(c => `<td>${c ?? ''}</td>`).join('')}</tr>`).join('');
-        return `<div class="table-container"><table class="table is-striped is-narrow is-fullwidth is-size-7"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+        return `<div class="ext-table-wrap"><table class="ext-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
     }
+    const container = document.querySelector('.ext-container') || document.body;
     const dynamicContainer = document.createElement('div');
     dynamicContainer.id = 'dynamic-content';
-    document.body.appendChild(dynamicContainer);
+    container.appendChild(dynamicContainer);
     const options = [
         { key: 'commands',     label: 'Commands',      endpoint: 'commands' },
         { key: 'lurkers',      label: 'Lurkers',        endpoint: 'lurkers' },
@@ -47,10 +48,10 @@ window.Twitch.ext.onAuthorized((auth) => {
         { key: 'todos',        label: 'To-Do',          endpoint: 'todos' }
     ];
     const btnContainer = document.createElement('div');
-    btnContainer.className = 'buttons is-centered mb-4';
+    btnContainer.className = 'ext-button-row';
     options.forEach(opt => {
         const btn = document.createElement('button');
-        btn.className = 'button is-info is-small';
+        btn.className = 'ext-btn ext-btn-primary';
         btn.textContent = opt.label;
         btn.onclick = () => {
             dynamicContainer.innerHTML = '';
@@ -60,7 +61,7 @@ window.Twitch.ext.onAuthorized((auth) => {
                 .then(data => {
                     dynamicContainer.innerHTML = '';
                     const title = document.createElement('h3');
-                    title.className = 'title is-6 mt-2';
+                    title.className = 'ext-section-title';
                     title.textContent = opt.label;
                     dynamicContainer.appendChild(title);
                     let html = '';
@@ -75,15 +76,15 @@ window.Twitch.ext.onAuthorized((auth) => {
                             html = makeTable(['User', 'Typos'], (data.typos || []).map(r => [r.username, r.typo_count]));
                             break;
                         case 'deaths':
-                            html = `<p class="mb-2">Total deaths: <strong>${data.total_deaths ?? 0}</strong></p>`;
+                            html = `<p>Total deaths: <span class="ext-meta">${data.total_deaths ?? 0}</span></p>`;
                             html += makeTable(['Game', 'Deaths'], (data.game_deaths || []).map(r => [r.game_name, r.death_count]));
                             break;
                         case 'hugs':
-                            html = `<p class="mb-2">Total hugs: <strong>${data.total_hugs ?? 0}</strong></p>`;
+                            html = `<p>Total hugs: <span class="ext-meta">${data.total_hugs ?? 0}</span></p>`;
                             html += makeTable(['User', 'Hugs'], (data.hug_counts || []).map(r => [r.username, r.hug_count]));
                             break;
                         case 'kisses':
-                            html = `<p class="mb-2">Total kisses: <strong>${data.total_kisses ?? 0}</strong></p>`;
+                            html = `<p>Total kisses: <span class="ext-meta">${data.total_kisses ?? 0}</span></p>`;
                             html += makeTable(['User', 'Kisses'], (data.kiss_counts || []).map(r => [r.username, r.kiss_count]));
                             break;
                         case 'highfives':
@@ -114,12 +115,12 @@ window.Twitch.ext.onAuthorized((auth) => {
         };
         btnContainer.appendChild(btn);
     });
-    document.body.appendChild(btnContainer);
+    container.appendChild(btnContainer);
     const membersBtn = document.createElement('a');
     membersBtn.href = 'https://members.botofthespecter.com/';
-    membersBtn.className = 'button is-link is-small mt-4';
+    membersBtn.className = 'ext-btn ext-btn-link';
     membersBtn.textContent = 'Members Page';
     membersBtn.target = '_blank';
     membersBtn.rel = 'noopener noreferrer';
-    document.body.appendChild(membersBtn);
+    container.appendChild(membersBtn);
 });
