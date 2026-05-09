@@ -1,16 +1,55 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <title>BotOfTheSpecter Config Page</title>
-        <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.0/css/bulma.min.css">
-    </head>
-    <body>
-        <h1 class="title">BotOfTheSpecter Config Page</h1>
-        <div id="configContent" class="container">
-            <div class="notification is-info mt-4">
-                There are currently no configuration settings for this panel.
-            </div>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BotOfTheSpecter Config Page</title>
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <style>
+        :root {
+            --bg-base:        #0d0d0f;
+            --bg-card:        #1a1a20;
+            --accent:         #7c5cbf;
+            --text-primary:   #e8e8f0;
+            --text-secondary: #a8a8bc;
+            --blue:           #5cb8ff;
+            --blue-bg:        rgba(92, 184, 255, 0.12);
+            --border:         rgba(255, 255, 255, 0.07);
+            --radius:         6px;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body {
+            background: var(--bg-base);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 1rem;
+        }
+        .ext-config-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0 0 0.85rem;
+        }
+        .ext-config-container { max-width: 640px; }
+        .ext-info {
+            background: var(--blue-bg);
+            border: 1px solid var(--blue);
+            color: var(--text-primary);
+            border-radius: var(--radius);
+            padding: 0.85rem 1rem;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="ext-config-title">BotOfTheSpecter Config Page</h1>
+    <div id="configContent" class="ext-config-container">
+        <div class="ext-info">
+            There are currently no configuration settings for this panel.
         </div>
-    </body>
+    </div>
+</body>
 </html>
