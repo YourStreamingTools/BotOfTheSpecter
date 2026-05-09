@@ -1,71 +1,133 @@
 <?php
 /**
  * YourLinks.click Backend API Proxy
- * Handles server-to-server communication with YourLinks API to avoid CORS issues
+ * Server-to-server proxy for the user's YourLinks short-link creation.
+ * The API key is taken from the logged-in session — never trust a key
+ * supplied in the request body.
  */
 
-// Set response header
 header('Content-Type: application/json');
+header('X-Content-Type-Options: nosniff');
 
-// Check if request method is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method Not Allowed']);
     exit;
 }
 
-// Get JSON payload
-$input = json_decode(file_get_contents('php://input'), true);
+require_once '/var/www/lib/session_bootstrap.php';
 
-// Validate required fields
-if (!isset($input['api']) || !isset($input['link_name']) || !isset($input['destination'])) {
+if (empty($_SESSION['access_token']) || empty($_SESSION['api_key'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Authentication required']);
+    exit;
+}
+
+// Cross-site request guard. SameSite=Lax on the session cookie blocks the
+// cookie from being sent on cross-origin POSTs, but belt-and-braces: only
+// accept JSON from same-origin callers (the dashboard JS).
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$referer = $_SERVER['HTTP_REFERER'] ?? '';
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$sourceHost = '';
+if ($origin !== '') {
+    $sourceHost = parse_url($origin, PHP_URL_HOST) ?? '';
+} elseif ($referer !== '') {
+    $sourceHost = parse_url($referer, PHP_URL_HOST) ?? '';
+}
+if ($sourceHost === '' || strcasecmp($sourceHost, $host) !== 0) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Cross-origin request rejected']);
+    exit;
+}
+
+// Cap inbound payload at 4 KB — link metadata, not file uploads.
+$rawBody = file_get_contents('php://input', false, null, 0, 4096);
+if ($rawBody === false || $rawBody === '') {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Empty request body']);
+    exit;
+}
+
+$input = json_decode($rawBody, true);
+if (!is_array($input)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid JSON payload']);
+    exit;
+}
+
+$link_name = isset($input['link_name']) ? trim((string)$input['link_name']) : '';
+$destination = isset($input['destination']) ? trim((string)$input['destination']) : '';
+$title = isset($input['title']) ? trim((string)$input['title']) : '';
+
+if ($link_name === '' || $destination === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Missing required fields']);
     exit;
 }
 
-// Extract data
-$api_key = $input['api'];
-$link_name = $input['link_name'];
-$destination = $input['destination'];
-$title = isset($input['title']) ? $input['title'] : '';
+if (!preg_match('/^[A-Za-z0-9_-]{1,50}$/', $link_name)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Link name must be 1-50 characters of letters, digits, hyphen, or underscore']);
+    exit;
+}
 
-// Build URL for YourLinks API
+if (strlen($destination) > 2048 || !filter_var($destination, FILTER_VALIDATE_URL)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Destination must be a valid URL (max 2048 chars)']);
+    exit;
+}
+
+$destinationScheme = strtolower((string)parse_url($destination, PHP_URL_SCHEME));
+if ($destinationScheme !== 'http' && $destinationScheme !== 'https') {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Destination must use http or https']);
+    exit;
+}
+
+if (strlen($title) > 100) {
+    $title = substr($title, 0, 100);
+}
+
 $params = [
-    'api' => $api_key,
+    'api' => $_SESSION['api_key'],
     'link_name' => $link_name,
-    'destination' => $destination
+    'destination' => $destination,
 ];
-
-if (!empty($title)) {
+if ($title !== '') {
     $params['title'] = $title;
 }
 
 $url = 'https://yourlinks.click/services/api.php?' . http_build_query($params);
 
-// Make request to YourLinks API using cURL
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
 
 $response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curl_error = curl_error($ch);
 curl_close($ch);
 
-// Handle cURL errors
-if ($curl_error) {
+if ($response === false || $curl_error !== '') {
     http_response_code(502);
-    echo json_encode(['success' => false, 'message' => 'Failed to communicate with YourLinks API: ' . $curl_error]);
+    error_log('yourlinks_create curl failure: ' . $curl_error);
+    echo json_encode(['success' => false, 'message' => 'Could not reach the link service. Please try again.']);
     exit;
 }
 
-// Parse response
-$data = json_decode($response, true);
+$data = json_decode((string)$response, true);
+if (!is_array($data)) {
+    http_response_code(502);
+    error_log('yourlinks_create: non-JSON response from upstream (HTTP ' . $http_code . ')');
+    echo json_encode(['success' => false, 'message' => 'Unexpected response from the link service.']);
+    exit;
+}
 
-// Return the response from YourLinks API
-http_response_code($http_code);
+http_response_code($http_code >= 200 && $http_code < 600 ? $http_code : 502);
 echo json_encode($data);
-?>
