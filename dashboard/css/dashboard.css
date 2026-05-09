@@ -2308,7 +2308,7 @@ input[type="checkbox"].switch:disabled + label {
 .ml-2 { margin-left: 0.5rem; }
 
 /* ----------------------------------------------------------
-   32. Discord page - Bulma-compat modal (.modal / .is-active)
+   32. Discord page - generic modal (.modal / .is-active)
    ---------------------------------------------------------- */
 .modal {
     display: none;
@@ -3231,7 +3231,7 @@ label.label {
     flex-shrink: 0;
 }
 
-/* .delete close button (Bulma) */
+/* .delete close button (alias for legacy markup) */
 .delete {
     position: relative;
     appearance: none;
