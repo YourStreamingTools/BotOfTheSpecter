@@ -11,7 +11,7 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 
 ## DASHBOARD SYSTEM
 
-**Location**: `/P:\GitHub\BotOfTheSpecter\dashboard/`
+**Location**: `./dashboard/`
 
 **Purpose**: Central web UI for managing all BotOfTheSpecter features, settings, stream management, and integrations
 
@@ -28,7 +28,7 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - **Feature Pages**: overlays.php, media.php, bot.php, custom_commands.php, notifications.php, recordings.php, etc.
 - **API Layer**: /admin/, /api/ subdirectories for webhooks and internal APIs
 - **Libraries**: userdata.php, bot_control.php, mod_access.php, user_db.php, storage_used.php, file_paths.php
-- **Config**: /var/www/config/ for database.php, db_connect.php, twitch.php (OAuth tokens)
+- **Config**: `./config/` (dev) / `/var/www/config/` (server) for database.php, db_connect.php, twitch.php (OAuth tokens)
 
 **Integration Points**:
 - **Twitch OAuth**: User login via Twitch, OAuth tokens in sessions
@@ -72,7 +72,7 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 
 ## OVERLAY SYSTEM
 
-**Location**: `/P:\GitHub\BotOfTheSpecter\overlay/`
+**Location**: `./overlay/`
 
 **Purpose**: Browser-source compatible overlays for OBS/streaming software with real-time WebSocket events
 
@@ -82,13 +82,13 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - JavaScript (WebSocket client via Socket.io 4.8.3)
 - Socket.io 4.8.3 (real-time event streaming)
 
-**Architecture** - Individual PHP files serve as separate overlay pages, each handling WebSocket events:
+**Architecture** - 20 individual PHP files serve as separate overlay pages, each handling WebSocket events:
 - **index.php / all.php** - Master overlay (combines all elements: deaths, weather, discord, alerts)
 - **alert.php** - Focused visual alerts (redemptions, donations)
 - **sound-alert.php** - Audio-only overlay
 - **tts.php** - Text-to-speech audio playback
 - **music.php** - Background music player (system or user tracks)
-- **walkon.php** - Entrance music + visual
+- **walkons.php** - Entrance music + visual
 - **chat.php** - Live chat display
 - **video-alert.php** - Video playback alerts
 - **deaths.php** - Death counter/display
@@ -98,6 +98,7 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - **subathon.php** - Subscription countdown timer
 - **todolist.php** - Task list display
 - **twitch.php** - General Twitch events
+- **working-or-study.php** - Pomodoro / focus session overlay
 - **patreon.php, kofi.php, fourthwall.php** - Platform-specific alerts
 
 **Integration Points**:
@@ -131,13 +132,13 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - TTS: volume level (30% default)
 - Each overlay requires unique browser source with API key
 
-**Current Status**: ACTIVE with ongoing improvements, recommended primary overlay: all.php
+**Current Status**: ACTIVE with ongoing improvements, recommended primary overlay: all.php (20 total .php variants in /overlay/)
 
 ---
 
 ## STREAM SYSTEM (Custom RTMPS Server)
 
-**Location**: `/P:\GitHub\BotOfTheSpecter\stream/`
+**Location**: `./stream/`
 
 **Purpose**: Custom RTMP(S) ingest server with multi-region support, live Twitch forwarding, recording, and operator web UI
 
@@ -201,13 +202,19 @@ Collection of user-facing and integration systems that depend on the core BOT/AP
 - Systemd service: `/stream/stream.service` runs `python3 stream.py -server sydney`
 - SSL: `/etc/letsencrypt/live/{domain}/` or fallback `/stream/ssl/`
 
+**Auxiliary Scripts** (in `/stream/`):
+- `check_videos.py` - Validates/audits recorded MP4 files
+- `upload_to_persistent_storage.py` - Pushes recordings to long-term storage
+- `twitch-recorder.py` - Standalone Twitch stream recorder (separate from RTMPS ingest)
+- `setup.sh` - Server provisioning script
+
 **Current Status**: COMPLETE and actively running in production (4+ regional instances)
 
 ---
 
 ## TWITCH EXTENSION SYSTEM
 
-**Location**: `/P:\GitHub\BotOfTheSpecter\extension/`
+**Location**: `./extension/`
 
 **Purpose**: Twitch panel extension displaying streamer stats and counters directly in Twitch dashboard
 

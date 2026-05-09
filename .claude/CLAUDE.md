@@ -48,7 +48,7 @@ All detailed system documentation lives in `.claude/memory/`:
                             │                      │
                      ┌──────▼──────┐      ┌────────▼────────┐
                      │  OVERLAYS   │      │ STREAM SERVER   │
-                     │  21 variants│      │ Custom RTMPS    │
+                     │  20 variants│      │ Custom RTMPS    │
                      │ (PHP/JS)    │      │ Multi-region    │
                      │ WebSocket   │      │ Recording       │
                      │ client      │      │ Forwarding      │
@@ -94,7 +94,7 @@ All detailed system documentation lives in `.claude/memory/`:
 
 - **Purpose**: Browser sources for OBS showing live stream events
 - **Tech**: PHP (auth/prefs) + JavaScript (Socket.io client) + HTML/CSS
-- **21 Variants**: all.php (master), music.php, tts.php, deaths.php, weather.php, chat.php, walkon.php, credits.php, plus others
+- **20 Variants**: all.php (master), music.php, tts.php, deaths.php, weather.php, chat.php, walkons.php, credits.php, working-or-study.php, plus others
 - **Real-time**: All receive events from WebSocket server
 
 ### Stream Server
@@ -175,44 +175,45 @@ All detailed system documentation lives in `.claude/memory/`:
 
 ### Bot System
 
-- Main: `bot/bot.py` (stable), `bot/beta.py` (testing), `bot/beta-v6.py` (v6 rewrite)
-- Discord: `bot/specterdiscord.py`
-- Token refresh: `bot/refresh_*.py` (Twitch, Spotify, Discord, StreamElements)
-- Logs: `/home/botofthespecter/logs/logs/{log_type}/{channel}.txt`
-- AI history: `/home/botofthespecter/ai/chat-history/{user_id}.json`
+- Main: `./bot/bot.py` (stable), `./bot/beta.py` (testing), `./bot/beta-v6.py` (v6 rewrite)
+- Discord: `./bot/specterdiscord.py`
+- Kick.com: `./bot/kick.py`
+- Token refresh: `./bot/refresh_*.py` (custom bot, Spotify, Discord, StreamElements — Twitch refreshes in-process via bot.py background task)
+- Logs (server): `/home/botofthespecter/logs/logs/{log_type}/{channel}.txt`
+- AI history (server): `/home/botofthespecter/ai/chat-history/{user_id}.json`
 
 ### API Server
 
-- Main: `api/api.py` (5900+ lines)
-- Config: `/home/botofthespecter/.env`
+- Main: `./api/api.py` (~5,922 lines)
+- Config (server): `/home/botofthespecter/.env`
 
 ### WebSocket Server
 
-- Main: `websocket/server.py`
-- Handlers: `websocket/{event_handler,music_handler,tts_handler,obs_handler,donation_handler,settings_manager,database_manager,security_manager}.py`
-- Config: `/home/botofthespecter/.env`, `/home/botofthespecter/websocket_tts_config.json`
-- IP whitelist: `/home/botofthespecter/ips.txt`
+- Main: `./websocket/server.py`
+- Handlers: `./websocket/{event_handler,music_handler,tts_handler,obs_handler,donation_handler,settings_manager,database_manager,security_manager}.py`
+- Config (server): `/home/botofthespecter/.env`, `/home/botofthespecter/websocket_tts_config.json`
+- IP whitelist (server): `/home/botofthespecter/ips.txt`
 
 ### Dashboard
 
-- Main: `dashboard/dashboard.php`, `dashboard/index.php`
-- Config: `/var/www/config/`
-- Cache: `/dashboard/cache/` (per-user follower/ban lists)
+- Main: `./dashboard/dashboard.php`, `./dashboard/index.php`
+- Config: `./config/` (dev) / `/var/www/config/` (server)
+- Cache (server): `/dashboard/cache/` (per-user follower/ban lists)
 
 ### Overlays
 
-- All variants: `overlay/*.php` (21 files)
+- All variants: `./overlay/*.php` (20 files)
 
 ### Stream Server
 
-- Main: `stream/stream.py`
-- Service: `/stream/stream.service`
-- Config: `/stream/ssl/`
+- Main: `./stream/stream.py`
+- Service: `./stream/stream.service`
+- Config: `./stream/ssl/`
 
 ### Twitch Extension
 
-- Main: `extension/manifest.json`
-- Views: `extension/{panel,config}.html` and `.js`
+- Main: `./extension/manifest.json`
+- Views: `./extension/{panel,config}.html` and `.js`
 
 ## SSH Hosts (for reference)
 
@@ -278,6 +279,6 @@ Stream Server
 
 ---
 
-**Last Updated**: 2026-05-09  
+**Last Updated**: 2026-05-09 (memory verification pass: corrected overlay count, walkons.php naming, removed nonexistent refresh_twitch_tokens.py reference, fixed bot.py line counts, normalized Windows path formatting)  
 **Created By**: Multi-agent code analysis (bot-analyzer, api-analyzer, websocket-analyzer, secondary-analyzer)  
 **Memory Files**: See `.claude/memory/MEMORY.md`
