@@ -157,7 +157,6 @@ class YourLinksShortener {
         });
         try {
             const requestData = {
-                api: this.getApiKey(),
                 link_name: linkName,
                 destination: destination
             };
@@ -166,11 +165,12 @@ class YourLinksShortener {
             }
             const response = await fetch('/api/yourlinks_create.php', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestData)
             });
             const data = await response.json();
-            if (data.success) {
+            if (data && data.success) {
                 this.replaceUrlInField(data.data.link_name);
                 Swal.fire({
                     title: 'Link Created!',
@@ -182,7 +182,7 @@ class YourLinksShortener {
             } else {
                 Swal.fire({
                     title: 'Error',
-                    text: data.message,
+                    text: (data && data.message) ? data.message : 'Unable to create link.',
                     icon: 'error',
                     confirmButtonColor: '#7c5cbf'
                 });
@@ -196,17 +196,6 @@ class YourLinksShortener {
                 confirmButtonColor: '#7c5cbf'
             });
         }
-    }
-    getApiKey() {
-        const apiKeyElement = document.getElementById('yourlinks_api_key');
-        if (apiKeyElement) {
-            return apiKeyElement.value;
-        }
-        const metaTag = document.querySelector('meta[name="yourlinks-api-key"]');
-        if (metaTag) {
-            return metaTag.getAttribute('content');
-        }
-        return '';
     }
     replaceUrlInField(linkName) {
         if (!this.sourceFieldId) return;
