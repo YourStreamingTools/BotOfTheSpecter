@@ -735,12 +735,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 </div>
             </div>
         </div>
-        <div class="chat-overlay" id="chat-overlay">
-            <button class="fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()"
-                title="Exit Fullscreen (ESC)">
-                ✕
-            </button>
-            <p class="chat-placeholder">Connecting to chat...</p>
+        <div class="chat-overlay-wrapper">
+            <div class="chat-overlay" id="chat-overlay">
+                <button class="fullscreen-exit-btn" id="fullscreen-exit" onclick="toggleFullscreen()"
+                    title="Exit Fullscreen (ESC)">
+                    ✕
+                </button>
+                <p class="chat-placeholder">Connecting to chat...</p>
+                <button id="scroll-to-bottom-btn" class="scroll-to-bottom-btn" onclick="scrollToBottomForced()" style="display:none;">↓ New messages</button>
+            </div>
         </div>
         <div class="message-input-container" id="message-input-container">
             <input type="text" id="message-input" class="message-input" placeholder="Send a message to your chat..."
@@ -1180,6 +1183,22 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             // Max chat messages to retain in overlay (match Twitch default of 50)
             const MAX_CHAT_MESSAGES = 50;
+            // Tracks whether the user has manually scrolled up (away from the bottom)
+            let userIsScrollingUp = false;
+            function scrollToBottomIfNeeded(overlay) {
+                if (!userIsScrollingUp) {
+                    overlay.scrollTop = overlay.scrollHeight;
+                }
+            }
+            function scrollToBottomForced() {
+                const overlay = document.getElementById('chat-overlay');
+                if (overlay) {
+                    userIsScrollingUp = false;
+                    overlay.scrollTop = overlay.scrollHeight;
+                    const btn = document.getElementById('scroll-to-bottom-btn');
+                    if (btn) btn.style.display = 'none';
+                }
+            }
             function loadPresenceSetting() {
                 return userSettings.presence_enabled || false;
             }
@@ -1201,8 +1220,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 if (kind === 'join' || kind === 'leave') {
                     // Append join/leave messages at the bottom like regular chat messages
                     overlay.appendChild(div);
-                    // Auto-scroll to show new join/leave messages
-                    overlay.scrollTop = overlay.scrollHeight;
+                    // Auto-scroll to show new join/leave messages (only if user is not scrolling up)
+                    scrollToBottomIfNeeded(overlay);
                 } else {
                     // Other system messages (like presence summary) go at the top
                     const exitBtn = overlay.querySelector('.fullscreen-exit-btn');
@@ -3400,8 +3419,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             noticeElement.innerHTML = noticeHtml;
             overlay.appendChild(noticeElement);
             enforceMessageCap();
-            // Scroll to bottom
-            overlay.scrollTop = overlay.scrollHeight;
+            // Scroll to bottom (only if user is not scrolling up)
+            scrollToBottomIfNeeded(overlay);
             // Add to unified activity feed model
             const actorName = displayName || username || 'Anonymous';
             if (msgId === 'raid') {
@@ -3674,8 +3693,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             messageDiv.innerHTML = messageHtml;
             overlay.appendChild(messageDiv);
-            // Auto-scroll to bottom
-            overlay.scrollTop = overlay.scrollHeight;
+            // Auto-scroll to bottom (only if user is not scrolling up)
+            scrollToBottomIfNeeded(overlay);
             // Enforce cap (remove oldest messages if needed)
             enforceMessageCap(50);
             // Save chat history
@@ -4220,6 +4239,17 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                         e.preventDefault();
                         sendChatMessage();
                     }
+                });
+            }
+            // Detect when the user scrolls up so we stop hijacking their scroll position
+            const chatOverlay = document.getElementById('chat-overlay');
+            if (chatOverlay) {
+                chatOverlay.addEventListener('scroll', () => {
+                    const threshold = 80;
+                    const atBottom = chatOverlay.scrollTop + chatOverlay.clientHeight >= chatOverlay.scrollHeight - threshold;
+                    userIsScrollingUp = !atBottom;
+                    const btn = document.getElementById('scroll-to-bottom-btn');
+                    if (btn) btn.style.display = userIsScrollingUp ? 'block' : 'none';
                 });
             }
         });
