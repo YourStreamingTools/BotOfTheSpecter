@@ -186,7 +186,6 @@ $buildStatus = $status;
 <title>Credits Overlay</title>
 <link rel="icon" href="https://cdn.botofthespecter.com/logo.png">
 <link rel="apple-touch-icon" href="https://cdn.botofthespecter.com/logo.png">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.4/css/bulma.min.css">
 <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
 <?php if (isset($overlaySettings)):
     $googleFonts = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito', 'Inter'];
