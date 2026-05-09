@@ -331,14 +331,7 @@ session_write_close();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>BotOfTheSpecter - Verify Custom Bot</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.css">
-    <style>
-        /* Dark mode tweaks */
-        html, body { background:#0b0f13; color: #e6edf3; }
-        .box { background:#0f1620; color: #e6edf3; }
-        .button.is-light { background:#1b2430; color:#e6edf3; }
-        a { color: #7ad1ff; }
-    </style>
+    <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
     <section class="section">
