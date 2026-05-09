@@ -297,9 +297,7 @@ if (!isset($commands)) {
     $commandsSTMT->close();
 }
 
-// Get user's Twitch username & API key from session/database
 $twitchUsername = $username;
-$userApiKey = isset($_SESSION['api_key']) ? $_SESSION['api_key'] : '';
 
 // Start output buffering for layout
 ob_start();
@@ -544,8 +542,6 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
-<!-- Hidden fields for YourLinks API -->
-<input type="hidden" id="yourlinks_api_key" value="<?php echo htmlspecialchars($userApiKey); ?>">
 <input type="hidden" id="yourlinks_username" value="<?php echo htmlspecialchars($twitchUsername); ?>">
 <?php
 $content = ob_get_clean();
