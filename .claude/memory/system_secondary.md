@@ -293,6 +293,44 @@ These are managed via the Dashboard UI (`media.php`) and configured through over
 
 ---
 
+## YOURLINKS.CLICK SYSTEM
+
+**Location**: `./yourlinks.click/` (sibling of `./dashboard/` at the repo root)
+
+**Purpose**: Per-user URL shortener with wildcard subdomains (`username.yourlinks.click/linkname`) and optional custom domains. Used inside the dashboard to shorten URLs typed into chat-command responses and timed messages.
+
+**Technology Stack**:
+- PHP 8.1+ with mysqli (procedural OO mix)
+- MySQL: two databases — `yourlinks` (links, categories, expirations) and the shared `website` database (used for API key → twitch_user_id lookup)
+- Twitch OAuth for end-user login on the YourLinks site itself
+- Apache/Nginx wildcard subdomain virtual host
+
+**Auth model — the important bit**:
+- The YourLinks API at `./yourlinks.click/yourlinks.click/services/api.php` accepts the **BotOfTheSpecter user API key** (not a separate YourLinks key) as the `api=` query param.
+- It validates that key against `website.users.api_key`, resolves to a `twitch_user_id`, then maps to a record in `yourlinks.users` (creating one on first use from `website.users` data).
+- This means: the dashboard does not need a YourLinks-specific token. Whatever is in `$_SESSION['api_key']` (the user's main BotOfTheSpecter key) IS their YourLinks credential.
+
+**API endpoint** (GET, despite "create" semantics):
+- `https://yourlinks.click/services/api.php?api=<botofthespecter_api_key>&link_name=<slug>&destination=<url>&title=<optional>`
+- Other optional params: `category_id`, `expires_at`, `expired_redirect_url`, `is_active`
+- Returns: `{ success: bool, message, data: { link_id, link_name, original_url, title, is_active, created_at } }`
+- Error codes: 400 (validation), 401 (bad key), 404 (user/category missing), 409 (link_name already used by this user)
+- `link_name` regex enforced upstream: `^[a-zA-Z0-9_-]+$`
+
+**Dashboard integration**:
+- Server-side proxy: `./dashboard/api/yourlinks_create.php` — locked-down proxy that reads the API key from `$_SESSION['api_key']`, validates `link_name`/`destination`/`title`, caps body at 4 KB, requires same-origin Origin/Referer, sanitizes upstream errors. Do NOT accept the `api` field from the request body — that was the original (now-fixed) open-proxy hole.
+- Client-side widget: `./dashboard/js/yourlinks-shortener.js` — auto-detects URLs in textareas, prompts via SweetAlert, posts to the proxy. Reads the username (only) from a hidden `<input id="yourlinks_username">` for building the preview URL.
+- Used on: `./dashboard/custom_commands.php` and `./dashboard/timed_messages.php`. The hidden `yourlinks_api_key` input that used to render the user's main API key into the DOM has been removed — auth happens server-side from session.
+
+**The bot does NOT call this proxy or YourLinks directly.** It is a dashboard-only convenience for shortening URLs in command/timed-message text before they are saved.
+
+**Rules when touching this integration**:
+1. Read `./yourlinks.click/yourlinks.click/services/api.php` first — it defines the contract (param names, validation, response shape).
+2. The proxy must keep auth server-side: never reintroduce the `api` field in the request body.
+3. Same-origin guard plus session check is the auth model — there is no CSRF token infrastructure to lean on yet.
+
+---
+
 ## System Relationships
 
 ```
