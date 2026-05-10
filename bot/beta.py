@@ -13501,7 +13501,7 @@ async def perform_lotto_draw(announce_empty=True):
                 if announce_empty:
                     await send_chat_message("No users have played the lotto yet!")
                 return False
-            winners = 0
+            division_winners = {}  # division -> list of usernames (insertion order)
             for user in user_lotto_numbers:
                 user_name = user["username"]
                 user_winning_set = set(map(int, user["winning_numbers"].split(', ')))
@@ -13532,13 +13532,19 @@ async def perform_lotto_draw(announce_empty=True):
                     else:
                         await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
                     await connection.commit()
-                    await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                    total_points_data = await cursor.fetchone()
-                    total_points = total_points_data["points"] if total_points_data else prize
-                    await send_chat_message(f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}")
-                    winners += 1
+                    division_winners.setdefault(division, []).append(user_name)
                 await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
                 await connection.commit()
+            # Announce winners grouped by division — one chat message per division, top tier first
+            for division in prize_pool.keys():
+                names = division_winners.get(division)
+                if not names:
+                    continue
+                prize = prize_pool[division]
+                mention_list = ", ".join(f"@{n}" for n in names)
+                each = " each" if len(names) > 1 else ""
+                await send_chat_message(f"{mention_list} won {division} and received {prize} points{each}!")
+            winners = sum(len(v) for v in division_winners.values())
             winning_str = ', '.join(str(n) for n in sorted(winning_set))
             supplementary_str = ', '.join(str(n) for n in sorted(supplementary_set))
             if winners == 0:
