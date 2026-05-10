@@ -9267,6 +9267,8 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
+            bucket_key = 'global'
+            cooldown_bucket = 'default'
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("startlotto",))
                 result = await cursor.fetchone()
@@ -9307,6 +9309,8 @@ class TwitchBot(commands.Bot):
         connection = None
         connection = await mysql_connection()
         try:
+            bucket_key = 'global'
+            cooldown_bucket = 'default'
             async with connection.cursor(DictCursor) as cursor:
                 await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("drawlotto",))
                 result = await cursor.fetchone()
@@ -9325,89 +9329,7 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('drawlotto', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                prize_pool = {
-                    "Division 1 (Jackpot!)": 100000,
-                    "Division 2": 50000,
-                    "Division 3": 10000,
-                    "Division 4": 5000,
-                    "Division 5": 1000,
-                    "Division 6": 500
-                }
-                # Retrieve all user lotto numbers and the winning lotto numbers
-                await cursor.execute("SELECT username, winning_numbers, supplementary_numbers FROM stream_lotto")
-                user_lotto_numbers = await cursor.fetchall()
-                await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
-                winning_lotto_numbers = await cursor.fetchone()
-                if not winning_lotto_numbers:
-                    done = await generate_winning_lotto_numbers()
-                    if done == True:
-                        await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
-                        winning_lotto_numbers = await cursor.fetchone()
-                    if not winning_lotto_numbers:
-                        await send_chat_message("No winning numbers selected. The draw cannot proceed.")
-                        return  # If there are no winning numbers, end the draw
-                # Extract winning numbers and supplementary numbers
-                winning_set = set(map(int, winning_lotto_numbers["winning_numbers"].split(', ')))
-                supplementary_set = set(map(int, winning_lotto_numbers["supplementary_numbers"].split(', ')))
-                if not user_lotto_numbers:
-                    await send_chat_message(f"No users have played the lotto yet!")
-                    return  # If no users have played, send a message and exit
-                winners = 0
-                for user in user_lotto_numbers:
-                    user_name = user["username"]
-                    user_winning_set = set(map(int, user["winning_numbers"].split(', ')))
-                    user_supplementary_set = set(map(int, user["supplementary_numbers"].split(', ')))
-                    # Compare user numbers to winning numbers
-                    match_main = len(user_winning_set & winning_set)
-                    match_supplementary = len(user_supplementary_set & supplementary_set)
-                    # Determine division based on the match
-                    if match_main == 6:
-                        division = "Division 1 (Jackpot!)"
-                    elif match_main == 5 and match_supplementary >= 1:
-                        division = "Division 2"
-                    elif match_main == 5:
-                        division = "Division 3"
-                    elif match_main == 4:
-                        division = "Division 4"
-                    elif match_main == 3 and match_supplementary >= 1:
-                        division = "Division 5"
-                    elif match_main == 3:
-                        division = "Division 6"
-                    else:
-                        division = None
-                    if division:
-                        prize = prize_pool.get(division, 0)
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                        user_points = await cursor.fetchone()
-                        if user_points:
-                            current_points = user_points["points"]
-                            new_points = current_points + prize
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
-                        else:
-                            # If no points record exists, set to prize
-                            await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
-                        await connection.commit()
-                        # Retrieve updated points
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
-                        total_points_data = await cursor.fetchone()
-                        total_points = total_points_data["points"] if total_points_data else prize
-                        # Send message about the win
-                        message = f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}"
-                        await send_chat_message(message)
-                        winners += 1
-                    # Remove user lotto entry after the draw
-                    await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
-                    await connection.commit()
-                winning_str = ', '.join(str(n) for n in sorted(winning_set))
-                supplementary_str = ', '.join(str(n) for n in sorted(supplementary_set))
-                if winners == 0 and user_lotto_numbers:
-                    await send_chat_message(f"No winners this time! The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
-                else:
-                    await send_chat_message(f"The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
-                # Clear winning numbers after the draw
-                await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
-                await connection.commit()
-            # Record usage
+            await perform_lotto_draw(announce_empty=True)
             add_usage('drawlotto', bucket_key, cooldown_bucket)
         except Exception as e:
             bot_logger.error(f"[DRAW LOTTO] Error in Drawing Lotto Winners: {e}")
@@ -11568,6 +11490,11 @@ async def delayed_clear_tables():
     await clear_seen_today()
     await clear_credits_data()
     await clear_per_stream_deaths()
+    # Auto-draw the lotto if a round is still open so players who entered get paid out
+    try:
+        await perform_lotto_draw(announce_empty=False)
+    except Exception as e:
+        bot_logger.error(f"[STREAM OFFLINE] Auto lotto draw failed: {e}")
     await clear_lotto_numbers()
     await stop_all_timed_messages()
     # Ensure temporary VIPs are removed as part of end-of-stream cleanup
@@ -13458,32 +13385,28 @@ async def generate_winning_lotto_numbers():
     try:
         connection = await mysql_connection()
         async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
-            result = await cursor.fetchone()
-            if result:
-                winning_numbers = result.get("winning_numbers")
-                supplementary_numbers = result.get("supplementary_numbers")
+            await cursor.execute("SELECT 1 FROM stream_lotto_winning_numbers LIMIT 1")
+            if await cursor.fetchone():
                 return "exists"
-            # Draw 7 winning numbers and 3 supplementary numbers from 1-47
+            # Draw 6 winning numbers and 3 supplementary numbers from 1-47
             all_numbers = random.sample(range(1, 48), 9)
             winning_str = ', '.join(map(str, all_numbers[:6]))
             supplementary_str = ', '.join(map(str, all_numbers[6:]))
-            winning_numbers = winning_str
-            supplementary_numbers = supplementary_str
+            # Fresh round — wipe any stale user entries left over from a prior round
+            await cursor.execute("TRUNCATE TABLE stream_lotto")
             await cursor.execute(
                 "INSERT INTO stream_lotto_winning_numbers (winning_numbers, supplementary_numbers) VALUES (%s, %s)",
-                (winning_numbers, supplementary_numbers)
-                )
+                (winning_str, supplementary_str)
+            )
             await connection.commit()
         return True
     except MySQLOtherErrors as e:
         api_logger.error(f"[LOTTO] An error occurred in generate_winning_lotto_numbers: {str(e)}")
-
-# Function to generate random Lotto numbers
     finally:
         if connection:
             await connection.close()
 
+# Function to generate random Lotto numbers for a user
 async def generate_user_lotto_numbers(user_name):
     user_name = user_name.lower()
     connection = None
@@ -13508,7 +13431,7 @@ async def generate_user_lotto_numbers(user_name):
                     return {"error": "you can't play lotto as the winning numbers haven't been selected yet."}
             winning_db_numbers = set(map(int, str(game_running["winning_numbers"]).split(', ')))
             supplementary_db_numbers = set(map(int, str(game_running["supplementary_numbers"]).split(', ')))
-            weighted_main_match_count = random.choices([3, 4, 5], weights=[70, 25, 5], k=1)[0]
+            weighted_main_match_count = random.choices([3, 4, 5, 6], weights=[70, 25, 4, 1], k=1)[0]
             weighted_main_match_count = min(weighted_main_match_count, len(winning_db_numbers), 6)
             user_main_numbers = set(random.sample(list(winning_db_numbers), weighted_main_match_count))
             remaining_main_needed = 6 - len(user_main_numbers)
@@ -13539,12 +13462,100 @@ async def generate_user_lotto_numbers(user_name):
     except MySQLOtherErrors as e:
         api_logger.error(f"[LOTTO] An error occurred in generate_user_lotto_numbers: {str(e)}")
         return {"error": "An error occurred while generating your lotto numbers."}
-
-# Function to fetch a random fortune
     finally:
         if connection:
             await connection.close()
 
+# Run the lotto draw against current entries. Used by !drawlotto and by the stream-end auto-draw.
+# announce_empty controls whether "no entries"/"no winning numbers" cases post to chat.
+# Returns True if entries were drawn, False otherwise.
+async def perform_lotto_draw(announce_empty=True):
+    prize_pool = {
+        "Division 1 (Jackpot!)": 100000,
+        "Division 2": 50000,
+        "Division 3": 10000,
+        "Division 4": 5000,
+        "Division 5": 1000,
+        "Division 6": 500
+    }
+    connection = None
+    try:
+        connection = await mysql_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT username, winning_numbers, supplementary_numbers FROM stream_lotto")
+            user_lotto_numbers = await cursor.fetchall()
+            await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+            winning_lotto_numbers = await cursor.fetchone()
+            if not winning_lotto_numbers:
+                done = await generate_winning_lotto_numbers()
+                if done == True:
+                    await cursor.execute("SELECT winning_numbers, supplementary_numbers FROM stream_lotto_winning_numbers")
+                    winning_lotto_numbers = await cursor.fetchone()
+                if not winning_lotto_numbers:
+                    if announce_empty:
+                        await send_chat_message("No winning numbers selected. The draw cannot proceed.")
+                    return False
+            winning_set = set(map(int, winning_lotto_numbers["winning_numbers"].split(', ')))
+            supplementary_set = set(map(int, winning_lotto_numbers["supplementary_numbers"].split(', ')))
+            if not user_lotto_numbers:
+                if announce_empty:
+                    await send_chat_message("No users have played the lotto yet!")
+                return False
+            winners = 0
+            for user in user_lotto_numbers:
+                user_name = user["username"]
+                user_winning_set = set(map(int, user["winning_numbers"].split(', ')))
+                user_supplementary_set = set(map(int, user["supplementary_numbers"].split(', ')))
+                match_main = len(user_winning_set & winning_set)
+                match_supplementary = len(user_supplementary_set & supplementary_set)
+                if match_main == 6:
+                    division = "Division 1 (Jackpot!)"
+                elif match_main == 5 and match_supplementary >= 1:
+                    division = "Division 2"
+                elif match_main == 5:
+                    division = "Division 3"
+                elif match_main == 4:
+                    division = "Division 4"
+                elif match_main == 3 and match_supplementary >= 1:
+                    division = "Division 5"
+                elif match_main == 3:
+                    division = "Division 6"
+                else:
+                    division = None
+                if division:
+                    prize = prize_pool.get(division, 0)
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
+                    user_points = await cursor.fetchone()
+                    if user_points:
+                        new_points = user_points["points"] + prize
+                        await cursor.execute("UPDATE bot_points SET points = %s WHERE user_name = %s", (new_points, user_name))
+                    else:
+                        await cursor.execute("INSERT INTO bot_points (user_name, points) VALUES (%s, %s)", (user_name, prize))
+                    await connection.commit()
+                    await cursor.execute("SELECT points FROM bot_points WHERE user_name = %s", (user_name,))
+                    total_points_data = await cursor.fetchone()
+                    total_points = total_points_data["points"] if total_points_data else prize
+                    await send_chat_message(f"@{user_name} you've won {division} and received {prize} points! Total points: {total_points}")
+                    winners += 1
+                await cursor.execute("DELETE FROM stream_lotto WHERE username = %s", (user_name,))
+                await connection.commit()
+            winning_str = ', '.join(str(n) for n in sorted(winning_set))
+            supplementary_str = ', '.join(str(n) for n in sorted(supplementary_set))
+            if winners == 0:
+                await send_chat_message(f"No winners this time! The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
+            else:
+                await send_chat_message(f"The winning numbers were: {winning_str} and Supplementary: {supplementary_str}")
+            await cursor.execute("TRUNCATE TABLE stream_lotto_winning_numbers")
+            await connection.commit()
+            return True
+    except Exception as e:
+        bot_logger.error(f"[DRAW LOTTO] Error in perform_lotto_draw: {e}")
+        return False
+    finally:
+        if connection:
+            await connection.close()
+
+# Function to fetch a random fortune
 async def tell_fortune():
     url = f"https://api.botofthespecter.com/fortune?api_key={API_TOKEN}"
     async with httpClientSession() as session:
