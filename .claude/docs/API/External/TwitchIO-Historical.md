@@ -101,6 +101,13 @@ All event hooks are coroutine methods on the `Bot` subclass (or registered with 
 | `event_raw_usernotice(self, channel, tags)` | raw USERNOTICE | Available, not hooked |
 | `event_usernotice_subscription(self, metadata)` | sub via IRC | Available, not hooked (project uses hand-rolled EventSub for subs) |
 | `event_token_expired(self)` | refresh hint | Available, not hooked (project runs its own refresh task) |
+| `event_reconnect(self)` | Twitch sent IRC RECONNECT notice | Available, not hooked |
+| `event_channel_join_failure(self, channel: str)` | bot failed to join a channel | Available, not hooked |
+| `event_userstate(self, user: twitchio.Chatter)` | USERSTATE IRC packet (own state update) | Available, not hooked |
+| `event_mode(self, channel, user, status)` | MOD/UNMOD received | Available, not hooked |
+| `event_notice(self, message, msg_id, channel)` | NOTICE packet (slow-mode changes, etc.) | Available, not hooked |
+| `event_raw_notice(self, data: str)` | raw NOTICE IRC line | Available, not hooked |
+| `event_error(self, error: Exception, data=None)` | uncaught error during event dispatch | Available, not hooked |
 
 `event_ready` fires after IRC connection completes. Only after this point is `self.nick` reliable and is the bot a member of `initial_channels`.
 
@@ -137,6 +144,12 @@ Examples: `./bot/bot.py:2643-2644`, `./bot/beta.py:3587-3588`.
 | `await ctx.send(content: str)` | `None` | Send into the same channel |
 | `await ctx.reply(content: str)` | `None` | Reply (mention) the invoker |
 | `ctx.bot` | `commands.Bot` | The Bot instance |
+| `ctx.args` | `list` | Positional arguments parsed from the command string |
+| `ctx.kwargs` | `dict` | Keyword arguments parsed from the command string |
+| `ctx.view` | `StringParser` | Raw command string parser — for advanced argument handling |
+| `ctx.chatters` | `set[Chatter]` | Current chatters in the channel |
+| `ctx.users` | `set[Chatter]` | Alias for `ctx.chatters` |
+| `ctx.get_user(name: str)` | `Optional[Chatter]` | Retrieve a chatter from the channel cache by name |
 
 ### 4.2 Argument parsing
 
@@ -152,7 +165,19 @@ async def echo(self, ctx, *, message: str):  # rest-of-line
     await ctx.send(message)
 ```
 
-Built-in converters: `str`, `int`, `bool`, `twitchio.PartialChatter`, `twitchio.Chatter`, `twitchio.Channel`, `twitchio.Clip`. The keyword-only marker (`*,`) consumes the entire remainder of the message into one string argument.
+Built-in converters: `str`, `int`, `bool`, `twitchio.PartialChatter` (cache-independent), `twitchio.Chatter` (cache-dependent), `twitchio.PartialUser` (makes Helix API call), `twitchio.User` (makes Helix API call), `twitchio.Channel`, `twitchio.Clip`. The keyword-only marker (`*,`) consumes the entire remainder of the message into one string argument.
+
+Custom converters use `typing.Annotated`:
+
+```python
+from typing import Annotated
+
+def my_converter(ctx: commands.Context, arg: str) -> MyType:
+    return MyType(arg)  # raise commands.BadArgument on failure
+
+@commands.command()
+async def cmd(self, ctx, value: Annotated[MyType, my_converter]): ...
+```
 
 ### 4.3 Cooldowns
 
@@ -162,7 +187,21 @@ This project does **not** use the built-in cooldown decorator — it uses its ow
 
 ### 4.4 Exceptions
 
-All subclasses of `commands.TwitchCommandError`:
+**TwitchIO base exceptions** (import from `twitchio`):
+
+| Exception | Base | Description |
+| --------- | ---- | ----------- |
+| `TwitchIOException` | `Exception` | Root exception for all TwitchIO errors |
+| `AuthenticationError` | `TwitchIOException` | OAuth authentication failure |
+| `InvalidContent` | `TwitchIOException` | Invalid data provided to the library |
+| `IRCCooldownError` | `TwitchIOException` | IRC send rate limit exceeded |
+| `EchoMessageWarning` | `TwitchIOException` | Bot received its own message unexpectedly |
+| `NoClientID` | `TwitchIOException` | Client ID not provided |
+| `NoToken` | `TwitchIOException` | OAuth token not provided |
+| `HTTPException(message, reason=None, status=None, extra=None)` | `TwitchIOException` | HTTP request failed |
+| `Unauthorized(message, reason=None, status=None, extra=None)` | `HTTPException` | 401/403 HTTP response |
+
+**Commands ext exceptions** — all subclass `commands.TwitchCommandError`:
 
 | Exception | Raised when | Used in this project? |
 | --------- | ----------- | --------------------- |
@@ -282,6 +321,29 @@ async fetch_users(
 
 **Critical 2.10 → 3.x rename:** `names=` becomes `logins=`, and `ids` accepts `str` instead of `int`. Project usage: `./bot/bot.py:5664`, `./bot/bot.py:5921`.
 
+Full method reference on the Bot/Client instance:
+
+| Method | Returns | Notes |
+| ------ | ------- | ----- |
+| `fetch_users(names=None, ids=None, token=None, force=False)` | `List[User]` | `names=` = login strings; `ids=` = int list in 2.10 |
+| `fetch_streams(user_ids=None, user_logins=None, game_ids=None, type='all', language=None, first=20, after=None)` | `List[Stream]` | Paginate via `after` cursor |
+| `fetch_channel(broadcaster, token=None)` | `ChannelInfo` | Single channel metadata (title, game, language, delay) |
+| `fetch_channels(broadcaster_ids, token=None)` | `List[ChannelInfo]` | Multiple channels |
+| `fetch_games(ids=None, names=None, igdb_ids=None)` | `List[Game]` | |
+| `fetch_clips(ids)` | `List[Clip]` | |
+| `fetch_videos(ids=None, user_id=None, game_id=None, ...)` | `List[Video]` | |
+| `fetch_global_emotes()` | `List[GlobalEmote]` | |
+| `fetch_global_chat_badges()` | `List[ChatBadge]` | |
+| `fetch_cheermotes(user_id=None)` | `List[CheerEmote]` | |
+| `fetch_chatters_colors(user_ids, token=None)` | `List[ChatterColor]` | |
+| `fetch_top_games()` | `List[Game]` | |
+| `search_channels(query, live_only=False)` | `List[SearchChannel]` | |
+| `search_categories(query)` | `List[Game]` | |
+| `create_user(user_id, user_name)` | `PartialUser` | Build lightweight user ref — no API call |
+| `get_channel(name)` | `Optional[Channel]` | Retrieve cached `Channel` by login name |
+| `wait_for_ready()` | `None` | Await until bot is connected and ready (use after `run()` starts) |
+| `wait_for(event, predicate=None, timeout=60.0)` | event payload | Wait for a specific dispatched event by name |
+
 ---
 
 ## 9. Key types
@@ -299,6 +361,8 @@ Passed to `event_message` and accessible via `ctx.message`:
 | `message.tags` | `dict[str, str]` of raw IRC tags. Project uses `tags.get('source-room-id')` to filter shared-chat at `./bot/bot.py:1816-1821` |
 | `message.timestamp` | datetime |
 | `message.id` | message id (str) |
+| `message.first` | bool — `True` if this is the user's first message in the channel |
+| `message.hype_chat_data` | `HypeChatData \| None` — hype chat payload (`.amount`, `.currency`, `.level`, `.is_system_message`) |
 | `await message.channel.send(text)` | reply via IRC (prefer Helix `send_chat_message` instead) |
 
 ### `twitchio.Chatter`
@@ -307,13 +371,37 @@ Passed to `event_message` and accessible via `ctx.message`:
 
 ### `twitchio.Channel`
 
-`.name`, `.send(text)`, `.users` (cached chatters), `.user()` (lazy fetch).
+| Member | Description |
+| ------ | ----------- |
+| `.name` | Channel login name (str) |
+| `.users` | Cached `set[Chatter]` currently in the channel |
+| `await .send(content: str)` | Send an IRC message into the channel |
+| `await .whisper(content: str)` | Send an IRC whisper to a user |
+| `await .user(force=False)` | Fetch the full `User` object from Helix (cached unless `force=True`) |
+| `.get_chatter(name: str)` | Return cached `Chatter` or `PartialChatter` by login name, or `None` |
 
-### `twitchio.User` / `twitchio.PartialChatter`
+### `twitchio.User`
 
-API-side user representations (different from IRC chatters). `User` includes `.id`, `.name`, `.display_name`, `.broadcaster_type`, `.description`, `.profile_image`, etc.
+Returned by `fetch_users()`. Key attributes: `.id` (int in 2.10), `.name`, `.display_name`, `.broadcaster_type` (`'partner'`/`'affiliate'`/`''`), `.description`, `.profile_image`, `.offline_image`, `.view_count`, `.created_at`.
 
-**Distinction:** `Chatter` / `Channel` come from IRC — available in `event_message` handlers and command callbacks. `User` is returned by `fetch_users()` (Helix API call). Both represent the same person but have different field sets — don't mix them up in comparisons or type checks.
+### `twitchio.PartialUser`
+
+Lightweight user reference — no cache, no API call on creation. Attributes: `.id` (int/None), `.name`. Built with `bot.create_user(user_id, user_name)` or automatically when used as a command arg type hint (makes a Helix call). Use `await partial_user.user()` to fetch the full `User` object.
+
+### `twitchio.PartialChatter`
+
+Cache-independent chatter reference (from IRC context). Attributes: `.name`, `.channel`. Safe to use as a command arg type hint when you only need the username — unlike `Chatter`, it doesn't require the chatter to be in the cache.
+
+**Distinction summary:**
+
+| Type | Origin | Has full attrs? |
+| ---- | ------ | --------------- |
+| `Chatter` | IRC (requires cache) | Yes — badges, colour, is_mod, etc. |
+| `PartialChatter` | IRC (cache-independent) | Name + channel only |
+| `User` | Helix API (`fetch_users`) | Yes — broadcaster_type, description, etc. |
+| `PartialUser` | `create_user()` or converter | ID + name only |
+
+Don't compare IRC objects with API objects — their `.id` types differ (int on both in 2.10, but sourced differently).
 
 ---
 
