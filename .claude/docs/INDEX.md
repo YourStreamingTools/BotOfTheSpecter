@@ -9,8 +9,8 @@ Each doc covers: overview, authentication (env var names + token storage), endpo
 | Doc | Covers | Lines |
 | --- | ------ | ----: |
 | [twitch.md](./API/External/twitch.md) | Twitch Helix REST, OAuth (id.twitch.tv), EventSub WebSocket, GraphQL (gql.twitch.tv). Per-bot-version subscription matrix. | 884 |
-| [TwitchIO-Historical.md](./API/External/TwitchIO-Historical.md) | TwitchIO **2.10.0** — `./bot/bot.py` (stable) + `./bot/beta.py` (beta). IRC-driven `commands.Bot`, hand-rolled EventSub WebSocket, full event/context/type reference. | 347 |
-| [TwitchIO-Stable.md](./API/External/TwitchIO-Stable.md) | TwitchIO **3.x stable** — `./bot/beta-v6.py`. Native EventSub, `commands.AutoBot`, Components, Guards, 14-section 2.10→3.x migration map. | 547 |
+| [TwitchIO-Historical.md](./API/External/TwitchIO-Historical.md) | TwitchIO **2.10.0** — `./bot/bot.py` (stable) + `./bot/beta.py` (beta). IRC-driven `commands.Bot`, hand-rolled EventSub WebSocket, full event/context/type reference. | 315 |
+| [TwitchIO-Stable.md](./API/External/TwitchIO-Stable.md) | TwitchIO **3.x stable** — `./bot/beta-v6.py`. Native EventSub, `commands.AutoBot`, Components, Guards, 15-section 2.10→3.x migration map + exception hierarchy. | 625 |
 | [patreon.md](./API/External/patreon.md) | Patreon Webhooks v2 — event types, JSON:API payload schema, HMAC-MD5 verification (not yet enforced), overlay wiring. | 562 |
 | [kofi.md](./API/External/kofi.md) | Ko-fi webhooks — Donation/Subscription/Commission/Shop Order schemas, form-encoded body, `verification_token` in-body check (not yet enforced), overlay alert logic. | 338 |
 | [fourthwall.md](./API/External/fourthwall.md) | Fourthwall webhooks — ORDER_PLACED/DONATION/SUBSCRIPTION_PURCHASED/GIFT_PURCHASE schemas, HMAC-SHA256 verification (not yet enforced), overlay alert logic. | 647 |
