@@ -147,15 +147,33 @@ See `./bot/beta-v6.py:3587-3588` vs `./bot/beta.py:3587-3588`.
 
 | Attribute | Type | Notes |
 | --------- | ---- | ----- |
-| `ctx.author` | `Chatter` | Same alias as 2.10. `.name`, `.id`, `.is_mod`, `.is_broadcaster`, `.is_subscriber`, `.is_vip` |
-| `ctx.chatter` | `Chatter` | New in 3.x — same object as `ctx.author` |
-| `ctx.broadcaster` | `PartialUser` | Channel owner; new in 3.x |
-| `ctx.channel` | `Channel` (deprecated semantics) | Use `ctx.broadcaster` instead |
-| `ctx.message` | `ChatMessage` | **`.text`** in 3.x (not `.content`) |
-| `ctx.prefix` | `str` | |
-| `ctx.command` | `commands.Command` | |
-| `await ctx.send(content: str)` | `None` | Helix-backed under the hood |
-| `await ctx.reply(content: str)` | `None` | Reply with parent message ID |
+| `ctx.author` / `ctx.chatter` | `Chatter \| PartialUser` | Sender — same object, two aliases |
+| `ctx.broadcaster` / `ctx.channel` | `PartialUser` | Channel owner (`channel` is an alias for `broadcaster`) |
+| `ctx.source_broadcaster` | `PartialUser \| None` | Source channel for shared-chat commands |
+| `ctx.message` | `ChatMessage \| None` | **`.text`** in 3.x (not `.content`). `None` for redemption contexts. |
+| `ctx.redemption` | `ChannelPointsRedemptionAdd \| None` | Set when triggered by a channel points redemption |
+| `ctx.payload` | `ChatMessage \| redemption` | Whichever object triggered the command |
+| `ctx.type` | `ContextType` | `ContextType.MESSAGE` or `ContextType.REWARD` |
+| `ctx.prefix` | `str \| None` | The matched prefix |
+| `ctx.content` | `str` | Full command string content |
+| `ctx.command` | `Command \| RewardCommand \| None` | Resolved command object |
+| `ctx.invoked_with` | `str \| None` | The name or alias used to invoke |
+| `ctx.invoked_subcommand` | `Command \| None` | Resolved subcommand (for `Group` commands) |
+| `ctx.component` | `Component \| None` | Parent component, if command lives in one |
+| `ctx.bot` | `commands.Bot` | The Bot instance |
+| `ctx.args` | `list` | Positional arguments parsed from the command |
+| `ctx.kwargs` | `dict` | Keyword arguments parsed from the command |
+| `ctx.translator` | `Translator \| None` | Attached translator, if any |
+| `ctx.failed` | `bool` | Whether invocation failed |
+| `ctx.is_owner() → bool` | — | Check if invoker is the bot owner |
+| `ctx.is_valid() → bool` | — | Check if context is still valid |
+| `await ctx.send(content, *, me=False) → SentMessage` | — | Send; `me=True` for `/me` format |
+| `await ctx.send_translated(content, *, langcode=None)` | — | Send with built-in translator |
+| `await ctx.reply(content, *, me=False) → SentMessage` | — | Reply threading the parent message ID |
+| `await ctx.reply_translated(content, *, langcode=None)` | — | Reply with translator |
+| `await ctx.send_announcement(content, *, color=None)` | — | Send a channel announcement |
+| `await ctx.delete_message()` | — | Delete the triggering message |
+| `await ctx.clear_messages()` | — | Clear all messages in channel |
 
 ### 4.2 CommandErrorPayload (3.x)
 
@@ -165,7 +183,6 @@ Passed to `event_command_error`:
 | --------- | ---- |
 | `payload.context` | `commands.Context` |
 | `payload.exception` | `Exception` |
-| `payload.command` | `commands.Command` |
 
 Cooldown error attribute changed: `error.retry_after` (2.10) → `error.remaining` (3.x), both float seconds:
 
@@ -191,11 +208,104 @@ class MyComponent(commands.Component):
     async def event_message(self, message: twitchio.ChatMessage): ...
 ```
 
+**Lifecycle methods** (override in your Component subclass; all optional):
+
+| Method | Called when |
+| ------ | ----------- |
+| `async def component_load(self)` | After the component is added to the bot |
+| `async def component_teardown(self)` | Before the component is removed |
+| `async def component_before_invoke(self, ctx)` | Before any command in this component is invoked |
+| `async def component_after_invoke(self, ctx)` | After any command in this component completes |
+| `async def component_command_error(self, ctx, error)` | Command error from within this component (supersedes `event_command_error`) |
+
+**`@Component.guard()` decorator** — apply a guard to every command in the component:
+
+```python
+class MyComponent(commands.Component):
+    @commands.Component.guard()
+    async def _guard(self, ctx: commands.Context) -> bool:
+        return ctx.author.is_mod
+```
+
+**Properties** (read-only):
+
+| Property | Description |
+| -------- | ----------- |
+| `component.extras()` | `dict` of extra metadata set on the component |
+| `component.guards()` | `list` of guard callables attached to the component |
+
 **Project doesn't use Components** — all commands are still methods on the `TwitchBot` subclass.
 
 ### 4.4 Guards (3.x permission decorators)
 
-`@commands.is_owner()`, `@commands.is_broadcaster()`, `@commands.is_moderator()`, `@commands.is_vip()`. **Project uses its own `command_permissions(role, author)` check instead of built-in Guards.**
+Guards are decorators that gate command execution. If a guard returns `False` or raises, `GuardFailure` is raised.
+
+| Guard | Description |
+| ----- | ----------- |
+| `@commands.guard(func)` | Custom guard — `func(ctx) -> bool` (sync or async) |
+| `@commands.is_owner()` | Passes only for the bot owner (`owner_id` in constructor) |
+| `@commands.is_broadcaster()` | Passes only for the channel broadcaster |
+| `@commands.is_moderator()` | Passes for mods and above |
+| `@commands.is_vip()` | Passes for VIPs and above |
+| `@commands.is_staff()` | Passes for Twitch staff |
+| `@commands.is_lead_moderator()` | Passes for lead mods and above |
+| `@commands.is_elevated()` | Passes for any elevated user (mod, VIP, staff, etc.) |
+
+```python
+@commands.command()
+@commands.is_moderator()
+async def modonly_cmd(self, ctx: commands.Context): ...
+
+# Custom guard
+async def is_subscriber(ctx):
+    return ctx.author.is_subscriber
+
+@commands.command()
+@commands.guard(is_subscriber)
+async def subonly_cmd(self, ctx: commands.Context): ...
+```
+
+Guard failure raises `commands.GuardFailure` — catch in `event_command_error`. `CommandOnCooldown` is a subclass of `GuardFailure`.
+
+**Project uses its own `command_permissions(role, author)` check instead of built-in Guards.**
+
+### 4.5 Exceptions (3.x hierarchy)
+
+```text
+commands.CommandError
+├── commands.ComponentLoadError
+├── commands.CommandInvokeError(message, original)  → .original
+│   └── commands.CommandHookError(message, original)  → .original
+├── commands.CommandNotFound
+├── commands.CommandExistsError
+├── commands.PrefixError
+├── commands.InputError
+│   └── commands.ArgumentError
+│       ├── commands.ConversionError  → commands.BadArgument(message, name, value)
+│       ├── commands.MissingRequiredArgument(param)
+│       ├── commands.UnexpectedQuoteError
+│       ├── commands.InvalidEndOfQuotedStringError
+│       └── commands.ExpectedClosingQuoteError
+├── commands.GuardFailure(message, guard)
+│   └── commands.CommandOnCooldown(message, cooldown, remaining)  → .remaining (seconds, float)
+└── commands.TranslatorError(message, original)  → .original
+
+commands.ModuleError
+├── commands.ModuleLoadFailure
+├── commands.ModuleAlreadyLoadedError
+├── commands.ModuleNotLoadedError
+└── commands.NoEntryPointError
+```
+
+**Key 2.10 → 3.x exception changes:**
+
+| 2.10 | 3.x |
+| ---- | --- |
+| `commands.CheckFailure` | `commands.GuardFailure` |
+| `commands.MissingPermissions` | `commands.GuardFailure` (folded in) |
+| `error.retry_after` (CommandOnCooldown) | `error.remaining` |
+| No `ComponentLoadError` | `commands.ComponentLoadError` |
+| No `TranslatorError` | `commands.TranslatorError` |
 
 ---
 
@@ -296,47 +406,109 @@ channel = await self.fetch_channel(broadcaster_id="...")
 partial = self.create_partialuser(user_id="...", user_login="...")
 ```
 
-`fetch_streams` and other paginated helpers return `HTTPAsyncIterator`:
+Paginated methods return `HTTPAsyncIterator` — `await` for the first page (returns a list), `async for` to iterate all pages. `token_for=` accepts a user-ID string or `PartialUser` (replaces 2.10's `token=`).
 
 ```python
-# First page only — await returns a list (most common usage in this project)
-users = await self.fetch_users(logins=["someuser"])
-
-# Full async iteration across all pages
-async for stream in self.fetch_streams(user_logins=[...]):
-    ...
+users = await self.fetch_users(logins=["someuser"])            # list
+async for stream in self.fetch_streams(user_logins=[...]): ... # full iteration
 ```
 
-Common optional parameters: `first=` (page size, default 20), `max_results=` (cap total results). Token override: `token_for=user_id_str`.
+Full method reference on the Client/Bot/AutoBot instance:
 
-`token_for=` parameter: pass a user-ID string or `PartialUser` to tell the client which managed token to use (replaces 2.10's `token=`).
+| Method | Returns | Notes |
+| ------ | ------- | ----- |
+| `fetch_users(ids=None, logins=None, token_for=None)` | `list[User]` | `logins=` = login strings; `ids=` = str list in 3.x |
+| `fetch_user(id=None, login=None, token_for=None)` | `User \| None` | Single user |
+| `fetch_streams(user_ids=None, user_logins=None, game_ids=None, languages=None, type=None, token_for=None, first=None, max_results=None)` | `HTTPAsyncIterator[Stream]` | |
+| `fetch_channel(broadcaster_id, token_for=None)` | `ChannelInfo \| None` | Single channel metadata |
+| `fetch_channels(broadcaster_ids, token_for=None)` | `list[ChannelInfo]` | Multiple channels |
+| `fetch_game(name=None, id=None, igdb_id=None, token_for=None)` | `Game \| None` | |
+| `fetch_games(names=None, ids=None, igdb_ids=None, token_for=None)` | `list[Game]` | |
+| `fetch_top_games(token_for=None)` | `HTTPAsyncIterator[Game]` | |
+| `fetch_clips(game_id=None, clip_ids=None, started_at=None, ended_at=None, token_for=None, first=None, max_results=None)` | `HTTPAsyncIterator[Clip]` | |
+| `fetch_videos(...)` | `HTTPAsyncIterator[Video]` | |
+| `fetch_emotes(token_for=None)` | `list[GlobalEmote]` | Global Twitch emotes |
+| `fetch_emote_sets(emote_set_ids, token_for=None)` | `list[EmoteSet]` | |
+| `fetch_badges(token_for=None)` | `list[ChatBadge]` | Global chat badges |
+| `fetch_cheermotes(broadcaster_id=None, token_for=None)` | `list[Cheermote]` | |
+| `fetch_chatters_color(user_ids, token_for=None)` | `list[ChatterColor]` | |
+| `search_channels(query, live_only=False)` | `HTTPAsyncIterator[SearchChannel]` | |
+| `search_categories(query)` | `HTTPAsyncIterator[Game]` | |
+| `create_partialuser(user_id, user_login)` | `PartialUser` | No API call — lightweight reference |
+| `add_token(token, refresh)` | `ValidateTokenPayload` | Register a user token pair |
+| `remove_token(user_id)` | `TokenMappingData \| None` | |
+| `wait_until_ready()` | `None` | Renamed from 2.10's `wait_for_ready()` |
+| `wait_for(event, predicate=None, timeout=60.0)` | event payload | Raises `TimeoutError` on timeout |
+| `safe_dispatch(name, payload)` | `None` | Manually fire a custom event |
 
-Project usage in v6: `./bot/beta-v6.py:4113`, `./bot/beta-v6.py:4158`, `./bot/beta-v6.py:6794`, `./bot/beta-v6.py:7057` — all use `self.fetch_users(logins=[...])`.
+Project usage: `./bot/beta-v6.py:4113`, `./bot/beta-v6.py:4158`, `./bot/beta-v6.py:6794`, `./bot/beta-v6.py:7057` — all use `self.fetch_users(logins=[...])`.
 
 ---
 
 ## 9. Routines (3.x)
 
+Reference: <https://twitchio.dev/en/stable/exts/routines/index.html>
+
+### `@routines.routine()` decorator
+
 ```python
-from twitchio.ext import routines
-from datetime import timedelta
-
-@routines.routine(delta=timedelta(seconds=60), iterations=None, wait_first=False)
+@routines.routine(
+    delta: timedelta | None = None,
+    time: datetime | None = None,
+    name: str | None = None,
+    iterations: int | None = None,
+    wait_first: bool = False,
+    wait_remainder: bool = False,
+    max_attempts: int | None = 5,
+    stop_on_error: bool = False,
+)
 async def my_task(): ...
-
-my_task.start()
 ```
 
-Changes vs 2.10:
+| Parameter | Type | Default | Description |
+| --------- | ---- | ------- | ----------- |
+| `delta` | `timedelta \| None` | — | Interval between iterations. Mutually exclusive with `time`. |
+| `time` | `datetime \| None` | — | Run at a fixed time of day. Mutually exclusive with `delta`. |
+| `name` | `str \| None` | `None` | Optional identifier for the routine |
+| `iterations` | `int \| None` | `None` | Max iterations; `None` = infinite |
+| `wait_first` | `bool` | `False` | Wait one interval before the first run |
+| `wait_remainder` | `bool` | `False` | If `True`, only waits the *remaining* time after iteration completes (vs full interval) |
+| `max_attempts` | `int \| None` | `5` | Consecutive error limit before stopping; resets on success. `None` = unlimited |
+| `stop_on_error` | `bool` | `False` | Stop immediately on any error, overriding `max_attempts` |
 
-- **`delta: timedelta`** replaces `seconds=`/`minutes=`/`hours=` kwargs.
-- `start_time` attribute removed; use `next_iteration()`, `last_iteration`, `current_iteration`.
-- Lifecycle hooks (`@my_task.before_routine`, `@my_task.after_routine`, `@my_task.error`) unchanged.
+Raises `TypeError` if decorated function is not a coroutine. Raises `RuntimeError` if both `time` and `delta` provided.
+
+### `Routine` class methods and attributes
+
+| Member | Description |
+| ------ | ----------- |
+| `start(*args, **kwargs) → Task` | Start the routine; raises `RuntimeError` if already running |
+| `stop()` | Gracefully stop after current iteration completes |
+| `cancel()` | Immediately cancel |
+| `restart(*, force: bool = True)` | Restart; `force=True` cancels immediately |
+| `change_interval(*, delta=None, time=None, wait_first=False)` | Modify the running interval |
+| `next_iteration() → float` | Seconds until next scheduled run |
+| `completed_iterations` | `int` — count of successful iterations |
+| `remaining_iterations` | `int \| None` |
+| `current_iteration` | `int` — current iteration number |
+| `last_iteration` | `datetime \| None` — when current iteration started |
+| `args` / `kwargs` | Positional/keyword args passed to `start()` |
+| `@before_routine` | Decorator: coroutine to run before first iteration |
+| `@after_routine` | Decorator: coroutine to run after stop/cancel/completion |
+| `@error` | Decorator: custom error handler receiving `Exception` |
+
+**Key 2.10 → 3.x changes:**
+- `seconds=`/`minutes=`/`hours=` → `delta=timedelta(...)` (required)
+- `start_time` attribute removed — use `last_iteration`
+- `stop_on_error` moved from `start()` parameter to `@routine()` parameter
+- New: `wait_remainder`, `max_attempts`, `name`, `current_iteration`, `args`, `kwargs`
 
 Project usage in v6 (one-shot timers):
 
 ```python
 @routines.routine(delta=timedelta(seconds=duration_seconds), iterations=1, wait_first=True)
+async def _delayed_thing(): ...
+_delayed_thing.start()
 ```
 
 Callsites: `./bot/beta-v6.py:9794`, `./bot/beta-v6.py:11931`.
@@ -349,43 +521,97 @@ Callsites: `./bot/beta-v6.py:9794`, `./bot/beta-v6.py:11931`.
 
 Passed to `event_message` and accessible via `ctx.message`:
 
-| Attribute | Notes |
-| --------- | ----- |
-| `message.text` | Plain text body (was `.content` in 2.10) |
-| `message.chatter` | `Chatter` — sender (was `.author`) |
-| `message.broadcaster` | `PartialUser` — channel owner |
-| `message.source_broadcaster` | `PartialUser \| None` — set when message arrived via shared chat. Project filters at `./bot/beta-v6.py:2744-2745`. |
-| `message.id` | message id |
-| `message.fragments` | structured chunks (text/cheermote/emote/mention) |
-| `message.badges`, `message.reply` | extra metadata |
-| `message.timestamp` | datetime |
+| Attribute | Type | Notes |
+| --------- | ---- | ----- |
+| `message.text` | `str` | Plain text body (was `.content` in 2.10) |
+| `message.chatter` | `Chatter` | Sender (was `.author`) |
+| `message.broadcaster` | `PartialUser` | Channel owner |
+| `message.source_broadcaster` | `PartialUser \| None` | Set when message arrived via shared chat. Project filters at `./bot/beta-v6.py:2744-2745`. |
+| `message.id` | `str` | Message ID |
+| `message.type` | `str` | Message type (e.g. `'text'`, `'channel_points_highlighted'`) |
+| `message.colour` / `.color` | `str \| None` | Chatter's display colour |
+| `message.fragments` | `list[ChatMessageFragment]` | Structured chunks — each has `.text`, `.type`, `.mention`, `.cheermote`, `.emote` |
+| `message.emotes` | `list[ChatMessageEmote]` | Emote segments with `.set_id`, `.id`, `.owner`, `.format` |
+| `message.cheermotes` | `list[ChatMessageCheermote]` | Cheer segments with `.prefix`, `.bits`, `.tier` |
+| `message.badges` | `list[ChatMessageBadge]` | Badges with `.set_id`, `.id`, `.info` |
+| `message.reply` | `ChatMessageReply \| None` | Reply context: `.parent_message_id`, `.parent_message_body`, `.parent_user`, `.thread_message_id`, `.thread_user` |
+| `message.cheer` | `ChatMessageCheer \| None` | Present if message has a cheer: `.bits` |
+| `message.channel_points_id` | `str \| None` | Channel points reward ID if redeemed |
+| `message.source_id` | `str \| None` | Source message ID when in shared chat |
+| `message.source_badges` | `list \| None` | Badges from source channel |
+| `message.source_only` | `bool \| None` | `True` if message only appears in source channel |
+| `message.mentions` | `list` | Mentioned users |
+| `message.timestamp` | `datetime` | |
+| `await message.delete()` | — | Delete the message (requires moderator token) |
+| `await message.respond(content)` | — | Reply to this message |
 
 ### `twitchio.Chatter` (3.x)
 
-`.name`, `.display_name`, `.id` (str), `.is_mod`, `.is_subscriber`, `.is_vip`, `.is_broadcaster`, `.colour`, `.badges`. Mostly the same names as 2.10's `Chatter`.
+| Attribute | Type | Notes |
+| --------- | ---- | ----- |
+| `.name` | `str` | Login name |
+| `.display_name` | `str` | Display name |
+| `.id` | `str` | User ID — **str in 3.x** (was int in 2.10) |
+| `.is_mod` | `bool` | |
+| `.is_subscriber` | `bool` | |
+| `.is_vip` | `bool` | |
+| `.is_broadcaster` | `bool` | |
+| `.colour` / `.color` | `str \| None` | Hex colour string or None |
+| `.badges` | `list[ChatMessageBadge]` | Active badges |
 
 ### `twitchio.PartialUser`
 
-Lightweight user reference for API calls. `.id`, `.name`. Build with `bot.create_partialuser(user_id=..., user_login=...)`.
+Lightweight reference for API calls. `.id` (str), `.name`, `.display_name`, `.mention` (returns `"@display_name"`). Build with `bot.create_partialuser(user_id=..., user_login=...)`.
 
-`send_message` signature (broadcaster is implicit — the `PartialUser` object you call it on):
+Key methods (full list at upstream reference):
 
-```python
-await partial_user.send_message(
-    message: str,
-    sender: str | int | PartialUser,
-    *,
-    token_for: str | PartialUser | None = None,
-    reply_to_message_id: str | None = None,
-    source_only: bool | None = None,
-) -> SentMessage
-```
-
-`sender` = the bot's user ID or `PartialUser`. **This project doesn't use `send_message`** — all chat goes through `send_chat_message(...)` for consistency across bot versions.
+| Method | Notes |
+| ------ | ----- |
+| `send_message(message, sender, *, token_for=None, reply_to_message_id=None, source_only=None) → SentMessage` | Broadcaster is implicit (the object called on). **Project uses `send_chat_message()` instead.** |
+| `send_announcement(message, *, color=None, token_for=None)` | Send a chat announcement |
+| `send_shoutout(to_broadcaster, *, token_for=None)` | Send a shoutout |
+| `send_whisper(to_user, message, *, token_for=None)` | Send a whisper |
+| `fetch_channel_info(*, token_for=None)` | Returns `ChannelInfo` |
+| `ban_user(user, *, reason=None, token_for=None)` | Permanent ban |
+| `timeout_user(user, duration, *, reason=None, token_for=None)` | Timed ban |
+| `unban_user(user, *, token_for=None)` | Unban |
+| `add_moderator(user, *, token_for=None)` | Grant mod |
+| `remove_moderator(user, *, token_for=None)` | Remove mod |
+| `add_vip(user, *, token_for=None)` | Grant VIP |
+| `remove_vip(user, *, token_for=None)` | Remove VIP |
+| `create_clip(*, has_delay=False, token_for=None)` | Create a clip |
+| `create_poll(title, choices, duration, *, token_for=None, ...)` | Create a poll |
+| `create_prediction(title, outcomes, window, *, token_for=None)` | Create a prediction |
+| `fetch_clips(...)` | `HTTPAsyncIterator[Clip]` |
+| `fetch_custom_rewards(*, token_for=None)` | `list[CustomReward]` |
 
 ### `twitchio.TokenRefreshedPayload`
 
 Passed to `event_token_refreshed`: `.user_id` (str), `.token` (new access token), `.refresh_token`. Project hook: `./bot/beta-v6.py:2643-2647`.
+
+### Key EventSub payload types
+
+Event handlers receive typed payload objects. Common ones this project may use:
+
+| Payload class | Fired by | Key attributes |
+| ------------- | -------- | -------------- |
+| `twitchio.ChatMessage` | `event_message` | See table above |
+| `twitchio.ChatMessageDelete` | `event_message_delete` | `.broadcaster`, `.user`, `.message_id` |
+| `twitchio.ChatNotification` | `event_chat_notification` | `.broadcaster`, `.chatter`, `.notice_type`, `.sub`, `.resub`, `.raid`, `.announcement`, etc. |
+| `twitchio.ChannelFollow` | `event_follow` | `.broadcaster`, `.user`, `.followed_at` |
+| `twitchio.ChannelSubscribe` | `event_subscription` | `.broadcaster`, `.user`, `.tier`, `.gift` |
+| `twitchio.ChannelSubscriptionMessage` | `event_subscription_message` | `.user`, `.tier`, `.months`, `.cumulative_months`, `.streak_months`, `.text` |
+| `twitchio.ChannelSubscriptionGift` | `event_subscription_gift` | `.user`, `.tier`, `.total`, `.anonymous`, `.cumulative_total` |
+| `twitchio.ChannelCheer` | `event_cheer` | `.broadcaster`, `.user`, `.anonymous`, `.bits`, `.message` |
+| `twitchio.ChannelRaid` | `event_raid` | `.from_broadcaster`, `.to_broadcaster`, `.viewer_count` |
+| `twitchio.ChannelBan` | `event_ban` | `.broadcaster`, `.user`, `.moderator`, `.reason`, `.banned_at`, `.ends_at`, `.permanent` |
+| `twitchio.ChannelUnban` | `event_unban` | `.broadcaster`, `.user`, `.moderator` |
+| `twitchio.ChannelAdBreakBegin` | `event_ad_break_begin` | `.broadcaster`, `.requester`, `.duration`, `.automatic`, `.started_at` |
+| `twitchio.ChannelPointsRedemptionAdd` | `event_custom_redemption_add` | `.broadcaster`, `.user`, `.user_input`, `.id`, `.status`, `.redeemed_at`, `.reward`; methods: `.fulfill()`, `.refund()` |
+| `twitchio.ChannelModerate` | `event_moderate` | `.broadcaster`, `.moderator`, `.action`, plus action-specific attrs (`.ban`, `.timeout`, `.raid`, etc.) |
+| `twitchio.SharedChatSessionBegin/Update/End` | shared chat events | `.session_id`, `.broadcaster`, `.host`, `.participants` |
+
+All payload objects have `.headers`, `.metadata`, `.subscription_data`, `.timestamp` and an async `.respond(content)` method (sends to the associated channel).
 
 ---
 
