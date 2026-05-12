@@ -708,6 +708,7 @@ ob_start();
 const latestStableVersion = <?php echo json_encode($newVersion); ?>;
 const latestBetaVersion = <?php echo json_encode($betaNewVersion); ?>;
 const latestV6Version = <?php echo json_encode($v6NewVersion); ?>;
+const serverSelectedBot = <?php echo json_encode($selectedBot); ?>;
 // Make versions accessible globally for updates
 window.latestStableVersion = latestStableVersion;
 window.latestBetaVersion = latestBetaVersion;
@@ -740,7 +741,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let runBotBtn = document.getElementById('run-bot-btn');
   let botActionInProgress = false;
   const urlParams = new URLSearchParams(window.location.search);
-  const selectedBot = urlParams.get('bot') || 'stable';
+  const selectedBot = urlParams.get('bot') || serverSelectedBot || 'stable';
   // Custom Bot Toggle functionality
   // Note: Toggle state is provided by server-side `$use_custom` (from userdata.php)
   const customBotToggleContainer = document.getElementById('custom-bot-toggle-container');
@@ -941,6 +942,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let bot = urlParams.get('bot');
     if (!bot) {
       bot = getCookie('selectedBot');
+    }
+    if (!bot) {
+      bot = serverSelectedBot;
     }
     if (!bot) {
       bot = 'stable';
@@ -1589,6 +1593,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     let selectedBot = urlParams.get('bot');
     if (!selectedBot) { selectedBot = getCookie('selectedBot'); }
+    if (!selectedBot) { selectedBot = serverSelectedBot; }
     if (!selectedBot) { selectedBot = 'stable'; }
     // Check for version updates first
     return checkForUpdates().then(() => {
@@ -2437,6 +2442,9 @@ document.addEventListener('DOMContentLoaded', function() {
         let currentBot = urlParams.get('bot');
         if (!currentBot) {
           currentBot = getCookie('selectedBot');
+        }
+        if (!currentBot) {
+          currentBot = serverSelectedBot;
         }
         if (!currentBot) {
           currentBot = 'stable';
