@@ -13,6 +13,7 @@ from logging.handlers import RotatingFileHandler as LoggerFileHandler
 from logging import Formatter as loggingFormatter
 from logging import INFO as LoggingLevel
 from pathlib import Path
+from contextvars import ContextVar
 
 # Third-party imports
 from websockets import connect as WebSocketConnect
@@ -49,6 +50,17 @@ load_dotenv()
 # Custom channel modules
 from custom_channel_modules import botofthespecter as botofthespecter_module
 from custom_channel_modules import hedgehogobrien as hedgehogobrien_module
+try:
+    from custom_channel_modules import gfaundead as gfaundead_module  # type: ignore
+except ImportError:
+    gfaundead_module = None
+
+_MODULE_CLASSES = [
+    getattr(hedgehogobrien_module, 'HedgehogOBrienModule', None) if hedgehogobrien_module is not None else None,
+    getattr(gfaundead_module, 'GFAUnDeadModule', None) if gfaundead_module is not None else None,
+]
+_MODULE_CLASSES = [cls for cls in _MODULE_CLASSES if cls is not None]
+_channel_modules: list = []  # Active custom channel module instances, populated on event_ready
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BotOfTheSpecter Chat Bot")
@@ -114,6 +126,9 @@ _cached_home_instructions = None
 _cached_home_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
+# ContextVars track the current chat message author so send_chat_message can log bot replies to AI history
+_cv_cmd_author_id: ContextVar[str] = ContextVar('_cv_cmd_author_id', default='')
+_cv_cmd_user_msg: ContextVar[str] = ContextVar('_cv_cmd_user_msg', default='')
 BOT_HOME_CHANNEL_NAME = 'botofthespecter'
 BOT_HOME_AI_HISTORY_DIR = '/home/botofthespecter/ai/bot-channel-chat-history'
 AD_BREAK_CHAT_DIR = '/home/botofthespecter/ai/ad_break_chat'
@@ -241,6 +256,12 @@ TWITCH_SHOUTOUT_GLOBAL_COOLDOWN = timedelta(minutes=2)  # Global cooldown for sh
 TWITCH_SHOUTOUT_USER_COOLDOWN = timedelta(minutes=60)   # User-specific cooldown for shoutouts
 last_shoutout_time = datetime.min                       # Last time a shoutout was performed
 websocket_connected = False                             # Whether the websocket is currently connected
+MEDIA_MIGRATED = False                                  # Loaded from profile.media_migrated at startup; enables unified /var/www/media/ library
+_pronouns_list_cache = None                             # Cached dict of all pronoun definitions from alejo.io
+_pronouns_list_cache_time = 0                           # Timestamp of last pronouns list fetch
+PRONOUNS_LIST_CACHE_TTL = 86400                         # Refresh pronouns list once per day
+_user_pronouns_cache: dict = {}                         # Per-user pronoun cache: {username: (pronoun_str, fetched_at)}
+USER_PRONOUNS_CACHE_TTL = 3600                          # Cache individual user pronouns for 1 hour
 bot_owner = "gfaundead"                                 # Bot owner's username
 streamelements_token = None                             # StreamElements OAuth2 access token
 streamlabs_token = None                                 # StreamLabs access token
@@ -448,6 +469,105 @@ async def get_website_twitch_app_credentials(force_refresh=False):
         "client_id": client_id,
     }
 
+async def dispatch_module_event(event: str, **kwargs):
+    any_handled = False
+    for module in _channel_modules:
+        handler = getattr(module, f"handle_{event}", None)
+        if callable(handler):
+            try:
+                result = await handler(**kwargs)
+                if result:
+                    any_handled = True
+            except Exception as e:
+                bot_logger.error(f"Module dispatch {event} -> {type(module).__name__}: {e}")
+    return any_handled
+
+async def dispatch_module_command(message: str, username: str, broadcaster_id: str) -> None:
+    for module in _channel_modules:
+        try:
+            for is_name, handle_name in (
+                ('is_module_command', 'handle_module_command'),
+                ('is_bureau_command', 'handle_bureau_command'),
+            ):
+                is_fn = getattr(module, is_name, None)
+                handle_fn = getattr(module, handle_name, None)
+                if callable(is_fn) and callable(handle_fn) and is_fn(message):
+                    async def _send(msg, bot_name=None, _mod=module):
+                        kwargs = {'message': msg, 'broadcaster_id': broadcaster_id}
+                        if bot_name is not None:
+                            kwargs['bot_name'] = bot_name
+                        await _mod.send_module_message(**kwargs)
+                    await handle_fn(command=message, username=username, send_message=_send)
+                    break
+        except Exception as e:
+            bot_logger.error(f"Module dispatch command -> {type(module).__name__}: {e}")
+
+# Fetch and cache the full list of pronouns from alejo.io
+async def get_pronouns_list():
+    global _pronouns_list_cache, _pronouns_list_cache_time
+    now = time.time()
+    if _pronouns_list_cache is not None and (now - _pronouns_list_cache_time) < PRONOUNS_LIST_CACHE_TTL:
+        return _pronouns_list_cache
+    try:
+        async with httpClientSession() as session:
+            async with session.get('https://api.pronouns.alejo.io/v1/pronouns', timeout=ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    _pronouns_list_cache = data
+                    _pronouns_list_cache_time = now
+                    return data
+    except Exception as e:
+        api_logger.error(f"Failed to fetch pronouns list: {e}")
+    return _pronouns_list_cache or {}
+
+# Look up a user's pronouns; returns a human-readable string like "She/Her" or None if not set
+async def get_user_pronouns(username: str):
+    global _user_pronouns_cache
+    username_lower = username.lower()
+    now = time.time()
+    cached = _user_pronouns_cache.get(username_lower)
+    if cached is not None:
+        pronoun_str, fetched_at = cached
+        if (now - fetched_at) < USER_PRONOUNS_CACHE_TTL:
+            return pronoun_str
+    try:
+        async with httpClientSession() as session:
+            async with session.get(f'https://api.pronouns.alejo.io/v1/users/{username_lower}', timeout=ClientTimeout(total=5)) as resp:
+                if resp.status == 404:
+                    _user_pronouns_cache[username_lower] = (None, now)
+                    return None
+                if resp.status == 200:
+                    data = await resp.json()
+                    pronoun_id = data.get('pronoun_id')
+                    alt_id = data.get('alt_pronoun_id')
+                    if not pronoun_id:
+                        _user_pronouns_cache[username_lower] = (None, now)
+                        return None
+                    pronouns_list = await get_pronouns_list()
+                    entry = pronouns_list.get(pronoun_id, {})
+                    subject = entry.get('subject', pronoun_id)
+                    obj = entry.get('object', pronoun_id)
+                    if alt_id and alt_id in pronouns_list:
+                        alt_entry = pronouns_list[alt_id]
+                        alt_subject = alt_entry.get('subject', alt_id)
+                        pronoun_str = f"{subject}/{obj}/{alt_subject}"
+                    else:
+                        pronoun_str = f"{subject}/{obj}"
+                    _user_pronouns_cache[username_lower] = (pronoun_str, now)
+                    return pronoun_str
+    except Exception as e:
+        api_logger.error(f"Failed to fetch pronouns for {username}: {e}")
+    return None
+
+# Parse a pronoun string like "she/her" or "they/them" into a (subject, object) tuple
+def _split_pronouns(pronoun_str):
+    if pronoun_str:
+        parts = pronoun_str.split('/')
+        subject = parts[0] if len(parts) > 0 else 'they'
+        obj = parts[1] if len(parts) > 1 else 'them'
+        return subject, obj
+    return 'they', 'them'
+
 # Connect to database spam_pattern and fetch patterns
 async def get_spam_patterns():
     async with await mysql_handler.get_connection(db_name="spam_pattern") as connection:
@@ -544,6 +664,9 @@ async def save_eventsub_session_id(session_id):
 class EventSubReconnect(Exception):
     def __init__(self, reconnect_url):
         self.reconnect_url = reconnect_url
+
+_seen_eventsub_message_ids: dict = {}  # message_id -> received_timestamp
+_EVENTSUB_DEDUP_TTL = 60  # seconds to remember a seen message_id
 
 # Get or create Twitch EventSub Conduit
 async def get_or_create_conduit():
@@ -676,6 +799,9 @@ async def subscribe_to_events(session_id):
         {"type": "channel.hype_train.begin", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.hype_train.end", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID}},
         {"type": "channel.moderate", "version": "2", "condition": {"broadcaster_user_id": CHANNEL_ID, "moderator_user_id": CHANNEL_ID}},
+        {"type": "channel.goal.begin", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.goal.progress", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
+        {"type": "channel.goal.end", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID}},
     ]
     chat_topics = [
         {"type": "channel.chat.notification", "version": "1", "condition": {"broadcaster_user_id": CHANNEL_ID, "user_id": bot_user_id}},
@@ -750,6 +876,18 @@ async def twitch_receive_messages(twitch_websocket, keepalive_timeout):
             message_data = json.loads(message)
             if 'metadata' in message_data:
                 message_type = message_data['metadata'].get('message_type')
+                if message_type == 'notification':
+                    eventsub_msg_id = message_data['metadata'].get('message_id')
+                    if eventsub_msg_id:
+                        now = time.time()
+                        # Purge expired entries to keep the dict small
+                        expired_ids = [k for k, t in _seen_eventsub_message_ids.items() if now - t > _EVENTSUB_DEDUP_TTL]
+                        for k in expired_ids:
+                            del _seen_eventsub_message_ids[k]
+                        if eventsub_msg_id in _seen_eventsub_message_ids:
+                            event_logger.warning(f"Duplicate notification {eventsub_msg_id!r} ignored")
+                            continue
+                        _seen_eventsub_message_ids[eventsub_msg_id] = now
                 if message_type == 'session_keepalive':
                     event_logger.info("Received session keepalive message from Twitch WebSocket")
                 elif message_type == 'session_reconnect':
@@ -1644,6 +1782,49 @@ async def process_twitch_eventsub_message(message):
                     except Exception as e:
                         event_logger.error(f"Error logging chat for ad break: {e}")
                     create_task(process_chat_message_event(chatter_user_id, chatter_user_name, message_text))
+                # Goal Events
+                elif event_type == "channel.goal.begin":
+                    goal_type = event_data.get("type", "unknown")
+                    description = event_data.get("description", "")
+                    current_amount = event_data.get("current_amount", 0)
+                    target_amount = event_data.get("target_amount", 0)
+                    event_logger.info(f"Goal begun: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}")
+                    create_task(websocket_notice(event="TWITCH_GOAL_BEGIN", additional_data={
+                        "goal_type": goal_type,
+                        "description": description,
+                        "current_amount": current_amount,
+                        "target_amount": target_amount,
+                        "started_at": event_data.get("started_at")
+                    }))
+                elif event_type == "channel.goal.progress":
+                    goal_type = event_data.get("type", "unknown")
+                    description = event_data.get("description", "")
+                    current_amount = event_data.get("current_amount", 0)
+                    target_amount = event_data.get("target_amount", 0)
+                    event_logger.info(f"Goal progress: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}")
+                    create_task(websocket_notice(event="TWITCH_GOAL_PROGRESS", additional_data={
+                        "goal_type": goal_type,
+                        "description": description,
+                        "current_amount": current_amount,
+                        "target_amount": target_amount,
+                        "started_at": event_data.get("started_at")
+                    }))
+                elif event_type == "channel.goal.end":
+                    goal_type = event_data.get("type", "unknown")
+                    description = event_data.get("description", "")
+                    current_amount = event_data.get("current_amount", 0)
+                    target_amount = event_data.get("target_amount", 0)
+                    is_achieved = event_data.get("is_achieved", False)
+                    event_logger.info(f"Goal ended: type={goal_type}, description={description!r}, progress={current_amount}/{target_amount}, achieved={is_achieved}")
+                    create_task(websocket_notice(event="TWITCH_GOAL_END", additional_data={
+                        "goal_type": goal_type,
+                        "description": description,
+                        "current_amount": current_amount,
+                        "target_amount": target_amount,
+                        "is_achieved": is_achieved,
+                        "started_at": event_data.get("started_at"),
+                        "ended_at": event_data.get("ended_at")
+                    }))
                 else:
                     # Logging for unknown event types
                     twitch_logger.error(f"Received message with unknown event type: {event_type}")
@@ -1945,6 +2126,22 @@ async def connect():
             pass
 
 @specterSocket.event
+async def SUCCESS(data):
+    global websocket_connected
+    websocket_connected = True
+    websocket_logger.info(f"Registration confirmed by server: {data.get('message', data) if isinstance(data, dict) else data}")
+
+@specterSocket.event
+async def ERROR(data):
+    global websocket_connected
+    websocket_connected = False
+    websocket_logger.error(f"Server rejected registration: {data.get('message', data) if isinstance(data, dict) else data}")
+    try:
+        await specterSocket.disconnect()
+    except Exception:
+        pass
+
+@specterSocket.event
 async def connect_error(data):
     global websocket_connected
     websocket_connected = False  # Ensure flag is set to false on connection error
@@ -2009,6 +2206,88 @@ async def PATREON(data):
         await process_patreon_event(data)
     except Exception as e:
         websocket_logger.error(f"Failed to process Patreon event: {e}")
+
+@specterSocket.event
+async def RAFFLE_WINNER(data):
+    websocket_logger.info(f"Raffle winner event received: {data}")
+    try:
+        raffle_name = data.get('raffle_name') or data.get('raffle')
+        winner = data.get('winner')
+        if not raffle_name or not winner:
+            websocket_logger.error(f"Missing raffle_name or winner in RAFFLE_WINNER event: {data}")
+            return
+        try:
+            await send_chat_message(f"🎉 Congratulations @{winner}! You won the raffle: {raffle_name} 🎉")
+        except Exception as e:
+            websocket_logger.error(f"Failed to send raffle winner chat message: {e}")
+    except Exception as e:
+        websocket_logger.error(f"Failed to process RAFFLE_WINNER event: {e}")
+
+@specterSocket.event
+async def CUSTOM_COMMAND(data):
+    websocket_logger.info(f"Custom command event received: {data}")
+    try:
+        command = data.get('command')
+        response = data.get('response')
+        if not command or not response:
+            websocket_logger.error(f"Missing command or response in custom command event: {data}")
+            return
+        await process_dynamic_variables(command, response, user="API", send_to_chat=True)
+        websocket_logger.info(f"Custom command '{command}' executed successfully via API")
+    except Exception as e:
+        websocket_logger.error(f"Failed to process custom command event: {e}")
+
+@specterSocket.event
+async def TASK_REWARD_TRIGGER(data):
+    websocket_logger.info(f"TASK_REWARD_TRIGGER received: {data}")
+    try:
+        user_id = data.get("user_id")
+        user_name = data.get("user_name")
+        points = int(data.get("points", 0))
+        task_id = data.get("task_id")
+        task_title = data.get("task_title", "a task")
+        channel_code = data.get("channel_code", "")
+        if not user_id or not user_name:
+            websocket_logger.error(f"TASK_REWARD_TRIGGER: missing user_id or user_name in payload: {data}")
+            return
+        if points <= 0:
+            websocket_logger.warning(f"TASK_REWARD_TRIGGER: points={points} for user {user_name}, skipping reward")
+            return
+        result = await manage_user_points(user_id, user_name, "credit", points)
+        if result["success"]:
+            websocket_logger.info(f"TASK_REWARD_TRIGGER: awarded {points} points to {user_name} (task: {task_id})")
+            connection = None
+            point_name = "points"
+            try:
+                connection = await mysql_handler.get_connection()
+                async with connection.cursor(DictCursor) as cursor:
+                    await cursor.execute("SELECT point_name FROM bot_settings LIMIT 1")
+                    row = await cursor.fetchone()
+                    if row and row.get("point_name"):
+                        point_name = row["point_name"]
+            except Exception:
+                pass
+            finally:
+                if connection:
+                    await connection.release()
+            await send_chat_message(
+                f"@{user_name} completed \"{task_title}\" and earned {points} {point_name}! "
+                f"They now have {result['points']} {point_name}."
+            )
+            confirm_payload = {
+                "channel_code": channel_code,
+                "user_id": user_id,
+                "user_name": user_name,
+                "task_id": task_id,
+                "points_awarded": points,
+                "new_total": result["points"],
+            }
+            await specterSocket.emit("TASK_REWARD_CONFIRM", confirm_payload)
+            websocket_logger.info(f"TASK_REWARD_CONFIRM emitted for task {task_id}, user {user_name}")
+        else:
+            websocket_logger.error(f"TASK_REWARD_TRIGGER: manage_user_points failed for {user_name}: {result.get('error')}")
+    except Exception as e:
+        websocket_logger.error(f"TASK_REWARD_TRIGGER: unexpected error: {e}", exc_info=True)
 
 @specterSocket.event
 async def SYSTEM_UPDATE(data):
@@ -2649,6 +2928,7 @@ class TwitchBot(commands.AutoBot):
     async def event_ready(self):
         bot_logger.info(f'Logged in as "{self.user.name}"')
         await update_version_control()
+        await load_media_settings()
         await builtin_commands_creation()
         # Get or create EventSub conduit before starting EventSub
         await get_or_create_conduit()
@@ -2689,6 +2969,33 @@ class TwitchBot(commands.AutoBot):
         looped_tasks["cleanup_idle_db_pools"] = create_task(cleanup_idle_db_pools())
         looped_tasks["cleanup_gift_sub_tracking"] = create_task(cleanup_gift_sub_tracking())
         looped_tasks["cleanup_expired_shoutouts"] = create_task(cleanup_expired_shoutouts())
+        # Generic _MODULE_CLASSES loader: instantiate any custom module that claims this channel
+        global _channel_modules, _shared_http_session
+        _channel_modules = []
+        if _shared_http_session is None:
+            _shared_http_session = httpClientSession()
+        for cls in _MODULE_CLASSES:
+            if not callable(getattr(cls, 'claims_channel', None)):
+                continue
+            try:
+                if not cls.claims_channel(CHANNEL_NAME):
+                    continue
+                module_instance = cls(
+                    mysql_handler=mysql_handler,
+                    http_session=_shared_http_session,
+                    chat_logger=chat_logger,
+                )
+                if hasattr(module_instance, 'ensure_tables'):
+                    await module_instance.ensure_tables()
+                bot_logger.info(f"[module] {cls.__name__} loaded for channel '{CHANNEL_NAME}'.")
+                _channel_modules.append(module_instance)
+            except Exception as _mod_err:
+                bot_logger.error(f"[module] {cls.__name__} failed to load: {_mod_err}")
+        if _channel_modules:
+            looped_tasks["module_ready_dispatch"] = create_task(dispatch_module_event(
+                "ready",
+                broadcaster_id=CHANNEL_ID,
+            ))
         if hedgehogobrien_module is not None and hedgehogobrien_module.is_hedgehogobrien_channel(CHANNEL_NAME):
             try:
                 await hedgehogobrien_module.ensure_tables(mysql_handler)
@@ -2755,6 +3062,47 @@ class TwitchBot(commands.AutoBot):
                 # Ignore messages from the bot itself
                 if message.chatter.id == str(BOT_ID):
                     return
+                _early_author = message.chatter.name if message.chatter else ""
+                _early_author_id = message.chatter.id if message.chatter else ""
+                _early_content = str(message.text).strip() if message.text else ""
+                _cv_cmd_author_id.set(_early_author_id)
+                _cv_cmd_user_msg.set(_early_content)
+                if await self.should_block_first_message_command(_early_author, _early_author_id, _early_content, message.chatter):
+                    return
+                await self.send_first_command_welcome_if_needed(_early_author, _early_author_id, _early_content)
+                # Relay chat message to websocket server for the chat overlay
+                if websocket_connected and specterSocket and specterSocket.connected:
+                    try:
+                        # Serialize badges to IRC-style "set_id/id,set_id/id"
+                        badges_str = ",".join(
+                            f"{b.set_id}/{b.id}" for b in (message.badges or []) if getattr(b, 'set_id', None)
+                        )
+                        # Serialize emotes from fragments to IRC-style "id:start-end,start-end/id:start-end"
+                        emotes_map = {}
+                        offset = 0
+                        for frag in (message.fragments or []):
+                            frag_text = frag.text or ""
+                            frag_len = len(frag_text)
+                            if frag.type == "emote" and getattr(frag, 'emote', None) and frag_len > 0:
+                                eid = frag.emote.id
+                                emotes_map.setdefault(eid, []).append(f"{offset}-{offset + frag_len - 1}")
+                            offset += frag_len
+                        emotes_str = "/".join(f"{eid}:{','.join(ranges)}" for eid, ranges in emotes_map.items())
+                        chat_color = getattr(message.chatter, 'colour', None) or getattr(message.chatter, 'color', None) or ''
+                        chat_payload = {
+                            'user_id': str(message.chatter.id),
+                            'username': message.chatter.name or '',
+                            'display_name': message.chatter.display_name or message.chatter.name or '',
+                            'color': chat_color,
+                            'badges': badges_str,
+                            'message': message.text or '',
+                            'message_id': message.id or '',
+                            'emotes': emotes_str,
+                        }
+                        await specterSocket.emit('CHAT_MESSAGE', chat_payload)
+                        websocket_logger.debug(f"[CHAT OVERLAY] CHAT_MESSAGE relayed for {chat_payload['username']}: {chat_payload['message'][:60]}")
+                    except Exception as chat_relay_err:
+                        websocket_logger.error(f"[CHAT OVERLAY] CHAT_MESSAGE relay error: {chat_relay_err}")
                 # Handle commands
                 await self.handle_commands(message)
                 messageContent = str(message.text).strip().lower() if message.text else ""
@@ -3075,6 +3423,16 @@ class TwitchBot(commands.AutoBot):
                     pass
                 else:
                     bot_logger.error(f"An error occurred in event_message: {e}")
+            finally:
+                # Run the message counting / welcome / points / grouping flow for this message.
+                # Done in `finally` so it still runs after early returns from spam, command, or URL handling.
+                try:
+                    if messageAuthor and messageAuthor != "":
+                        await self.message_counting_and_welcome_messages(
+                            messageAuthor, messageAuthorID, bannedUser, messageContent
+                        )
+                except Exception as _mc_err:
+                    bot_logger.error(f"message_counting_and_welcome_messages failed: {_mc_err}")
 
     async def message_counting_and_welcome_messages(self, messageAuthor, messageAuthorID, bannedUser, messageContent=""):
         if messageAuthor in [bannedUser, None, ""]:
@@ -3211,6 +3569,182 @@ class TwitchBot(commands.AutoBot):
             chat_logger.info(f"Sent WALKON notice for {user}")
         except Exception as e:
             chat_logger.error(f"Failed to send WALKON for {user}: {e}")
+
+    async def is_managed_bot_command(self, cursor, command):
+        if not command:
+            return False
+        if command in builtin_commands or command in mod_commands or command in builtin_aliases:
+            return True
+        await cursor.execute('SELECT 1 FROM custom_commands WHERE command = %s LIMIT 1', (command,))
+        custom_result = await cursor.fetchone()
+        if custom_result:
+            return True
+        await cursor.execute('SELECT 1 FROM custom_user_commands WHERE command = %s LIMIT 1', (command,))
+        custom_user_result = await cursor.fetchone()
+        return custom_user_result is not None
+
+    async def is_first_message_command_blocked_by_settings(self, cursor, command):
+        is_managed_command = await self.is_managed_bot_command(cursor, command)
+        if not is_managed_command:
+            return False
+        await cursor.execute("SELECT block_first_message_commands, block_first_message_command_mode, block_first_message_selected_commands FROM protection LIMIT 1")
+        protection_row = await cursor.fetchone()
+        if not protection_row or protection_row.get("block_first_message_commands") != 'True':
+            return False
+        block_mode = str(protection_row.get("block_first_message_command_mode") or "all").strip().lower()
+        if block_mode != "selected":
+            return True
+        selected_commands_raw = protection_row.get("block_first_message_selected_commands")
+        if not selected_commands_raw:
+            return False
+        try:
+            selected_commands = json.loads(selected_commands_raw)
+        except Exception:
+            selected_commands = []
+        if not isinstance(selected_commands, list):
+            return False
+        selected_commands_set = {
+            lstrip_cmd
+            for lstrip_cmd in (
+                lstrip_candidate.lstrip('!')
+                for lstrip_candidate in (
+                    str(item).strip().lower()
+                    for item in selected_commands
+                    if item is not None
+                )
+            )
+            if lstrip_cmd
+        }
+        return command in selected_commands_set
+
+    async def should_block_first_message_command(self, messageAuthor, messageAuthorID, messageContent="", message_chatter=None):
+        global stream_online
+        if not messageContent or not messageContent.startswith('!'):
+            return False
+        command_parts = messageContent.strip().split()
+        if not command_parts:
+            return False
+        command = command_parts[0][1:].strip().lower()
+        if not command:
+            return False
+        if not stream_online:
+            return False
+        try:
+            if message_chatter and (
+                getattr(message_chatter, 'is_mod', False)
+                or (getattr(message_chatter, 'name', '') or "").lower() == (CHANNEL_NAME or "").lower()
+                or (getattr(message_chatter, 'name', '') or "").lower() == (bot_owner or "").lower()
+            ):
+                return False
+            if messageAuthor and messageAuthor.lower() == CHANNEL_NAME.lower():
+                return False
+            async with await mysql_handler.get_connection() as connection:
+                async with connection.cursor(DictCursor) as cursor:
+                    if not await self.is_first_message_command_blocked_by_settings(cursor, command):
+                        return False
+                    await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
+                    seen_today_res = await cursor.fetchone()
+                    if not seen_today_res:
+                        await send_chat_message("Sorry, you cannot use this command because: you haven't sent a chat message recently")
+                        return True
+        except Exception as e:
+            bot_logger.error(f"Error checking pre-command first-message protection: {e}")
+        return False
+
+    async def send_first_command_welcome_if_needed(self, messageAuthor, messageAuthorID, messageContent=""):
+        global stream_online
+        if not messageContent or not messageContent.startswith('!'):
+            return
+        command_parts = messageContent.strip().split()
+        if not command_parts:
+            return
+        command = command_parts[0][1:].strip().lower()
+        if not command:
+            return
+        if not stream_online:
+            return
+        if not messageAuthor or messageAuthor.lower() in IGNORED_WELCOME_USERNAMES or messageAuthor.lower() == CHANNEL_NAME.lower():
+            return
+        send_shoutout = False
+        shoutout_message = None
+        user_to_shoutout = None
+        user_id = None
+        try:
+            async with await mysql_handler.get_connection() as connection:
+                async with connection.cursor(DictCursor) as cursor:
+                    if await self.is_first_message_command_blocked_by_settings(cursor, command):
+                        return
+                    await cursor.execute('SELECT * FROM seen_today WHERE user_id = %s', (messageAuthorID,))
+                    seen_today_result = await cursor.fetchone()
+                    if seen_today_result is not None:
+                        return
+                    is_vip = await is_user_vip(messageAuthorID)
+                    is_mod = await is_user_mod(messageAuthorID)
+                    await cursor.execute('SELECT * FROM seen_users WHERE username = %s', (messageAuthor,))
+                    user_data = await cursor.fetchone()
+                    if user_data:
+                        has_welcome_message = user_data.get("welcome_message")
+                        user_status_enabled = user_data.get("status", 'True') == 'True'
+                    else:
+                        has_welcome_message = None
+                        user_status_enabled = True
+                    await cursor.execute('SELECT * FROM streamer_preferences WHERE id = 1')
+                    preferences = await cursor.fetchone()
+                    if not preferences:
+                        send_welcome_messages = 1
+                        new_default_welcome_message = "(user) is new to the community, let's give them a warm welcome!"
+                        new_default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
+                        new_default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
+                        default_welcome_message = "Welcome back (user), glad to see you again!"
+                        default_vip_welcome_message = "ATTENTION! A very important person has entered the chat, welcome (user)"
+                        default_mod_welcome_message = "MOD ON DUTY! Welcome in (user), the power of the sword has increased!"
+                    else:
+                        send_welcome_messages = int(preferences["send_welcome_messages"])
+                        new_default_welcome_message = preferences["new_default_welcome_message"]
+                        new_default_vip_welcome_message = preferences["new_default_vip_welcome_message"]
+                        new_default_mod_welcome_message = preferences["new_default_mod_welcome_message"]
+                        default_welcome_message = preferences["default_welcome_message"]
+                        default_vip_welcome_message = preferences["default_vip_welcome_message"]
+                        default_mod_welcome_message = preferences["default_mod_welcome_message"]
+                    await cursor.execute(
+                        'INSERT INTO seen_today (user_id, username) VALUES (%s, %s)',
+                        (messageAuthorID, messageAuthor)
+                    )
+                    await connection.commit()
+                    chat_logger.info(f"Marked {messageAuthor} as seen today from first-command welcome flow.")
+                    if user_status_enabled and send_welcome_messages:
+                        if not user_data:
+                            if is_vip:
+                                message_to_send = new_default_vip_welcome_message.replace("(user)", messageAuthor)
+                            elif is_mod:
+                                message_to_send = new_default_mod_welcome_message.replace("(user)", messageAuthor)
+                            else:
+                                message_to_send = new_default_welcome_message.replace("(user)", messageAuthor)
+                        else:
+                            if has_welcome_message:
+                                message_to_send = has_welcome_message.replace("(user)", messageAuthor)
+                            else:
+                                if is_vip:
+                                    message_to_send = default_vip_welcome_message.replace("(user)", messageAuthor)
+                                elif is_mod:
+                                    message_to_send = default_mod_welcome_message.replace("(user)", messageAuthor)
+                                else:
+                                    message_to_send = default_welcome_message.replace("(user)", messageAuthor)
+                        if '(shoutout)' in message_to_send:
+                            send_shoutout = True
+                            message_to_send = message_to_send.replace('(shoutout)', '')
+                            user_id = messageAuthorID
+                            user_to_shoutout = messageAuthor
+                            shoutout_message = await get_shoutout_message(user_id, user_to_shoutout, "welcome_message")
+                        if message_to_send.strip():
+                            await send_chat_message(message_to_send)
+                        if send_shoutout and shoutout_message:
+                            await add_shoutout(user_to_shoutout, user_id, is_automated=True)
+                            await send_chat_message(shoutout_message)
+                        chat_logger.info(f"Sent first-command welcome message to {messageAuthor}")
+                        create_task(self.safe_walkon(messageAuthor))
+        except Exception as e:
+            chat_logger.error(f"Error in send_first_command_welcome_if_needed for {messageAuthor}: {e}")
 
     async def user_points(self, messageAuthor, messageAuthorID):
         try:
@@ -8040,6 +8574,71 @@ class TwitchBot(commands.AutoBot):
             if connection:
                 await connection.release()
 
+    @commands.command(name='puzzles')
+    async def puzzles_command(ctx: commands.Context):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("puzzles",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('puzzles', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                        return
+                    total_completed = await get_tanggle_completed_count()
+                    suffix = "puzzle" if total_completed == 1 else "puzzles"
+                    await send_chat_message(f"We've completed {total_completed} Tanggle {suffix} so far.")
+                    add_usage('puzzles', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"An error occurred in the puzzles command: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='todolist')
+    async def todolist_command(ctx: commands.Context):
+        global bot_owner
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("todolist",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not await check_cooldown('todolist', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+            await todolist_command_handler(ctx, connection)
+            add_usage('todolist', bucket_key, cooldown_bucket)
+        except Exception as e:
+            bot_logger.error(f"An error occurred in todolist_command: {e}")
+        finally:
+            if connection:
+                await connection.release()
+
     @commands.command(name='watchtime')
     async def watchtime_command(ctx: commands.Context):
         global bot_owner
@@ -8262,6 +8861,298 @@ class TwitchBot(commands.AutoBot):
         except Exception as e:
             bot_logger.error(f"Error in Drawing Lotto Winners: {e}")
             await send_chat_message("Sorry, there is an error in drawing the lotto winners.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='createraffle')
+    async def createraffle_command(ctx: commands.Context, *args):
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("createraffle",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                if len(args) < 3:
+                    await send_chat_message("Usage: !createraffle <name> <prize> <number_of_winners> [weighted]")
+                    return
+                name = args[0]
+                prize = args[1]
+                try:
+                    number_of_winners = int(args[2])
+                    if number_of_winners <= 0:
+                        raise ValueError
+                except Exception:
+                    await send_chat_message("Invalid number of winners. Please specify a positive number.")
+                    return
+                weighted = False
+                if len(args) > 3 and args[3].lower() == 'weighted':
+                    weighted = True
+                await cursor.execute("INSERT INTO raffles (name, prize, number_of_winners, status, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", (name, prize, number_of_winners, 'scheduled', 1 if weighted else 0, 2.00, 3.00, 4.00, 1.50, 0, 0, 0))
+                await connection.commit()
+                await send_chat_message(f"Raffle '{name}' created and scheduled! Use !startraffle to start it.")
+        except Exception as e:
+            bot_logger.error(f"Error creating raffle: {e}")
+            await send_chat_message("There was an error creating the raffle.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='startraffle')
+    async def startraffle_command(ctx: commands.Context, raffle_id: str = None):
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("startraffle",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                if raffle_id:
+                    await cursor.execute("SELECT id, name FROM raffles WHERE id=%s AND status='scheduled' LIMIT 1", (raffle_id,))
+                else:
+                    await cursor.execute("SELECT id, name FROM raffles WHERE status='scheduled' ORDER BY created_at ASC LIMIT 1")
+                raffle = await cursor.fetchone()
+                if not raffle:
+                    if raffle_id:
+                        await send_chat_message(f"No scheduled raffle found with ID {raffle_id}.")
+                    else:
+                        await send_chat_message("No scheduled raffles available to start.")
+                    return
+                raffle_id_to_start = raffle.get('id')
+                raffle_name = raffle.get('name')
+                await cursor.execute("UPDATE raffles SET status='running' WHERE id=%s", (raffle_id_to_start,))
+                await connection.commit()
+                await send_chat_message(f"Raffle '{raffle_name}' is now running! Use !joinraffle to enter.")
+        except Exception as e:
+            bot_logger.error(f"Error starting raffle: {e}")
+            await send_chat_message("There was an error starting the raffle.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='joinraffle', aliases=['rafflejoin', 'raffle'])
+    async def joinraffle_command(ctx: commands.Context):
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT id, name, is_weighted, weight_sub_t1, weight_sub_t2, weight_sub_t3, weight_vip, exclude_mods, subscribers_only, followers_only, followers_min_enabled, followers_min_value, followers_min_unit FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                raffle = await cursor.fetchone()
+                if not raffle:
+                    await send_chat_message("There is no active raffle right now.")
+                    return
+                raffle_id = raffle.get('id')
+                raffle_name = raffle.get('name')
+                is_weighted = raffle.get('is_weighted')
+                weight_sub_t1 = raffle.get('weight_sub_t1', 2.00)
+                weight_sub_t2 = raffle.get('weight_sub_t2', 3.00)
+                weight_sub_t3 = raffle.get('weight_sub_t3', 4.00)
+                weight_vip = raffle.get('weight_vip', 1.50)
+                exclude_mods = raffle.get('exclude_mods', 0)
+                subscribers_only = raffle.get('subscribers_only', 0)
+                followers_only = raffle.get('followers_only', 0)
+                followers_min_enabled = int(raffle.get('followers_min_enabled', 0) or 0)
+                followers_min_value = int(raffle.get('followers_min_value', 0) or 0)
+                followers_min_unit = (raffle.get('followers_min_unit', 'days') or 'days').lower()
+                username = ctx.author.name
+                user_id = str(ctx.author.id)
+                is_mod = ctx.author.is_mod
+                subscription_tier = None
+                if exclude_mods and is_mod:
+                    await send_chat_message(f"@{username}, moderators are excluded from this raffle.")
+                    return
+                if subscribers_only:
+                    subscription_tier = await is_user_subscribed(user_id)
+                    if not subscription_tier:
+                        await send_chat_message(f"@{username}, this raffle is for subscribers only.")
+                        return
+                if followers_only:
+                    followed_since = await get_user_followed_since(user_id)
+                    if not followed_since:
+                        await send_chat_message(f"@{username}, this raffle is for followers only.")
+                        return
+                    if followers_min_enabled and followers_min_value > 0 and not has_followed_minimum_duration(followed_since, followers_min_value, followers_min_unit):
+                        await send_chat_message(f"@{username}, you must be following for at least {followers_min_value} {followers_min_unit} to join this raffle.")
+                        return
+                await cursor.execute("SELECT id FROM raffle_entries WHERE raffle_id=%s AND username=%s", (raffle_id, username))
+                exists = await cursor.fetchone()
+                if exists:
+                    await send_chat_message(f"@{username}, you are already entered in raffle '{raffle_name}'.")
+                    return
+                weight = 100
+                if is_weighted:
+                    try:
+                        if subscription_tier is None:
+                            subscription_tier = await is_user_subscribed(user_id)
+                        if subscription_tier == "Tier 1":
+                            weight = int(weight_sub_t1 * 100)
+                        elif subscription_tier == "Tier 2":
+                            weight = int(weight_sub_t2 * 100)
+                        elif subscription_tier == "Tier 3":
+                            weight = int(weight_sub_t3 * 100)
+                        elif await is_user_vip(user_id):
+                            weight = int(weight_vip * 100)
+                    except Exception as e:
+                        bot_logger.error(f"Error calculating raffle weight for {username}: {e}")
+                        weight = 100
+                await cursor.execute("INSERT INTO raffle_entries (raffle_id, user_id, username, weight) VALUES (%s, %s, %s, %s)", (raffle_id, user_id, username, weight))
+                await connection.commit()
+                await send_chat_message(f"@{username} has been entered into raffle '{raffle_name}'. Good luck!")
+        except Exception as e:
+            bot_logger.error(f"Error joining raffle: {e}")
+            await send_chat_message("There was an error entering the raffle.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='leaveraffle')
+    async def leaveraffle_command(ctx: commands.Context):
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT id FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                raffle = await cursor.fetchone()
+                if not raffle:
+                    await send_chat_message("There is no active raffle to leave.")
+                    return
+                raffle_id = raffle.get('id')
+                username = ctx.author.name
+                await cursor.execute("DELETE FROM raffle_entries WHERE raffle_id=%s AND username=%s", (raffle_id, username))
+                await connection.commit()
+                await send_chat_message(f"@{username} has been removed from the current raffle.")
+        except Exception as e:
+            bot_logger.error(f"Error leaving raffle: {e}")
+            await send_chat_message("There was an error removing you from the raffle.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='stopraffle')
+    async def stopraffle_command(ctx: commands.Context):
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("stopraffle",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                await cursor.execute("SELECT id, name FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                raffle = await cursor.fetchone()
+                if not raffle:
+                    await send_chat_message("There is no active raffle to stop.")
+                    return
+                raffle_id = raffle.get('id')
+                raffle_name = raffle.get('name')
+                await cursor.execute("UPDATE raffles SET status=%s WHERE id=%s", ('ended', raffle_id))
+                await connection.commit()
+                await send_chat_message(f"Raffle '{raffle_name}' has been stopped and ended without drawing winners.")
+        except Exception as e:
+            bot_logger.error(f"Error stopping raffle: {e}")
+            await send_chat_message("There was an error stopping the raffle.")
+        finally:
+            if connection:
+                await connection.release()
+
+    @commands.command(name='drawraffle')
+    async def drawraffle_command(ctx: commands.Context, raffle_id: str = None):
+        connection = None
+        connection = await mysql_handler.get_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("drawraffle",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                if raffle_id:
+                    await cursor.execute("SELECT id, name, prize, number_of_winners, is_weighted FROM raffles WHERE id=%s", (raffle_id,))
+                    raffle = await cursor.fetchone()
+                else:
+                    await cursor.execute("SELECT id, name, prize, number_of_winners, is_weighted FROM raffles WHERE status=%s ORDER BY created_at DESC LIMIT 1", ("running",))
+                    raffle = await cursor.fetchone()
+                if not raffle:
+                    await send_chat_message("No raffle found to draw.")
+                    return
+                raffle_id = raffle.get('id')
+                raffle_name = raffle.get('name')
+                raffle_prize = raffle.get('prize')
+                number_of_winners = raffle.get('number_of_winners', 1)
+                await cursor.execute("SELECT id, username, user_id, weight FROM raffle_entries WHERE raffle_id=%s", (raffle_id,))
+                entries = await cursor.fetchall()
+                if not entries:
+                    await send_chat_message(f"No entries in raffle '{raffle_name}'.")
+                    return
+                winners = []
+                available_entries = list(entries)
+                for _ in range(min(number_of_winners, len(entries))):
+                    total_weight = sum([e.get('weight', 1) for e in available_entries])
+                    pick = random.randint(1, total_weight)
+                    running = 0
+                    winner = None
+                    winner_index = -1
+                    for idx, e in enumerate(available_entries):
+                        running += e.get('weight', 1)
+                        if running >= pick:
+                            winner = e
+                            winner_index = idx
+                            break
+                    if winner:
+                        winners.append(winner)
+                        available_entries.pop(winner_index)
+                if not winners:
+                    await send_chat_message("There was an error selecting winners.")
+                    return
+                winner_names = []
+                for winner in winners:
+                    entry_id = winner.get('id')
+                    username = winner.get('username')
+                    user_id = winner.get('user_id')
+                    winner_names.append(username)
+                    await cursor.execute("INSERT INTO raffle_winners (raffle_id, entry_id, username, user_id) VALUES (%s, %s, %s, %s)", (raffle_id, entry_id, username, user_id))
+                await cursor.execute("UPDATE raffles SET status=%s WHERE id=%s", ('ended', raffle_id))
+                await connection.commit()
+                if len(winners) == 1:
+                    winner_text = f"@{winner_names[0]}"
+                else:
+                    winner_text = ", ".join([f"@{w}" for w in winner_names])
+                prize_text = f" - Prize: {raffle_prize}" if raffle_prize else ""
+                await send_chat_message(f"🎉 Congratulations {winner_text}! You won the raffle '{raffle_name}'{prize_text} 🎉")
+                try:
+                    for winner_name in winner_names:
+                        create_task(websocket_notice(event="RAFFLE_WINNER", additional_data={"raffle_name": raffle_name, "winner": winner_name, "prize": raffle_prize}))
+                except Exception as e:
+                    websocket_logger.error(f"Failed to send RAFFLE_WINNER notify: {e}")
+        except Exception as e:
+            bot_logger.error(f"Error drawing raffle: {e}")
+            await send_chat_message("There was an error drawing the raffle.")
         finally:
             if connection:
                 await connection.release()
@@ -8519,6 +9410,55 @@ async def is_user_subscribed(user_id):
                         return tier_name
     return None
 
+# Function to get when a user started following the channel
+async def get_user_followed_since(user_id):
+    global CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    params = {
+        "broadcaster_id": CHANNEL_ID,
+        "user_id": user_id
+    }
+    async with httpClientSession() as session:
+        async with session.get('https://api.twitch.tv/helix/channels/followers', headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                followers = data.get('data', [])
+                if not followers:
+                    return None
+                followed_at = followers[0].get('followed_at')
+                if not followed_at:
+                    return None
+                try:
+                    return datetime.fromisoformat(followed_at.replace('Z', '+00:00'))
+                except Exception:
+                    twitch_logger.error(f"Failed to parse followed_at value for user_id {user_id}: {followed_at}")
+                    return None
+            twitch_logger.error(f"Failed to check follower status for user_id {user_id}. Status Code: {response.status}")
+            return None
+
+# Function to check if a user follows the channel
+async def is_user_follower(user_id):
+    return bool(await get_user_followed_since(user_id))
+
+def has_followed_minimum_duration(followed_since, minimum_value, minimum_unit):
+    if minimum_value <= 0:
+        return True
+    if followed_since.tzinfo is None:
+        followed_since = followed_since.replace(tzinfo=timezone.utc)
+    elapsed = time_right_now(timezone.utc) - followed_since
+    if minimum_unit == 'weeks':
+        required_duration = timedelta(weeks=minimum_value)
+    elif minimum_unit == 'months':
+        required_duration = timedelta(days=minimum_value * 30)
+    elif minimum_unit == 'years':
+        required_duration = timedelta(days=minimum_value * 365)
+    else:
+        required_duration = timedelta(days=minimum_value)
+    return elapsed >= required_duration
+
 # Function to add user to the table of known users
 async def user_is_seen(username):
     connection = None
@@ -8534,17 +9474,705 @@ async def user_is_seen(username):
             await connection.release()
 
 # Function to fetch custom API responses
-async def fetch_api_response(url, json_flag=False):
+async def fetch_api_response(url, json_flag=False, return_json_obj=False):
     try:
         async with httpClientSession() as session:
             async with session.get(url) as resp:
                 if json_flag:
                     data = await resp.json()
-                    return str(data)
+                    if return_json_obj:
+                        return data
+                    return json.dumps(data, ensure_ascii=False)
                 else:
                     return await resp.text()
     except Exception:
         return "Error"
+
+async def get_twitch_user_by_login(login_name):
+    global CLIENT_ID, CHANNEL_AUTH
+    url = f"https://api.twitch.tv/helix/users?login={login_name}"
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    try:
+        async with httpClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('data'):
+                        user_data = data['data'][0]
+                        return str(user_data['id']), user_data['display_name']
+    except Exception:
+        pass
+    return None, None
+
+async def send_long_chat_message(message):
+    if message is None:
+        return
+    if len(message) <= MAX_CHAT_MESSAGE_LENGTH:
+        await send_chat_message(message)
+        return
+    remaining = message
+    while remaining:
+        if len(remaining) <= MAX_CHAT_MESSAGE_LENGTH:
+            await send_chat_message(remaining)
+            return
+        split_at = remaining.rfind(' ', 0, MAX_CHAT_MESSAGE_LENGTH)
+        if split_at <= 0:
+            split_at = MAX_CHAT_MESSAGE_LENGTH
+        await send_chat_message(remaining[:split_at])
+        remaining = remaining[split_at:].lstrip()
+
+def extract_customapi_placeholders(text: str):
+    placeholders = []
+    token = '(customapi.'
+    search_start = 0
+    while True:
+        start_index = text.find(token, search_start)
+        if start_index == -1:
+            break
+        depth = 0
+        end_index = None
+        for i in range(start_index, len(text)):
+            char = text[i]
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+                if depth == 0:
+                    end_index = i
+                    break
+        if end_index is None:
+            chat_logger.warning(f"Malformed customapi placeholder in response: {text[start_index:start_index + 120]}")
+            search_start = start_index + len(token)
+            continue
+        full_placeholder = text[start_index:end_index + 1]
+        url = full_placeholder[len(token):-1]
+        placeholders.append((full_placeholder, url))
+        search_start = end_index + 1
+    return placeholders
+
+def extract_json_placeholders(text: str):
+    placeholders = []
+    for match in re.finditer(r'\(json\.([^)]+)\)', text):
+        placeholders.append((match.group(0), match.group(1)))
+    return placeholders
+
+def resolve_json_path(data, path: str):
+    current = data
+    for key in path.split('.'):
+        if isinstance(current, dict):
+            if key not in current:
+                return None
+            current = current[key]
+        elif isinstance(current, list):
+            if key.isdigit():
+                index = int(key)
+                if index < 0 or index >= len(current):
+                    return None
+                current = current[index]
+            else:
+                next_value = None
+                for item in current:
+                    if isinstance(item, dict) and key in item:
+                        next_value = item[key]
+                        break
+                if next_value is None:
+                    return None
+                current = next_value
+        else:
+            return None
+    return current
+
+def format_json_placeholder_value(value):
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+# Shared dynamic variable switches used across command/timed-message processing
+DYNAMIC_VARIABLE_SWITCHES = (
+    '(customapi.', '(count)', '(daysuntil.',
+    '(command.', '(user)', '(author)', '(arg)', '(pronouns)', '(pronouns.they)', '(pronouns.them)',
+    '(random.percent)', '(random.number)', '(random.percent.',
+    '(random.number.', '(random.pick)', '(random.pick.', '(math.',
+    '(usercount)', '(timeuntil.', '(game)', '(json.', '(if.',
+    '(call.', '(shoutout.', '(count.', '(clearcount.', '(todo.add.',
+    # Channel-point-specific variables (only processed when channel_point_data is provided)
+    '(userstreak)', '(track)', '(tts)', '(tts.message)',
+    '(lotto)', '(fortune)', '(message)',
+    '(redeem.title)', '(redeem.input)', '(redeem.cost)', '(redeem.prompt)',
+    '(redeem.id)', '(redeem.status)', '(redeem.redeemed_at)',
+    '(vip)', '(vip.today)', '(storeredeem)',
+)
+
+def has_dynamic_variables(text):
+    return bool(text) and any(switch in text for switch in DYNAMIC_VARIABLE_SWITCHES)
+
+# Function to process dynamic message variables
+async def process_dynamic_variables(
+    command,
+    response,
+    user="API",
+    arg=None,
+    send_to_chat=False,
+    emit_additional=True,
+    _visited_commands=None,
+    _return_additional=False,
+    channel_point_data=None,
+):
+    if _visited_commands is None:
+        _visited_commands = set()
+    _visited_commands.add(command)
+    json_context = None
+    connection = None
+    connection = await mysql_handler.get_connection()
+    try:
+        async with connection.cursor(DictCursor) as cursor:
+            # Get timezone
+            await cursor.execute("SELECT timezone FROM profile")
+            tz_result = await cursor.fetchone()
+            if tz_result and tz_result.get("timezone"):
+                timezone = tz_result.get("timezone")
+                tz = pytz_timezone(timezone)
+            else:
+                tz = set_timezone.UTC
+            many_options_enabled = False
+            many_random_pick_options = []
+            try:
+                await cursor.execute(
+                    "SELECT many_options_enabled, options FROM custom_command_random_pick_options WHERE command = %s",
+                    (command,),
+                )
+                random_pick_row = await cursor.fetchone()
+                if random_pick_row:
+                    many_options_enabled = bool(random_pick_row.get("many_options_enabled"))
+                    options_raw = random_pick_row.get("options")
+                    if options_raw:
+                        if isinstance(options_raw, (bytes, bytearray)):
+                            options_raw = options_raw.decode("utf-8", errors="ignore")
+                        parsed_options = json.loads(options_raw) if isinstance(options_raw, str) else options_raw
+                        if isinstance(parsed_options, list):
+                            many_random_pick_options = [
+                                str(item).strip() for item in parsed_options if str(item).strip()
+                            ]
+            except Exception as e:
+                chat_logger.error(f"Error loading many random pick options for command '{command}': {e}")
+            # Process variables in a loop until none remain
+            responses_to_send = []
+            pending_calls = []  # (call.) commands deferred until after the main message is sent
+            while has_dynamic_variables(response):
+                # Handle (count)
+                if '(count)' in response:
+                    try:
+                        count_increment = 1
+                        if arg is not None:
+                            try:
+                                count_increment = int(arg)
+                            except (ValueError, TypeError):
+                                count_increment = 1
+                        await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (command,))
+                        cc_result = await cursor.fetchone()
+                        if cc_result:
+                            new_count = (cc_result.get("count") or 0) + count_increment
+                            await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, command))
+                        else:
+                            new_count = count_increment
+                            await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (command, new_count))
+                        chat_logger.info(f"Updated count for command '{command}' to {new_count}.")
+                        response = response.replace('(count)', str(new_count))
+                    except Exception as e:
+                        chat_logger.error(f"Error processing (count): {e}")
+                        response = response.replace('(count)', "Error")
+                # Handle (count.name) - named counter shared across commands
+                if '(count.' in response:
+                    count_name_match = re.search(r'\(count\.(\w+)\)', response)
+                    if count_name_match:
+                        count_key = count_name_match.group(1)
+                        try:
+                            count_increment = 1
+                            if arg is not None:
+                                try:
+                                    count_increment = int(arg)
+                                except (ValueError, TypeError):
+                                    count_increment = 1
+                            await cursor.execute('SELECT count FROM custom_counts WHERE command = %s', (count_key,))
+                            cc_result = await cursor.fetchone()
+                            if cc_result:
+                                new_count = (cc_result.get("count") or 0) + count_increment
+                                await cursor.execute('UPDATE custom_counts SET count = %s WHERE command = %s', (new_count, count_key))
+                            else:
+                                new_count = count_increment
+                                await cursor.execute('INSERT INTO custom_counts (command, count) VALUES (%s, %s)', (count_key, new_count))
+                            chat_logger.info(f"Updated named count '{count_key}' to {new_count}.")
+                            response = response.replace(f"(count.{count_key})", str(new_count))
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (count.{count_key}): {e}")
+                            response = response.replace(f"(count.{count_key})", "Error")
+                # Handle (clearcount.name) - reset a named counter to 0
+                if '(clearcount.' in response:
+                    clearcount_match = re.search(r'\(clearcount\.(\w+)\)', response)
+                    if clearcount_match:
+                        clear_key = clearcount_match.group(1)
+                        try:
+                            await cursor.execute('UPDATE custom_counts SET count = 0 WHERE command = %s', (clear_key,))
+                            chat_logger.info(f"Cleared named count '{clear_key}'.")
+                            response = response.replace(f"(clearcount.{clear_key})", "")
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (clearcount.{clear_key}): {e}")
+                            response = response.replace(f"(clearcount.{clear_key})", "")
+                # Handle (usercount) - regular commands only; channel points use reward_counts below
+                if '(usercount)' in response and not channel_point_data:
+                    try:
+                        count_increment = 1
+                        if arg is not None:
+                            try:
+                                count_increment = int(arg)
+                            except (ValueError, TypeError):
+                                count_increment = 1
+                        await cursor.execute('SELECT count FROM user_counts WHERE command = %s AND user = %s', (command, user))
+                        uc_result = await cursor.fetchone()
+                        if uc_result:
+                            new_count = (uc_result.get("count") or 0) + count_increment
+                            await cursor.execute('UPDATE user_counts SET count = %s WHERE command = %s AND user = %s', (new_count, command, user))
+                        else:
+                            new_count = count_increment
+                            await cursor.execute('INSERT INTO user_counts (command, user, count) VALUES (%s, %s, %s)', (command, user, new_count))
+                        chat_logger.info(f"Updated user count for command '{command}' and user '{user}' to {new_count}.")
+                        response = response.replace('(usercount)', str(new_count))
+                    except Exception as e:
+                        chat_logger.error(f"Error processing (usercount): {e}")
+                        response = response.replace('(usercount)', "Error")
+                # Handle (daysuntil.)
+                if '(daysuntil.' in response:
+                    get_date = re.search(r'\(daysuntil\.(\d{4}-\d{2}-\d{2})\)', response)
+                    if get_date:
+                        date_str = get_date.group(1)
+                        event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                        current_date = time_right_now(tz).date()
+                        days_left = (event_date - current_date).days
+                        if days_left < 0:
+                            next_year_date = event_date.replace(year=event_date.year + 1)
+                            days_left = (next_year_date - current_date).days
+                        response = response.replace(f"(daysuntil.{date_str})", str(days_left))
+                # Handle (timeuntil.)
+                if '(timeuntil.' in response:
+                    get_datetime = re.search(r'\(timeuntil\.(\d{4}-\d{2}-\d{2}(?:-\d{1,2}-\d{2})?)\)', response)
+                    if get_datetime:
+                        datetime_str = get_datetime.group(1)
+                        if '-' in datetime_str[10:]:
+                            event_datetime = datetime.strptime(datetime_str, "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
+                        else:
+                            event_datetime = datetime.strptime(datetime_str + "-00-00", "%Y-%m-%d-%H-%M").replace(tzinfo=tz)
+                        current_datetime = time_right_now(tz)
+                        time_left = event_datetime - current_datetime
+                        if time_left.days < 0:
+                            event_datetime = event_datetime.replace(year=event_datetime.year + 1)
+                            time_left = event_datetime - current_datetime
+                        days_left = time_left.days
+                        hours_left, remainder = divmod(time_left.seconds, 3600)
+                        minutes_left, _ = divmod(remainder, 60)
+                        time_left_str = f"{days_left} days, {hours_left} hours, and {minutes_left} minutes"
+                        response = response.replace(f"(timeuntil.{datetime_str})", time_left_str)
+                # Handle (user) and (author)
+                if '(user)' in response:
+                    response = response.replace('(user)', user)
+                if '(author)' in response:
+                    response = response.replace('(author)', user)
+                # Handle (arg) - the argument passed to the command
+                if '(arg)' in response:
+                    response = response.replace('(arg)', arg if arg is not None else '')
+                # --- Channel-point-specific variables (only when channel_point_data is provided) ---
+                if channel_point_data:
+                    cp_reward_id = channel_point_data.get("reward_id")
+                    cp_user_id = channel_point_data.get("user_id")
+                    cp_user_input = channel_point_data.get("user_input", "")
+                    if '(message)' in response:
+                        response = response.replace('(message)', cp_user_input)
+                    if '(redeem.input)' in response:
+                        response = response.replace('(redeem.input)', cp_user_input)
+                    if '(redeem.title)' in response:
+                        response = response.replace('(redeem.title)', channel_point_data.get("reward_title", ""))
+                    if '(redeem.cost)' in response:
+                        response = response.replace('(redeem.cost)', channel_point_data.get("reward_cost", ""))
+                    if '(redeem.prompt)' in response:
+                        response = response.replace('(redeem.prompt)', channel_point_data.get("reward_prompt", ""))
+                    if '(redeem.id)' in response:
+                        response = response.replace('(redeem.id)', channel_point_data.get("redemption_id", ""))
+                    if '(redeem.status)' in response:
+                        response = response.replace('(redeem.status)', channel_point_data.get("redemption_status", ""))
+                    if '(redeem.redeemed_at)' in response:
+                        response = response.replace('(redeem.redeemed_at)', channel_point_data.get("redeemed_at", ""))
+                    if '(usercount)' in response:
+                        try:
+                            await cursor.execute(
+                                'INSERT INTO reward_counts (reward_id, user, `count`) VALUES (%s, %s, 1) '
+                                'ON DUPLICATE KEY UPDATE `count` = `count` + 1',
+                                (cp_reward_id, user)
+                            )
+                            await cursor.execute('SELECT `count` FROM reward_counts WHERE reward_id = %s AND user = %s', (cp_reward_id, user))
+                            rc_result = await cursor.fetchone()
+                            user_count = rc_result.get("count", 1) if rc_result else 1
+                            response = response.replace('(usercount)', str(user_count))
+                        except Exception as e:
+                            chat_logger.error(f"Error processing channel point (usercount): {e}")
+                            response = response.replace('(usercount)', "Error")
+                    if '(userstreak)' in response:
+                        try:
+                            await cursor.execute(
+                                'INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, 1) '
+                                'ON DUPLICATE KEY UPDATE '
+                                'streak = IF(LOWER(`current_user`) = LOWER(%s), streak + 1, 1), '
+                                '`current_user` = %s',
+                                (cp_reward_id, user, user, user)
+                            )
+                            await cursor.execute("SELECT streak FROM reward_streaks WHERE reward_id = %s", (cp_reward_id,))
+                            streak_row = await cursor.fetchone()
+                            current_streak = streak_row['streak'] if streak_row else 1
+                            response = response.replace('(userstreak)', str(current_streak))
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (userstreak): {e}\n{traceback.format_exc()}")
+                            response = response.replace('(userstreak)', "Error")
+                    if '(track)' in response:
+                        try:
+                            await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (cp_reward_id,))
+                            response = response.replace('(track)', '')
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (track): {e}")
+                            response = response.replace('(track)', '')
+                    if '(tts)' in response:
+                        create_task(websocket_notice(event="TTS", text=cp_user_input))
+                        response = response.replace('(tts)', '')
+                    if '(lotto)' in response:
+                        winning_numbers_str = await generate_user_lotto_numbers(user)
+                        if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
+                            response = response.replace('(lotto)', f"Error: {winning_numbers_str['error']}")
+                        else:
+                            response = response.replace('(lotto)', winning_numbers_str)
+                    if '(fortune)' in response:
+                        fortune_message = await tell_fortune()
+                        fortune_message = fortune_message[0].lower() + fortune_message[1:]
+                        response = response.replace('(fortune)', fortune_message)
+                    if '(vip)' in response or '(vip.today)' in response:
+                        try:
+                            async with httpClientSession() as vip_session:
+                                headers_vip = {
+                                    'Client-Id': CLIENT_ID,
+                                    'Authorization': f'Bearer {CHANNEL_AUTH}'
+                                }
+                                params_vip = {'broadcaster_id': CHANNEL_ID, 'user_id': cp_user_id}
+                                add_vip_url = 'https://api.twitch.tv/helix/channels/vips'
+                                async with vip_session.post(add_vip_url, headers=headers_vip, params=params_vip) as vip_resp:
+                                    if vip_resp.status == 204:
+                                        response = response.replace('(vip)', '')
+                                        response = response.replace('(vip.today)', '')
+                                        if '(vip.today)' in channel_point_data.get("original_message", ""):
+                                            try:
+                                                await cursor.execute("INSERT INTO vip_today (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = VALUES(username)", (cp_user_id, user))
+                                            except Exception as _e:
+                                                chat_logger.error(f"Failed to record vip_today for {user}: {_e}")
+                                        create_task(websocket_notice(event='VIP_ADDED', user=user))
+                                    else:
+                                        txt = await vip_resp.text()
+                                        chat_logger.error(f"Failed to add VIP for {user}: {vip_resp.status} {txt}")
+                                        response = response.replace('(vip)', '')
+                                        response = response.replace('(vip.today)', '')
+                                        create_task(send_chat_message(f"@{user} I couldn't grant VIP (Twitch API returned {vip_resp.status})."))
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (vip)/(vip.today): {e}")
+                            response = response.replace('(vip)', '')
+                            response = response.replace('(vip.today)', '')
+                    if '(storeredeem)' in response:
+                        try:
+                            await cursor.execute(
+                                "INSERT INTO stored_redeems (reward_id, username) VALUES (%s, %s)",
+                                (cp_reward_id, user)
+                            )
+                            chat_logger.info(f"Stored redeem for reward {cp_reward_id} by {user}")
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (storeredeem): {e}")
+                        response = response.replace('(storeredeem)', '')
+                # Handle (pronouns), (pronouns.they), (pronouns.them)
+                if '(pronouns)' in response or '(pronouns.they)' in response or '(pronouns.them)' in response:
+                    try:
+                        pronouns = await get_user_pronouns(user)
+                        p_subject, p_object = _split_pronouns(pronouns)
+                        response = response.replace('(pronouns)', pronouns if pronouns else 'they/them')
+                        response = response.replace('(pronouns.they)', p_subject)
+                        response = response.replace('(pronouns.them)', p_object)
+                    except Exception as e:
+                        chat_logger.error(f"Error processing (pronouns): {e}")
+                        response = response.replace('(pronouns)', 'they/them')
+                        response = response.replace('(pronouns.they)', 'they')
+                        response = response.replace('(pronouns.them)', 'them')
+                # Handle (call.) - defer command invocation until after the main message is sent
+                if '(call.' in response:
+                    calling_match = re.search(r'\(call\.(\w+)\)', response)
+                    if calling_match:
+                        match_call = calling_match.group(1)
+                        response = response.replace(f"(call.{match_call})", "")
+                        pending_calls.append(match_call)
+                # Handle (shoutout.username)
+                if '(shoutout.' in response:
+                    so_match = re.search(r'\(shoutout\.(\w+)\)', response)
+                    if so_match:
+                        so_username = so_match.group(1)
+                        response = response.replace(f"(shoutout.{so_username})", "")
+                        try:
+                            so_user_id, so_display_name = await get_twitch_user_by_login(so_username)
+                            if so_user_id:
+                                so_message = await get_shoutout_message(so_user_id, so_display_name or so_username, "variable")
+                                await add_shoutout(so_display_name or so_username, so_user_id, is_automated=True)
+                                if so_message:
+                                    await send_chat_message(so_message)
+                            else:
+                                chat_logger.warning(f"(shoutout.{so_username}): user not found on Twitch, shoutout skipped")
+                        except Exception as so_err:
+                            chat_logger.error(f"Error processing (shoutout.{so_username}): {so_err}")
+                # Handle (todo.add.category.[description])
+                if '(todo.add.' in response:
+                    todo_match = re.search(r'\(todo\.add\.(\w+)\.\[([^\]]*)\]\)', response)
+                    if todo_match:
+                        todo_full = todo_match.group(0)
+                        todo_category_raw = todo_match.group(1)
+                        todo_desc = todo_match.group(2)
+                        try:
+                            try:
+                                todo_cat_id = int(todo_category_raw)
+                            except ValueError:
+                                todo_cat_id = 1
+                            await cursor.execute(
+                                'INSERT INTO todos (objective, category, private) VALUES (%s, %s, %s)',
+                                (todo_desc, todo_cat_id, 0)
+                            )
+                            chat_logger.info(f"Added todo item via variable: '{todo_desc}' in category {todo_cat_id}.")
+                            response = response.replace(todo_full, "")
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (todo.add.): {e}")
+                            response = response.replace(todo_full, "")
+                # Handle (command.) - reference other commands
+                if '(command.' in response:
+                    command_match = re.search(r'\(command\.(\w+)\)', response)
+                    if command_match:
+                        sub_command = command_match.group(1)
+                        if sub_command in _visited_commands:
+                            chat_logger.warning(f"Detected command recursion while processing '{command}' -> '{sub_command}'")
+                            response = response.replace(f"(command.{sub_command})", "[Command Loop Detected]")
+                            continue
+                        await cursor.execute('SELECT response FROM custom_commands WHERE command = %s', (sub_command,))
+                        sub_response = await cursor.fetchone()
+                        if sub_response:
+                            response = response.replace(f"(command.{sub_command})", "")
+                            processed_sub_response = await process_dynamic_variables(
+                                sub_command,
+                                sub_response["response"],
+                                user=user,
+                                arg=arg,
+                                send_to_chat=False,
+                                emit_additional=False,
+                                _visited_commands=set(_visited_commands),
+                                _return_additional=True,
+                            )
+                            if isinstance(processed_sub_response, tuple):
+                                sub_main_response, sub_additional_responses = processed_sub_response
+                            else:
+                                sub_main_response, sub_additional_responses = processed_sub_response, []
+                            if isinstance(sub_main_response, str) and sub_main_response.strip():
+                                responses_to_send.append(sub_main_response)
+                            if isinstance(sub_additional_responses, list):
+                                for additional_response in sub_additional_responses:
+                                    if isinstance(additional_response, str) and additional_response.strip():
+                                        responses_to_send.append(additional_response)
+                        else:
+                            chat_logger.warning(f"Command {sub_command} referenced but not found")
+                            response = response.replace(f"(command.{sub_command})", "[Command Not Found]")
+                # Handle (random.pick.list.<cmd>)
+                if '(random.pick.list.' in response:
+                    list_pick_matches = list(re.finditer(r'\(random\.pick\.list\.(\w+)\)', response))
+                    for list_match in list_pick_matches:
+                        ref_command = list_match.group(1)
+                        try:
+                            await cursor.execute(
+                                "SELECT options FROM custom_command_random_pick_options WHERE command = %s",
+                                (ref_command,),
+                            )
+                            list_row = await cursor.fetchone()
+                            if list_row and list_row.get("options"):
+                                options_raw = list_row.get("options")
+                                if isinstance(options_raw, (bytes, bytearray)):
+                                    options_raw = options_raw.decode("utf-8", errors="ignore")
+                                parsed = json.loads(options_raw) if isinstance(options_raw, str) else options_raw
+                                if isinstance(parsed, list):
+                                    opt_list = [str(x).strip() for x in parsed if str(x).strip()]
+                                    list_str = ", ".join(opt_list)
+                                else:
+                                    list_str = ""
+                            else:
+                                list_str = ""
+                        except Exception as e:
+                            chat_logger.error(f"Error processing (random.pick.list.{ref_command}): {e}")
+                            list_str = ""
+                        response = response.replace(list_match.group(0), list_str)
+                # Handle random replacements
+                if '(random.percent' in response or '(random.number' in response or '(random.pick' in response:
+                    pattern = r'\((random\.(percent|number|pick))(?:\.(.+?))?\)'
+                    matches = re.finditer(pattern, response)
+                    for match in matches:
+                        category = match.group(1)
+                        details = match.group(3)
+                        replacement = ''
+                        if 'percent' in category or 'number' in category:
+                            lower_bound, upper_bound = 0, 100
+                            if details:
+                                range_match = re.match(r'(\d+)-(\d+)', details)
+                                if range_match:
+                                    lower_bound, upper_bound = int(range_match.group(1)), int(range_match.group(2))
+                            random_value = random.randint(lower_bound, upper_bound)
+                            replacement = f'{random_value}%' if 'percent' in category else str(random_value)
+                        elif 'pick' in category:
+                            if details:
+                                items = [item for item in details.split('.') if item]
+                            elif many_options_enabled and many_random_pick_options:
+                                items = many_random_pick_options
+                            else:
+                                items = []
+                            replacement = random.choice(items) if items else ''
+                        response = response.replace(match.group(0), replacement)
+                # Handle (math.x+y)
+                if '(math.' in response:
+                    math_match = re.search(r'\(math\.(.+?)\)', response)
+                    if math_match:
+                        math_expression = math_match.group(1)
+                        try:
+                            math_result = safe_math(math_expression)
+                            response = response.replace(f'(math.{math_expression})', str(math_result))
+                        except Exception as e:
+                            chat_logger.error(f"Math expression error: {e}")
+                            response = response.replace(f'(math.{math_expression})', "Error")
+                # Handle (game)
+                if '(game)' in response:
+                    try:
+                        game_name = await get_current_game()
+                        response = response.replace('(game)', game_name)
+                    except Exception as e:
+                        chat_logger.error(f"Error getting current game: {e}")
+                        response = response.replace('(game)', "Error")
+                # Handle (customapi.)
+                if '(customapi.' in response:
+                    placeholders = extract_customapi_placeholders(response)
+                    for full_placeholder, url in placeholders:
+                        json_flag = False
+                        if url.startswith('json.'):
+                            json_flag = True
+                            url = url[5:]
+                        if '(user)' in url:
+                            url = url.replace('(user)', quote(user, safe=''))
+                        if channel_point_data and '(message)' in url:
+                            url = url.replace('(message)', quote(channel_point_data.get("user_input", ""), safe=''))
+                        if json_flag:
+                            api_response = await fetch_api_response(url, json_flag=True, return_json_obj=True)
+                            if api_response == "Error":
+                                json_context = None
+                                response = response.replace(full_placeholder, "")
+                            else:
+                                json_context = api_response
+                                response = response.replace(full_placeholder, "")
+                        else:
+                            api_response = await fetch_api_response(url, json_flag=False)
+                            response = response.replace(full_placeholder, api_response)
+                # Handle (json.path.to.value)
+                if '(json.' in response:
+                    json_placeholders = extract_json_placeholders(response)
+                    for full_placeholder, json_path in json_placeholders:
+                        if json_context is None:
+                            replacement = ""
+                        else:
+                            replacement = format_json_placeholder_value(resolve_json_path(json_context, json_path))
+                        response = response.replace(full_placeholder, replacement)
+                # Handle (if.condition|true_text|false_text)
+                if '(if.' in response:
+                    for if_match in list(re.finditer(r'\(if\.(.+?)\|(.*?)\|(.*?)\)', response)):
+                        full_placeholder = if_match.group(0)
+                        condition_str = if_match.group(1).strip()
+                        true_val = if_match.group(2)
+                        false_val = if_match.group(3)
+                        cond_match = re.match(
+                            r'^(.*?)\s*(!=|<=|>=|contains|startswith|endswith|=|<|>)\s*(.*?)$',
+                            condition_str,
+                            re.IGNORECASE,
+                        )
+                        if not cond_match:
+                            chat_logger.warning(f"(if.) could not parse condition: {condition_str!r}")
+                            response = response.replace(full_placeholder, false_val, 1)
+                            continue
+                        left = cond_match.group(1).strip()
+                        op = cond_match.group(2).strip().lower()
+                        right = cond_match.group(3).strip()
+                        try:
+                            if op == '=':
+                                result = left == right
+                            elif op == '!=':
+                                result = left != right
+                            elif op in ('<', '>', '<=', '>='):
+                                try:
+                                    lv, rv = float(left), float(right)
+                                    if op == '<':
+                                        result = lv < rv
+                                    elif op == '>':
+                                        result = lv > rv
+                                    elif op == '<=':
+                                        result = lv <= rv
+                                    else:
+                                        result = lv >= rv
+                                except ValueError:
+                                    if op == '<':
+                                        result = left < right
+                                    elif op == '>':
+                                        result = left > right
+                                    elif op == '<=':
+                                        result = left <= right
+                                    else:
+                                        result = left >= right
+                            elif op == 'contains':
+                                result = right.lower() in left.lower()
+                            elif op == 'startswith':
+                                result = left.lower().startswith(right.lower())
+                            elif op == 'endswith':
+                                result = left.lower().endswith(right.lower())
+                            else:
+                                result = False
+                        except Exception as e:
+                            chat_logger.error(f"(if.) evaluation error for condition {condition_str!r}: {e}")
+                            result = False
+                        response = response.replace(full_placeholder, true_val if result else false_val, 1)
+            # Send the main response to chat if requested
+            if send_to_chat:
+                await send_long_chat_message(response)
+            # Fire any deferred (call.) commands after the main message
+            for call_cmd in pending_calls:
+                try:
+                    bot_ref = BOTS_TWITCH_BOT
+                    if bot_ref and hasattr(bot_ref, 'call_command'):
+                        await bot_ref.call_command(call_cmd, None)
+                    else:
+                        chat_logger.warning(f"Cannot call command '{call_cmd}': bot not available")
+                except Exception as e:
+                    chat_logger.error(f"Error calling command '{call_cmd}': {e}")
+            # Send any additional responses from (command.) references
+            if emit_additional:
+                for resp in responses_to_send:
+                    await send_chat_message(resp)
+            if _return_additional:
+                return response, responses_to_send
+            return response
+    except Exception as e:
+        chat_logger.error(f"Error processing dynamic message variables: {e}")
+        return response
+    finally:
+        if connection:
+            await connection.release()
 
 def safe_math(expr: str):
     # Only allow digits, spaces, and + - * / operators
@@ -10450,6 +12078,19 @@ async def websocket_notice(
         if connection:
             await connection.release()
 
+# Function to load media settings (unified media library migration flag) from the profile table
+async def load_media_settings():
+    global MEDIA_MIGRATED
+    try:
+        async with await mysql_handler.get_connection() as connection:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT media_migrated FROM profile LIMIT 1")
+                result = await cursor.fetchone()
+                MEDIA_MIGRATED = bool(result.get("media_migrated")) if result else False
+                bot_logger.info(f"Unified media library: {'enabled' if MEDIA_MIGRATED else 'disabled'}")
+    except Exception as e:
+        bot_logger.error(f"Failed to load media settings: {e}")
+
 # Function to create the command in the database if it doesn't exist
 async def builtin_commands_creation():
     all_commands = list(mod_commands) + list(builtin_commands)
@@ -10744,112 +12385,44 @@ async def process_channel_point_rewards(event_data, event_type):
             if custom_message_result and custom_message_result["custom_message"]:
                 custom_message = custom_message_result.get("custom_message")
                 if custom_message:
-                    # Apply all replacements in a loop until no more variables are found
-                    max_iterations = 8
-                    iteration = 0
-                    vars_to_replace = ['(user)', '(usercount)', '(userstreak)', '(track)', '(tts)', '(lotto)', '(fortune)', '(customapi.']
-                    while iteration < max_iterations:
-                        iteration += 1
-                        has_vars = any(var in custom_message for var in vars_to_replace if var != '(customapi.')
-                        has_customapi = '(customapi.' in custom_message
-                        if not (has_vars or has_customapi):
-                            break
-                        # Re-populate replacements for this iteration
-                        replacements = {}
-                        # Handle (user)
-                        if '(user)' in custom_message:
-                            replacements['(user)'] = user_name
-                        # Handle (usercount)
-                        if '(usercount)' in custom_message:
-                            try:
-                                await cursor.execute('SELECT count FROM reward_counts WHERE reward_id = %s AND user = %s', (reward_id, user_name))
-                                result = await cursor.fetchone()
-                                if result:
-                                    user_count = result.get("count")
-                                else:
-                                    user_count = 0
-                                    await cursor.execute('INSERT INTO reward_counts (reward_id, user, count) VALUES (%s, %s, %s)', (reward_id, user_name, user_count))
-                                    await connection.commit()
-                                user_count += 1
-                                await cursor.execute('UPDATE reward_counts SET count = %s WHERE reward_id = %s AND user = %s', (user_count, reward_id, user_name))
-                                await connection.commit()
-                                replacements['(usercount)'] = str(user_count)
-                            except Exception as e:
-                                chat_logger.error(f"Error while handling (usercount): {e}")
-                                replacements['(usercount)'] = "Error"
-                        # Handle (userstreak)
-                        if '(userstreak)' in custom_message:
-                            try:
-                                await cursor.execute("SELECT `current_user`, streak FROM reward_streaks WHERE reward_id = %s", (reward_id,))
-                                streak_row = await cursor.fetchone()
-                                if streak_row:
-                                    current_user_from_db = streak_row['current_user']
-                                    current_streak = streak_row['streak']
-                                    if current_user_from_db and current_user_from_db.lower() == user_name.lower():
-                                        current_user = user_name
-                                        current_streak += 1
-                                    else:
-                                        current_user = user_name
-                                        current_streak = 1
-                                    await cursor.execute("UPDATE reward_streaks SET `current_user` = %s, streak = %s WHERE reward_id = %s", (current_user, current_streak, reward_id))
-                                else:
-                                    current_user = user_name
-                                    current_streak = 1
-                                    await cursor.execute("INSERT INTO reward_streaks (reward_id, `current_user`, streak) VALUES (%s, %s, %s)", (reward_id, current_user, current_streak))
-                                await connection.commit()
-                                replacements['(userstreak)'] = str(current_streak)
-                            except Exception as e:
-                                chat_logger.error(f"Error while handling (userstreak): {e}\n{traceback.format_exc()}")
-                                replacements['(userstreak)'] = "Error"
-                        # Handle (track)
-                        if '(track)' in custom_message:
-                            try:
-                                await cursor.execute("UPDATE channel_point_rewards SET usage_count = COALESCE(usage_count, 0) + 1 WHERE reward_id = %s", (reward_id,))
-                                await connection.commit()
-                                replacements['(track)'] = ''
-                            except Exception as e:
-                                chat_logger.error(f"Error while handling (track): {e}")
-                                replacements['(track)'] = ''
-                        # Handle (customapi.)
-                        if '(customapi.' in custom_message:
-                            pattern = r'\(customapi\.(\S+?)\)'
-                            matches = re.finditer(pattern, custom_message)
-                            for match in matches:
-                                full_placeholder = match.group(0)
-                                url = match.group(1)
-                                json_flag = False
-                                if url.startswith('json.'):
-                                    json_flag = True
-                                    url = url[5:]
-                                api_response = await fetch_api_response(url, json_flag=json_flag)
-                                replacements[full_placeholder] = api_response
-                        # Handle (tts)
-                        if '(tts)' in custom_message:
-                            tts_message = event_data.get("user_input", "")
-                            create_task(websocket_notice(event="TTS", text=tts_message))
-                            replacements['(tts)'] = ""
-                        # Handle (lotto)
-                        if '(lotto)' in custom_message:
-                            winning_numbers_str = await generate_user_lotto_numbers(user_name)
-                            if isinstance(winning_numbers_str, dict) and 'error' in winning_numbers_str:
-                                replacements['(lotto)'] = f"Error: {winning_numbers_str['error']}"
-                            else:
-                                replacements['(lotto)'] = winning_numbers_str
-                        # Handle (fortune)
-                        if '(fortune)' in custom_message:
-                            fortune_message = await tell_fortune()
-                            fortune_message = fortune_message[0].lower() + fortune_message[1:]
-                            replacements['(fortune)'] = fortune_message
-                        # Apply all replacements
-                        for var, value in replacements.items():
-                            if value is None:
-                                value = ""
-                            custom_message = custom_message.replace(var, str(value))
-                    # Only send message if it's not empty after replacements
+                    contains_fortune_placeholder = '(fortune)' in custom_message
+                    contains_tts_message = '(tts.message)' in custom_message
+                    original_message = custom_message
+                    # Remove (tts.message) before variable processing so it doesn't interfere
+                    if contains_tts_message:
+                        custom_message = custom_message.replace('(tts.message)', '')
+                    # Build channel point context for the shared function
+                    cp_data = {
+                        "reward_id": reward_id,
+                        "user_id": user_id,
+                        "user_input": event_data.get("user_input", ""),
+                        "reward_title": reward_title,
+                        "reward_cost": str(reward_data.get("cost", "")),
+                        "reward_prompt": reward_data.get("prompt", ""),
+                        "redemption_id": event_data.get("id", ""),
+                        "redemption_status": event_data.get("status", ""),
+                        "redeemed_at": event_data.get("redeemed_at", ""),
+                        "original_message": original_message,
+                    }
+                    # Process all variables through the shared function
+                    custom_message = await process_dynamic_variables(
+                        command=f"reward_{reward_id}",
+                        response=custom_message,
+                        user=user_name,
+                        arg=event_data.get("user_input", ""),
+                        send_to_chat=False,
+                        channel_point_data=cp_data,
+                    )
+                    # Post-processing: fortune name prefix
                     if custom_message.strip():
-                        # Check for (tts.message) which sends the final message to both TTS and chat
-                        if '(tts.message)' in custom_message:
-                            custom_message = custom_message.replace('(tts.message)', '')
+                        if contains_fortune_placeholder:
+                            custom_message_lstripped = custom_message.lstrip()
+                            normalized_lstripped = custom_message_lstripped.lower()
+                            name_prefix = f"{user_name.lower()},"
+                            if not normalized_lstripped.startswith(name_prefix):
+                                custom_message = f"{user_name}, {custom_message_lstripped}"
+                        # Post-processing: (tts.message) sends final message to both TTS and chat
+                        if contains_tts_message:
                             await send_chat_message(custom_message)
                             create_task(websocket_notice(event="TTS", text=custom_message))
                         else:
@@ -11141,6 +12714,26 @@ async def view_task(ctx, params, user_id, connection):
         else:
             await send_chat_message(f"{user.name}, please provide the task ID to view.")
             chat_logger.warning(f"{user.name} did not provide task ID for viewing.")
+
+async def todolist_command_handler(ctx, connection):
+    user = ctx.author
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute(
+            "SELECT t.id, t.objective, t.completed, c.category AS category_name "
+            "FROM todos t LEFT JOIN categories c ON t.category = c.id "
+            "WHERE (t.private = 0 OR t.private IS NULL) AND (t.completed IS NULL OR t.completed != 'Yes') ORDER BY t.id ASC LIMIT 5"
+        )
+        tasks = await cursor.fetchall()
+        if not tasks:
+            await send_chat_message(f"{user.name}, there are no tasks on the to-do list right now.")
+            chat_logger.info(f"{user.name} viewed the to-do list (empty).")
+            return
+        parts = []
+        for task in tasks:
+            status = '✓' if task.get('completed') == 'Yes' else '○'
+            parts.append(f"{status} #{task['id']}: {task['objective']}")
+        await send_chat_message(f"To-Do List: {' | '.join(parts)}")
+        chat_logger.info(f"{user.name} viewed the to-do list.")
 
 # Function to get Category Names for the ToDo List
 async def fetch_category_name(cursor, category_id):
@@ -12433,6 +14026,71 @@ async def get_current_custom_credentials():
         'token_expires': expires_at
     }
 
+def _save_bot_reply_to_ai_history(bot_message: str) -> None:
+    author_id = _cv_cmd_author_id.get('')
+    user_msg = _cv_cmd_user_msg.get('')
+    if not author_id or not user_msg:
+        return
+    # Only record replies triggered by a command or direct message (not timed/system messages)
+    if not (user_msg.startswith('!') or user_msg.lower().startswith('@')):
+        return
+    try:
+        history_file = Path(HISTORY_DIR) / f"{author_id}.json"
+        history = []
+        if history_file.exists():
+            try:
+                with history_file.open('r', encoding='utf-8') as hf:
+                    history = json.load(hf)
+            except Exception:
+                pass
+        history.append({'role': 'user', 'content': user_msg})
+        history.append({'role': 'assistant', 'content': bot_message})
+        if len(history) > 200:
+            history = history[-200:]
+        with history_file.open('w', encoding='utf-8') as hf:
+            json.dump(history, hf, ensure_ascii=False, indent=2)
+    except Exception as e:
+        api_logger.debug(f"Failed to save bot reply to AI history for {author_id}: {e}")
+
+# Clear temporary VIPs granted with (vip.today) at end of stream
+async def clear_temporary_vips():
+    connection = None
+    try:
+        connection = await mysql_handler.get_connection()
+        async with connection.cursor(DictCursor) as cursor:
+            await cursor.execute("SELECT user_id, username FROM vip_today")
+            rows = await cursor.fetchall()
+            if not rows:
+                return
+            async with httpClientSession() as session:
+                headers_vip = {
+                    'Client-Id': CLIENT_ID,
+                    'Authorization': f'Bearer {CHANNEL_AUTH}'
+                }
+                for row in rows:
+                    uid = row.get('user_id')
+                    uname = row.get('username') or uid
+                    try:
+                        params = {'broadcaster_id': CHANNEL_ID, 'user_id': uid}
+                        url = 'https://api.twitch.tv/helix/channels/vips'
+                        async with session.delete(url, headers=headers_vip, params=params) as resp:
+                            if resp.status == 204:
+                                bot_logger.info(f"Removed temporary VIP for {uname} ({uid})")
+                            else:
+                                text = await resp.text()
+                                bot_logger.error(f"Failed to remove VIP for {uname} ({uid}): {resp.status} {text}")
+                        await sleep(0.25)
+                    except Exception as e:
+                        bot_logger.error(f"Exception removing VIP for {uname} ({uid}): {e}")
+            await cursor.execute('TRUNCATE TABLE vip_today')
+            await connection.commit()
+            bot_logger.info('Cleared vip_today table after attempting removals.')
+    except MySQLOtherErrors as err:
+        bot_logger.error(f'Failed to clear vip_today table: {err}')
+    finally:
+        if connection:
+            await connection.release()
+
 # Function to send chat message via Twitch API
 async def send_chat_message(message, for_source_only=True, reply_parent_message_id=None):
     global CLIENT_ID, CHANNEL_ID, CHANNEL_AUTH, TWITCH_OAUTH_API_TOKEN, TWITCH_OAUTH_API_CLIENT_ID
@@ -12517,6 +14175,7 @@ async def send_chat_message(message, for_source_only=True, reply_parent_message_
                     if is_sent:
                         chat_logger.info(f"Successfully sent chat message: {message} (ID: {message_id})")
                         await track_chat_message()
+                        _save_bot_reply_to_ai_history(message)
                         return True
                     else:
                         chat_logger.error(f"Message not sent. Drop reason: {drop_reason}")
