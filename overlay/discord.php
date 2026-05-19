@@ -14,8 +14,17 @@
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
-                alert('No code provided in the URL');
+                console.error('No code provided in the URL');
                 return;
+            }
+
+            function escapeHtml(str) {
+                return String(str ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
             }
 
             function connectWebSocket() {
@@ -47,7 +56,7 @@
                         <div class="discord-overlay-page-content">
                             <span>
                                 <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
-                                ${data.member} has joined the Discord server
+                                ${escapeHtml(data.member)} has joined the Discord server
                             </span>
                         </div>
                     `;
