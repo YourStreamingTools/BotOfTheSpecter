@@ -1,0 +1,178 @@
+# BotOfTheSpecter — Caddy config for the web server.
+#
+# Covers all 13 surfaces (10 PHP frontends + 3 static asset hosts).
+# Caddy auto-issues + auto-renews Let's Encrypt certs.
+#
+# Wildcards (*.specterbot.app, *.yourlinks.click) use Cloudflare DNS-01;
+# everything else uses HTTP-01 automatically.
+#
+# Reload with:   systemctl reload caddy
+# Watch logs:    journalctl -fu caddy
+
+{
+    email admin@botofthespecter.com
+
+    # All four zones (botofthespecter.com, botspecter.com, yourlinks.click,
+    # specterbot.app) are on Cloudflare, so use DNS-01 globally. Works for
+    # wildcards AND apex domains, and survives Cloudflare proxy being on.
+    acme_dns cloudflare {env.CF_API_TOKEN}
+}
+
+# ===== Reusable snippets =====
+
+(security) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+        -X-Powered-By
+    }
+}
+
+(php_app) {
+    @blocked {
+        path *.conf *.env *.sql *.md *.ini *.log /database.php
+    }
+    handle @blocked {
+        respond 403
+    }
+    php_fastcgi unix//run/php/php8.5-fpm.sock
+    encode zstd gzip
+    file_server
+    import security
+}
+
+(static_long_cache) {
+    file_server browse=false
+    encode zstd gzip
+    import security
+    @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.woff *.woff2 *.ttf
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+}
+
+# ===== PHP frontends =====
+
+botofthespecter.com, www.botofthespecter.com {
+    root * /var/www/botofthespecter
+    import php_app
+    log {
+        output file /var/log/caddy/botofthespecter.log
+    }
+}
+
+dashboard.botofthespecter.com {
+    root * /var/www/dashboard
+    import php_app
+    log {
+        output file /var/log/caddy/dashboard.log
+    }
+}
+
+members.botofthespecter.com {
+    root * /var/www/members
+    import php_app
+    log {
+        output file /var/log/caddy/members.log
+    }
+}
+
+support.botofthespecter.com {
+    root * /var/www/support
+    import php_app
+    log {
+        output file /var/log/caddy/support.log
+    }
+}
+
+roadmap.botofthespecter.com {
+    root * /var/www/roadmap
+    import php_app
+    log {
+        output file /var/log/caddy/roadmap.log
+    }
+}
+
+# Apex + www serve the landing page from /home/.
+specterbot.app, www.specterbot.app {
+    root * /var/www/specterbotapp
+    @root path /
+    rewrite @root /home/index.php
+    import php_app
+    log {
+        output file /var/log/caddy/specterbotapp.log
+    }
+}
+
+# Per-user subdomains: gfaundead.specterbot.app -> /var/www/specterbotapp/gfaundead/...
+# {labels.2} is the leftmost label of the Host header.
+# If the user's directory exists, prepend it to the URI and serve their pages.
+# Otherwise the subdomain is unknown -- redirect to the apex.
+*.specterbot.app {
+    root * /var/www/specterbotapp
+
+    @user_exists file {
+        try_files /{labels.2}
+    }
+    handle @user_exists {
+        rewrite * /{labels.2}{uri}
+        import php_app
+    }
+    handle {
+        redir https://specterbot.app/
+    }
+
+    log {
+        output file /var/log/caddy/specterbotapp-users.log
+    }
+}
+
+specterbotsystems.botofthespecter.com {
+    root * /var/www/specterbotsystems
+    import php_app
+    log {
+        output file /var/log/caddy/specterbotsystems.log
+    }
+}
+
+yourchat.botofthespecter.com {
+    root * /var/www/yourchat
+    import php_app
+    log {
+        output file /var/log/caddy/yourchat.log
+    }
+}
+
+yourlinks.click, *.yourlinks.click {
+    root * /var/www/yourlinks
+    import php_app
+    log {
+        output file /var/log/caddy/yourlinks.log
+    }
+}
+
+# ===== Static asset hosts =====
+
+cdn.botofthespecter.com {
+    root * /var/www/cdn
+    import static_long_cache
+    log {
+        output file /var/log/caddy/cdn.log
+    }
+}
+
+walkons.botofthespecter.com {
+    root * /var/www/walkons
+    import static_long_cache
+    log {
+        output file /var/log/caddy/walkons.log
+    }
+}
+
+music.botspecter.com {
+    root * /var/www/usermusic
+    import static_long_cache
+    log {
+        output file /var/log/caddy/usermusic.log
+    }
+}
