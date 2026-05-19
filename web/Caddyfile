@@ -44,7 +44,7 @@
 }
 
 (static_long_cache) {
-    file_server browse=false
+    file_server
     encode zstd gzip
     import security
     @assets path *.jpg *.jpeg *.png *.gif *.webp *.svg *.ico *.css *.js *.mp3 *.wav *.mp4 *.m4a *.woff *.woff2 *.ttf
