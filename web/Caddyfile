@@ -104,14 +104,14 @@ specterbot.app, www.specterbot.app {
     }
 }
 
-# Per-user subdomains: gfaundead.specterbot.app -> /var/www/specterbotapp/gfaundead/...
-# {labels.2} is the leftmost label of the Host header.
-# If the rewritten path doesn't exist (user dir missing, or a typo within
-# an existing user's dir), Caddy returns 404 which handle_errors catches
-# and redirects to the apex.
+# Per-user subdomains: docroot embeds the leftmost host label, so
+# gfaundead.specterbot.app -> /var/www/specterbotapp/gfaundead/.
+# No rewrite needed -- avoids the trailing-slash + index.php path bug
+# that hits when both the URI ends with / and php_fastcgi appends /index.php.
+# If the user dir doesn't exist (or any path under it 404s), handle_errors
+# bounces the visitor to the apex.
 *.specterbot.app {
-    root * /var/www/specterbotapp
-    rewrite * /{labels.2}{uri}
+    root * /var/www/specterbotapp/{labels.2}
 
     handle_errors {
         @404 expression {http.error.status_code} == 404
