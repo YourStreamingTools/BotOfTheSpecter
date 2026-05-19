@@ -23,7 +23,6 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
     $result = $stmt->get_result();
     $user = $result->fetch_assoc();
     if ($user) {
-        $user_id = $user['id'];
         $username = $user['username'];
     } else {
         $error_html = "Invalid API key.<br>Get your API Key from your <a href='https://dashboard.botofthespecter.com/profile.php'>profile</a>."
@@ -36,6 +35,7 @@ if (isset($_GET['code']) && !empty($_GET['code'])) {
         . "<p>If you wish to define a working category, please add it like this: <strong>todolist.php?code=API_KEY&category=1</strong></br>"
         . "(where ID 1 is called Default defined on the categories page.)</p>";
 }
+$conn->close();
 
 if (!$error_html) {
     $secondary_db_name = $username;
@@ -97,6 +97,9 @@ if (!$error_html) {
         $error_html = "Invalid category ID.<br>ID 1 is called Default defined on the categories page, please review this page for a full list of IDs.";
     }
 }
+if (isset($user_db) && $user_db instanceof mysqli) {
+    $user_db->close();
+}
 ob_end_flush();
 ?>
 <!DOCTYPE html>
@@ -104,9 +107,6 @@ ob_end_flush();
 <head>
     <meta http-equiv='refresh' content='10'>
     <title>OBS TASK LIST</title>
-    <link rel='icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png' type='image/png' />
-    <link rel='apple-touch-icon' href='https://yourlistonline.yourcdnonline.com/img/logo.png'>
-    <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <style>
         body {
@@ -142,7 +142,6 @@ ob_end_flush();
     } else {
         echo "<$listType>";
         foreach ($tasks as $task) {
-            $task_id = intval($task['id']);
             $text = htmlspecialchars($task['objective']);
             if ($task['completed'] === 'Yes') {
                 $text = '<s>' . $text . '</s>';
