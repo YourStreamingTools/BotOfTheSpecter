@@ -13,8 +13,17 @@
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
-                alert('No code provided in the URL');
+                console.error('No code provided in the URL');
                 return;
+            }
+
+            function escapeHtml(str) {
+                return String(str ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
             }
 
             function connectWebSocket() {
@@ -51,8 +60,8 @@
                                 <span class="deaths-overlay-page-emote"></span>
                                 <span>Current Deaths</span>
                             </div>
-                            <div>${data.game}</div>
-                            <div>${data['death-text']}</div>
+                            <div>${escapeHtml(data.game)}</div>
+                            <div>${escapeHtml(data['death-text'])}</div>
                         </div>
                     `;
                     deathOverlay.classList.remove('hide');
