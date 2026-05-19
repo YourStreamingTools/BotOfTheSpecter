@@ -42,8 +42,17 @@ if ($username) {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
-                alert('No code provided in the URL');
+                console.error('No code provided in the URL');
                 return;
+            }
+
+            function escapeHtml(str) {
+                return String(str ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
             }
 
             function connectWebSocket() {
@@ -101,14 +110,14 @@ if ($username) {
                     <div class="weather-overlay-page-content">
                         <div class="weather-overlay-page-header">
                             ${timezone ? '<div id="currentTime" class="weather-overlay-page-time"></div>' : ''}
-                            <div class="weather-overlay-page-location">${location}</div>
-                            <div class="weather-overlay-page-temperature">${weather.temperature}</div>
+                            <div class="weather-overlay-page-location">${escapeHtml(location)}</div>
+                            <div class="weather-overlay-page-temperature">${escapeHtml(weather.temperature)}</div>
                         </div>
                         <div class="weather-overlay-page-details">
-                            <img src="${weather.icon}" alt="${weather.status}" class="weather-overlay-page-icon">
-                            <div class="weather-overlay-page-status">${weather.status}</div>
-                            <div class="weather-overlay-page-wind">${weather.wind}</div>
-                            <div class="weather-overlay-page-humidity">${weather.humidity}</div>
+                            <img src="${escapeHtml(weather.icon)}" alt="${escapeHtml(weather.status)}" class="weather-overlay-page-icon">
+                            <div class="weather-overlay-page-status">${escapeHtml(weather.status)}</div>
+                            <div class="weather-overlay-page-wind">${escapeHtml(weather.wind)}</div>
+                            <div class="weather-overlay-page-humidity">${escapeHtml(weather.humidity)}</div>
                         </div>
                     </div>
                 `;
