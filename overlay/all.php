@@ -73,13 +73,13 @@ if ($username) {
                 });
                 currentAudio.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the audio file:', e);
-                    alert('Failed to load audio file');
+                    console.error('Failed to load audio file');
                     currentAudio = null;
                     playNextAudio();
                 });
                 currentAudio.play().catch(error => {
                     console.error('Error playing audio:', error);
-                    alert('Click to play audio');
+                    console.warn('Autoplay blocked; awaiting user gesture or stream interaction');
                 });
             }
             function connectWebSocket() {
@@ -104,7 +104,7 @@ if ($username) {
                 });
                 socket.on('NOTIFY', (data) => {
                     console.log('Notification:', data);
-                    alert(data.message);
+                    console.log('NOTIFY message:', data.message);
                 });
                 socket.on('TTS', (data) => {
                     console.log('TTS event received:', data);
