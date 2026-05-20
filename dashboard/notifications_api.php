@@ -18,12 +18,7 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
 
 header('Content-Type: application/json');
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";

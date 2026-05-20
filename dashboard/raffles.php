@@ -10,12 +10,7 @@ include 'user_db.php';
 
 $pageTitle = 'Raffles';
 
-// Ensure logged in
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 $api_key_to_use = isset($api_key) ? $api_key : (isset($admin_key) ? $admin_key : '');
 $message = '';

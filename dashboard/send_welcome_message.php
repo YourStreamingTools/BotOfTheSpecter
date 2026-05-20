@@ -38,12 +38,7 @@ function get_twitch_app_credentials_for_welcome_test($conn) {
     ];
 }
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

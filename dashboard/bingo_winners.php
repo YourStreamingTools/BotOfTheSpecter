@@ -3,14 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 ob_start();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    ob_end_clean();
-    http_response_code(401);
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Connect directly to the user's channel database (minimal — no heavy user_db.php queries)
 include '/var/www/config/database.php';

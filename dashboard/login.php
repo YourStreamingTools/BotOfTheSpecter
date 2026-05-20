@@ -8,6 +8,18 @@ $info = "Please wait while we redirect you to Twitch for authorization.";
 // to .botofthespecter.com, sessions stored in website.web_sessions).
 require_once '/var/www/lib/session_bootstrap.php';
 
+// If the caller passed ?return_to=/some/path, stash it as the post-login
+// redirect target. This is the AJAX-401 path: dashboard.js patched window.fetch
+// to bounce 401 responses to /login.php?return_to=<current-URL>, and we need
+// to honour that the same way the per-page redirect_after_login flow does.
+// Same safety check the session branch uses: must start with /, not //.
+if (!empty($_GET['return_to'])) {
+    $rt = (string) $_GET['return_to'];
+    if (strncmp($rt, '/', 1) === 0 && strncmp($rt, '//', 2) !== 0) {
+        $_SESSION['redirect_after_login'] = $rt;
+    }
+}
+
 // If the user is already logged in, redirect them to the intended page (or dashboard)
 if (isset($_SESSION['access_token'])) {
     $loginRedirect = 'dashboard.php';

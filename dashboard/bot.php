@@ -7,15 +7,7 @@ $backup_system = false;
 
 require_once __DIR__ . '/api/twitch_token_validate.php';
 
-if (!isset($_SESSION['access_token'])) {
-  $returnTo = $_SERVER['REQUEST_URI'];
-  session_unset();
-  session_destroy();
-  session_start();
-  $_SESSION['redirect_after_login'] = $returnTo;
-  header('Location: login.php');
-  exit();
-}
+require_once '/var/www/lib/require_auth.php';
 $consoleLog = '';
 
 // Page Title and Initial Variables

@@ -5,12 +5,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 ob_start();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Authentication required']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Check if user has technical access (only show real metrics to technical users)
 // Temporarily allow all logged-in users for debugging

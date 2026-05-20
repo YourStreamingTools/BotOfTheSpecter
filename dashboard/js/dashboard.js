@@ -1,5 +1,49 @@
 // Dashboard JavaScript functionality
 
+// ----------------------------------------------------------------
+// Global session-expiry handler.
+// Wraps window.fetch so that any same-origin response with status 401
+// (the standard reply from /var/www/lib/require_auth_ajax.php when the
+// session is gone) auto-redirects the browser to /login.php, preserving
+// the current page as the return target. This means individual fetch
+// callers don't have to check for 401 themselves — they just become
+// no-op promises that never resolve because the page is navigating away.
+//
+// Why patch window.fetch directly: every existing AJAX call in the
+// dashboard (vanilla fetch, fetchWithTimeout helpers, jQuery $.ajax
+// when it falls back to fetch) goes through window.fetch, so a single
+// patch fixes every call site without per-file edits.
+// ----------------------------------------------------------------
+(function () {
+    if (window.__BOTS_FETCH_AUTH_PATCHED) return;
+    window.__BOTS_FETCH_AUTH_PATCHED = true;
+
+    var _origFetch = window.fetch.bind(window);
+    var _redirecting = false;
+
+    window.fetch = function (input, init) {
+        return _origFetch(input, init).then(function (response) {
+            if (response.status !== 401 || _redirecting) return response;
+            // Only redirect on 401 from same-origin requests. A 401 from a
+            // third-party API (e.g. an external service the page probes)
+            // shouldn't bounce the user out of the dashboard.
+            var sameOrigin = true;
+            try {
+                var rawUrl = (typeof input === 'string') ? input : (input && input.url);
+                var url = new URL(rawUrl, window.location.origin);
+                sameOrigin = (url.origin === window.location.origin);
+            } catch (e) { /* relative URL, treat as same-origin */ }
+            if (!sameOrigin) return response;
+            _redirecting = true;
+            var returnTo = window.location.pathname + window.location.search;
+            window.location.href = '/login.php?return_to=' + encodeURIComponent(returnTo);
+            // Return a never-settling promise so callers don't try to parse
+            // the 401 body while the navigation is happening.
+            return new Promise(function () {});
+        });
+    };
+})();
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize sidebar
     initializeSidebar();

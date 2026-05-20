@@ -6,11 +6,7 @@ require_once "/var/www/config/db_connect.php";
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['access_token'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 if (!isset($_GET['reward_id'])) {
     http_response_code(400);

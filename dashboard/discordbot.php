@@ -3,12 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-  $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-  header('Location: login.php');
-  exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 // Page Title
 $pageTitle = t('discordbot_page_title');

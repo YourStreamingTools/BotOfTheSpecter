@@ -6,12 +6,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
 include_once __DIR__ . '/lang/i18n.php';
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => t('streaming_authentication_required')]);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";

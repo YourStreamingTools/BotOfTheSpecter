@@ -2,12 +2,7 @@
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Include database connection
 include '/var/www/config/database.php';

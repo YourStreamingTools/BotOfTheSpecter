@@ -3,11 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 header('Content-Type: application/json');
 
-// Must be logged in
-if (!isset($_SESSION['access_token'])) {
-    echo json_encode(['success' => false, 'message' => 'Not logged in.']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
