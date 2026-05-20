@@ -2094,9 +2094,8 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
             if not authenticated:
                 if auth_failed:
                     bot_logger.info("[IRC PRESENCE] IRC Presence: Auth failure - waiting 120s before retry...")
-                    # Proactively refresh the in-memory bot token cache so the next
-                    # attempt picks up any updated token that the external refresh
-                    # process may have written to the website DB in the meantime.
+                    # Drop cached creds so the next attempt re-reads from the DB.
+                    _custom_creds_cache.pop(BOT_USERNAME, None)
                     try:
                         await get_website_twitch_app_credentials(force_refresh=True)
                     except Exception:
@@ -2225,13 +2224,11 @@ async def twitch_irc_presence(override_nick=None, override_token=None):
                     await writer.wait_closed()
                 except Exception:
                     pass
-        # Always pull a fresh token from the DB on the next reconnect attempt
-        force_refresh = True
         if auth_failed:
-            # Bad token - wait before hammering the auth endpoint
+            _custom_creds_cache.pop(BOT_USERNAME, None)
             bot_logger.info("[IRC PRESENCE] IRC Presence: Auth failure - waiting 120s before retry...")
             await sleep(120)
-            reconnect_delay = 30  # Fresh back-off after token recovery
+            reconnect_delay = 30
         elif channel_blocked:
             # Permanently banned / suspended / account action needed - long back-off
             bot_logger.info("[IRC PRESENCE] IRC Presence: Channel blocked - waiting 600s before retry...")
