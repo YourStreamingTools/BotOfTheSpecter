@@ -1116,6 +1116,19 @@ ul { list-style: none; margin: 0; padding: 0; }
     transition: opacity 0.3s ease-in-out;
 }
 
+/* Toast container in the top-right corner gets opaque alert backgrounds —
+   the inline sp-alert bgs are 12% tints meant to sit on a solid card, and
+   look see-through when floated over arbitrary page content. */
+#sp-toast-container .sp-alert {
+    background: var(--bg-card);
+    border-left-width: 4px;
+    backdrop-filter: blur(8px);
+}
+#sp-toast-container .sp-alert.sp-alert-info    { border-left-color: var(--blue);  }
+#sp-toast-container .sp-alert.sp-alert-success { border-left-color: var(--green); }
+#sp-toast-container .sp-alert.sp-alert-warning { border-left-color: var(--amber); }
+#sp-toast-container .sp-alert.sp-alert-danger  { border-left-color: var(--red);   }
+
 /* ----------------------------------------------------------
    17. Status indicator (bot status pill)
    ---------------------------------------------------------- */
