@@ -3,10 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['access_token'])) {
-    echo json_encode(['success' => false, 'error' => 'Not authenticated.']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';

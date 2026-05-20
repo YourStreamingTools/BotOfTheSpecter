@@ -3,12 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 require_once "/var/www/config/db_connect.php";
 
-// Ensure the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Not authenticated']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Get username from session
 $username = $_SESSION['username'];

@@ -11,11 +11,7 @@ session_write_close();
 // Track operation start time for timeout management
 $operationStart = microtime(true);
 
-if (!isset($_SESSION['access_token'])) {
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Authentication required']);
-  exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 if (!isset($_GET['bot'])) {
   header('Content-Type: application/json');

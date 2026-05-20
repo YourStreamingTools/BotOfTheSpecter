@@ -2,12 +2,7 @@
 // Initialize the session
 require_once '/var/www/lib/session_bootstrap.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 // Page Title
 $pageTitle = "Mod Channels";

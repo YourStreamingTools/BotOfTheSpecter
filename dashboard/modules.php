@@ -4,12 +4,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 $today = new DateTime();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 // Page Title and Initial Variables
 $pageTitle = t('modules_title');

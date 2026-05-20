@@ -7,14 +7,7 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    ob_end_clean();
-    http_response_code(401);
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Connect directly to the user's channel database
 include '/var/www/config/database.php';

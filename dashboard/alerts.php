@@ -4,11 +4,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/lang/i18n.php';
 ini_set('max_execution_time', 300);
 
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 $pageTitle = 'Twitch Alerts';
 

@@ -11,12 +11,7 @@ ini_set('max_execution_time', 15);
 while (ob_get_level()) { ob_end_clean(); }
 ob_start();
 
-if (!isset($_SESSION['access_token'])) {
-  ob_clean();
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'message' => 'Authentication required', 'redirect' => 'login.php']);
-  exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 if (isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_act_as_active'] === true) {
   ob_clean();

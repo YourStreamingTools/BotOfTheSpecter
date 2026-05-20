@@ -2,11 +2,7 @@
 // Initialize session and check authentication
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
-if (!isset($_SESSION['access_token'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Set JSON header
 header('Content-Type: application/json');

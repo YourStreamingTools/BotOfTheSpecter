@@ -3,11 +3,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['access_token'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 $broadcasterId = $_SESSION['twitchUserId'];
 $token = $_SESSION['access_token'];

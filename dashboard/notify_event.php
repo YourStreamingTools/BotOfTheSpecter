@@ -3,12 +3,7 @@
 require_once '/var/www/lib/session_bootstrap.php';
 session_write_close();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 require_once '/var/www/config/database.php';
 

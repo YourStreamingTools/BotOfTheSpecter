@@ -6,12 +6,7 @@ include_once __DIR__ . '/lang/i18n.php';
 include_once '/var/www/config/ssh.php';
 ob_start();
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Authentication required']);
-    exit();
-}
+require_once '/var/www/lib/require_auth_ajax.php';
 
 // Get the service to check
 $service = $_GET['service'] ?? '';

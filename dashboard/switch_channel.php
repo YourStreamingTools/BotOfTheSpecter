@@ -42,11 +42,7 @@ function userCanModerateChannel($targetBroadcasterId, $userId, $authToken, $clie
     return false;
 }
 
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+require_once '/var/www/lib/require_auth.php';
 
 if (!isset($_GET['user_id'])) {
     header('Location: bot.php');

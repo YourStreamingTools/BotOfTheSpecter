@@ -13,12 +13,9 @@ if (isset($_SESSION['status'])) {
     unset($_SESSION['status'], $_SESSION['notification_status']);
 }
 
-// Check if the user is logged in
-if (!isset($_SESSION['access_token'])) {
-    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: login.php');
-    exit();
-}
+// Bounce to login if no session (handles both never-logged-in AND
+// session_bootstrap-just-destroyed-the-session cases).
+require_once '/var/www/lib/require_auth.php';
 
 // Page title
 $pageTitle = t('navbar_counters');
