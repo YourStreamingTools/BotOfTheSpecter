@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.8"
+VERSION = "5.7.9"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -9692,12 +9692,16 @@ async def start_subathon(ctx):
                     starting_minutes = int(settings.get("starting_minutes") or 60)
                     subathon_start_time = time_right_now()
                     subathon_end_time = subathon_start_time + timedelta(minutes=starting_minutes)
-                    await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes) VALUES (%s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0))
+                    await cursor.execute("INSERT INTO subathon (start_time, end_time, starting_minutes, paused, remaining_minutes, remaining_seconds) VALUES (%s, %s, %s, %s, %s, %s)", (subathon_start_time, subathon_end_time, starting_minutes, False, 0, 0))
                     await connection.commit()
                     await send_chat_message(f"Subathon started!")
                     create_task(subathon_countdown())
-                    # Send websocket notice
-                    additional_data = {'starting_minutes': starting_minutes}
+                    # Send websocket notice — end_timestamp_ms lets the overlay tick against an
+                    # absolute target so it doesn't accumulate setInterval drift.
+                    additional_data = {
+                        'starting_minutes': starting_minutes,
+                        'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
+                    }
                     create_task(websocket_notice(event="SUBATHON_START", additional_data=additional_data))
                 else:
                     await send_chat_message(f"Can't start subathon, please go to the dashboard and set up subathons.")
@@ -9732,12 +9736,19 @@ async def pause_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and not subathon_state["paused"]:
-                remaining_minutes = (subathon_state["end_time"] - time_right_now()).total_seconds() // 60
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s WHERE id = %s", (True, remaining_minutes, subathon_state["id"]))
+                # Seconds precision — flooring to minutes here would lose up to 59 seconds
+                # per pause/resume cycle.
+                remaining_seconds_float = (subathon_state["end_time"] - time_right_now()).total_seconds()
+                remaining_seconds = max(0, int(remaining_seconds_float))
+                remaining_minutes = remaining_seconds // 60
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, remaining_seconds = %s WHERE id = %s", (True, remaining_minutes, remaining_seconds, subathon_state["id"]))
                 await connection.commit()
-                await send_chat_message(f"Subathon paused with {int(remaining_minutes)} minutes remaining.")
+                await send_chat_message(f"Subathon paused with {remaining_minutes} minutes remaining.")
                 # Send websocket notice
-                additional_data = {'remaining_minutes': remaining_minutes}
+                additional_data = {
+                    'remaining_minutes': remaining_minutes,
+                    'remaining_seconds': remaining_seconds,
+                }
                 create_task(websocket_notice(event="SUBATHON_PAUSE", additional_data=additional_data))
             else:
                 await send_chat_message("No subathon is active or it's already paused!")
@@ -9753,13 +9764,23 @@ async def resume_subathon(ctx):
         async with connection.cursor(DictCursor) as cursor:
             subathon_state = await get_subathon_state()
             if subathon_state and subathon_state["paused"]:
-                subathon_end_time = time_right_now()+ timedelta(minutes=subathon_state["remaining_minutes"])
-                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, end_time = %s WHERE id = %s", (False, 0, subathon_end_time, subathon_state["id"]))
+                # remaining_seconds was added after launch; fall back to minutes for rows that
+                # paused before the migration.
+                stored_seconds = subathon_state.get("remaining_seconds") or 0
+                if stored_seconds <= 0:
+                    stored_seconds = int(subathon_state["remaining_minutes"]) * 60
+                subathon_end_time = time_right_now() + timedelta(seconds=stored_seconds)
+                await cursor.execute("UPDATE subathon SET paused = %s, remaining_minutes = %s, remaining_seconds = %s, end_time = %s WHERE id = %s", (False, 0, 0, subathon_end_time, subathon_state["id"]))
                 await connection.commit()
-                await send_chat_message(f"Subathon resumed with {int(subathon_state['remaining_minutes'])} minutes remaining!")
+                resumed_minutes = stored_seconds // 60
+                await send_chat_message(f"Subathon resumed with {resumed_minutes} minutes remaining!")
                 create_task(subathon_countdown())
                 # Send websocket notice
-                additional_data = {'remaining_minutes': subathon_state["remaining_minutes"]}
+                additional_data = {
+                    'remaining_minutes': resumed_minutes,
+                    'remaining_seconds': stored_seconds,
+                    'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
+                }
                 create_task(websocket_notice(event="SUBATHON_RESUME", additional_data=additional_data))
     finally:
         await cursor.close()
@@ -9778,7 +9799,10 @@ async def addtime_subathon(ctx, minutes):
                 await connection.commit()
                 await send_chat_message(f"Added {minutes} minutes to the subathon timer!")
                 # Send websocket notice
-                additional_data = {'added_minutes': minutes}
+                additional_data = {
+                    'added_minutes': minutes,
+                    'end_timestamp_ms': int(subathon_end_time.timestamp() * 1000),
+                }
                 create_task(websocket_notice(event="SUBATHON_ADD_TIME", additional_data=additional_data))
             else:
                 await send_chat_message("No subathon is active or it's paused!")
@@ -9815,8 +9839,10 @@ async def subathon_countdown():
                 finally:
                     await cursor.close()
                     await connection.ensure_closed()
+                break
+        elif not subathon_state or subathon_state["paused"]:
             break
-        await sleep(60)  # Check every minute
+        await sleep(30)
 
 # Function to get the current subathon state
 async def get_subathon_state():
