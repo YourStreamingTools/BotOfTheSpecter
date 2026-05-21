@@ -849,15 +849,21 @@ html, body {
 }
 
 .study-overlay-page-connection-status {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 100;
     padding: 6px 12px;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.6);
     font-size: 0.75rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    transition: opacity 350ms ease;
 }
 
 .study-overlay-page-connection-status .dot {
@@ -868,9 +874,13 @@ html, body {
     display: inline-block;
 }
 
+/* Hidden during normal operation — only surfaces when something's wrong,
+   so the indicator isn't burned into the stream output. */
 .study-overlay-page-connection-status[data-state="connected"] {
     border-color: #32d486;
     color: #32d486;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .study-overlay-page-connection-status[data-state="connecting"] {
@@ -1227,10 +1237,18 @@ html, body {
     margin-top: 2px;
 }
 
-.study-overlay-page-task-sys-reward {
+#taskRewardPopups {
     position: fixed;
     bottom: 18px;
     right: 18px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.study-overlay-page-task-sys-reward {
     background: #23d160;
     color: #fff;
     border-radius: 8px;
@@ -1239,7 +1257,10 @@ html, body {
     font-size: .85rem;
     box-shadow: 0 4px 16px rgba(0,0,0,.45);
     animation: study-overlay-page-task-pop-in .4s ease;
-    z-index: 1000;
+}
+
+.study-overlay-page-task-sys-reward.is-leaving {
+    animation: study-overlay-page-task-fade-out .4s ease forwards;
 }
 
 @keyframes study-overlay-page-task-slide-in {
@@ -1251,6 +1272,11 @@ html, body {
     0%   { transform: scale(.6); opacity: 0; }
     70%  { transform: scale(1.07); }
     100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes study-overlay-page-task-fade-out {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 0; transform: translateX(20px); }
 }
 
 @media (max-width: 960px) {
