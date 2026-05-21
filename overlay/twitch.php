@@ -141,8 +141,11 @@ if ($username) {
                 // Load font
                 if (config.font_family) loadGoogleFont(config.font_family);
 
-                // Parse background color
-                const bgColor = config.bg_color || '#000000';
+                // Parse background color — fall back to #000000 if the stored value
+                // isn't a valid #RRGGBB literal (anything else produces NaN channels
+                // and CSS silently drops the whole rgba()).
+                const hex6 = /^#[0-9a-fA-F]{6}$/;
+                const bgColor = hex6.test(config.bg_color) ? config.bg_color : '#000000';
                 const bgOpacity = (config.bg_opacity || 0) / 100;
                 const r = parseInt(bgColor.substr(1,2), 16);
                 const g = parseInt(bgColor.substr(3,2), 16);
