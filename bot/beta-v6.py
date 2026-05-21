@@ -12887,8 +12887,10 @@ async def subathon_countdown():
                 finally:
                     if connection:
                         await connection.release()
+                break
+        elif not subathon_state or subathon_state["paused"]:
             break
-        await sleep(60)  # Check every minute
+        await sleep(30)
 
 # Function to get the current subathon state
 async def get_subathon_state():

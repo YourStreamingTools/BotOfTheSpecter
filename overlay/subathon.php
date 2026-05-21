@@ -10,9 +10,12 @@
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
-            let countdownInterval;
-            let totalTime = 0; // Total time for the subathon in minutes
-            let remainingTime = 0; // Remaining time for the countdown in minutes
+            let countdownInterval = null;
+            // Absolute target end (Unix ms) — ticking against this avoids setInterval drift.
+            let endTimestampMs = 0;
+            // While paused, the bot tells us how many seconds were left; the overlay holds
+            // that locally so reads after pause show the frozen remainder.
+            let pausedRemainingSeconds = 0;
             let timerRunning = false;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
@@ -62,8 +65,14 @@
 
                 socket.on('SUBATHON_START', (data) => {
                     console.log('SUBATHON_START event received:', data);
-                    totalTime = Number(data.starting_minutes) || 0;
-                    remainingTime = totalTime;
+                    const end = Number(data.end_timestamp_ms);
+                    if (Number.isFinite(end) && end > 0) {
+                        endTimestampMs = end;
+                    } else {
+                        const minutes = Number(data.starting_minutes) || 0;
+                        endTimestampMs = Date.now() + minutes * 60000;
+                    }
+                    pausedRemainingSeconds = 0;
                     startCountdown();
                     displaySubathonNotification('Subathon Started');
                 });
@@ -76,9 +85,14 @@
 
                 socket.on('SUBATHON_PAUSE', (data) => {
                     console.log('SUBATHON_PAUSE event received:', data);
-                    const incomingRemaining = Number(data.remaining_minutes);
-                    if (!Number.isNaN(incomingRemaining) && incomingRemaining >= 0) {
-                        remainingTime = incomingRemaining;
+                    const incomingSeconds = Number(data.remaining_seconds);
+                    if (Number.isFinite(incomingSeconds) && incomingSeconds >= 0) {
+                        pausedRemainingSeconds = incomingSeconds;
+                    } else {
+                        const incomingMinutes = Number(data.remaining_minutes);
+                        pausedRemainingSeconds = Number.isFinite(incomingMinutes) && incomingMinutes >= 0
+                            ? incomingMinutes * 60
+                            : Math.max(0, Math.floor((endTimestampMs - Date.now()) / 1000));
                     }
                     pauseCountdown();
                     displaySubathonNotification('Subathon Paused');
@@ -86,17 +100,32 @@
 
                 socket.on('SUBATHON_RESUME', (data) => {
                     console.log('SUBATHON_RESUME event received:', data);
-                    const incomingRemaining = Number(data.remaining_minutes);
-                    if (!Number.isNaN(incomingRemaining) && incomingRemaining >= 0) {
-                        remainingTime = incomingRemaining;
+                    const end = Number(data.end_timestamp_ms);
+                    if (Number.isFinite(end) && end > 0) {
+                        endTimestampMs = end;
+                    } else {
+                        const incomingSeconds = Number(data.remaining_seconds);
+                        const incomingMinutes = Number(data.remaining_minutes);
+                        const secs = Number.isFinite(incomingSeconds) && incomingSeconds >= 0
+                            ? incomingSeconds
+                            : (Number.isFinite(incomingMinutes) && incomingMinutes >= 0 ? incomingMinutes * 60 : pausedRemainingSeconds);
+                        endTimestampMs = Date.now() + secs * 1000;
                     }
+                    pausedRemainingSeconds = 0;
                     resumeCountdown();
                     displaySubathonNotification('Subathon Resumed');
                 });
 
                 socket.on('SUBATHON_ADD_TIME', (data) => {
                     console.log('SUBATHON_ADD_TIME event received:', data);
-                    addTime(Number(data.added_minutes) || 0);
+                    const end = Number(data.end_timestamp_ms);
+                    if (Number.isFinite(end) && end > 0) {
+                        endTimestampMs = end;
+                    } else {
+                        const minutes = Number(data.added_minutes) || 0;
+                        endTimestampMs += minutes * 60000;
+                    }
+                    updateTimerDisplay();
                     displaySubathonNotification('Time Added');
                 });
 
@@ -129,54 +158,65 @@
 
             function startCountdown() {
                 timerRunning = true;
-                subathonOverlay.style.display = 'block'; // Show the overlay
-
+                subathonOverlay.style.display = 'block';
+                if (countdownInterval !== null) {
+                    clearInterval(countdownInterval);
+                }
+                updateTimerDisplay();
                 countdownInterval = setInterval(() => {
-                    if (remainingTime > 0) {
-                        remainingTime -= 1; // Decrease by 1 minute
-                        updateTimerDisplay();
-                    } else {
-                        stopCountdown(); // Stop when the countdown reaches zero
+                    if (getRemainingSeconds() <= 0) {
+                        stopCountdown();
+                        return;
                     }
-                }, 60000); // Update every minute
+                    updateTimerDisplay();
+                }, 1000);
             }
 
             function pauseCountdown() {
-                clearInterval(countdownInterval);
-                timerRunning = false; // Stop the timer but keep overlay visible
+                if (countdownInterval !== null) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                timerRunning = false;
+                updateTimerDisplay();
             }
 
             function resumeCountdown() {
                 if (!timerRunning) {
-                    startCountdown(); // Restart the countdown
+                    startCountdown();
                 }
             }
 
             function stopCountdown() {
-                clearInterval(countdownInterval);
-                countdownInterval = null;
+                if (countdownInterval !== null) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
                 timerRunning = false;
-                remainingTime = 0; // Reset remaining time
-                subathonOverlay.style.display = 'none'; // Hide the overlay
+                endTimestampMs = 0;
+                pausedRemainingSeconds = 0;
+                subathonOverlay.style.display = 'none';
             }
 
-            function addTime(additionalTime) {
-                remainingTime += additionalTime; // Add minutes directly
-                updateTimerDisplay();
+            function getRemainingSeconds() {
+                if (!timerRunning) {
+                    return pausedRemainingSeconds;
+                }
+                return Math.max(0, Math.floor((endTimestampMs - Date.now()) / 1000));
             }
 
             function updateTimerDisplay() {
-                if (remainingTime > 0) {
-                    const days = Math.floor(remainingTime / 1440); // 1440 minutes in a day
-                    const hours = Math.floor((remainingTime % 1440) / 60);
-                    const minutes = remainingTime % 60;
-                    const seconds = 0; // As the timer counts down by minutes, we set seconds to 0
-
-                    subathonOverlay.innerHTML = `<div>${days} day(s), ${hours} hour(s), ${minutes} minute(s), ${seconds} second(s)</div>`;
-                    subathonOverlay.style.display = 'block'; // Ensure overlay is visible
-                } else {
-                    subathonOverlay.style.display = 'none'; // Hide the overlay if no time remains
+                const totalSeconds = getRemainingSeconds();
+                if (totalSeconds <= 0 && !pausedRemainingSeconds) {
+                    subathonOverlay.style.display = 'none';
+                    return;
                 }
+                const days = Math.floor(totalSeconds / 86400);
+                const hours = Math.floor((totalSeconds % 86400) / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                subathonOverlay.innerHTML = `<div>${days} day(s), ${hours} hour(s), ${minutes} minute(s), ${seconds} second(s)</div>`;
+                subathonOverlay.style.display = 'block';
             }
 
             // Start initial connection
