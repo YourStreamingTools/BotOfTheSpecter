@@ -15,8 +15,24 @@
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
 
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
+            }
+
             if (!code) {
-                alert('No code provided in the URL');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
 
@@ -46,7 +62,7 @@
                     console.log('Video can play through without buffering');
                     currentVideo.play().catch(error => {
                         console.error('Error playing video:', error);
-                        alert('Click to play video');
+                        showOverlayError('Click to play video', 'warn');
                     });
                 });
 
@@ -58,7 +74,6 @@
 
                 currentVideo.addEventListener('error', (e) => {
                     console.error('Error occurred while loading the video file:', e);
-                    alert('Failed to load video file');
                     document.body.removeChild(currentVideo);
                     currentVideo = null;
                     playNextVideo();
@@ -92,7 +107,6 @@
 
                 socket.on('NOTIFY', (data) => {
                     console.log('Notification:', data);
-                    alert(data.message);
                 });
 
                 // Listen for VIDEO_ALERT events
