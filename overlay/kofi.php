@@ -5,24 +5,6 @@
     <title>Ko-fi Overlay</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: transparent;
-            overflow: hidden;
-            font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-        }
-        #kofi-container {
-            position: fixed;
-            bottom: 40px;
-            left: 40px;
-            display: flex;
-            flex-direction: column-reverse;
-            gap: 12px;
-            pointer-events: none;
-        }
-    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let socket;
