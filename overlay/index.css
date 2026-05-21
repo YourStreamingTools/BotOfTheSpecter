@@ -11,6 +11,25 @@ html, body {
     overflow: hidden;
 }
 
+/* Shared donation-overlay container — fourthwall, kofi, patreon all stack
+   newest-first in the bottom-left of the OBS browser source. Moved out of
+   inline <style> blocks per the ui-theme rule. */
+#fw-container,
+#kofi-container,
+#patreon-container {
+    position: fixed;
+    bottom: 40px;
+    left: 40px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 12px;
+    pointer-events: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
 @keyframes slideIn {
     0% {
         transform: translateX(-100%);
