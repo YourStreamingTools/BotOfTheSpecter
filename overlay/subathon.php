@@ -18,8 +18,24 @@
             const code = urlParams.get('code');
             const subathonOverlay = document.getElementById('subathonOverlay');
 
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
+            }
+
             if (!code) {
-                alert('No code provided in the URL');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
 
