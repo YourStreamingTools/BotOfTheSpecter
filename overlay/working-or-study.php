@@ -175,6 +175,7 @@ ob_end_clean();
     <?php else: ?>
         <div class="study-overlay-page-root<?php echo $overlay_mode_class ? ' ' . htmlspecialchars($overlay_mode_class) : ''; ?>"
             id="overlayRoot">
+            <div id="connectionStatus" class="study-overlay-page-connection-status" data-state="connecting">Connecting…</div>
             <section class="study-overlay-page-timer-card" data-visible="<?php echo $show_timer_panel ? 'true' : 'false'; ?>">
                 <div class="study-overlay-page-timer-ring">
                     <svg viewBox="0 0 220 220">
@@ -1020,12 +1021,20 @@ ob_end_clean();
                 document.getElementById('new-viewer-task-' + taskId)?.classList.add('is-done');
             };
             const showTaskRewardPopup = (msg) => {
+                const container = document.getElementById('taskRewardPopups') || document.body;
+                // Cap visible stack so rapid rewards don't flood the overlay.
+                // column-reverse means firstElementChild is the oldest still on screen.
+                while (container.querySelectorAll('.study-overlay-page-task-sys-reward:not(.is-leaving)').length >= 5) {
+                    container.firstElementChild?.remove();
+                }
                 const el = document.createElement('div');
                 el.className = 'study-overlay-page-task-sys-reward';
                 el.textContent = msg;
-                const container = document.getElementById('taskRewardPopups') || document.body;
                 container.appendChild(el);
-                setTimeout(() => el.remove(), 5000);
+                setTimeout(() => {
+                    el.classList.add('is-leaving');
+                    setTimeout(() => el.remove(), 400);
+                }, 4600);
             };
             // ────────────────────────────────────────────────────────────────
             const connect = () => {
