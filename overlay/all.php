@@ -146,10 +146,14 @@ if ($username) {
                 // Listen for WEATHER_DATA events
                 socket.on('WEATHER_DATA', (data) => {
                     console.log('WEATHER_DATA event received:', data);
-                    const weather_data_fixed = data.weather_data.replace(/'/g, '"');
-                    const weather = JSON.parse(weather_data_fixed);
-                    const location = weather.location;
-                    updateWeatherOverlay(weather, location);
+                    let weather;
+                    try {
+                        weather = JSON.parse(data.weather_data);
+                    } catch (_) {
+                        // Legacy payload: api.py used to send str(dict) via urlencode.
+                        weather = JSON.parse(data.weather_data.replace(/'/g, '"'));
+                    }
+                    updateWeatherOverlay(weather, weather.location);
                 });
                 // Listen for DISCORD_JOIN events
                 socket.on('DISCORD_JOIN', (data) => {
