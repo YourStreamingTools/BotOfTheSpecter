@@ -39,6 +39,7 @@ if ($username) {
             const retryInterval = 5000;
             let reconnectAttempts = 0;
             const timezone = <?php echo json_encode($timezone); ?>;
+            let timerIntervalId = null;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             if (!code) {
@@ -150,8 +151,11 @@ if ($username) {
                         currentTimeElement.innerHTML = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     }
                 }
+                if (timerIntervalId !== null) {
+                    clearInterval(timerIntervalId);
+                }
                 updateTime();
-                setInterval(updateTime, 1000);
+                timerIntervalId = setInterval(updateTime, 1000);
             }
 
             // Start initial connection
