@@ -10784,12 +10784,16 @@ async def process_patreon_event(data):
     await send_chat_message(message)
 
 async def process_weather_websocket(data):
-    # Convert weather_data from string to dictionary
+    raw = data.get('weather_data', '{}')
     try:
-        weather_data = ast.literal_eval(data.get('weather_data', '{}'))
-    except (ValueError, SyntaxError) as e:
-        event_logger.error(f"Error parsing weather data: {e}")
-        return
+        weather_data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        # Legacy payload: api.py used to send str(dict) via urlencode.
+        try:
+            weather_data = ast.literal_eval(raw)
+        except (ValueError, SyntaxError) as e:
+            event_logger.error(f"Error parsing weather data: {e}")
+            return
     # Extract weather information from the weather_data
     location = weather_data.get('location', 'Unknown location')
     status = weather_data.get('status', 'Unknown status')

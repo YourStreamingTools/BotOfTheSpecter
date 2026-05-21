@@ -3805,7 +3805,7 @@ async def fetch_weather_via_api(api_key: str = Query(...), location: str = Query
         new_count = count - 3  # Decrease by 3 for both metric and imperial requests and location data
         await update_api_count("weather", new_count)
         # Trigger WebSocket weather event
-        params = {"event": "WEATHER_DATA", "weather_data": formatted_weather_data}
+        params = {"event": "WEATHER_DATA", "weather_data": json.dumps(formatted_weather_data)}
         await websocket_notice("WEATHER_DATA", params, api_key)
         return {
             "status": "success",
