@@ -101,7 +101,7 @@
                     console.log('WALKON event received:', data);
                     const channel_name = data.channel;
                     const user_name = data.user;
-                    const audioFile = `https://walkons.botofthespecter.com/${channel_name}/${user_name}.mp3`;
+                    const audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(channel_name)}/${encodeURIComponent(user_name)}.mp3`;
                     enqueueAudio(audioFile);
                 });
 
