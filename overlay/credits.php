@@ -96,7 +96,7 @@ function build_chatters_column($user_db) {
     $column_html .= "<h2 class='subtitle has-text-white'>Chatters</h2>";
     $column_html .= "<ul class='content has-text-white'>";
     $has_data = false;
-    if ($stmt = $user_db->prepare("SELECT DISTINCT username FROM seen_today ORDER BY username ASC")) {
+    if ($stmt = $user_db->prepare("SELECT DISTINCT st.username FROM seen_today st LEFT JOIN seen_users su ON su.username = st.username WHERE su.status IS NULL OR su.status = 'True' ORDER BY st.username ASC")) {
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result->num_rows > 0) {
