@@ -3073,6 +3073,7 @@ async def process_stream_bingo_message(data):
                             await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (new_total, player_id, player_name))
                         else:
                             await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (player_id, player_name, int(bits)))
+                        await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (player_name, "bits", bits))
                         integrations_logger.info(f"[STREAM BINGO] Updated bits_data for {player_name}: +{bits} bits")
                 await send_chat_message(f"@{player_name} grabbed an extra bingo card with {bits} bits!")
                 safe_create_task(websocket_notice(
@@ -3099,6 +3100,7 @@ async def process_stream_bingo_message(data):
                             await cursor.execute('UPDATE bits_data SET bits = %s WHERE user_id = %s OR user_name = %s', (new_total, player_id, player_name))
                         else:
                             await cursor.execute('INSERT INTO bits_data (user_id, user_name, bits) VALUES (%s, %s, %s)', (player_id, player_name, int(bits)))
+                        await cursor.execute('INSERT INTO stream_credits (username, event, data) VALUES (%s, %s, %s)', (player_name, "bits", bits))
                         integrations_logger.info(f"[STREAM BINGO] Updated bits_data for {player_name}: +{bits} bits")
                 await send_chat_message(f"@{player_name} got an extra bingo vote with {bits} bits!")
                 safe_create_task(websocket_notice(
