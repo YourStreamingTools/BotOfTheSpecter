@@ -1556,3 +1556,33 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
 }
+
+/* ===== Shared in-DOM error banner =====
+   Replaces blocking alert() popups. alert() halts OBS browser sources
+   silently and is invisible to the streamer; this banner renders in the
+   page itself so the operator can actually see what went wrong. */
+
+.overlay-error-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 24px;
+    text-align: center;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    z-index: 99999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.overlay-error-banner-danger {
+    background: #c0392b;
+    border-bottom: 3px solid #a93226;
+}
+
+.overlay-error-banner-warn {
+    background: #d4a017;
+    border-bottom: 3px solid #b8860b;
+}
