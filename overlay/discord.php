@@ -27,6 +27,49 @@
                     .replace(/'/g, '&#39;');
             }
 
+            const discordQueue = [];
+            let discordShowing = false;
+
+            function enqueueDiscordJoin(member) {
+                discordQueue.push(member);
+                if (!discordShowing) {
+                    showNextDiscordJoin();
+                }
+            }
+
+            function showNextDiscordJoin() {
+                if (discordQueue.length === 0) {
+                    discordShowing = false;
+                    return;
+                }
+                discordShowing = true;
+                const member = discordQueue.shift();
+                const discordOverlay = document.getElementById('discordOverlay');
+                discordOverlay.innerHTML = `
+                    <div class="discord-overlay-page-content">
+                        <span>
+                            <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
+                            ${escapeHtml(member)} has joined the Discord server
+                        </span>
+                    </div>
+                `;
+                discordOverlay.classList.remove('hide');
+                discordOverlay.classList.add('show');
+                discordOverlay.style.display = 'block';
+
+                // 10s visible, then start hide transition; 11s total before next event
+                // is allowed to render. Matches all.php master overlay timing.
+                setTimeout(() => {
+                    discordOverlay.classList.remove('show');
+                    discordOverlay.classList.add('hide');
+                }, 10000);
+
+                setTimeout(() => {
+                    discordOverlay.style.display = 'none';
+                    showNextDiscordJoin();
+                }, 11000);
+            }
+
             function connectWebSocket() {
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
@@ -51,28 +94,7 @@
                 // Listen for DISCORD_JOIN events
                 socket.on('DISCORD_JOIN', (data) => {
                     console.log('DISCORD_JOIN event received:', data);
-                    const discordOverlay = document.getElementById('discordOverlay');
-                    discordOverlay.innerHTML = `
-                        <div class="discord-overlay-page-content">
-                            <span>
-                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
-                                ${escapeHtml(data.member)} has joined the Discord server
-                            </span>
-                        </div>
-                    `;
-                    discordOverlay.classList.add('show');
-                    discordOverlay.style.display = 'block';
-
-                    // Display for 5 seconds
-                    setTimeout(() => {
-                        discordOverlay.classList.remove('show');
-                        discordOverlay.classList.add('hide');
-                    }, 10000);
-
-                    // Hide after the transition
-                    setTimeout(() => {
-                        discordOverlay.style.display = 'none';
-                    }, 11000);
+                    enqueueDiscordJoin(data.member);
                 });
 
                 // Log all events
