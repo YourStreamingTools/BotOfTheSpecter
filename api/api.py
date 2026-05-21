@@ -1692,7 +1692,7 @@ async def handle_fourthwall_webhook(request: Request, api_key: str = Query(...))
             params = {
                 "code": api_key,
                 "event": "FOURTHWALL",
-                "data": webhook_data
+                "data": json.dumps(webhook_data)
             }
             encoded_params = urlencode(params)
             url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
@@ -1727,7 +1727,7 @@ async def handle_kofi_webhook(api_key: str = Query(...), data: str = Form(...)):
             params = {
                 "code": api_key,
                 "event": "KOFI",
-                "data": kofi_data
+                "data": json.dumps(kofi_data)
             }
             encoded_params = urlencode(params)
             url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
@@ -1766,7 +1766,7 @@ async def handle_patreon_webhook(request: Request, api_key: str = Query(...)):
             params = {
                 "code": api_key,
                 "event": "PATREON",
-                "data": webhook_data
+                "data": json.dumps(webhook_data)
             }
             encoded_params = urlencode(params)
             url = f"https://websocket.botofthespecter.com/notify?{encoded_params}"
