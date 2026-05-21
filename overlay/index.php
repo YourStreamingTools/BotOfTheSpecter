@@ -88,6 +88,7 @@ if ($username) {
             let currentAudio = null;
             const audioQueue = [];
             const timezone = <?php echo json_encode($timezone); ?>;
+            let timerIntervalId = null;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
             // Hide notice after 30 seconds
@@ -191,7 +192,7 @@ if ($username) {
 
                 socket.on('WALKON', (data) => {
                     console.log('WALKON event received:', data);
-                    const audioFile = `https://walkons.botofthespecter.com/${data.channel}/${data.user}.mp3`;
+                    const audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}.mp3`;
                     enqueueAudio(audioFile);
                 });
 
@@ -325,8 +326,11 @@ if ($username) {
                         currentTimeElement.innerHTML = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     }
                 }
+                if (timerIntervalId !== null) {
+                    clearInterval(timerIntervalId);
+                }
                 updateTime();
-                setInterval(updateTime, 1000);
+                timerIntervalId = setInterval(updateTime, 1000);
             }
 
             // Start initial connection
