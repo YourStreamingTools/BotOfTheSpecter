@@ -68,9 +68,11 @@ function build_event_column($user_db, $event, $section_name, $clean_data = false
             $stmt->close();
         }
     } else {
-        // For raids, bits, subscriptions - get the latest row per username to avoid duplicates
-        if ($stmt = $user_db->prepare("SELECT sc.username, sc.data FROM stream_credits sc INNER JOIN (SELECT username, MAX(id) AS max_id FROM stream_credits WHERE event = ? GROUP BY username) latest ON sc.username = latest.username AND sc.id = latest.max_id WHERE sc.event = ? ORDER BY sc.username ASC")) {
-            $stmt->bind_param("ss", $event, $event);
+        // For raids, bits, subscriptions - show every event. A second cheer from the
+        // same user is a separate contribution, not a duplicate. Sorting by username
+        // then id keeps multiple actions from one supporter grouped chronologically.
+        if ($stmt = $user_db->prepare("SELECT username, data FROM stream_credits WHERE event = ? ORDER BY username ASC, id ASC")) {
+            $stmt->bind_param("s", $event);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
