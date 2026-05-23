@@ -1,5 +1,4 @@
 import os
-import socket
 import signal
 import asyncio
 import logging
@@ -94,7 +93,6 @@ class BotOfTheSpecter_WebsocketServer:
     def __init__(self, logger):
         # Initialize the WebSocket server.
         self.logger = logger
-        self.ip = self.get_own_ip()
         self.script_dir = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
         self.registered_clients = {}
         self.last_timer_control_event = {}
@@ -461,8 +459,6 @@ class BotOfTheSpecter_WebsocketServer:
     async def connect(self, sid, environ, auth):
         # Handle the connect event for SocketIO.
         self.logger.info(f"Connect event: {sid}")
-        if environ["REMOTE_ADDR"] in ['0.0.0.0', self.ip]:
-            self.logger.debug(f"Client [{sid}] is a local user with elevated access")
         self.logger.debug(environ)
         await self.sio.emit("WELCOME", {"message": "Please register your code"}, to=sid)
 
@@ -1221,12 +1217,6 @@ class BotOfTheSpecter_WebsocketServer:
             ".ico": "image/vnd.microsoft.icon"
         }
         return content_types.get(ext, default)
-
-    @staticmethod
-    def get_own_ip():
-        # Get the IP address of the current machine.
-        hostname = socket.gethostname()
-        return socket.gethostbyname(hostname)
 
     def save_music_settings(self, code, settings):
         MUSIC_SETTINGS_DIR = "/home/botofthespecter/music-settings"
