@@ -204,7 +204,7 @@ global_listeners = [
 - IP whitelist enforcement for restricted endpoints
 - Whitelist: `/home/botofthespecter/ips.txt` (CIDR networks)
 - Allows localhost (127.0.0.1, ::1)
-- Supports X-Forwarded-For, X-Real-IP headers (proxy aware)
+- **Rejects requests carrying X-Forwarded-For or X-Real-IP** (server faces public internet directly, no reverse proxy — these headers are attacker-controlled and trigger a 403 with a WARN log entry)
 - Applied to `/clients` and `/notify` endpoints
 
 ## SSH Connection Management
