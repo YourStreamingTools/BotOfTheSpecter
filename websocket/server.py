@@ -10,7 +10,7 @@ import time
 import asyncssh
 import json
 import aiomysql
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
 # Import our modular components
@@ -1123,7 +1123,7 @@ class BotOfTheSpecter_WebsocketServer:
             if not os.path.exists(dirpath):
                 os.makedirs(dirpath, exist_ok=True)
             with open(uptime_path, "w") as fh:
-                fh.write(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'))
+                fh.write(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'))
             # Update file mtime to now
             os.utime(uptime_path, None)
             self.logger.info(f"Wrote websocket uptime file: {uptime_path}")
