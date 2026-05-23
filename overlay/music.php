@@ -103,6 +103,27 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
         const urlParams = new URLSearchParams(window.location.search);
         const showNowPlaying = urlParams.has('nowplaying');
         const color = urlParams.get('color') || 'white';
+
+        function showOverlayError(message, type) {
+            let banner = document.getElementById('overlayErrorBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'overlayErrorBanner';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+            banner.style.display = 'block';
+            if (type === 'warn') {
+                clearTimeout(banner._timeoutId);
+                banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+            }
+        }
+
+        const hasCode = !!urlParams.get('code');
+        if (!hasCode) {
+            showOverlayError('No code provided in the URL', 'danger');
+        }
         if (showNowPlaying) {
             nowPlayingDiv.style.display = 'block';
             nowPlayingDiv.style.position = 'absolute';
@@ -358,10 +379,12 @@ $userBaseUrl = $username ? "https://music.botspecter.com/{$username}/" : '';
                 });
             });
         }
-        document.body.addEventListener('click', () => {
-            audioPlayer.play().catch(() => {});
-        }, { once: true });
-        connectWebSocket();
+        if (hasCode) {
+            document.body.addEventListener('click', () => {
+                audioPlayer.play().catch(() => {});
+            }, { once: true });
+            connectWebSocket();
+        }
     </script>
 </body>
 </html>
