@@ -1,4 +1,5 @@
 import os
+import sys
 import signal
 import asyncio
 import logging
@@ -1136,7 +1137,7 @@ class BotOfTheSpecter_WebsocketServer:
         self.stop()
         self.logger.info("Server stopped")
 
-    def run_app(self, host="0.0.0.0", port=443):
+    def run_app(self, host="0.0.0.0", port=443, insecure=False):
         # Run the web application.
         self.logger.info("=== Starting BotOfTheSpecter Websocket Server ===")
         # Test database connection first
@@ -1151,12 +1152,19 @@ class BotOfTheSpecter_WebsocketServer:
             # SSL certificates available - run secure server
             self.logger.info(f"🔒 Starting secure WebSocket server on {host}:{port}")
             web.run_app(self.app, loop=self.loop, host=host, port=port, ssl_context=ssl_context, handle_signals=True, shutdown_timeout=10, access_log_class=QuietAccessLogger)
-        else:
-            # No SSL certificates - fallback to insecure server
+        elif insecure:
+            # Explicit opt-in to run without SSL (dev only) - traffic will be plain HTTP.
             fallback_port = 80 if port == 443 else port
-            self.logger.warning(f"⚠ Starting insecure WebSocket server on {host}:{fallback_port}")
-            self.logger.warning("  Consider setting up SSL certificates for production use.")
+            self.logger.warning(f"⚠ --insecure flag set: starting WITHOUT SSL on {host}:{fallback_port}")
+            self.logger.warning("  This exposes API keys and admin keys on the wire. DEV USE ONLY.")
             web.run_app(self.app, loop=self.loop, host=host, port=fallback_port, ssl_context=None, handle_signals=True, shutdown_timeout=10, access_log_class=QuietAccessLogger)
+        else:
+            # SSL missing and --insecure not set - refuse to start so a cert problem
+            # can't silently downgrade prod to plain HTTP (which would leak API keys).
+            self.logger.error("✗ SSL certificates not found and --insecure not set. Refusing to start in plaintext mode.")
+            self.logger.error("  Provide SSL certificates at /etc/letsencrypt/live/websocket.botofthespecter.com/")
+            self.logger.error("  or pass --insecure for development only.")
+            sys.exit(1)
 
     def stop(self):
         # Stop the SocketIO server.
@@ -1302,6 +1310,7 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--port", default=443, type=int, help="Specify the listener port number. Default is 443")
     parser.add_argument("-l", "--loglevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Specify the log level. INFO is the default.")
     parser.add_argument("-f", "--logfile", help="Specify log file location. Production location should be <WEBROOT>/log/noti_server.log")
+    parser.add_argument("--insecure", action="store_true", help="Allow starting without SSL (DEV ONLY). Without this flag, missing certs cause exit.")
     args = parser.parse_args()
     log_level = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR, "CRITICAL": logging.CRITICAL}[args.loglevel]
     log_file = args.logfile if args.logfile else os.path.join(SCRIPT_DIR, "noti_server.log")
@@ -1322,4 +1331,4 @@ if __name__ == '__main__':
     root_logger.addHandler(console_handler)
     logger = logging.getLogger("specter.websocket")
     server = BotOfTheSpecter_WebsocketServer(logger)
-    server.run_app(host=args.host, port=args.port)
+    server.run_app(host=args.host, port=args.port, insecure=args.insecure)
