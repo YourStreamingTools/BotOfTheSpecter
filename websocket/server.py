@@ -106,15 +106,7 @@ class BotOfTheSpecter_WebsocketServer:
             self.logger.warning("ADMIN_KEY not set - global listeners will not be available")
         else:
             self.logger.info("Admin key loaded for global listener authentication")
-        # Initialize modular components
-        self.ssh_manager = SSHConnectionManager(logger, timeout_minutes=2)
-        self.security_manager = SecurityManager(logger)
-        self.settings_manager = SettingsManager(logger)
-        self.tts_handler = TTSHandler(logger, self.ssh_manager)
-        self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid, self.tts_handler)
-        # OBS handler: dedicated OBS websocket event routing and state tracking
-        self.obs_handler = ObsHandler(logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid)
-        self.donation_handler = DonationEventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals)
+        # Initialize SocketIO server FIRST so handlers can receive it via their constructors
         socketio_logger = logging.getLogger('socketio')
         engineio_logger = logging.getLogger('engineio')
         engineio_logger.setLevel(logging.WARNING)  # Only log warnings and errors from engineio
@@ -126,15 +118,24 @@ class BotOfTheSpecter_WebsocketServer:
             ping_timeout=30,
             ping_interval=25
         )
-        # Update event handlers with the sio instance
-        self.event_handler.sio = self.sio
-        self.donation_handler.sio = self.sio
-        # Update OBS handler with socketio instance and clients accessor
-        self.obs_handler.sio = self.sio
-        self.obs_handler.get_clients = lambda: self.registered_clients
-        # Update TTS handler with socketio instance and get_clients function
-        self.tts_handler.sio = self.sio
-        self.tts_handler.get_clients = lambda: self.registered_clients
+        # Shared clients accessor used by all handlers
+        get_clients = lambda: self.registered_clients
+        # Initialize modular components
+        self.ssh_manager = SSHConnectionManager(logger, timeout_minutes=2)
+        self.security_manager = SecurityManager(logger)
+        self.settings_manager = SettingsManager(logger)
+        self.tts_handler = TTSHandler(logger, self.ssh_manager, sio=self.sio, get_clients=get_clients)
+        self.event_handler = EventHandler(self.sio, logger, get_clients, self.broadcast_event_with_globals, self.get_code_by_sid, self.tts_handler)
+        # OBS handler: dedicated OBS websocket event routing and state tracking
+        self.obs_handler = ObsHandler(logger, get_clients, self.broadcast_event_with_globals, self.get_code_by_sid, sio=self.sio)
+        self.donation_handler = DonationEventHandler(self.sio, logger, get_clients, self.broadcast_event_with_globals)
+        self.music_handler = MusicHandler(
+            sio=self.sio,
+            logger=self.logger,
+            get_clients=get_clients,
+            save_settings=self.settings_manager.save_music_settings,
+            load_settings=self.settings_manager.load_music_settings,
+        )
         # Initialize web application with security middleware
         self.app = web.Application(
             middlewares=[self.security_manager.ip_restriction_middleware],
@@ -143,14 +144,6 @@ class BotOfTheSpecter_WebsocketServer:
         self.app.on_startup.append(self.on_startup)
         self.app.on_shutdown.append(self.on_shutdown)
         self.setup_routes()
-        # Initialize music handler
-        self.music_handler = MusicHandler(
-            sio=self.sio,
-            logger=self.logger,
-            get_clients=lambda: self.registered_clients,
-            save_settings=self.settings_manager.save_music_settings,
-            load_settings=self.settings_manager.load_music_settings,
-        )
         self.setup_event_handlers()
         self.sio.attach(self.app)
         self.loop = None

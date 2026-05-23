@@ -1,9 +1,10 @@
 class ObsHandler:
-    def __init__(self, logger, get_clients, broadcast_with_globals=None, get_code_by_sid=None):
+    def __init__(self, logger, get_clients, broadcast_with_globals=None, get_code_by_sid=None, sio=None):
         self.logger = logger
         self.get_clients = get_clients
         self.broadcast_with_globals = broadcast_with_globals
         self.get_code_by_sid = get_code_by_sid
+        self.sio = sio
         self.obs_state = {}  # Track current OBS state per channel code
 
     # Scene Events
