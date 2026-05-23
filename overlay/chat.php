@@ -208,8 +208,25 @@ $badgeCacheJson = json_encode(
         const code = params.get('code');
         const maxMessages = parseInt(params.get('max') || '20', 10);
         const count = parseInt(params.get('count') || '1', 10);
+
+        function showOverlayError(message, type) {
+            let banner = document.getElementById('overlayErrorBanner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'overlayErrorBanner';
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+            banner.style.display = 'block';
+            if (type === 'warn') {
+                clearTimeout(banner._timeoutId);
+                banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+            }
+        }
+
         if (!code) {
-            document.body.innerHTML = '<p style="color:red;padding:10px;">Missing ?code= in URL</p>';
+            showOverlayError('No code provided in the URL', 'danger');
             return;
         }
         const container = document.getElementById('chat-overlay-page-container');
