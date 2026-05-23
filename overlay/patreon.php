@@ -15,8 +15,25 @@
             const ALERT_DURATION = 7000;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
+
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
+            }
+
             if (!code) {
-                console.error('No code provided in the URL');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
 
