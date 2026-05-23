@@ -76,7 +76,9 @@ class TTSHandler:
             self.logger.info("TTS queue processing stopped")
 
     async def add_tts_request(self, text, code, language_code=None, gender=None, voice_name=None):
-        import uuid
+        if not text:
+            self.logger.warning(f"add_tts_request called with empty/None text for code={code}; ignoring")
+            return
         request_id = uuid.uuid4().hex[:8]
         self.logger.info(f"[TTS-ADD-{request_id}] add_tts_request called with text='{text[:50]}...', code={code}, voice={voice_name}")
         await self.tts_queue.put({
