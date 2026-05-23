@@ -44,16 +44,22 @@ class SecurityManager:
             # Only apply IP restrictions to specific endpoints
             restricted_paths = ['/clients', '/notify']
             if request.path in restricted_paths:
+                # The websocket server faces the public internet directly with no
+                # reverse proxy in front. Any request carrying proxy-identity
+                # headers is either misconfigured or an attempt to spoof the IP
+                # whitelist - reject outright so attempts show up in the logs.
+                for spoof_header in ('X-Forwarded-For', 'X-Real-IP'):
+                    if spoof_header in request.headers:
+                        self.logger.warning(
+                            f"Rejected {request.path} from {request.remote} - "
+                            f"unexpected {spoof_header}: {request.headers[spoof_header]}"
+                        )
+                        from aiohttp import web
+                        return web.Response(status=403, text="Access Forbidden")
                 client_ip = request.remote
-                # Get the real IP if behind a proxy
-                if 'X-Forwarded-For' in request.headers:
-                    client_ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
-                elif 'X-Real-IP' in request.headers:
-                    client_ip = request.headers['X-Real-IP']
-                # Allow localhost and server IP
-                if client_ip in ['127.0.0.1', '::1', 'localhost']:
+                # Allow localhost (server-internal calls)
+                if client_ip in ('127.0.0.1', '::1'):
                     return await handler(request)
-                # Check if IP is allowed for restricted endpoints
                 if not self.is_ip_allowed(client_ip):
                     self.logger.warning(f"Access denied for IP: {client_ip} on restricted path: {request.path}")
                     from aiohttp import web
