@@ -1320,5 +1320,6 @@ if __name__ == '__main__':
     root_logger.setLevel(log_level)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
-    server = BotOfTheSpecter_WebsocketServer(logging)
+    logger = logging.getLogger("specter.websocket")
+    server = BotOfTheSpecter_WebsocketServer(logger)
     server.run_app(host=args.host, port=args.port)
