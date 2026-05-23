@@ -1322,22 +1322,26 @@ class BotOfTheSpecter_WebsocketServer:
 
     async def test_database_connection(self):
         self.logger.info("Testing database connection...")
+        conn = None
         try:
             conn = await self.get_database_connection('website')
-            if conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute("SELECT 1")
-                    result = await cursor.fetchone()
-                    if result:
-                        self.logger.info("✓ Database connection test successful")
-                        return True
-                conn.close()
-            else:
+            if not conn:
                 self.logger.error("✗ Database connection test failed")
                 return False
+            async with conn.cursor() as cursor:
+                await cursor.execute("SELECT 1")
+                result = await cursor.fetchone()
+            if result:
+                self.logger.info("✓ Database connection test successful")
+                return True
+            self.logger.error("✗ Database connection test returned no result")
+            return False
         except Exception as e:
             self.logger.error(f"✗ Database connection test error: {e}")
             return False
+        finally:
+            if conn:
+                conn.close()
 
     async def get_user_api_key_info(self, api_key):
         try:
