@@ -404,18 +404,6 @@ class BotOfTheSpecter_WebsocketServer:
         self.logger.info(f"broadcast_to_task_clients_only: Broadcasted {event_name} to {count} clients (code: {effective_code})")
         return count
 
-    async def ip_restriction_middleware(self, app, handler):
-        async def middleware_handler(request):
-            if request.path in ['/clients', '/notify']:
-                peername = request.transport.get_extra_info('peername')
-                if peername is not None:
-                    ip = peername[0]
-                    if not self.is_ip_allowed(ip):
-                        self.logger.warning(f"Unauthorized access attempt from IP: {ip}")
-                        return web.HTTPForbidden(text="403 Forbidden: Access denied")
-            return await handler(request)
-        return middleware_handler
-
     async def event(self, sid, event, data):
         # Handle generic events for SocketIO.
         self.logger.debug(f"Event {event} from SID [{sid}]: {data}")
