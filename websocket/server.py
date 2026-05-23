@@ -516,16 +516,14 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.warning(f"Global listener registration denied for SID [{sid}] - invalid admin key provided: '{code}'")
                 await self.sio.emit("ERROR", {"message": "Global listener registration denied - invalid admin key"}, to=sid)
                 return
-            # Check if there's already a global listener with the same name
+            # Disconnect any existing global listener with the same name;
+            # the disconnect handler removes it from self.global_listeners.
             for listener in list(self.global_listeners):
                 if listener['name'] == name:
-                    # Disconnect the old session
                     old_sid = listener['sid']
                     self.logger.info(f"Disconnecting old global listener [{old_sid}] for name [{name}] before registering new session [{sid}]")
                     await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate global listener for name {name}"}, to=old_sid)
                     await self.sio.disconnect(old_sid)
-                    # Remove the old listener
-                    self.global_listeners.remove(listener)
                     break
             # Register the new global listener
             listener_data = {"sid": sid, "name": name, "admin_authenticated": True}
@@ -537,27 +535,21 @@ class BotOfTheSpecter_WebsocketServer:
             # Handle regular client registration
             # Check if this is admin key being used for regular registration
             is_admin = (code == self.admin_code) if self.admin_code else False
-            # Initialize the list for the code if it doesn't exist
-            if code not in self.registered_clients:
-                self.registered_clients[code] = []
-            # Check if there's already a client with the same name
-            for client in self.registered_clients[code]:
+            # Disconnect any existing client with the same name; the disconnect
+            # handler removes it from registered_clients (and deletes the code
+            # entry if it was the last client). Iterate a snapshot so the
+            # handler's mutation can't disturb us.
+            for client in list(self.registered_clients.get(code, [])):
                 if client['name'] == name:
-                    # Disconnect the old session
                     old_sid = client['sid']
                     self.logger.info(f"Disconnecting old session [{old_sid}] for name [{name}] before registering new session [{sid}]")
                     await self.sio.emit("ERROR", {"message": f"Disconnected: Duplicate session for name {name}"}, to=old_sid)
                     await self.sio.disconnect(old_sid)
-                    # Remove the old client, but check if code still exists
-                    if code in self.registered_clients:
-                        self.registered_clients[code] = [c for c in self.registered_clients[code] if c['sid'] != old_sid]
-                    else:
-                        self.logger.warning(f"Code [{code}] was removed from registered_clients before old client removal. Skipping removal.")
-                    break # Register the new client
-            client_data = {"sid": sid, "name": name, "is_admin": is_admin, "channel": channel}
-            # Ensure the code key exists before appending
+                    break
+            # disconnect handler may have removed the code key; ensure it exists
             if code not in self.registered_clients:
                 self.registered_clients[code] = []
+            client_data = {"sid": sid, "name": name, "is_admin": is_admin, "channel": channel}
             self.registered_clients[code].append(client_data)
             if is_admin:
                 self.logger.info(f"Admin client [{sid}] with name [{name}] registered with admin key: {code}")
