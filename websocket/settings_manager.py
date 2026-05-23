@@ -15,6 +15,17 @@ class SettingsManager:
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
 
+    def _atomic_write_json(self, path, data):
+        # Crash-safe write: serialise to a sibling tmp file, fsync, then atomically
+        # rename onto the target. os.replace is atomic on POSIX and Windows, so the
+        # file is either fully written or untouched - never zero-byte / partial.
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+
     def save_music_settings(self, code, settings):
         settings_file = os.path.join(self.music_settings_dir, f"{code}.json")
         try:
@@ -36,9 +47,7 @@ class SettingsManager:
                     self.logger.warning(f"Invalid volume value in settings for {code}")
             # Update current settings
             current.update(settings)
-            # Save to file
-            with open(settings_file, "w") as f:
-                json.dump(current, f, indent=2)
+            self._atomic_write_json(settings_file, current)
             self.logger.info(f"Saved music settings for {code}: {settings}")
         except Exception as e:
             self.logger.error(f"Failed to save music settings for {code}: {e}")
@@ -90,8 +99,7 @@ class SettingsManager:
                 with open(settings_file, "r") as f:
                     current = json.load(f)
             current[key] = value
-            with open(settings_file, "w") as f:
-                json.dump(current, f, indent=2)
+            self._atomic_write_json(settings_file, current)
             self.logger.info(f"Saved general setting {key}: {value}")
         except Exception as e:
             self.logger.error(f"Failed to save general setting {key}: {e}")

@@ -451,7 +451,7 @@ class BotOfTheSpecter_WebsocketServer:
                 self.logger.info(f"Relayed {event} from SID [{sid}] to other clients for code {code}")
             # Save settings if MUSIC_SETTINGS event received
             if event == "MUSIC_SETTINGS" and code:
-                self.save_music_settings(code, data)
+                self.settings_manager.save_music_settings(code, data)
                 self.logger.info(f"Saved MUSIC_SETTINGS from event for code {code}")
         elif event and event not in self.explicit_event_handlers:
             await self.broadcast_event_with_globals(event, data or {}, source_sid=sid)
@@ -1217,48 +1217,6 @@ class BotOfTheSpecter_WebsocketServer:
             ".ico": "image/vnd.microsoft.icon"
         }
         return content_types.get(ext, default)
-
-    def save_music_settings(self, code, settings):
-        MUSIC_SETTINGS_DIR = "/home/botofthespecter/music-settings"
-        os.makedirs(MUSIC_SETTINGS_DIR, exist_ok=True)
-        settings_file = os.path.join(MUSIC_SETTINGS_DIR, f"{code}.json")
-        try:
-            # If file exists, update existing settings
-            if os.path.exists(settings_file):
-                with open(settings_file, "r") as f:
-                    current = json.load(f)
-            else:
-                current = {}
-            for k in ("repeat", "shuffle"):
-                if k in settings:
-                    settings[k] = bool(settings[k])
-            # Add validation for volume to ensure it's an integer between 0-100
-            if 'volume' in settings:
-                try:
-                    settings['volume'] = max(0, min(100, int(settings['volume'])))
-                except ValueError:
-                    settings.pop('volume')
-                    self.logger.warning(f"Invalid volume value in settings for {code}")
-            current.update(settings)
-            with open(settings_file, "w") as f:
-                json.dump(current, f)
-        except Exception as e:
-            self.logger.error(f"Failed to save music settings for {code}: {e}")
-
-    def load_music_settings(self, code):
-        MUSIC_SETTINGS_DIR = "/home/botofthespecter/music-settings"
-        settings_file = os.path.join(MUSIC_SETTINGS_DIR, f"{code}.json")
-        try:
-            if os.path.exists(settings_file):
-                with open(settings_file, "r") as f:
-                    settings = json.load(f)
-                    for k in ("repeat", "shuffle"):
-                        if k in settings:
-                            settings[k] = bool(settings[k])
-                    return settings
-        except Exception as e:
-            self.logger.error(f"Failed to load music settings for {code}: {e}")
-        return None
 
     async def get_database_connection(self, database_name='website'):
         try:
