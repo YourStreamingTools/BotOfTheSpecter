@@ -9,11 +9,8 @@ import socketio
 from aiohttp import web, web_log
 import time
 import asyncssh
-import uuid
 import json
 import aiomysql
-import shutil
-import subprocess
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
@@ -1373,125 +1370,6 @@ class BotOfTheSpecter_WebsocketServer:
             return result[0] if result else None
         except Exception as e:
             self.logger.error(f"Failed to get user API key info: {e}")
-            return None
-
-    async def generate_local_tts(self, text, code, voice_name=None):
-        try:
-            unique_id = uuid.uuid4().hex[:8]
-            # Absolute paths for TTS script and environment (both in /home/botofthespecter/)
-            tts_script_path = "/home/botofthespecter/local_tts_generator.py"
-            python_exe = "/home/botofthespecter/tts_env/bin/python"
-            config_path = "/home/botofthespecter/websocket_tts_config.json"
-            desired_filename = f'tts_output_{code}_{unique_id}.mp3'
-            cmd = [
-                python_exe,
-                tts_script_path,
-                "--text", text,
-                "--config", config_path,
-                "--filename", desired_filename,
-                "--keep-local"  # Keep local copy for SFTP transfer
-            ]
-            # Add voice parameter if specified
-            if voice_name:
-                cmd.extend(["--voice", voice_name])
-            self.logger.info(f"Running TTS command: {' '.join(cmd)}")
-            # Run the subprocess without overriding environment variables
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd="/home/botofthespecter"
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode == 0:
-                self.logger.info(f"TTS generation successful: {stdout.decode()}")
-                # Check if the file was created on the remote server (transferred via SSH)
-                remote_file_path = f"/var/www/html/tts/{desired_filename}"
-                # Also check for local copy
-                local_output_dir = "/home/botofthespecter/local_tts_output"
-                local_file_path = os.path.join(local_output_dir, desired_filename)
-                if os.path.exists(local_file_path):
-                    # Move the local file to the TTS directory for serving
-                    final_file_path = os.path.join(self.tts_dir, desired_filename)
-                    shutil.move(local_file_path, final_file_path)
-                    self.logger.info(f"TTS file ready: {final_file_path}")
-                    return final_file_path
-                else:
-                    self.logger.error(f"Generated TTS file not found: {local_file_path}")
-                    return None
-            else:
-                self.logger.error(f"TTS generation failed: {stderr.decode()}")
-                return None
-        except Exception as e:
-            self.logger.error(f"Error generating local TTS: {e}")
-            return None
-
-    def estimate_audio_duration(self, audio_file, text):
-        try:
-            # Try to get actual duration from the audio file if possible
-            result = subprocess.run([
-                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                '-of', 'csv=p=0', audio_file
-            ], capture_output=True, text=True, timeout=10)
-            if result.returncode == 0 and result.stdout.strip():
-                duration = float(result.stdout.strip())
-                self.logger.info(f"Actual audio duration: {duration} seconds")
-                return duration
-        except Exception as e:
-            self.logger.warning(f"Could not get actual audio duration: {e}")
-        words = len(text.split())
-        estimated_duration = (words / 180) * 60  # 180 words per minute
-        estimated_duration = max(2, estimated_duration)  # Minimum 2 seconds
-        self.logger.info(f"Estimated audio duration: {estimated_duration} seconds (based on {words} words)")
-        return estimated_duration
-
-    async def cleanup_tts_file(self, file_path, delay_seconds=0):
-        try:
-            if delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                self.logger.info(f"Cleaned up TTS file: {file_path}")
-                # Also try to clean up from remote server via SSH
-                filename = os.path.basename(file_path)
-                await self.cleanup_remote_tts_file(filename)
-            else:
-                self.logger.warning(f"TTS file not found for cleanup: {file_path}")
-        except Exception as e:
-            self.logger.error(f"Error cleaning up TTS file {file_path}: {e}")
-
-    async def cleanup_remote_tts_file(self, filename):
-        if not self.tts_config or not self.tts_config.get('ssh_config'):
-            self.logger.warning("No SSH config available for remote cleanup")
-            return
-        try:
-            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            remote_dir = self.tts_config['remote_paths']['tts_directory']
-            remote_file_path = f"{remote_dir.rstrip('/')}/{filename}"
-            self.logger.info(f"Executing remote cleanup: rm -f '{remote_file_path}'")
-            result = await conn.run(f"rm -f '{remote_file_path}'")
-            if result.exit_status == 0:
-                self.logger.info(f"Successfully deleted remote file: {remote_file_path}")
-            else:
-                self.logger.warning(f"Remote delete returned {result.exit_status}: {result.stderr.strip()}")
-        except Exception as e:
-            self.logger.error(f"Error in remote cleanup for {filename}: {e}")
-
-    async def move_file_to_remote(self, local_file_path, remote_filename):
-        if not self.tts_config or not self.tts_config.get('ssh_config'):
-            self.logger.warning("No SSH config available for file transfer")
-            return None
-        try:
-            conn = await self.ssh_manager.get_connection(self.tts_config['ssh_config'])
-            remote_dir = self.tts_config['remote_paths']['tts_directory']
-            remote_file_path = f"{remote_dir.rstrip('/')}/{remote_filename}"
-            await conn.run(f"mkdir -p '{remote_dir}'")
-            async with conn.start_sftp_client() as sftp:
-                await sftp.put(local_file_path, remote_file_path)
-            self.logger.info(f"File transferred successfully: {remote_file_path}")
-            return remote_file_path
-        except Exception as e:
-            self.logger.error(f"Error transferring file {local_file_path}: {e}")
             return None
 
 if __name__ == '__main__':
