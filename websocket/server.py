@@ -17,7 +17,6 @@ from logging.handlers import RotatingFileHandler
 # Import our modular components
 from music_handler import MusicHandler
 from tts_handler import TTSHandler
-from database_manager import DatabaseManager
 from event_handler import EventHandler
 from security_manager import SecurityManager
 from donation_handler import DonationEventHandler
@@ -112,7 +111,6 @@ class BotOfTheSpecter_WebsocketServer:
         # Initialize modular components
         self.ssh_manager = SSHConnectionManager(logger, timeout_minutes=2)
         self.security_manager = SecurityManager(logger)
-        self.database_manager = DatabaseManager(logger)
         self.settings_manager = SettingsManager(logger)
         self.tts_handler = TTSHandler(logger, self.ssh_manager)
         self.event_handler = EventHandler(None, logger, lambda: self.registered_clients, self.broadcast_event_with_globals, self.get_code_by_sid, self.tts_handler)
