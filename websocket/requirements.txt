@@ -3,4 +3,3 @@ aiohttp
 aiomysql
 asyncssh
 python-dotenv
-openai
