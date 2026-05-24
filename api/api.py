@@ -2536,15 +2536,15 @@ async def database_heartbeat():
     operation_id="get_system_uptime"
 )
 async def system_uptime(request: Request):
-    # Extract client IP (respect common proxy headers)
-    client_ip = None
-    if 'X-Forwarded-For' in request.headers:
-        client_ip = request.headers['X-Forwarded-For'].split(',')[0].strip()
-    elif 'X-Real-IP' in request.headers:
-        client_ip = request.headers['X-Real-IP']
-    else:
-        # FastAPI/Starlette Request.client may be None in some testing contexts
-        client_ip = request.client.host if request.client else '127.0.0.1'
+    for spoof_header in ('X-Forwarded-For', 'X-Real-IP'):
+        if spoof_header in request.headers:
+            peer = request.client.host if request.client else 'unknown'
+            logging.warning(
+                f"Rejected {request.url.path} from {peer} - "
+                f"unexpected {spoof_header}: {request.headers[spoof_header]}"
+            )
+            raise HTTPException(status_code=403, detail="Access Forbidden")
+    client_ip = request.client.host if request.client else '127.0.0.1'
     # Whitelisted IPs are exempt from throttling
     try:
         whitelisted = _is_ip_allowed(client_ip)
