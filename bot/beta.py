@@ -3262,6 +3262,19 @@ def _build_command_args(callback, arg_str):
                 call_kwargs[kw_only_params[0].name] = remainder
     return tuple(call_args), call_kwargs
 
+async def _call_openai_chat(messages, model, log_prefix=""):
+    try:
+        api_logger.debug(f"{log_prefix} Calling OpenAI chat completion")
+        resp = await openai_client.chat.completions.create(model=model, messages=messages)
+        choices = getattr(resp, 'choices', None)
+        if choices and len(choices) > 0:
+            return getattr(choices[0].message, 'content', None)
+        api_logger.error(f"{log_prefix} Chat completion returned no choices: {resp}")
+        return None
+    except Exception as e:
+        api_logger.error(f"{log_prefix} Error calling chat completion API: {e}")
+        return None
+
 class TwitchBot(commands.Bot):
     # Event Message to get the bot ready
     def __init__(self, token, prefix, channel_name):
@@ -3272,7 +3285,6 @@ class TwitchBot(commands.Bot):
 
     def run_event(self, event_name, *args):
         name = f"event_{event_name}"
-
         async def wrapped(func):
             try:
                 await func(*args)
@@ -3285,7 +3297,6 @@ class TwitchBot(commands.Bot):
             self._event_task_refs.add(task)
             task.add_done_callback(self._event_task_refs.discard)
             return task
-
         inner_cb = getattr(self, name, None)
         if inner_cb is not None:
             if inspect.iscoroutinefunction(inner_cb):
@@ -3296,11 +3307,9 @@ class TwitchBot(commands.Bot):
                     f"event '{name}' callback is not a coroutine",
                     category=RuntimeWarning,
                 )
-
         if name in self._events:
             for event in self._events[name]:
                 _track(self.loop.create_task(wrapped(event)))
-
         for e, check, future in self._waiting:
             if e == event_name:
                 if check(*args):
@@ -4411,41 +4420,9 @@ class TwitchBot(commands.Bot):
                 api_logger.debug(f"[AI] Error loading chat history for {user_id}: {e}")
             # Append the current user message as the latest user turn
             messages.append({'role': 'user', 'content': user_message})
-            # Call OpenAI chat completion via AsyncOpenAI client
-            try:
-                api_logger.debug("[AI] Calling OpenAI chat completion from get_ai_response")
-                chat_client = getattr(openai_client, 'chat', None)
-                ai_text = None
-                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        choice = resp['choices'][0]
-                        if 'message' in choice and 'content' in choice['message']:
-                            ai_text = choice['message']['content']
-                        elif 'text' in choice:
-                            ai_text = choice['text']
-                    else:
-                        # Try attribute access
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
-                    else:
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                else:
-                    api_logger.error("[AI] No compatible chat completions method found on openai_client")
-                    return "AI chat completions API is not available."
-            except Exception as e:
-                api_logger.error(f"[AI] Error calling chat completion API: {e}")
-                return "An error occurred while contacting the AI chat service."
+            ai_text = await _call_openai_chat(messages, OPENAI_MODEL, log_prefix="[AI]")
             if not ai_text:
-                api_logger.error(f"[AI] Chat completion returned no usable text: {resp}")
-                return "The AI chat service returned an unexpected response."
+                return "An error occurred while contacting the AI chat service."
             # Filter out "Chaos Crew" hallucination
             if "Chaos Crew" in ai_text:
                 ai_text = ai_text.replace("Chaos Crew", "Stream Team")
@@ -14709,35 +14686,9 @@ async def handle_ad_break_start(duration_seconds):
                 raise RuntimeError("Ad AI instructions unavailable from API endpoint")
             messages.append({"role": "user", "content": user_content})
             try:
-                api_logger.debug("[ADS] Calling OpenAI chat completion for AI ad break")
-                chat_client = getattr(openai_client, 'chat', None)
-                ai_text = None
-                if chat_client and hasattr(chat_client, 'completions') and hasattr(chat_client.completions, 'create'):
-                    resp = await chat_client.completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        choice = resp['choices'][0]
-                        if 'message' in choice and 'content' in choice['message']:
-                            ai_text = choice['message']['content']
-                        elif 'text' in choice:
-                            ai_text = choice['text']
-                    else:
-                        # Try attribute access
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                elif hasattr(openai_client, 'chat_completions') and hasattr(openai_client.chat_completions, 'create'):
-                    resp = await openai_client.chat_completions.create(model=OPENAI_MODEL, messages=messages)
-                    if isinstance(resp, dict) and 'choices' in resp and len(resp['choices']) > 0:
-                        ai_text = resp['choices'][0].get('message', {}).get('content') or resp['choices'][0].get('text')
-                    else:
-                        choices = getattr(resp, 'choices', None)
-                        if choices and len(choices) > 0:
-                            ai_text = getattr(choices[0].message, 'content', None)
-                else:
-                    api_logger.error("[ADS] No compatible chat completions method found on openai_client for ad break")
-                    ai_text = None
+                ai_text = await _call_openai_chat(messages, OPENAI_MODEL, log_prefix="[ADS]")
                 if not ai_text:
-                    api_logger.error(f"[ADS] Chat completion returned no usable text for ad break: {resp if 'resp' in locals() else 'No response'}")
+                    api_logger.error("[ADS] Chat completion returned no usable text for ad break")
                 else:
                     ai_text = ai_text.strip()
                     # Clear captured ad-break chat as soon as the first AI response is returned
