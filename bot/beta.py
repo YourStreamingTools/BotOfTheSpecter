@@ -3264,15 +3264,15 @@ def _build_command_args(callback, arg_str):
 
 async def _call_openai_chat(messages, model, log_prefix=""):
     try:
-        api_logger.debug(f"{log_prefix} Calling OpenAI chat completion")
-        resp = await openai_client.chat.completions.create(model=model, messages=messages)
-        choices = getattr(resp, 'choices', None)
-        if choices and len(choices) > 0:
-            return getattr(choices[0].message, 'content', None)
-        api_logger.error(f"{log_prefix} Chat completion returned no choices: {resp}")
+        api_logger.debug(f"{log_prefix} Calling OpenAI Responses API")
+        resp = await openai_client.responses.create(model=model, input=messages)
+        text = getattr(resp, 'output_text', None)
+        if text:
+            return text
+        api_logger.error(f"{log_prefix} Responses API returned no output_text: {resp}")
         return None
     except Exception as e:
-        api_logger.error(f"{log_prefix} Error calling chat completion API: {e}")
+        api_logger.error(f"{log_prefix} Error calling OpenAI Responses API: {e}")
         return None
 
 class TwitchBot(commands.Bot):
