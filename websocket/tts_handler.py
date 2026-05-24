@@ -4,10 +4,9 @@ import json
 import asyncio
 import subprocess
 import aiohttp
-from pathlib import Path
-from openai import AsyncOpenAI
 
 # OpenAI TTS API Configuration
+OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
 MODEL_NAME = "gpt-4o-mini-tts"
 DEFAULT_VOICE = "alloy"
 AVAILABLE_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"]
@@ -22,7 +21,9 @@ class TTSHandler:
         self.tts_config = self.load_tts_config()
         self.tts_queue = asyncio.Queue()
         self.processing_task = None
-        self.openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_KEY'))
+        self.openai_api_key = os.getenv('OPENAI_KEY')
+        if not self.openai_api_key:
+            self.logger.error("OPENAI_KEY env var not set - TTS will not work")
         self.model_name = MODEL_NAME
         self.default_voice = DEFAULT_VOICE
         self.available_voices = AVAILABLE_VOICES
@@ -201,8 +202,8 @@ class TTSHandler:
             self.logger.error(f"Error cleaning up TTS file: {e}")
 
     async def generate_api_tts(self, text, code, voice_name=None):
-        if not self.openai_client.api_key:
-            self.logger.error("OPENAI_API_KEY not set")
+        if not self.openai_api_key:
+            self.logger.error("OPENAI_KEY not set")
             return None
         # Validate text length (OpenAI limit is 4096 characters)
         if len(text) > 4096:
@@ -217,18 +218,36 @@ class TTSHandler:
         unique_id = uuid.uuid4().hex[:8]
         filename = f'tts_output_{code}_{unique_id}.mp3'
         filepath = os.path.join(self.tts_dir, filename)
+        headers = {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": self.model_name,
+            "voice": voice_name,
+            "input": text,
+            "response_format": "mp3",
+        }
         try:
-            # Use OpenAI's streaming response for better performance
-            async with self.openai_client.audio.speech.with_streaming_response.create(
-                model=self.model_name,
-                voice=voice_name,
-                input=text,
-                response_format="mp3"
-            ) as response:
-                # Stream the response directly to file
-                await response.stream_to_file(filepath)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    OPENAI_TTS_URL,
+                    headers=headers,
+                    json=body,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as response:
+                    if response.status != 200:
+                        err_text = await response.text()
+                        self.logger.error(f"OpenAI TTS API error {response.status}: {err_text[:500]}")
+                        return None
+                    with open(filepath, "wb") as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            f.write(chunk)
             self.logger.info(f"TTS audio generated and saved: {filepath}")
             return filepath
+        except asyncio.TimeoutError:
+            self.logger.error("OpenAI TTS API timeout after 60s")
+            return None
         except Exception as e:
             self.logger.error(f"Error generating TTS via OpenAI API: {e}")
             return None
