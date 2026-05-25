@@ -426,6 +426,16 @@ try {
                 sound_mapping TEXT,
                 PRIMARY KEY (reward_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'walkons' => "
+            CREATE TABLE IF NOT EXISTS walkons (
+                twitch_user_id VARCHAR(50) NOT NULL,
+                twitch_user_name VARCHAR(100) NOT NULL,
+                media_file VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (twitch_user_id),
+                INDEX idx_media_file (media_file)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'twitch_sound_alerts' => "
             CREATE TABLE IF NOT EXISTS twitch_sound_alerts (
                 twitch_alert_id VARCHAR(255) NOT NULL,

@@ -29,62 +29,118 @@ $stmt->close();
 date_default_timezone_set($timezone);
 
 $status = '';
-$activeTab = $_POST['media_type'] ?? 'sound-alerts';
-// Normalize active tab from media_type POST values to tab IDs
-$tabMap = [
-    'media_upload' => 'sound-alerts',
-    'sound_alert' => 'sound-alerts',
-    'sound_alert_mapping' => 'sound-alerts',
-    'video_alert' => 'video-alerts',
-    'video_alert_mapping' => 'video-alerts',
-    'walkon' => 'walkons',
-    'twitch_event' => 'twitch-events',
-    'twitch_event_mapping' => 'twitch-events',
-    'alert_media' => 'alert-media',
-];
-$activeTab = $tabMap[$activeTab] ?? 'sound-alerts';
 
 $db = new mysqli($db_servername, $db_username, $db_password, $dbname);
 if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
-// Fetch sound alert mappings
-$soundAlertMappings = [];
-$getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
-$getSoundAlerts->execute();
-$getSoundAlerts->bind_result($sound_mapping, $reward_id);
-while ($getSoundAlerts->fetch()) {
-    $soundAlertMappings[$sound_mapping] = $reward_id;
-}
-$getSoundAlerts->close();
-
-// Fetch video alert mappings
-$videoAlertMappings = [];
-$videoAlerts = [];
-if ($vResult = $db->query("SELECT video_mapping, reward_id FROM video_alerts")) {
-    while ($row = $vResult->fetch_assoc()) {
-        $videoAlerts[] = $row;
-        $videoAlertMappings[$row['video_mapping']] = $row['reward_id'];
+if (($_GET['action'] ?? '') === 'helix_lookup_user' && !empty($_GET['login'])) {
+    header('Content-Type: application/json');
+    $login = strtolower(preg_replace('/[^a-z0-9_]/i', '', trim($_GET['login'])));
+    if ($login === '') {
+        echo json_encode(['success' => false, 'error' => 'Invalid login']);
+        exit;
     }
-    $vResult->free();
+    $botClientId = '';
+    $botOauth    = '';
+    $bconn = new mysqli($db_servername, $db_username, $db_password, 'website');
+    if (!$bconn->connect_error) {
+        $bres = $bconn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
+        if ($bres && ($brow = $bres->fetch_assoc())) {
+            foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
+                if (!empty($brow[$k])) { $botClientId = trim($brow[$k]); break; }
+            }
+            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $k) {
+                if (!empty($brow[$k])) { $botOauth = trim($brow[$k]); break; }
+            }
+        }
+        $bconn->close();
+    }
+    if ($botClientId === '' || $botOauth === '') {
+        echo json_encode(['success' => false, 'error' => 'Bot credentials unavailable']);
+        exit;
+    }
+    $ctx = stream_context_create(['http' => [
+        'method' => 'GET',
+        'header' => "Authorization: Bearer $botOauth\r\nClient-Id: $botClientId\r\n",
+        'timeout' => 5,
+        'ignore_errors' => true,
+    ]]);
+    $raw = @file_get_contents('https://api.twitch.tv/helix/users?login=' . urlencode($login), false, $ctx);
+    if (!$raw) {
+        echo json_encode(['success' => false, 'error' => 'Helix request failed']);
+        exit;
+    }
+    $data = json_decode($raw, true);
+    if (empty($data['data'][0]['id'])) {
+        echo json_encode(['success' => false, 'error' => 'User not found']);
+        exit;
+    }
+    echo json_encode([
+        'success'   => true,
+        'user_id'   => $data['data'][0]['id'],
+        'user_name' => $data['data'][0]['login'],
+    ]);
+    exit;
 }
 
-// Fetch twitch event alert mappings
-$twitchSoundAlertMappings = [];
-$stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
-$stmt->execute();
-$stmt->bind_result($file_name, $twitch_event);
-while ($stmt->fetch()) {
-    $twitchSoundAlertMappings[$file_name] = $twitch_event;
+$soundAlertMappings = [];  // file => [reward_id, ...]
+if ($r = $db->query("SELECT reward_id, sound_mapping FROM sound_alerts")) {
+    while ($row = $r->fetch_assoc()) {
+        if ($row['sound_mapping']) {
+            $soundAlertMappings[$row['sound_mapping']][] = $row['reward_id'];
+        }
+    }
+    $r->free();
 }
-$stmt->close();
 
-// Fetch alert media references from twitch_alerts
+$videoAlertMappings = [];  // file => [reward_id, ...]
+if ($r = $db->query("SELECT reward_id, video_mapping FROM video_alerts")) {
+    while ($row = $r->fetch_assoc()) {
+        if ($row['video_mapping']) {
+            $videoAlertMappings[$row['video_mapping']][] = $row['reward_id'];
+        }
+    }
+    $r->free();
+}
+
+$twitchSoundAlertMappings = [];  // file => [twitch_alert_id, ...]
+if ($r = $db->query("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts")) {
+    while ($row = $r->fetch_assoc()) {
+        if ($row['sound_mapping']) {
+            $twitchSoundAlertMappings[$row['sound_mapping']][] = $row['twitch_alert_id'];
+        }
+    }
+    $r->free();
+}
+
+$walkonsByFile = [];  // file => [{user_id, user_name}, ...]
+if ($r = $db->query("SELECT twitch_user_id, twitch_user_name, media_file FROM walkons")) {
+    while ($row = $r->fetch_assoc()) {
+        $walkonsByFile[$row['media_file']][] = [
+            'user_id'   => $row['twitch_user_id'],
+            'user_name' => $row['twitch_user_name'],
+        ];
+    }
+    $r->free();
+}
+
+// Flatten the reward-id lists for the "is this reward already used somewhere?" check
+// used by the modal's add-reward dropdown.
+$soundMappedRewards = [];
+foreach ($soundAlertMappings as $rids) {
+    foreach ($rids as $rid) $soundMappedRewards[] = $rid;
+}
+$videoMappedRewards = [];
+foreach ($videoAlertMappings as $rids) {
+    foreach ($rids as $rid) $videoMappedRewards[] = $rid;
+}
+
+// Alert builder usage (read-only display only)
 $alertMediaFiles = [];
-$alertMediaResult = $db->query("SELECT id, alert_category, variant_name, alert_image, alert_sound FROM twitch_alerts WHERE alert_image IS NOT NULL OR alert_sound IS NOT NULL");
-if ($alertMediaResult) {
-    while ($row = $alertMediaResult->fetch_assoc()) {
+if ($r = $db->query("SELECT id, alert_category, variant_name, alert_image, alert_sound FROM twitch_alerts WHERE alert_image IS NOT NULL OR alert_sound IS NOT NULL")) {
+    while ($row = $r->fetch_assoc()) {
         if ($row['alert_image']) {
             $alertMediaFiles[$row['alert_image']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'image'];
         }
@@ -92,17 +148,16 @@ if ($alertMediaResult) {
             $alertMediaFiles[$row['alert_sound']][] = ['id' => $row['id'], 'category' => $row['alert_category'], 'variant' => $row['variant_name'], 'type' => 'sound'];
         }
     }
-    $alertMediaResult->free();
+    $r->free();
 }
 
-// Build cross-mapping exclusion lists for channel point rewards
-$videoMappedRewards = [];
-foreach ($videoAlertMappings as $mapping => $rid) {
-    $videoMappedRewards[] = $rid;
-}
-$soundMappedRewards = [];
-foreach ($soundAlertMappings as $mapping => $rid) {
-    $soundMappedRewards[] = $rid;
+// Seen-users cache for the walkon picker typeahead
+$seenUsers = [];
+if ($r = $db->query("SELECT DISTINCT username FROM seen_users WHERE username IS NOT NULL ORDER BY username ASC")) {
+    while ($row = $r->fetch_assoc()) {
+        $seenUsers[] = $row['username'];
+    }
+    $r->free();
 }
 
 // Create reward_id => reward_title lookup
@@ -111,164 +166,124 @@ foreach ($channelPointRewards as $reward) {
     $rewardIdToTitle[$reward['reward_id']] = $reward['reward_title'];
 }
 
+// Available twitch events (kept inline — same list the old UI used)
+$allTwitchEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
+
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+function ajax_respond_mappings($file, $db, $isAjax) {
+    if (!$isAjax) return;
+    header('Content-Type: application/json');
+    $resp = ['success' => true, 'file' => $file, 'mappings' => ['rewards' => [], 'video_rewards' => [], 'events' => [], 'walkons' => []]];
+    if ($stmt = $db->prepare("SELECT reward_id FROM sound_alerts WHERE sound_mapping = ?")) {
+        $stmt->bind_param('s', $file); $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) $resp['mappings']['rewards'][] = $r['reward_id'];
+        $stmt->close();
+    }
+    if ($stmt = $db->prepare("SELECT reward_id FROM video_alerts WHERE video_mapping = ?")) {
+        $stmt->bind_param('s', $file); $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) $resp['mappings']['video_rewards'][] = $r['reward_id'];
+        $stmt->close();
+    }
+    if ($stmt = $db->prepare("SELECT twitch_alert_id FROM twitch_sound_alerts WHERE sound_mapping = ?")) {
+        $stmt->bind_param('s', $file); $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) $resp['mappings']['events'][] = $r['twitch_alert_id'];
+        $stmt->close();
+    }
+    if ($stmt = $db->prepare("SELECT twitch_user_id, twitch_user_name FROM walkons WHERE media_file = ?")) {
+        $stmt->bind_param('s', $file); $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) {
+            $resp['mappings']['walkons'][] = ['user_id' => $r['twitch_user_id'], 'user_name' => $r['twitch_user_name']];
+        }
+        $stmt->close();
+    }
+    echo json_encode($resp);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mediaType = $_POST['media_type'] ?? '';
-    // Sound Alert mapping
-    if ($mediaType === 'sound_alert_mapping' && isset($_POST['sound_file'], $_POST['reward_id'])) {
-        $soundFile = htmlspecialchars($_POST['sound_file']);
-        $rewardId = $_POST['reward_id'];
-        $db->begin_transaction();
-        $checkExisting = $db->prepare("SELECT 1 FROM sound_alerts WHERE sound_mapping = ?");
-        $checkExisting->bind_param('s', $soundFile);
-        $checkExisting->execute();
-        $checkExisting->store_result();
-        if ($checkExisting->num_rows > 0) {
-            if ($rewardId) {
-                $updateMapping = $db->prepare("UPDATE sound_alerts SET reward_id = ? WHERE sound_mapping = ?");
-                $updateMapping->bind_param('ss', $rewardId, $soundFile);
-                if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for '" . $soundFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $soundFile . "' updated.<br>";
-                }
-                $updateMapping->close();
-            } else {
-                $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = ?");
-                $deleteMapping->bind_param('s', $soundFile);
-                if (!$deleteMapping->execute()) {
-                    $status .= "Failed to remove mapping for '" . $soundFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $soundFile . "' removed.<br>";
-                }
-                $deleteMapping->close();
-            }
-        } else {
-            if ($rewardId) {
-                $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, reward_id) VALUES (?, ?)");
-                $insertMapping->bind_param('ss', $soundFile, $rewardId);
-                if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for '" . $soundFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $soundFile . "' created.<br>";
-                }
-                $insertMapping->close();
-            }
-        }
-        $checkExisting->close();
-        $db->commit();
-        // Re-fetch mappings
-        $soundAlertMappings = [];
-        $getSoundAlerts = $db->prepare("SELECT sound_mapping, reward_id FROM sound_alerts");
-        $getSoundAlerts->execute();
-        $getSoundAlerts->bind_result($sound_mapping, $reward_id);
-        while ($getSoundAlerts->fetch()) {
-            $soundAlertMappings[$sound_mapping] = $reward_id;
-        }
-        $getSoundAlerts->close();
-    }
-    // Video Alert mapping
-    if ($mediaType === 'video_alert_mapping' && isset($_POST['video_file'], $_POST['reward_id'])) {
-        $videoFile = htmlspecialchars($_POST['video_file']);
-        $rewardId = $_POST['reward_id'];
-        $stmt = $db->prepare("SELECT 1 FROM video_alerts WHERE video_mapping = ?");
-        $stmt->bind_param("s", $videoFile);
-        $stmt->execute();
-        $stmt->store_result();
-        $exists = $stmt->num_rows > 0;
-        $stmt->close();
-        if ($exists) {
-            if ($rewardId) {
-                $stmt = $db->prepare("UPDATE video_alerts SET reward_id = ? WHERE video_mapping = ?");
-                $stmt->bind_param("ss", $rewardId, $videoFile);
-                if (!$stmt->execute()) {
-                    $status .= "Failed to update mapping for '" . $videoFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $videoFile . "' updated.<br>";
-                }
-                $stmt->close();
-            } else {
-                $stmt = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = ?");
-                $stmt->bind_param("s", $videoFile);
-                if (!$stmt->execute()) {
-                    $status .= "Failed to remove mapping for '" . $videoFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $videoFile . "' removed.<br>";
-                }
-                $stmt->close();
-            }
-        } else {
-            if ($rewardId) {
-                $stmt = $db->prepare("INSERT INTO video_alerts (video_mapping, reward_id) VALUES (?, ?)");
-                $stmt->bind_param("ss", $videoFile, $rewardId);
-                if (!$stmt->execute()) {
-                    $status .= "Failed to create mapping for '" . $videoFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $videoFile . "' created.<br>";
-                }
-                $stmt->close();
-            }
-        }
-        // Re-fetch mappings
-        $videoAlertMappings = [];
-        $videoAlerts = [];
-        if ($vResult = $db->query("SELECT video_mapping, reward_id FROM video_alerts")) {
-            while ($row = $vResult->fetch_assoc()) {
-                $videoAlerts[] = $row;
-                $videoAlertMappings[$row['video_mapping']] = $row['reward_id'];
-            }
-            $vResult->free();
+    $action    = $_POST['action'] ?? '';
+    // Sound alert (channel point reward) — add / remove
+    if ($mediaType === 'sound_alert_mapping') {
+        $file     = $_POST['sound_file'] ?? '';
+        $rewardId = $_POST['reward_id']  ?? '';
+        if ($action === 'add' && $file !== '' && $rewardId !== '') {
+            $stmt = $db->prepare("INSERT INTO sound_alerts (reward_id, sound_mapping) VALUES (?, ?)
+                                  ON DUPLICATE KEY UPDATE sound_mapping = VALUES(sound_mapping)");
+            $stmt->bind_param('ss', $rewardId, $file);
+            $stmt->execute(); $stmt->close();
+            $status .= "Sound alert mapping added.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
+        } elseif ($action === 'remove' && $rewardId !== '') {
+            $stmt = $db->prepare("DELETE FROM sound_alerts WHERE reward_id = ?");
+            $stmt->bind_param('s', $rewardId);
+            $stmt->execute(); $stmt->close();
+            $status .= "Sound alert mapping removed.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
         }
     }
-    // Twitch Event mapping
-    if ($mediaType === 'twitch_event_mapping' && isset($_POST['sound_file'], $_POST['twitch_alert_id'])) {
-        $soundFile = htmlspecialchars($_POST['sound_file']);
-        $rewardId = htmlspecialchars($_POST['twitch_alert_id'] ?? '');
-        $db->begin_transaction();
-        $checkExisting = $db->prepare("SELECT 1 FROM twitch_sound_alerts WHERE sound_mapping = ?");
-        $checkExisting->bind_param('s', $soundFile);
-        $checkExisting->execute();
-        $result = $checkExisting->get_result();
-        if ($result->num_rows > 0) {
-            if (!empty($rewardId)) {
-                $updateMapping = $db->prepare("UPDATE twitch_sound_alerts SET twitch_alert_id = ? WHERE sound_mapping = ?");
-                $updateMapping->bind_param('ss', $rewardId, $soundFile);
-                if (!$updateMapping->execute()) {
-                    $status .= "Failed to update mapping for '" . $soundFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $soundFile . "' updated.<br>";
-                }
-            } else {
-                $deleteMapping = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
-                $deleteMapping->bind_param('s', $soundFile);
-                if (!$deleteMapping->execute()) {
-                    $status .= "Failed to remove mapping for '" . $soundFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $soundFile . "' removed.<br>";
-                }
-            }
-        } else {
-            if (!empty($rewardId)) {
-                $insertMapping = $db->prepare("INSERT INTO twitch_sound_alerts (sound_mapping, twitch_alert_id) VALUES (?, ?)");
-                $insertMapping->bind_param('ss', $soundFile, $rewardId);
-                if (!$insertMapping->execute()) {
-                    $status .= "Failed to create mapping for '" . $soundFile . "'.<br>";
-                } else {
-                    $status .= "Mapping for '" . $soundFile . "' created.<br>";
-                }
-            }
+    // Video alert (channel point reward) — add / remove
+    if ($mediaType === 'video_alert_mapping') {
+        $file     = $_POST['video_file'] ?? '';
+        $rewardId = $_POST['reward_id']  ?? '';
+        if ($action === 'add' && $file !== '' && $rewardId !== '') {
+            $stmt = $db->prepare("INSERT INTO video_alerts (reward_id, video_mapping) VALUES (?, ?)
+                                  ON DUPLICATE KEY UPDATE video_mapping = VALUES(video_mapping)");
+            $stmt->bind_param('ss', $rewardId, $file);
+            $stmt->execute(); $stmt->close();
+            $status .= "Video alert mapping added.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
+        } elseif ($action === 'remove' && $rewardId !== '') {
+            $stmt = $db->prepare("DELETE FROM video_alerts WHERE reward_id = ?");
+            $stmt->bind_param('s', $rewardId);
+            $stmt->execute(); $stmt->close();
+            $status .= "Video alert mapping removed.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
         }
-        $db->commit();
-        // Re-fetch mappings
-        $twitchSoundAlertMappings = [];
-        $stmt = $db->prepare("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_alerts");
-        $stmt->execute();
-        $stmt->bind_result($file_name, $twitch_event);
-        while ($stmt->fetch()) {
-            $twitchSoundAlertMappings[$file_name] = $twitch_event;
-        }
-        $stmt->close();
     }
-    // File uploads
+    // Twitch event — add / remove
+    if ($mediaType === 'twitch_event_mapping') {
+        $file    = $_POST['sound_file']      ?? '';
+        $eventId = $_POST['twitch_alert_id'] ?? '';
+        if ($action === 'add' && $file !== '' && $eventId !== '') {
+            $stmt = $db->prepare("INSERT INTO twitch_sound_alerts (twitch_alert_id, sound_mapping) VALUES (?, ?)
+                                  ON DUPLICATE KEY UPDATE sound_mapping = VALUES(sound_mapping)");
+            $stmt->bind_param('ss', $eventId, $file);
+            $stmt->execute(); $stmt->close();
+            $status .= "Twitch event mapping added.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
+        } elseif ($action === 'remove' && $eventId !== '') {
+            $stmt = $db->prepare("DELETE FROM twitch_sound_alerts WHERE twitch_alert_id = ?");
+            $stmt->bind_param('s', $eventId);
+            $stmt->execute(); $stmt->close();
+            $status .= "Twitch event mapping removed.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
+        }
+    }
+    if ($mediaType === 'walkon_mapping') {
+        $file     = $_POST['media_file']       ?? '';
+        $userId   = $_POST['twitch_user_id']   ?? '';
+        $userName = $_POST['twitch_user_name'] ?? '';
+        if ($action === 'add' && $file !== '' && $userId !== '' && $userName !== '') {
+            $stmt = $db->prepare("INSERT INTO walkons (twitch_user_id, twitch_user_name, media_file) VALUES (?, ?, ?)
+                                  ON DUPLICATE KEY UPDATE media_file = VALUES(media_file), twitch_user_name = VALUES(twitch_user_name)");
+            $stmt->bind_param('sss', $userId, $userName, $file);
+            $stmt->execute(); $stmt->close();
+            $status .= "Walkon added.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
+        } elseif ($action === 'remove' && $userId !== '') {
+            $stmt = $db->prepare("DELETE FROM walkons WHERE twitch_user_id = ?");
+            $stmt->bind_param('s', $userId);
+            $stmt->execute(); $stmt->close();
+            $status .= "Walkon removed.<br>";
+            ajax_respond_mappings($file, $db, $isAjax);
+        }
+    }
     if (isset($_FILES["filesToUpload"])) {
         $remaining_storage = $max_storage_size - $current_storage_used;
         $uploadStatus = "";
@@ -282,26 +297,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fileSize = $_FILES["filesToUpload"]["size"][$key];
                 $fileError = $_FILES["filesToUpload"]["error"][$key] ?? 0;
                 $displayName = htmlspecialchars(basename($fileName));
-                if ($fileError !== UPLOAD_ERR_OK) {
-                    $uploadStatus .= "Error uploading " . $displayName . ".<br>";
-                    continue;
-                }
-                if (!is_uploaded_file($tmp_name)) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". Invalid upload.<br>";
-                    continue;
-                }
+                if ($fileError !== UPLOAD_ERR_OK) { $uploadStatus .= "Error uploading " . $displayName . ".<br>"; continue; }
+                if (!is_uploaded_file($tmp_name)) { $uploadStatus .= "Failed to upload " . $displayName . ". Invalid upload.<br>"; continue; }
                 if ($current_storage_used + $fileSize > $max_storage_size) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". Storage limit exceeded.<br>";
-                    continue;
+                    $uploadStatus .= "Failed to upload " . $displayName . ". Storage limit exceeded.<br>"; continue;
                 }
                 $fileType = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
                 if (!in_array($fileType, $allowedExts, true)) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". Only " . $extLabel . " files are allowed.<br>";
-                    continue;
+                    $uploadStatus .= "Failed to upload " . $displayName . ". Only " . $extLabel . " files are allowed.<br>"; continue;
                 }
                 if (!upload_validate_extension_and_mime($tmp_name, $fileType, $allowedExts)) {
-                    $uploadStatus .= "Failed to upload " . $displayName . ". File contents do not match the declared file type.<br>";
-                    continue;
+                    $uploadStatus .= "Failed to upload " . $displayName . ". File contents do not match the declared file type.<br>"; continue;
                 }
                 $safeName = upload_sanitize_filename($fileName, $fileType);
                 $target = upload_unique_target($targetDir, $safeName);
@@ -315,8 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $storage_percentage = ($current_storage_used / $max_storage_size) * 100;
             $status .= $uploadStatus;
         }
-        // AJAX response
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+        if ($isAjax) {
             header('Content-Type: application/json');
             echo json_encode([
                 'status' => $status,
@@ -328,7 +333,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    // File deletion — all files live in the unified media library
+    // File deletion — wipes from the unified library and cleans up every mapping
+    // table the file might be referenced from.
     if (isset($_POST['delete_files']) && is_array($_POST['delete_files'])) {
         $deleteStatus = "";
         $db->begin_transaction();
@@ -337,19 +343,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $full_path = $media_path . '/' . $filename;
             if (is_file($full_path) && unlink($full_path)) {
                 $deleteStatus .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
-                // Clean up all related mappings for this file
-                $delSound = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = ?");
-                $delSound->bind_param('s', $filename);
-                $delSound->execute();
-                $delSound->close();
-                $delVideo = $db->prepare("DELETE FROM video_alerts WHERE video_mapping = ?");
-                $delVideo->bind_param('s', $filename);
-                $delVideo->execute();
-                $delVideo->close();
-                $delTwitch = $db->prepare("DELETE FROM twitch_sound_alerts WHERE sound_mapping = ?");
-                $delTwitch->bind_param('s', $filename);
-                $delTwitch->execute();
-                $delTwitch->close();
+                foreach (['sound_alerts' => 'sound_mapping', 'video_alerts' => 'video_mapping', 'twitch_sound_alerts' => 'sound_mapping', 'walkons' => 'media_file'] as $table => $col) {
+                    $stmt = $db->prepare("DELETE FROM $table WHERE $col = ?");
+                    $stmt->bind_param('s', $filename);
+                    $stmt->execute();
+                    $stmt->close();
+                }
             } else {
                 $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
             }
@@ -362,16 +361,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // All files come from the unified media library
-$all_media_files = is_dir($media_path) ? array_diff(scandir($media_path), array('.', '..')) : [];
-$soundalert_files = array_filter($all_media_files, fn($f) => strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'mp3');
-$videoalert_files = array_filter($all_media_files, fn($f) => strtolower(pathinfo($f, PATHINFO_EXTENSION)) === 'mp4');
-$walkon_files = $all_media_files;
+$all_media_files = is_dir($media_path) ? array_values(array_diff(scandir($media_path), array('.', '..'))) : [];
+sort($all_media_files, SORT_STRING | SORT_FLAG_CASE);
 
-function formatFileNameWithExt($fileName) {
-    $fileInfo = pathinfo($fileName);
-    $name = basename($fileName, '.' . $fileInfo['extension']);
-    $ext = strtoupper($fileInfo['extension']);
-    return $name . " (" . $ext . ")";
+function media_file_type($filename) {
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if ($ext === 'mp3') return 'audio';
+    if ($ext === 'mp4') return 'video';
+    return 'other';
+}
+function media_file_size($path) {
+    return is_file($path) ? filesize($path) : 0;
+}
+function format_bytes($bytes) {
+    if ($bytes >= 1048576) return round($bytes / 1048576, 1) . ' MB';
+    if ($bytes >= 1024) return round($bytes / 1024, 1) . ' KB';
+    return $bytes . ' B';
 }
 
 ob_start();
@@ -398,7 +403,7 @@ ob_start();
         <form action="" method="POST" enctype="multipart/form-data" class="media-upload-form" id="unified-upload-form">
             <input type="hidden" name="media_type" value="media_upload">
             <div class="sp-form-group">
-                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> Upload MP3 or MP4 files to your media library. Once uploaded, you can map files to Channel Point rewards, Twitch Events, or Walk-ons from the tabs below.</small>
+                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> Upload MP3 or MP4 files to your media library. Click a file in the list below to attach it to channel point rewards, Twitch events, or walkons. The same file can power any number of triggers — upload once, use everywhere.</small>
             </div>
             <div class="sp-form-group">
                 <label class="media-drop-zone" id="unified-drop-zone">
@@ -425,470 +430,474 @@ ob_start();
     </div>
 </div>
 <?php if (!$media_migrated): ?>
-<!-- Migrate to unified media library (Coming Soon) -->
+<!-- Migrate to unified media library -->
 <div class="sp-card media-migrate-card">
     <header class="sp-card-header media-migrate-header">
         <span class="sp-card-title"><i class="fas fa-arrow-circle-up"></i> Upgrade to Unified Media Library</span>
-        <span class="media-migrate-badge">Coming Soon</span>
     </header>
     <div class="sp-card-body media-migrate-body">
         <h4>How the New System Works</h4>
-        <p>BotOfTheSpecter is introducing a unified media library. Instead of keeping separate folders for Sound Alerts, Channel Point sounds, and Twitch Event sounds, <strong>all audio files live in one shared pool</strong>. A single MP3 can be mapped to a Channel Point reward <em>and</em> a Twitch Event simultaneously &mdash; no more duplicating files.</p>
+        <p>BotOfTheSpecter is moving to a unified media library. Instead of keeping separate folders for sound alerts, channel point sounds, Twitch event sounds, and walkons, <strong>all files live in one shared pool</strong>. A single file can be mapped to any combination of triggers — no more duplicating files.</p>
         <ul>
-            <li><strong>One upload, any trigger</strong> &mdash; upload a file once and assign it to any Channel Point or Twitch Event.</li>
-            <li><strong>Unified library</strong> &mdash; all audio files live in one shared pool, no matter which trigger you assign them to.</li>
+            <li><strong>One upload, any trigger</strong> &mdash; upload a file once and assign it to any channel point reward, Twitch event, or walkon.</li>
+            <li><strong>Unified library</strong> &mdash; all audio and video files live in one shared pool.</li>
             <li><strong>Non-destructive migration</strong> &mdash; your existing files are <em>copied</em> into the new library; nothing is deleted from the old locations.</li>
-            <li><strong>Beta Bot required</strong> &mdash; after migration, the Stable Bot will no longer trigger audio files. You must run the Beta Bot for alerts to work.</li>
+            <li><strong>Walkons auto-linked</strong> &mdash; existing walkon files (named after their Twitch login) are auto-tagged to the right user during migration.</li>
+            <li><strong>Beta Bot required</strong> &mdash; after migration, the Stable Bot will no longer trigger media. You must run the Beta Bot for alerts to work.</li>
         </ul>
-        <div class="sp-alert sp-alert-info">
-            <i class="fas fa-info-circle"></i> The migration tool will be available soon. No action is needed right now.
-        </div>
-        <button class="sp-btn sp-btn-warning media-migrate-btn-disabled" disabled>
-            <i class="fas fa-clock"></i> Migrate to New Media Library &mdash; Coming Soon
+        <button type="button" id="media-migrate-btn" class="sp-btn sp-btn-warning">
+            <i class="fas fa-arrow-right"></i> Migrate to Unified Media Library
         </button>
     </div>
 </div>
 <?php else: ?>
 <div class="sp-alert sp-alert-success media-migrated-notice">
-    <i class="fas fa-check-circle"></i> <strong>Using Unified Media Library</strong> &mdash; Your audio files are managed through the new shared library. Requires Beta Bot.
+    <i class="fas fa-check-circle"></i> <strong>Using Unified Media Library</strong> &mdash; Your audio and video files are managed through the shared library. Requires Beta Bot.
 </div>
 <?php endif; ?>
-<!-- Tabs Navigation -->
-<ul class="sp-tabs-nav media-tabs-nav">
-    <li class="<?php echo $activeTab === 'sound-alerts' ? 'is-active' : ''; ?>" data-tab="sound-alerts">
-        <a><i class="fas fa-volume-up"></i><span><?php echo t('navbar_sound_alerts'); ?></span></a>
-    </li>
-    <li class="<?php echo $activeTab === 'video-alerts' ? 'is-active' : ''; ?>" data-tab="video-alerts">
-        <a><i class="fas fa-film"></i><span><?php echo t('navbar_video_alerts'); ?></span></a>
-    </li>
-    <li class="<?php echo $activeTab === 'walkons' ? 'is-active' : ''; ?>" data-tab="walkons">
-        <a><i class="fas fa-door-open"></i><span><?php echo t('navbar_walkon_alerts'); ?></span></a>
-    </li>
-    <li class="<?php echo $activeTab === 'twitch-events' ? 'is-active' : ''; ?>" data-tab="twitch-events">
-        <a><i class="fab fa-twitch"></i><span><?php echo t('modules_tab_twitch_event_alerts'); ?></span></a>
-    </li>
-    <li class="<?php echo $activeTab === 'alert-media' ? 'is-active' : ''; ?>" data-tab="alert-media">
-        <a><i class="fas fa-bell"></i><span>Alert Media</span></a>
-    </li>
-</ul>
-<div class="tab-content" id="sound-alerts" style="display:<?php echo $activeTab === 'sound-alerts' ? 'block' : 'none'; ?>;">
-    <!-- File Management Card -->
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <span class="sp-card-title"><i class="fas fa-volume-up"></i> <?php echo t('sound_alerts_your_alerts'); ?></span>
-            <button class="sp-btn sp-btn-danger delete-selected-btn" disabled data-form="soundDeleteForm">
-                <i class="fas fa-trash"></i> <span><?php echo t('sound_alerts_delete_selected'); ?></span>
-            </button>
+<!-- Filter + search bar -->
+<div class="media-filter-bar">
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn is-active" data-filter="all">All</button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="rewards">With rewards</button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="events">With events</button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="walkons">Walkons</button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="unused">Unused</button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="videos">Videos</button>
+    <input type="search" class="sp-input media-search-input" id="media-search-input" placeholder="Search files…">
+</div>
+<!-- Files list -->
+<div class="sp-card media-files-card">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fas fa-folder-open"></i> Your Media Library</span>
+        <button class="sp-btn sp-btn-danger media-delete-selected-btn" disabled>
+            <i class="fas fa-trash"></i> <span>Delete Selected</span>
+        </button>
+    </header>
+    <div class="sp-card-body">
+        <?php if (empty($all_media_files)): ?>
+            <div class="media-empty-state">
+                <p>No media files uploaded yet. Upload MP3 or MP4 files using the form above.</p>
+            </div>
+        <?php else: ?>
+        <form action="" method="POST" id="mediaDeleteForm" class="media-delete-form">
+            <ul class="media-file-list" id="media-file-list">
+                <?php foreach ($all_media_files as $file):
+                    if (!is_file($media_path . '/' . $file)) continue;
+                    $size = media_file_size($media_path . '/' . $file);
+                    $type = media_file_type($file);
+                    $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? []);
+                    $eventCount  = count($twitchSoundAlertMappings[$file] ?? []);
+                    $walkonCount = count($walkonsByFile[$file] ?? []);
+                    $totalCount  = $rewardCount + $eventCount + $walkonCount;
+                    $summaryParts = [];
+                    if ($rewardCount > 0) $summaryParts[] = $rewardCount . ' reward' . ($rewardCount === 1 ? '' : 's');
+                    if ($eventCount  > 0) $summaryParts[] = $eventCount . ' event' . ($eventCount === 1 ? '' : 's');
+                    if ($walkonCount > 0) $summaryParts[] = $walkonCount . ' walkon' . ($walkonCount === 1 ? '' : 's');
+                    $summary = empty($summaryParts) ? 'Unused' : implode(' · ', $summaryParts);
+                ?>
+                <li class="media-file-row"
+                    data-file="<?php echo htmlspecialchars($file); ?>"
+                    data-type="<?php echo htmlspecialchars($type); ?>"
+                    data-has-rewards="<?php echo $rewardCount > 0 ? '1' : '0'; ?>"
+                    data-has-events="<?php echo $eventCount > 0 ? '1' : '0'; ?>"
+                    data-has-walkons="<?php echo $walkonCount > 0 ? '1' : '0'; ?>"
+                    data-total="<?php echo $totalCount; ?>">
+                    <input type="checkbox" class="media-file-check" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
+                    <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>">
+                        <?php echo htmlspecialchars($file); ?>
+                    </button>
+                    <span class="media-file-meta"><?php echo strtoupper(pathinfo($file, PATHINFO_EXTENSION)); ?> · <?php echo format_bytes($size); ?></span>
+                    <span class="media-file-summary<?php echo $totalCount === 0 ? ' is-unused' : ''; ?>"><?php echo htmlspecialchars($summary); ?></span>
+                    <button type="button" class="sp-btn sp-btn-primary sp-btn-sm media-test-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-type="<?php echo $type; ?>" title="Test playback">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm media-delete-single" data-file="<?php echo htmlspecialchars($file); ?>" title="Delete file">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <div class="media-empty-filter" style="display:none;">
+                <p>No files match the current filter.</p>
+            </div>
+        </form>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Per-file modal -->
+<div class="sp-modal-backdrop" id="media-modal-backdrop" style="display:none;">
+    <div class="sp-modal media-modal" role="dialog" aria-modal="true" aria-labelledby="media-modal-title">
+        <header class="sp-modal-head">
+            <span class="sp-modal-title" id="media-modal-title">…</span>
+            <button type="button" class="sp-modal-close" id="media-modal-close" aria-label="Close">&times;</button>
         </header>
-        <div class="sp-card-body">
-            <?php if (!empty($soundalert_files)): ?>
-            <form action="" method="POST" id="soundDeleteForm" class="media-delete-form">
-                <input type="hidden" name="media_type" value="sound_alert">
-                <div class="sp-table-wrap">
-                    <table class="sp-table media-table">
-                        <thead>
-                            <tr>
-                                <th class="col-select"><?php echo t('sound_alerts_select'); ?></th>
-                                <th><?php echo t('sound_alerts_file_name'); ?></th>
-                                <th><?php echo t('sound_alerts_channel_point_reward'); ?></th>
-                                <th class="col-action"><?php echo t('sound_alerts_action'); ?></th>
-                                <th class="col-test"><?php echo t('sound_alerts_test_audio'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($soundalert_files as $file):
-                                $current_reward_id = $soundAlertMappings[$file] ?? null;
-                                $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id] ?? '') : t('sound_alerts_not_mapped');
-                            ?>
-                            <tr>
-                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                                <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td>
-                                    <?php if ($current_reward_id): ?>
-                                        <em><?php echo $current_reward_title; ?></em>
-                                    <?php else: ?>
-                                        <em><?php echo t('sound_alerts_not_mapped'); ?></em>
-                                    <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form media-mapping-form">
-                                        <input type="hidden" name="media_type" value="sound_alert_mapping">
-                                        <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                        <select name="reward_id" class="sp-select mapping-select media-mapping-select">
-                                            <?php if ($current_reward_id): ?>
-                                                <option value=""><?php echo t('sound_alerts_remove_mapping'); ?></option>
-                                            <?php endif; ?>
-                                            <option value=""><?php echo t('sound_alerts_select_reward'); ?></option>
-                                            <?php foreach ($channelPointRewards as $reward):
-                                                $isMapped = (in_array($reward['reward_id'], $soundAlertMappings) || in_array($reward['reward_id'], $videoMappedRewards));
-                                                $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                                if ($isMapped && !$isCurrent) continue;
-                                            ?>
-                                                <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) echo ' selected'; ?>>
-                                                    <?php echo htmlspecialchars($reward['reward_title']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </form>
-                                </td>
-                                <td>
-                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="soundDeleteForm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="SOUND_ALERT" data-param="sound" data-file="<?php echo htmlspecialchars($file); ?>">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </form>
-            <?php else: ?>
-                <div class="media-empty-state">
-                    <p><?php echo t('sound_alerts_no_files_uploaded'); ?></p>
-                </div>
-            <?php endif; ?>
+        <div class="sp-modal-body" id="media-modal-body">
+            <!-- populated by JS -->
         </div>
     </div>
 </div>
-<div class="tab-content" id="video-alerts" style="display:<?php echo $activeTab === 'video-alerts' ? 'block' : 'none'; ?>;">
-    <!-- File Management Card -->
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <span class="sp-card-title"><i class="fas fa-film"></i> <?php echo t('video_alerts_your_alerts'); ?></span>
-            <button class="sp-btn sp-btn-danger delete-selected-btn" disabled data-form="videoDeleteForm">
-                <i class="fas fa-trash"></i> <span><?php echo t('video_alerts_delete_selected'); ?></span>
-            </button>
-        </header>
-        <div class="sp-card-body">
-            <?php if (!empty($videoalert_files)): ?>
-            <form action="" method="POST" id="videoDeleteForm" class="media-delete-form">
-                <input type="hidden" name="media_type" value="video_alert">
-                <div class="sp-table-wrap">
-                    <table class="sp-table media-table">
-                        <thead>
-                            <tr>
-                                <th class="col-select"><?php echo t('video_alerts_select'); ?></th>
-                                <th><?php echo t('video_alerts_file_name'); ?></th>
-                                <th><?php echo t('video_alerts_channel_point_reward'); ?></th>
-                                <th class="col-action"><?php echo t('video_alerts_action'); ?></th>
-                                <th class="col-test"><?php echo t('video_alerts_test_video'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($videoalert_files as $file):
-                                $current_reward_id = $videoAlertMappings[$file] ?? null;
-                                $current_reward_title = $current_reward_id ? htmlspecialchars($rewardIdToTitle[$current_reward_id] ?? '') : t('video_alerts_not_mapped');
-                            ?>
-                            <tr>
-                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                                <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td>
-                                    <?php if ($current_reward_id): ?>
-                                        <em><?php echo $current_reward_title; ?></em>
-                                    <?php else: ?>
-                                        <em><?php echo t('video_alerts_not_mapped'); ?></em>
-                                    <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form media-mapping-form">
-                                        <input type="hidden" name="media_type" value="video_alert_mapping">
-                                        <input type="hidden" name="video_file" value="<?php echo htmlspecialchars($file); ?>">
-                                        <select name="reward_id" class="sp-select mapping-select media-mapping-select">
-                                            <?php if ($current_reward_id): ?>
-                                                <option value=""><?php echo t('video_alerts_remove_mapping'); ?></option>
-                                            <?php endif; ?>
-                                            <option value=""><?php echo t('video_alerts_select_reward'); ?></option>
-                                            <?php foreach ($channelPointRewards as $reward):
-                                                $isMapped = (in_array($reward['reward_id'], $videoAlertMappings) || in_array($reward['reward_id'], $soundMappedRewards));
-                                                $isCurrent = ($current_reward_id === $reward['reward_id']);
-                                                if ($isMapped && !$isCurrent) continue;
-                                            ?>
-                                                <option value="<?php echo htmlspecialchars($reward['reward_id']); ?>"<?php if ($isCurrent) echo ' selected'; ?>>
-                                                    <?php echo htmlspecialchars($reward['reward_title']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </form>
-                                </td>
-                                <td>
-                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="videoDeleteForm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="VIDEO_ALERT" data-param="video" data-file="<?php echo htmlspecialchars($file); ?>">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </form>
-            <?php else: ?>
-                <div class="media-empty-state">
-                    <p><?php echo t('video_alerts_no_files_uploaded'); ?></p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-<div class="tab-content" id="walkons" style="display:<?php echo $activeTab === 'walkons' ? 'block' : 'none'; ?>;">
-    <!-- File Management Card -->
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <span class="sp-card-title"><i class="fas fa-door-open"></i> <?php echo t('walkons_users_with_walkons'); ?></span>
-            <button class="sp-btn sp-btn-danger delete-selected-btn" disabled data-form="walkonDeleteForm">
-                <i class="fas fa-trash"></i> <span><?php echo t('walkons_delete_selected'); ?></span>
-            </button>
-        </header>
-        <div class="sp-card-body">
-            <?php if (!empty($walkon_files)): ?>
-            <form action="" method="POST" id="walkonDeleteForm" class="media-delete-form">
-                <input type="hidden" name="media_type" value="walkon">
-                <div class="sp-table-wrap">
-                    <table class="sp-table media-table">
-                        <thead>
-                            <tr>
-                                <th class="col-select"><?php echo t('walkons_select'); ?></th>
-                                <th><?php echo t('walkons_file_name'); ?></th>
-                                <th class="col-action-w"><?php echo t('walkons_action'); ?></th>
-                                <th class="col-test-w"><?php echo t('walkons_test_audio'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($walkon_files as $file): ?>
-                            <tr>
-                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                                <td><?php echo htmlspecialchars(formatFileNameWithExt($file)); ?></td>
-                                <td>
-                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="walkonDeleteForm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="WALKON" data-param="user" data-file="<?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </form>
-            <?php else: ?>
-                <div class="media-empty-state">
-                    <p><?php echo t('walkons_no_files_uploaded'); ?></p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-<div class="tab-content" id="twitch-events" style="display:<?php echo $activeTab === 'twitch-events' ? 'block' : 'none'; ?>;">
-    <!-- File Management Card -->
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <span class="sp-card-title"><i class="fas fa-volume-up"></i> <?php echo t('modules_your_twitch_sound_alerts'); ?></span>
-            <button class="sp-btn sp-btn-danger delete-selected-btn" disabled data-form="twitchDeleteForm">
-                <i class="fas fa-trash"></i> <span><?php echo t('modules_delete_selected'); ?></span>
-            </button>
-        </header>
-        <div class="sp-card-body">
-            <?php if (!empty($soundalert_files)):
-                $allEvents = ['Follow', 'Raid', 'Cheer', 'Subscription', 'Gift Subscription', 'Hype Train Start', 'Hype Train End'];
-            ?>
-            <form action="" method="POST" id="twitchDeleteForm" class="media-delete-form">
-                <input type="hidden" name="media_type" value="twitch_event">
-                <div class="sp-table-wrap">
-                    <table class="sp-table media-table">
-                        <thead>
-                            <tr>
-                                <th class="col-select"><?php echo t('modules_select'); ?></th>
-                                <th><?php echo t('modules_file_name'); ?></th>
-                                <th><?php echo t('modules_twitch_event'); ?></th>
-                                <th class="col-action"><?php echo t('modules_action'); ?></th>
-                                <th class="col-test"><?php echo t('modules_test_audio'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($soundalert_files as $file):
-                                $current_mapped = $twitchSoundAlertMappings[$file] ?? null;
-                                $mappedEvents = [];
-                                foreach ($twitchSoundAlertMappings as $mappedFile => $mappedEvent) {
-                                    if ($mappedFile !== $file && $mappedEvent) {
-                                        $mappedEvents[] = $mappedEvent;
-                                    }
-                                }
-                                $availableEvents = array_diff($allEvents, $mappedEvents);
-                            ?>
-                            <tr>
-                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                                <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td>
-                                    <?php if ($current_mapped): ?>
-                                        <em><?php echo t('modules_event_' . strtolower(str_replace(' ', '_', $current_mapped))); ?></em>
-                                    <?php else: ?>
-                                        <em><?php echo t('modules_not_mapped'); ?></em>
-                                    <?php endif; ?>
-                                    <form action="" method="POST" class="mapping-form media-mapping-form">
-                                        <input type="hidden" name="media_type" value="twitch_event_mapping">
-                                        <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                                        <select name="twitch_alert_id" class="sp-select mapping-select">
-                                            <?php if ($current_mapped): ?>
-                                                <option value=""><?php echo t('modules_remove_mapping'); ?></option>
-                                            <?php endif; ?>
-                                            <option value=""><?php echo t('modules_select_event'); ?></option>
-                                            <?php foreach ($allEvents as $evt):
-                                                $isMapped = in_array($evt, $mappedEvents);
-                                                $isCurrent = ($current_mapped === $evt);
-                                                if ($isMapped && !$isCurrent) continue;
-                                            ?>
-                                                <option value="<?php echo htmlspecialchars($evt); ?>"<?php if ($isCurrent) echo ' selected'; ?>>
-                                                    <?php echo t('modules_event_' . strtolower(str_replace(' ', '_', $evt))); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </form>
-                                </td>
-                                <td>
-                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="twitchDeleteForm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="SOUND_ALERT" data-param="sound" data-file="twitch/<?php echo htmlspecialchars($file); ?>">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </form>
-            <?php else: ?>
-                <div class="media-empty-state">
-                    <p><?php echo t('modules_no_sound_alert_files_uploaded'); ?></p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-<div class="tab-content" id="alert-media" style="display:<?php echo $activeTab === 'alert-media' ? 'block' : 'none'; ?>;">
-    <div class="sp-card">
-        <header class="sp-card-header">
-            <span class="sp-card-title"><i class="fas fa-bell"></i> Alert Media</span>
-            <button class="sp-btn sp-btn-danger delete-selected-btn" disabled data-form="alertMediaDeleteForm">
-                <i class="fas fa-trash"></i> <span>Delete Selected</span>
-            </button>
-        </header>
-        <div class="sp-card-body">
-            <?php if (!empty($soundalert_files)): ?>
-            <form action="" method="POST" id="alertMediaDeleteForm" class="media-delete-form">
-                <input type="hidden" name="media_type" value="alert_media">
-                <div class="sp-table-wrap">
-                    <table class="sp-table media-table">
-                        <thead>
-                            <tr>
-                                <th class="col-select">Select</th>
-                                <th>File Name</th>
-                                <th>Used By Alerts</th>
-                                <th class="col-action">Action</th>
-                                <th class="col-test">Test Audio</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($soundalert_files as $file):
-                                $usages = $alertMediaFiles[$file] ?? [];
-                            ?>
-                            <tr>
-                                <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-                                <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-                                <td>
-                                    <?php if (!empty($usages)): ?>
-                                        <?php foreach ($usages as $usage): ?>
-                                            <div>
-                                                <em><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $usage['category']))); ?></em>
-                                                &mdash; <?php echo htmlspecialchars($usage['variant']); ?>
-                                                (<?php echo $usage['type']; ?>)
-                                            </div>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <em>Not used in any alert</em>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <button type="button" class="delete-single sp-btn sp-btn-danger sp-btn-sm" data-file="<?php echo htmlspecialchars($file); ?>" data-form="alertMediaDeleteForm">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button type="button" class="test-media sp-btn sp-btn-primary sp-btn-sm" data-event="SOUND_ALERT" data-param="sound" data-file="<?php echo htmlspecialchars($file); ?>">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </form>
-            <?php else: ?>
-                <div class="media-empty-state">
-                    <p>No MP3 files uploaded yet. Upload files using the upload form above.</p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
+
 <?php
 $content = ob_get_clean();
+
+// Ship all mapping data to the client so the modal can render without
+// another round trip on open.
+$mediaDataJson = json_encode([
+    'sound_alerts'        => $soundAlertMappings,
+    'video_alerts'        => $videoAlertMappings,
+    'twitch_events'       => $twitchSoundAlertMappings,
+    'walkons'             => $walkonsByFile,
+    'alert_builder'       => $alertMediaFiles,
+    'rewards'             => array_values($channelPointRewards),
+    'reward_titles'       => $rewardIdToTitle,
+    'reward_used_sound'   => array_values(array_unique($soundMappedRewards)),
+    'reward_used_video'   => array_values(array_unique($videoMappedRewards)),
+    'twitch_events_list'  => $allTwitchEvents,
+    'seen_users'          => $seenUsers,
+], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
 
 ob_start();
 ?>
 <script>
-$(document).ready(function() {
-    // Tab switching
-    $('.sp-tabs-nav li').on('click', function() {
-        var tab = $(this).data('tab');
-        $('.sp-tabs-nav li').removeClass('is-active');
-        $(this).addClass('is-active');
-        $('.tab-content').hide();
-        $('#' + tab).show();
-    });
-    // Auto-dismiss status messages after 15 seconds
-    if ($('.sp-notif').length) {
-        setTimeout(function() {
-            $('.sp-notif').fadeOut(500, function() {
-                $(this).remove();
+window.__MEDIA_DATA = <?php echo $mediaDataJson; ?>;
+window.__MEDIA_CTX  = {
+    apiKey:   <?php echo json_encode($api_key); ?>,
+    channel:  <?php echo json_encode($username); ?>
+};
+
+$(document).ready(function () {
+    var data = window.__MEDIA_DATA;
+    // ------------------------------------------------------------------
+    // Modal rendering
+    // ------------------------------------------------------------------
+    var modal     = document.getElementById('media-modal-backdrop');
+    var modalBody = document.getElementById('media-modal-body');
+    var modalTitle= document.getElementById('media-modal-title');
+    var activeFile = null;
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function fileType(file) {
+        var ext = (file.split('.').pop() || '').toLowerCase();
+        return ext === 'mp4' ? 'video' : (ext === 'mp3' ? 'audio' : 'other');
+    }
+    function rewardTitle(id) {
+        return data.reward_titles[id] || '(unknown reward)';
+    }
+    // Available rewards: not currently mapped to ANY file via sound OR video.
+    // (A reward triggers one sound — if it's already used elsewhere, hide it.)
+    function availableRewards(currentRewardIds) {
+        var used = new Set(data.reward_used_sound.concat(data.reward_used_video));
+        // Allow the rewards already attached to THIS file to stay selectable as remove targets
+        currentRewardIds.forEach(function (id) { used.delete(id); });
+        return data.rewards.filter(function (r) { return !used.has(r.reward_id); });
+    }
+    function availableEvents(currentEventIds) {
+        var used = new Set();
+        Object.keys(data.twitch_events).forEach(function (file) {
+            (data.twitch_events[file] || []).forEach(function (eid) { used.add(eid); });
+        });
+        currentEventIds.forEach(function (id) { used.delete(id); });
+        return data.twitch_events_list.filter(function (e) { return !used.has(e); });
+    }
+    function renderSection(title, chips, addControl, readonly) {
+        var html = '<div class="media-modal-section' + (readonly ? ' media-modal-section-readonly' : '') + '">';
+        html += '<div class="media-modal-section-title">' + escapeHtml(title) + '</div>';
+        html += '<div class="mapping-chips">';
+        if (chips.length === 0) {
+            html += '<em class="mapping-empty">No mappings yet.</em>';
+        } else {
+            chips.forEach(function (c) {
+                html += '<span class="mapping-chip">' + escapeHtml(c.label);
+                if (!readonly && c.removeData) {
+                    html += '<button type="button" class="mapping-chip-remove"';
+                    Object.keys(c.removeData).forEach(function (k) {
+                        html += ' data-' + k + '="' + escapeHtml(c.removeData[k]) + '"';
+                    });
+                    html += '>&times;</button>';
+                }
+                html += '</span>';
             });
+        }
+        html += '</div>';
+        if (addControl) html += addControl;
+        html += '</div>';
+        return html;
+    }
+    function renderModal(file) {
+        activeFile = file;
+        modalTitle.textContent = file;
+        var type = fileType(file);
+        var rewards     = (type === 'video' ? data.video_alerts[file] : data.sound_alerts[file]) || [];
+        var events      = data.twitch_events[file] || [];
+        var walkons     = data.walkons[file]       || [];
+        var alertBuilder= data.alert_builder[file] || [];
+        var html = '';
+        // Header
+        html += '<div class="media-modal-fileinfo">' + escapeHtml(type === 'video' ? 'MP4 video' : 'MP3 audio') + '</div>';
+        // Channel point rewards (sound for audio, video for video)
+        var availRewards = availableRewards(rewards);
+        var rewardChips = rewards.map(function (rid) {
+            return {
+                label: rewardTitle(rid),
+                removeData: {
+                    kind: type === 'video' ? 'video_reward' : 'sound_reward',
+                    'reward-id': rid
+                }
+            };
+        });
+        var addReward = '';
+        if (availRewards.length > 0) {
+            addReward = '<select class="sp-select mapping-add-select" data-add-kind="' + (type === 'video' ? 'video_reward' : 'sound_reward') + '">';
+            addReward += '<option value="">+ Add channel point reward…</option>';
+            availRewards.forEach(function (r) {
+                addReward += '<option value="' + escapeHtml(r.reward_id) + '">' + escapeHtml(r.reward_title) + '</option>';
+            });
+            addReward += '</select>';
+        }
+        html += renderSection(type === 'video' ? 'Channel Point Rewards (Video)' : 'Channel Point Rewards', rewardChips, addReward, false);
+        // Twitch events (audio only — no MP4 events today)
+        if (type !== 'video') {
+            var availEvents = availableEvents(events);
+            var eventChips = events.map(function (eid) {
+                return { label: eid, removeData: { kind: 'event', 'event-id': eid } };
+            });
+            var addEvent = '';
+            if (availEvents.length > 0) {
+                addEvent = '<select class="sp-select mapping-add-select" data-add-kind="event">';
+                addEvent += '<option value="">+ Add Twitch event…</option>';
+                availEvents.forEach(function (e) {
+                    addEvent += '<option value="' + escapeHtml(e) + '">' + escapeHtml(e) + '</option>';
+                });
+                addEvent += '</select>';
+            }
+            html += renderSection('Twitch Events', eventChips, addEvent, false);
+        }
+        // Walkons (audio only)
+        if (type !== 'video') {
+            var walkonChips = walkons.map(function (w) {
+                return { label: '@' + w.user_name, removeData: { kind: 'walkon', 'user-id': w.user_id } };
+            });
+            var addWalkon = ''
+                + '<div class="walkon-add-wrap">'
+                + '  <input type="text" class="sp-input walkon-add-input" placeholder="Twitch username…" autocomplete="off" list="walkon-seen-users">'
+                + '  <button type="button" class="sp-btn sp-btn-primary sp-btn-sm walkon-add-confirm">+ Add user</button>'
+                + '  <span class="walkon-add-status"></span>'
+                + '</div>';
+            html += renderSection('Walkons', walkonChips, addWalkon, false);
+        }
+        // Alert builder (read-only)
+        if (alertBuilder.length > 0) {
+            var abChips = alertBuilder.map(function (a) {
+                return { label: a.category + ' · ' + a.variant + ' (' + a.type + ')' };
+            });
+            html += renderSection('Used by Alert Builder', abChips, '', true);
+        }
+        modalBody.innerHTML = html;
+    }
+    function openModal(file) {
+        renderModal(file);
+        modal.style.display = 'flex';
+    }
+    function closeModal() {
+        modal.style.display = 'none';
+        activeFile = null;
+    }
+    document.getElementById('media-modal-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modal.style.display !== 'none') closeModal(); });
+    // Open the modal when a filename is clicked
+    $(document).on('click', '.media-file-name', function () {
+        openModal($(this).data('file'));
+    });
+    function postMapping(payload, onSuccess) {
+        $.ajax({
+            url: '',
+            type: 'POST',
+            data: payload,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            dataType: 'json',
+            success: function (resp) {
+                if (resp && resp.success) {
+                    // Refresh local cache for this file
+                    var f = resp.file;
+                    data.sound_alerts[f]  = resp.mappings.rewards;
+                    data.video_alerts[f]  = resp.mappings.video_rewards;
+                    data.twitch_events[f] = resp.mappings.events;
+                    data.walkons[f]       = resp.mappings.walkons;
+                    // Rebuild flattened reward-used sets so the dropdowns reflect availability
+                    var sUsed = new Set(); var vUsed = new Set();
+                    Object.keys(data.sound_alerts).forEach(function (file) {
+                        (data.sound_alerts[file] || []).forEach(function (r) { sUsed.add(r); });
+                    });
+                    Object.keys(data.video_alerts).forEach(function (file) {
+                        (data.video_alerts[file] || []).forEach(function (r) { vUsed.add(r); });
+                    });
+                    data.reward_used_sound = Array.from(sUsed);
+                    data.reward_used_video = Array.from(vUsed);
+                    if (activeFile === f) renderModal(f);
+                    updateRowSummary(f);
+                    if (onSuccess) onSuccess(resp);
+                } else if (resp && resp.error) {
+                    console.error('Mapping update failed:', resp.error);
+                }
+            },
+            error: function () { console.error('Mapping update request failed'); }
+        });
+    }
+    function updateRowSummary(file) {
+        var row = document.querySelector('.media-file-row[data-file="' + CSS.escape(file) + '"]');
+        if (!row) return;
+        var r = (data.sound_alerts[file] || []).length + (data.video_alerts[file] || []).length;
+        var e = (data.twitch_events[file] || []).length;
+        var w = (data.walkons[file] || []).length;
+        var total = r + e + w;
+        var parts = [];
+        if (r > 0) parts.push(r + ' reward' + (r === 1 ? '' : 's'));
+        if (e > 0) parts.push(e + ' event' + (e === 1 ? '' : 's'));
+        if (w > 0) parts.push(w + ' walkon' + (w === 1 ? '' : 's'));
+        var summaryEl = row.querySelector('.media-file-summary');
+        summaryEl.textContent = total === 0 ? 'Unused' : parts.join(' · ');
+        summaryEl.classList.toggle('is-unused', total === 0);
+        row.dataset.hasRewards = r > 0 ? '1' : '0';
+        row.dataset.hasEvents  = e > 0 ? '1' : '0';
+        row.dataset.hasWalkons = w > 0 ? '1' : '0';
+        row.dataset.total = String(total);
+        applyFilter();
+    }
+    // Add mapping (dropdown change)
+    $(document).on('change', '.mapping-add-select', function () {
+        if (!this.value || !activeFile) return;
+        var kind = $(this).data('add-kind');
+        var payload = { action: 'add' };
+        if (kind === 'sound_reward') {
+            payload.media_type = 'sound_alert_mapping';
+            payload.sound_file = activeFile;
+            payload.reward_id  = this.value;
+        } else if (kind === 'video_reward') {
+            payload.media_type = 'video_alert_mapping';
+            payload.video_file = activeFile;
+            payload.reward_id  = this.value;
+        } else if (kind === 'event') {
+            payload.media_type     = 'twitch_event_mapping';
+            payload.sound_file     = activeFile;
+            payload.twitch_alert_id= this.value;
+        } else { return; }
+        postMapping(payload);
+    });
+    // Remove mapping (× on a chip)
+    $(document).on('click', '.mapping-chip-remove', function () {
+        if (!activeFile) return;
+        var kind = $(this).data('kind');
+        var payload = { action: 'remove' };
+        if (kind === 'sound_reward') {
+            payload.media_type = 'sound_alert_mapping';
+            payload.sound_file = activeFile;
+            payload.reward_id  = $(this).data('reward-id');
+        } else if (kind === 'video_reward') {
+            payload.media_type = 'video_alert_mapping';
+            payload.video_file = activeFile;
+            payload.reward_id  = $(this).data('reward-id');
+        } else if (kind === 'event') {
+            payload.media_type = 'twitch_event_mapping';
+            payload.sound_file = activeFile;
+            payload.twitch_alert_id = $(this).data('event-id');
+        } else if (kind === 'walkon') {
+            payload.media_type = 'walkon_mapping';
+            payload.media_file = activeFile;
+            payload.twitch_user_id = $(this).data('user-id');
+        } else { return; }
+        postMapping(payload);
+    });
+    $(document).on('click', '.walkon-add-confirm', function () {
+        if (!activeFile) return;
+        var input  = $(this).closest('.walkon-add-wrap').find('.walkon-add-input');
+        var status = $(this).closest('.walkon-add-wrap').find('.walkon-add-status');
+        var raw    = (input.val() || '').trim().replace(/^@/, '').toLowerCase();
+        if (!raw) return;
+        status.text('Looking up @' + raw + '…');
+        // Helix resolves both seen_users and unknown logins to a Twitch user_id.
+        // Going through Helix unconditionally keeps the path uniform.
+        $.get('', { action: 'helix_lookup_user', login: raw }, function (resp) {
+            if (!resp || !resp.success) {
+                status.text(resp && resp.error ? resp.error : 'Lookup failed');
+                return;
+            }
+            postMapping({
+                media_type: 'walkon_mapping',
+                action: 'add',
+                media_file: activeFile,
+                twitch_user_id: resp.user_id,
+                twitch_user_name: resp.user_name
+            }, function () { input.val(''); status.text(''); });
+        }, 'json').fail(function () { status.text('Lookup failed'); });
+    });
+    // Populate the seen_users datalist for typeahead
+    (function () {
+        if (!data.seen_users || !data.seen_users.length) return;
+        var dl = document.createElement('datalist');
+        dl.id = 'walkon-seen-users';
+        data.seen_users.forEach(function (u) {
+            var opt = document.createElement('option');
+            opt.value = u;
+            dl.appendChild(opt);
+        });
+        document.body.appendChild(dl);
+    })();
+    var activeFilter = 'all';
+    function applyFilter() {
+        var search = (document.getElementById('media-search-input').value || '').toLowerCase();
+        var rows = document.querySelectorAll('.media-file-row');
+        var visible = 0;
+        rows.forEach(function (row) {
+            var file = (row.dataset.file || '').toLowerCase();
+            var type = row.dataset.type;
+            var match = true;
+            switch (activeFilter) {
+                case 'rewards': match = row.dataset.hasRewards === '1'; break;
+                case 'events':  match = row.dataset.hasEvents  === '1'; break;
+                case 'walkons': match = row.dataset.hasWalkons === '1'; break;
+                case 'unused':  match = row.dataset.total === '0'; break;
+                case 'videos':  match = type === 'video'; break;
+                default:        match = true;
+            }
+            if (match && search) match = file.indexOf(search) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        var empty = document.querySelector('.media-empty-filter');
+        if (empty) empty.style.display = (visible === 0 && rows.length > 0) ? 'block' : 'none';
+    }
+    $(document).on('click', '.media-filter-btn', function () {
+        $('.media-filter-btn').removeClass('is-active');
+        $(this).addClass('is-active');
+        activeFilter = $(this).data('filter');
+        applyFilter();
+    });
+    $('#media-search-input').on('input', applyFilter);
+    if ($('.sp-notif').length) {
+        setTimeout(function () {
+            $('.sp-notif').fadeOut(500, function () { $(this).remove(); });
         }, 15000);
     }
     // File input display update
-    $(document).on('change', '.media-upload-form input[type="file"]', function() {
-        let files = this.files;
-        let label = $(this).closest('.media-drop-zone').find('.file-list-label');
-        let names = [];
-        for (let i = 0; i < files.length; i++) {
-            names.push(files[i].name);
-        }
-        label.text(names.length ? names.join(', ') : label.data('default') || 'No files selected');
+    $(document).on('change', '.media-upload-form input[type="file"]', function () {
+        var files = this.files;
+        var label = $(this).closest('.media-drop-zone').find('.file-list-label');
+        var names = [];
+        for (var i = 0; i < files.length; i++) names.push(files[i].name);
+        label.text(names.length ? names.join(', ') : 'No files selected');
     });
-    // AJAX upload with progress bar (unified for all tabs)
-    $(document).on('submit', '.media-upload-form', function(e) {
+    // AJAX upload
+    $(document).on('submit', '.media-upload-form', function (e) {
         e.preventDefault();
         var form = $(this);
         var fileInput = form.find('input[type="file"]')[0];
         if (fileInput.files.length === 0) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'No Files Selected',
-                text: 'Please select at least one file to upload.',
-                confirmButtonColor: '#3273dc'
-            });
+            Swal.fire({ icon: 'warning', title: 'No Files Selected', text: 'Please select at least one file to upload.', confirmButtonColor: '#3273dc' });
             return;
         }
         var formData = new FormData(this);
@@ -905,154 +914,123 @@ $(document).ready(function() {
         uploadBtn.prop('disabled', true).addClass('sp-btn-loading');
         uploadBtnText.text('Uploading...');
         $.ajax({
-            url: '',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            xhr: function() {
+            url: '', type: 'POST', data: formData, contentType: false, processData: false,
+            xhr: function () {
                 var xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener('progress', function(e) {
+                xhr.upload.addEventListener('progress', function (e) {
                     if (e.lengthComputable) {
                         var pct = Math.round((e.loaded / e.total) * 100);
                         progressBar.val(pct);
                         progressPercent.text(pct + '%');
-                        if (pct < 100) {
-                            statusText.html('<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + pct + '%)');
-                        } else {
-                            statusText.html('<i class="fas fa-check-circle"></i> Processing files on server...');
-                        }
+                        statusText.html(pct < 100
+                            ? '<i class="fas fa-spinner fa-pulse"></i> Uploading... (' + pct + '%)'
+                            : '<i class="fas fa-check-circle"></i> Processing files on server...');
                     }
                 }, false);
                 return xhr;
             },
-            success: function(response) {
-                var data = typeof response === 'string' ? JSON.parse(response) : response;
-                if (data && !data.success) {
+            success: function (response) {
+                var d = typeof response === 'string' ? JSON.parse(response) : response;
+                if (d && !d.success) {
                     statusContainer.hide();
                     uploadBtn.prop('disabled', false).removeClass('sp-btn-loading');
                     uploadBtnText.text('Upload Media (MP3/MP4)');
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Upload Failed',
-                        html: data.status || 'An error occurred during upload.',
-                        confirmButtonColor: '#3273dc'
-                    });
+                    Swal.fire({ icon: 'error', title: 'Upload Failed', html: d.status || 'An error occurred during upload.', confirmButtonColor: '#3273dc' });
                     return;
                 }
                 statusText.html('<i class="fas fa-check-circle"></i> Upload completed successfully!');
                 progressPercent.text('100%');
-                setTimeout(function() { location.reload(); }, 1500);
+                setTimeout(function () { location.reload(); }, 1500);
             },
-            error: function() {
+            error: function () {
                 statusContainer.hide();
                 uploadBtn.prop('disabled', false).removeClass('sp-btn-loading');
                 uploadBtnText.text('Upload');
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Upload Failed',
-                    text: 'An error occurred during upload. Please try again.',
-                    confirmButtonColor: '#3273dc'
-                });
+                Swal.fire({ icon: 'error', title: 'Upload Failed', text: 'An error occurred during upload. Please try again.', confirmButtonColor: '#3273dc' });
             }
         });
     });
-    // Mapping select change (AJAX submit)
-    $(document).on('change', '.mapping-select', function() {
-        var form = $(this).closest('form');
-        $.post('', form.serialize(), function() {
-            location.reload();
-        });
+    $(document).on('change', '.media-file-check', function () {
+        var checked = $('.media-file-check:checked').length;
+        $('.media-delete-selected-btn').prop('disabled', checked < 1);
     });
-    // Checkbox monitoring for delete-selected buttons
-    $(document).on('change', '.media-delete-form input[type="checkbox"]', function() {
-        var form = $(this).closest('.media-delete-form');
-        var formId = form.attr('id');
-        var checked = form.find('input[name="delete_files[]"]:checked').length;
-        $('.delete-selected-btn[data-form="' + formId + '"]').prop('disabled', checked < 2);
+    // Delete selected (bulk)
+    $(document).on('click', '.media-delete-selected-btn', function () {
+        var form = $('#mediaDeleteForm');
+        var checked = form.find('.media-file-check:checked');
+        if (checked.length === 0) return;
+        Swal.fire({
+            title: 'Delete Files?',
+            text: 'Are you sure you want to delete the selected ' + checked.length + ' file(s)? All mappings will also be removed.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
+        }).then(function (result) { if (result.isConfirmed) form.submit(); });
     });
-    // Delete selected button
-    $(document).on('click', '.delete-selected-btn', function() {
-        var formId = $(this).data('form');
-        var form = $('#' + formId);
-        var checked = form.find('input[name="delete_files[]"]:checked');
-        if (checked.length > 0) {
-            Swal.fire({
-                title: 'Delete Files?',
-                text: 'Are you sure you want to delete the selected ' + checked.length + ' file(s)?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete',
-                cancelButtonText: 'Cancel'
-            }).then(function(result) {
-                if (result.isConfirmed) {
-                    form.submit();
-                }
-            });
-        }
-    });
-    // Single delete button
-    $(document).on('click', '.delete-single', function() {
+    // Delete single
+    $(document).on('click', '.media-delete-single', function () {
         var fileName = $(this).data('file');
-        var formId = $(this).data('form');
         Swal.fire({
             title: 'Delete File?',
-            text: 'Are you sure you want to delete "' + fileName + '"?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Yes, delete',
-            cancelButtonText: 'Cancel'
-        }).then(function(result) {
+            text: 'Are you sure you want to delete "' + fileName + '"? All mappings will also be removed.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
+        }).then(function (result) {
             if (result.isConfirmed) {
-                $('<input>').attr({
-                    type: 'hidden',
-                    name: 'delete_files[]',
-                    value: fileName
-                }).appendTo('#' + formId);
-                $('#' + formId).submit();
+                $('<input>').attr({ type: 'hidden', name: 'delete_files[]', value: fileName }).appendTo('#mediaDeleteForm');
+                $('#mediaDeleteForm').submit();
             }
         });
     });
-});
-// Test media playback
-document.addEventListener("DOMContentLoaded", function() {
-    document.querySelectorAll(".test-media").forEach(function(button) {
-        button.addEventListener("click", function() {
-            var eventType = this.getAttribute("data-event");
-            var paramName = this.getAttribute("data-param");
-            var fileName = this.getAttribute("data-file");
-            sendStreamEvent(eventType, paramName, fileName);
+    // Test playback (existing notify_event flow)
+    $(document).on('click', '.media-test-btn', function () {
+        var file = $(this).data('file');
+        var type = $(this).data('type');
+        var eventType = type === 'video' ? 'VIDEO_ALERT' : 'SOUND_ALERT';
+        var paramName = type === 'video' ? 'video' : 'sound';
+        sendStreamEvent(eventType, paramName, file);
+    });
+    // Migration button — wire it up to migrate_media.php
+    $('#media-migrate-btn').on('click', function () {
+        var btn = $(this);
+        Swal.fire({
+            title: 'Migrate to Unified Library?',
+            html: '<p>This copies your existing sound alerts, video alerts, and walkon files into the unified library. Existing walkons are auto-tagged to their Twitch user.</p><p><strong>Original files are not deleted</strong> — migration is non-destructive.</p>',
+            icon: 'info', showCancelButton: true,
+            confirmButtonText: 'Yes, migrate', cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Migrating…');
+            $.post('migrate_media.php', {}, function (resp) {
+                if (resp && resp.success) {
+                    Swal.fire({ icon: 'success', title: 'Migration Complete', text: resp.message }).then(function () { location.reload(); });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Migration Failed', text: (resp && resp.message) ? resp.message : 'Unknown error' });
+                    btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> Migrate to Unified Media Library');
+                }
+            }, 'json').fail(function () {
+                Swal.fire({ icon: 'error', title: 'Migration Failed', text: 'Server error during migration.' });
+                btn.prop('disabled', false).html('<i class="fas fa-arrow-right"></i> Migrate to Unified Media Library');
+            });
         });
     });
 });
+
 function sendStreamEvent(eventType, paramName, fileName) {
     var xhr = new XMLHttpRequest();
     var url = "notify_event.php";
-    var params;
-    if (eventType === "WALKON") {
-        params = "event=" + eventType + "&user=" + encodeURIComponent(fileName) + "&channel=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>";
-    } else {
-        params = "event=" + eventType + "&" + paramName + "=" + encodeURIComponent(fileName) + "&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>";
-    }
+    var params = "event=" + eventType + "&" + paramName + "=" + encodeURIComponent(fileName)
+               + "&channel_name=" + encodeURIComponent(window.__MEDIA_CTX.channel)
+               + "&api_key=" + encodeURIComponent(window.__MEDIA_CTX.apiKey);
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    xhr.onreadystatechange = function() {
+    xhr.onreadystatechange = function () {
         if (xhr.readyState === 4 && xhr.status === 200) {
             try {
                 var response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    console.log(eventType + " event for " + fileName + " sent successfully.");
-                } else {
-                    console.error("Error sending " + eventType + " event: " + response.message);
-                }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e);
-            }
-        } else if (xhr.readyState === 4) {
-            console.error("Error sending " + eventType + " event: " + xhr.responseText);
-        }
+                if (response.success) console.log(eventType + " event for " + fileName + " sent.");
+                else console.error("Error: " + response.message);
+            } catch (e) { console.error("Bad JSON:", e); }
+        } else if (xhr.readyState === 4) { console.error("Request failed: " + xhr.responseText); }
     };
     xhr.send(params);
 }
