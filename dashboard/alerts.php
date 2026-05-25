@@ -6,7 +6,7 @@ ini_set('max_execution_time', 300);
 
 require_once '/var/www/lib/require_auth.php';
 
-$pageTitle = 'Twitch Alerts';
+$pageTitle = 'Specter Alerts';
 
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
@@ -32,25 +32,31 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
-// Default alert variants to seed on first visit
+$MAX_VARIANTS = 200;
 $defaultAlerts = [
-    ['follow', 'New Follow', 0, null, "{username}\njust followed!"],
-    ['subscription', 'New Subscriber', 0, 'months = 1', "{username}\njust subscribed!"],
-    ['subscription', 'New Subscriber', 1, 'months >= 2', "{username}\nsubscribed for {months} months!"],
-    ['gift_subscription', 'New Subscriber Gift', 0, null, "{username}\ngifted a subscription!"],
-    ['gift_subscription', 'New Subscriber Gift', 1, 'gift_count >= 1', "{username}\ngifted {amount} subs!"],
-    ['bits', 'First Time Cheer', 0, 'is_first = 1', "{username}\njust cheered for the first time!"],
-    ['bits', '100 Bits', 1, 'bits >= 100', "{username}\ncheered {amount} bits!"],
-    ['bits', '1k Bits', 2, 'bits >= 1000', "{username}\ncheered {amount} bits!"],
-    ['bits', '5K Bits', 3, 'bits >= 5000', "{username}\ncheered {amount} bits!"],
-    ['bits', '10K Bits', 4, 'bits >= 10000', "{username}\ncheered {amount} bits!"],
-    ['raid', 'New Raid', 0, 'viewers >= 1', "{username}\nis raiding with {viewers} viewers!"],
-    ['charity', 'New Charity Donation', 0, null, "{username}\ndonated to charity!"],
-    ['hype_train', 'Hype Train Started', 0, null, "Hype Train Started!"],
-    ['hype_train', 'Hype Train New All Time High', 1, null, "New All Time High!"],
-    ['channel_points', '1st in Chat', 0, null, "{username}\nis 1st in chat!"],
-    ['goals', 'Goal Started', 0, null, "A new goal has started!"],
-    ['goals', 'Goal Reached', 1, null, "Goal reached!"],
+    // Native Twitch events
+    ['follow', 'New follower', 0, null, "{username}\nfollowed!"],
+    ['subscription', 'New subscriber', 0, 'months = 1', "{username}\njust subscribed!"],
+    ['subscription', 'Resub', 1, 'months >= 2', "{username}\nresubscribed for {months} months!"],
+    ['gift_subscription', 'Single gift sub', 0, null, "{username}\ngifted a sub!"],
+    ['gift_subscription', 'Bulk gift subs', 1, 'gift_count >= 5', "{username}\ngifted {amount} subs!"],
+    ['bits', 'First cheer', 0, 'is_first = 1', "{username}\njust cheered for the first time!"],
+    ['bits', '100+ bits', 1, 'bits >= 100', "{username}\ncheered {amount} bits!"],
+    ['bits', '1k+ bits', 2, 'bits >= 1000', "{username}\ndropped {amount} bits!"],
+    ['bits', '10k+ bits', 3, 'bits >= 10000', "{username}\nrained {amount} bits!"],
+    ['raid', 'Raid', 0, 'viewers >= 1', "{username}\nraiding with {viewers}!"],
+    ['hype_train', 'Hype train started', 0, null, "The Hype Train is leaving the station!"],
+    ['hype_train', 'Hype train high', 1, null, "New all-time hype train high!"],
+    ['charity', 'Charity donation', 0, null, "{username}\ndonated to the cause!"],
+    ['channel_points', 'Channel point reward', 0, null, "{username}\nredeemed a reward!"],
+    // BotOfTheSpecter integrations — what makes this page ours
+    ['discord_join', 'New Discord member', 0, null, "{username}\nhopped into the Discord!"],
+    ['kofi', 'Ko-fi tip', 0, null, "{username}\nsent a Ko-fi!"],
+    ['patreon', 'New patron', 0, null, "{username}\nbecame a patron!"],
+    ['fourthwall', 'Fourthwall order', 0, null, "{username}\nbought from the shop!"],
+    ['subathon', 'Subathon time added', 0, null, "{added_minutes} minutes added to the subathon!"],
+    ['stream_bingo', 'Bingo winner', 0, null, "BINGO! {username}\ngot it!"],
+    ['watch_streak', 'Watch streak', 0, 'streak >= 7', "{username}\nis on a {streak}-stream watch streak!"],
 ];
 
 // Seed defaults if table is empty
@@ -69,7 +75,6 @@ if ($count == 0) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
-
     if ($action === 'save_alert') {
         $id = intval($_POST['id'] ?? 0);
         if ($id <= 0) {
@@ -111,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $text_alignment = $_POST['text_alignment'] ?? 'center';
         $text_vertical_alignment = $_POST['text_vertical_alignment'] ?? 'center';
         $text_color = $_POST['text_color'] ?? '#FFFFFF';
-        $accent_color = $_POST['accent_color'] ?? '#A1C53A';
+        $accent_color = $_POST['accent_color'] ?? '#7C5CBF';
         $text_drop_shadow = intval($_POST['text_drop_shadow'] ?? 1);
         $tts_enabled = intval($_POST['tts_enabled'] ?? 0);
         $alert_image = $_POST['alert_image'] ?? null;
@@ -123,7 +128,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $celebration_effect = $_POST['celebration_effect'] ?? 'fireworks';
         $celebration_intensity = $_POST['celebration_intensity'] ?? 'light';
         $celebration_area = $_POST['celebration_area'] ?? 'full';
-
         $stmt->bind_param('sisississsiiiissssissssississiisssi',
             $variant_name, $enabled, $alert_condition,
             $duration, $animation_in, $animation_out,
@@ -139,14 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $id
         );
         if ($stmt->execute()) {
-            echo json_encode(['success' => true, 'message' => 'Alert settings saved.']);
+            echo json_encode(['success' => true, 'message' => 'Variant saved.']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Failed to save: ' . $stmt->error]);
         }
         $stmt->close();
         exit;
     }
-
     if ($action === 'toggle_alert') {
         $id = intval($_POST['id'] ?? 0);
         $enabled = intval($_POST['enabled'] ?? 0);
@@ -157,7 +160,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         echo json_encode(['success' => true]);
         exit;
     }
-
+    if ($action === 'create_variant') {
+        $cnt = $db->query("SELECT COUNT(*) AS cnt FROM twitch_alerts")->fetch_assoc()['cnt'];
+        if ($cnt >= $MAX_VARIANTS) {
+            echo json_encode(['success' => false, 'message' => "Variant cap of $MAX_VARIANTS reached. Delete unused variants first."]);
+            exit;
+        }
+        $category = $_POST['category'] ?? '';
+        if ($category === '') {
+            echo json_encode(['success' => false, 'message' => 'Category required.']);
+            exit;
+        }
+        // Pick a name that doesn't collide with siblings
+        $base = 'New variant';
+        $name = $base;
+        $existingStmt = $db->prepare("SELECT variant_name FROM twitch_alerts WHERE alert_category = ?");
+        $existingStmt->bind_param('s', $category);
+        $existingStmt->execute();
+        $existingNames = [];
+        $res = $existingStmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $existingNames[$row['variant_name']] = true;
+        }
+        $existingStmt->close();
+        $i = 2;
+        while (isset($existingNames[$name])) {
+            $name = "$base $i";
+            $i++;
+        }
+        // Next variant_index for this category
+        $idxRes = $db->query("SELECT COALESCE(MAX(variant_index), -1) + 1 AS next_idx FROM twitch_alerts WHERE alert_category = " . "'" . $db->real_escape_string($category) . "'");
+        $nextIdx = (int)$idxRes->fetch_assoc()['next_idx'];
+        $insStmt = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index, message_template) VALUES (?, ?, ?, ?)");
+        $tpl = "{username}\nfired this alert!";
+        $insStmt->bind_param('ssis', $category, $name, $nextIdx, $tpl);
+        if ($insStmt->execute()) {
+            $newId = $insStmt->insert_id;
+            $insStmt->close();
+            $row = $db->query("SELECT * FROM twitch_alerts WHERE id = $newId")->fetch_assoc();
+            echo json_encode(['success' => true, 'variant' => $row]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to create variant: ' . $insStmt->error]);
+            $insStmt->close();
+        }
+        exit;
+    }
+    if ($action === 'delete_variant') {
+        $id = intval($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid variant ID.']);
+            exit;
+        }
+        $stmt = $db->prepare("DELETE FROM twitch_alerts WHERE id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => true, 'message' => 'Variant deleted.']);
+        exit;
+    }
+    if ($action === 'set_category_randomize') {
+        $category = $_POST['category'] ?? '';
+        $randomize = intval($_POST['randomize'] ?? 0) ? 1 : 0;
+        if ($category === '') {
+            echo json_encode(['success' => false, 'message' => 'Category required.']);
+            exit;
+        }
+        $stmt = $db->prepare("INSERT INTO twitch_alert_category_settings (category, randomize) VALUES (?, ?) ON DUPLICATE KEY UPDATE randomize = VALUES(randomize)");
+        $stmt->bind_param('si', $category, $randomize);
+        $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => true]);
+        exit;
+    }
     if ($action === 'upload_alert_media') {
         if (!isset($_FILES['media_file'])) {
             echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
@@ -199,7 +273,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         }
         exit;
     }
-
     if ($action === 'remove_alert_media') {
         $id = intval($_POST['id'] ?? 0);
         $field = $_POST['field'] ?? '';
@@ -211,15 +284,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
-        echo json_encode(['success' => true, 'message' => 'Media removed from alert.']);
+        echo json_encode(['success' => true, 'message' => 'Media removed from variant.']);
         exit;
     }
-
     echo json_encode(['success' => false, 'message' => 'Unknown action.']);
     exit;
 }
 
-// Fetch all alerts grouped by category
+# Data load for page render
 $allAlerts = [];
 $alertsByCategory = [];
 $result = $db->query("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index");
@@ -229,82 +301,140 @@ while ($row = $result->fetch_assoc()) {
 }
 $alertsJson = json_encode($allAlerts);
 
-// Category display metadata
+// Per-category randomize flags
+$categoryRandomize = [];
+if ($r = $db->query("SELECT category, randomize FROM twitch_alert_category_settings")) {
+    while ($row = $r->fetch_assoc()) {
+        $categoryRandomize[$row['category']] = (int)$row['randomize'];
+    }
+    $r->free();
+}
+
 $categoryMeta = [
-    'follow' => ['icon' => 'fas fa-heart', 'label' => 'Follows'],
-    'subscription' => ['icon' => 'fas fa-star', 'label' => 'Subscriptions'],
-    'gift_subscription' => ['icon' => 'fas fa-gift', 'label' => 'Gifted Subscriptions'],
-    'bits' => ['icon' => 'fas fa-gem', 'label' => 'Bits'],
-    'raid' => ['icon' => 'fas fa-users', 'label' => 'Raids'],
-    'charity' => ['icon' => 'fas fa-hand-holding-heart', 'label' => 'Charity'],
-    'hype_train' => ['icon' => 'fas fa-train', 'label' => 'Hype Trains'],
-    'channel_points' => ['icon' => 'fas fa-circle', 'label' => 'Channel Points'],
-    'goals' => ['icon' => 'fas fa-bullseye', 'label' => 'Goals'],
+    'follow'            => ['icon' => 'fas fa-heart', 'label' => 'Follows'],
+    'subscription'      => ['icon' => 'fas fa-star', 'label' => 'Subscriptions'],
+    'gift_subscription' => ['icon' => 'fas fa-gift', 'label' => 'Gifted subs'],
+    'bits'              => ['icon' => 'fas fa-gem', 'label' => 'Bits'],
+    'raid'              => ['icon' => 'fas fa-bullhorn', 'label' => 'Raids'],
+    'hype_train'        => ['icon' => 'fas fa-train', 'label' => 'Hype trains'],
+    'charity'           => ['icon' => 'fas fa-hand-holding-heart', 'label' => 'Charity'],
+    'channel_points'    => ['icon' => 'fas fa-circle-dot', 'label' => 'Channel points'],
+    // BotOfTheSpecter-specific integration categories
+    'discord_join'      => ['icon' => 'fab fa-discord', 'label' => 'Discord joins'],
+    'kofi'              => ['icon' => 'fas fa-mug-hot', 'label' => 'Ko-fi tips'],
+    'patreon'           => ['icon' => 'fab fa-patreon', 'label' => 'Patreon'],
+    'fourthwall'        => ['icon' => 'fas fa-store', 'label' => 'Fourthwall'],
+    'subathon'          => ['icon' => 'fas fa-hourglass-half', 'label' => 'Subathon'],
+    'stream_bingo'      => ['icon' => 'fas fa-trophy', 'label' => 'Stream bingo'],
+    'watch_streak'      => ['icon' => 'fas fa-fire', 'label' => 'Watch streaks'],
 ];
 
 // Animation options
-$animationsIn = ['Fade-In' => 'fadeIn', 'Slide-Left' => 'slideInLeft', 'Slide-Right' => 'slideInRight', 'Slide-Up' => 'slideInUp', 'Slide-Down' => 'slideInDown', 'Bounce' => 'bounceIn', 'Zoom' => 'zoomIn'];
-$animationsOut = ['Fade-Out' => 'fadeOut', 'Slide-Left' => 'slideOutLeft', 'Slide-Right' => 'slideOutRight', 'Slide-Up' => 'slideOutUp', 'Slide-Down' => 'slideOutDown', 'Bounce' => 'bounceOut', 'Zoom' => 'zoomOut'];
+$animationsIn = ['Fade in' => 'fadeIn', 'Slide left' => 'slideInLeft', 'Slide right' => 'slideInRight', 'Slide up' => 'slideInUp', 'Slide down' => 'slideInDown', 'Bounce' => 'bounceIn', 'Zoom' => 'zoomIn'];
+$animationsOut = ['Fade out' => 'fadeOut', 'Slide left' => 'slideOutLeft', 'Slide right' => 'slideOutRight', 'Slide up' => 'slideOutUp', 'Slide down' => 'slideOutDown', 'Bounce' => 'bounceOut', 'Zoom' => 'zoomOut'];
 
 // Font options
 $fonts = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald', 'Raleway', 'Poppins', 'Nunito', 'Ubuntu', 'Bebas Neue', 'Bangers', 'Permanent Marker', 'Press Start 2P', 'Creepster'];
 $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-Bold' => '600', 'Bold' => '700', 'Extra-Bold' => '800'];
 
-// Media base URL for preview
+// Media base URL for preview thumbnails inside this configurator
 $mediaBase = $media_migrated ? "https://media.botofthespecter.com/$username/" : "https://soundalerts.botofthespecter.com/$username/";
+
+$browserSourceUrl = "https://overlay.botofthespecter.com/twitch.php?code=" . urlencode($api_key);
+$totalVariants = count($allAlerts);
 
 ob_start();
 ?>
-<div class="sp-alert sp-alert-info">
-    <i class="fas fa-info-circle"></i> <strong>Coming Soon</strong> &mdash; The Twitch Alerts configuration system is currently under development. Settings are view-only for now and will be fully functional in a future update.
-</div>
-<div class="sp-card" style="opacity:0.5;pointer-events:none;">
-    <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-bell"></i> Twitch Alerts</span>
-        <div style="display:flex;gap:8px;">
-            <button class="sp-btn sp-btn-primary" id="preview-alert-btn" disabled>
-                <i class="fas fa-eye"></i> Preview Alert
+<div class="alerts-page-shell">
+    <!-- Top header bar — title, counter, save/discard -->
+    <header class="alerts-top-bar">
+        <div class="alerts-top-bar-left">
+            <h1 class="alerts-page-title">Alerts</h1>
+            <span class="alerts-variant-counter">
+                <strong id="alerts-variant-count"><?php echo $totalVariants; ?></strong> / <?php echo $MAX_VARIANTS; ?> variants
+            </span>
+        </div>
+        <div class="alerts-top-bar-right">
+            <button class="sp-btn sp-btn-ghost" id="alerts-discard-btn" disabled>
+                <i class="fas fa-rotate-left"></i> Discard
             </button>
-            <button class="sp-btn sp-btn-warning" id="test-alert-btn" disabled>
-                <i class="fas fa-paper-plane"></i> Send Test Alert
+            <button class="sp-btn sp-btn-primary" id="alerts-save-btn" disabled>
+                <i class="fas fa-save"></i> Save changes
             </button>
         </div>
     </header>
-    <div class="sp-card-body alerts-layout">
-        <!-- LEFT: Category Sidebar -->
-        <div class="alerts-sidebar">
-            <?php foreach ($categoryMeta as $category => $meta):
-                $variants = $alertsByCategory[$category] ?? [];
-                $isHidden = ($category === 'goals');
-            ?>
-            <div class="alerts-category" data-category="<?php echo $category; ?>"<?php if ($isHidden) echo ' style="display:none"'; ?>>
-                <div class="alerts-category-header">
-                    <i class="<?php echo $meta['icon']; ?>"></i>
-                    <span><?php echo htmlspecialchars($meta['label']); ?></span>
-                    <i class="fas fa-chevron-right chevron"></i>
-                </div>
-                <div class="alerts-category-variants">
-                    <?php foreach ($variants as $variant): ?>
-                    <div class="alerts-variant-item" data-id="<?php echo $variant['id']; ?>">
-                        <div>
-                            <div class="variant-name"><?php echo htmlspecialchars($variant['variant_name']); ?></div>
-                            <?php if ($variant['alert_condition']): ?>
-                            <div class="variant-condition"><?php echo htmlspecialchars($variant['alert_condition']); ?></div>
-                            <?php endif; ?>
-                        </div>
-                        <span class="alerts-toggle-badge <?php echo $variant['enabled'] ? 'enabled' : 'disabled'; ?>"></span>
-                    </div>
-                    <?php endforeach; ?>
+    <!-- Three-column shell: variants | preview | settings -->
+    <div class="alerts-shell">
+        <!-- LEFT: variants sidebar -->
+        <aside class="alerts-sidebar">
+            <div class="alerts-sidebar-header">
+                <span class="alerts-sidebar-label">Variants</span>
+                <div class="alerts-sidebar-tools">
+                    <a href="#" class="alerts-edit-multiple" id="alerts-edit-multiple-link">Edit multiple</a>
                 </div>
             </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- CENTER: Preview Panel -->
+            <div class="alerts-categories-scroll">
+                <?php foreach ($categoryMeta as $category => $meta):
+                    $variants = $alertsByCategory[$category] ?? [];
+                    $randomize = $categoryRandomize[$category] ?? 0;
+                ?>
+                <section class="alerts-category" data-category="<?php echo htmlspecialchars($category); ?>">
+                    <header class="alerts-category-header">
+                        <span class="alerts-category-icon"><i class="<?php echo $meta['icon']; ?>"></i></span>
+                        <span class="alerts-category-name"><?php echo htmlspecialchars($meta['label']); ?></span>
+                        <span class="alerts-category-count"><?php echo count($variants); ?></span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
+                    <div class="alerts-category-body">
+                        <div class="alerts-category-controls">
+                            <label class="alerts-mini-toggle">
+                                <input type="checkbox" class="alerts-randomize-toggle" data-category="<?php echo htmlspecialchars($category); ?>" <?php echo $randomize ? 'checked' : ''; ?>>
+                                <span class="alerts-mini-toggle-slider"></span>
+                                <span class="alerts-mini-toggle-text">Randomize</span>
+                            </label>
+                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="Add a new variant">
+                                <i class="fas fa-plus"></i> New variant
+                            </button>
+                        </div>
+                        <ul class="alerts-variant-list">
+                            <?php foreach ($variants as $variant): ?>
+                            <li class="alerts-variant-item" data-id="<?php echo $variant['id']; ?>">
+                                <span class="alerts-variant-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
+                                <span class="alerts-variant-priority"><?php echo $variant['variant_index'] + 1; ?></span>
+                                <div class="alerts-variant-info">
+                                    <div class="variant-name"><?php echo htmlspecialchars($variant['variant_name']); ?></div>
+                                    <?php if ($variant['alert_condition']): ?>
+                                    <div class="variant-condition"><?php echo htmlspecialchars($variant['alert_condition']); ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <label class="alerts-mini-toggle" onclick="event.stopPropagation();">
+                                    <input type="checkbox" class="alerts-variant-enabled-toggle" data-id="<?php echo $variant['id']; ?>" <?php echo $variant['enabled'] ? 'checked' : ''; ?>>
+                                    <span class="alerts-mini-toggle-slider"></span>
+                                </label>
+                            </li>
+                            <?php endforeach; ?>
+                            <?php if (empty($variants)): ?>
+                            <li class="alerts-variant-empty">No variants yet — add one above.</li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                </section>
+                <?php endforeach; ?>
+            </div>
+        </aside>
+        <!-- CENTER: preview panel -->
         <div class="alerts-preview-panel">
+            <div class="alerts-preview-actions">
+                <button class="sp-btn sp-btn-secondary" id="preview-alert-btn" disabled>
+                    <i class="fas fa-eye"></i> Replay preview
+                </button>
+                <button class="sp-btn sp-btn-primary" id="test-alert-btn" disabled>
+                    <i class="fas fa-paper-plane"></i> Trigger live test
+                </button>
+            </div>
             <div class="alerts-preview-area" id="preview-area">
                 <div class="alerts-no-selection" id="preview-placeholder">
-                    Select an alert variant to preview
+                    Select a variant from the left to preview it here.
                 </div>
                 <div class="alerts-preview-box" id="preview-box" style="display:none;">
                     <div class="alerts-preview-content" id="preview-content">
@@ -314,75 +444,80 @@ ob_start();
                 </div>
             </div>
             <div class="alerts-preview-options">
-                <label>Preview Options</label>
-                <label>Width px</label>
+                <span class="alerts-preview-options-label">Preview canvas</span>
+                <label class="alerts-mini-toggle">
+                    <input type="checkbox" id="preview-autoplay" checked>
+                    <span class="alerts-mini-toggle-slider"></span>
+                    <span class="alerts-mini-toggle-text">Autoplay</span>
+                </label>
+                <label>Width</label>
                 <input type="number" class="sp-input" id="preview-width" value="800" min="200" max="1920">
-                <label>Height px</label>
+                <label>Height</label>
                 <input type="number" class="sp-input" id="preview-height" value="600" min="200" max="1080">
-                <div style="display:flex;gap:4px;margin-left:auto;">
-                    <div class="preview-bg-swatch active" data-bg="transparent" title="Transparent"></div>
-                    <div class="preview-bg-swatch" data-bg="dark" title="Dark"></div>
-                    <div class="preview-bg-swatch" data-bg="light" title="Light"></div>
-                    <div class="preview-bg-swatch" data-bg="red" title="Red"></div>
+                <div class="alerts-bg-swatches">
+                    <button type="button" class="alerts-bg-swatch active" data-bg="transparent" title="Transparent"></button>
+                    <button type="button" class="alerts-bg-swatch" data-bg="dark" title="Dark"></button>
+                    <button type="button" class="alerts-bg-swatch" data-bg="light" title="Light"></button>
+                    <button type="button" class="alerts-bg-swatch" data-bg="red" title="Red"></button>
                 </div>
             </div>
         </div>
-
-        <!-- RIGHT: Settings Panel -->
+        <!-- RIGHT: settings panel -->
         <div class="alerts-settings-panel" id="settings-panel">
             <div class="alerts-no-selection" id="settings-placeholder">
-                Select an alert variant to edit
+                Select a variant from the left to edit its settings.
             </div>
             <div id="settings-form" style="display:none;">
                 <!-- General Settings -->
-                <div class="alerts-settings-section open">
-                    <div class="alerts-settings-section-header">
-                        <i class="fas fa-cog"></i>
-                        <span>General Settings</span>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
+                <section class="alerts-settings-section open">
+                    <header class="alerts-settings-section-header">
+                        <i class="fas fa-sliders"></i>
+                        <span>General</span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
-                            <label>Variant Name</label>
+                            <label>Variant name</label>
                             <input type="text" class="sp-input" id="set-variant-name">
                         </div>
                         <div class="alerts-form-group">
-                            <label>Alert Condition</label>
-                            <input type="text" class="sp-input" id="set-alert-condition" placeholder="e.g. bits >= 100">
+                            <label>Condition <span class="alerts-help">(advanced)</span></label>
+                            <input type="text" class="sp-input" id="set-alert-condition" placeholder="e.g. bits >= 100, months = 1, gift_count >= 5">
+                            <small class="alerts-help-text">Only fire this variant when the condition matches. Leave blank to always match.</small>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Duration (In seconds, 99 max)</label>
+                            <label>On-screen duration (seconds)</label>
                             <input type="number" class="sp-input" id="set-duration" min="1" max="99" value="8">
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Animation In</label>
-                                <div style="display:flex;gap:8px;">
-                                    <select class="sp-select" id="set-animation-in" style="flex:1;">
+                                <label>In animation</label>
+                                <div class="alerts-inline-pair">
+                                    <select class="sp-select" id="set-animation-in">
                                         <?php foreach ($animationsIn as $label => $val): ?>
                                         <option value="<?php echo $val; ?>"><?php echo $label; ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <input type="number" class="sp-input" id="set-animation-in-duration" min="0.1" max="5" step="0.1" value="1" style="width:60px;">
+                                    <input type="number" class="sp-input alerts-inline-pair-mini" id="set-animation-in-duration" min="0.1" max="5" step="0.1" value="1">
                                 </div>
                             </div>
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Animation Out</label>
-                                <div style="display:flex;gap:8px;">
-                                    <select class="sp-select" id="set-animation-out" style="flex:1;">
+                                <label>Out animation</label>
+                                <div class="alerts-inline-pair">
+                                    <select class="sp-select" id="set-animation-out">
                                         <?php foreach ($animationsOut as $label => $val): ?>
                                         <option value="<?php echo $val; ?>"><?php echo $label; ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <input type="number" class="sp-input" id="set-animation-out-duration" min="0.1" max="5" step="0.1" value="1" style="width:60px;">
+                                    <input type="number" class="sp-input alerts-inline-pair-mini" id="set-animation-out-duration" min="0.1" max="5" step="0.1" value="1">
                                 </div>
                             </div>
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label style="margin:0;">Enabled</label>
+                                <label>Enabled</label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-enabled" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -390,32 +525,32 @@ ob_start();
                             </div>
                         </div>
                     </div>
-                </div>
-
+                </section>
                 <!-- Layout -->
-                <div class="alerts-settings-section">
-                    <div class="alerts-settings-section-header">
+                <section class="alerts-settings-section">
+                    <header class="alerts-settings-section-header">
                         <i class="fas fa-th-large"></i>
                         <span>Layout</span>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
+                            <label>Image position</label>
                             <div class="layout-presets">
                                 <button type="button" class="layout-preset-btn active" data-layout="above" title="Image above text">
-                                    <svg viewBox="0 0 48 36"><rect x="16" y="2" width="16" height="12" rx="2" fill="#888"/><rect x="8" y="18" width="32" height="3" rx="1" fill="#aaa"/><rect x="12" y="24" width="24" height="3" rx="1" fill="#666"/></svg>
+                                    <svg viewBox="0 0 48 36"><rect x="16" y="2" width="16" height="12" rx="2" fill="currentColor"/><rect x="8" y="18" width="32" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="24" width="24" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
                                 </button>
                                 <button type="button" class="layout-preset-btn" data-layout="right" title="Text left, image right">
-                                    <svg viewBox="0 0 48 36"><rect x="30" y="6" width="14" height="24" rx="2" fill="#888"/><rect x="4" y="10" width="22" height="3" rx="1" fill="#aaa"/><rect x="4" y="17" width="18" height="3" rx="1" fill="#666"/><rect x="4" y="24" width="20" height="3" rx="1" fill="#666"/></svg>
+                                    <svg viewBox="0 0 48 36"><rect x="30" y="6" width="14" height="24" rx="2" fill="currentColor"/><rect x="4" y="10" width="22" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="4" y="17" width="18" height="3" rx="1" fill="currentColor" opacity="0.4"/><rect x="4" y="24" width="20" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
                                 </button>
                                 <button type="button" class="layout-preset-btn" data-layout="left" title="Image left, text right">
-                                    <svg viewBox="0 0 48 36"><rect x="4" y="6" width="14" height="24" rx="2" fill="#888"/><rect x="22" y="10" width="22" height="3" rx="1" fill="#aaa"/><rect x="22" y="17" width="18" height="3" rx="1" fill="#666"/><rect x="22" y="24" width="20" height="3" rx="1" fill="#666"/></svg>
+                                    <svg viewBox="0 0 48 36"><rect x="4" y="6" width="14" height="24" rx="2" fill="currentColor"/><rect x="22" y="10" width="22" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="22" y="17" width="18" height="3" rx="1" fill="currentColor" opacity="0.4"/><rect x="22" y="24" width="20" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
                                 </button>
                                 <button type="button" class="layout-preset-btn" data-layout="below" title="Text above, image below">
-                                    <svg viewBox="0 0 48 36"><rect x="8" y="2" width="32" height="3" rx="1" fill="#aaa"/><rect x="12" y="8" width="24" height="3" rx="1" fill="#666"/><rect x="16" y="16" width="16" height="16" rx="2" fill="#888"/></svg>
+                                    <svg viewBox="0 0 48 36"><rect x="8" y="2" width="32" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="8" width="24" height="3" rx="1" fill="currentColor" opacity="0.4"/><rect x="16" y="16" width="16" height="16" rx="2" fill="currentColor"/></svg>
                                 </button>
                                 <button type="button" class="layout-preset-btn" data-layout="behind" title="Image behind text">
-                                    <svg viewBox="0 0 48 36"><rect x="2" y="2" width="44" height="32" rx="2" fill="#555" opacity="0.5"/><rect x="8" y="12" width="32" height="3" rx="1" fill="#aaa"/><rect x="12" y="18" width="24" height="3" rx="1" fill="#aaa"/></svg>
+                                    <svg viewBox="0 0 48 36"><rect x="2" y="2" width="44" height="32" rx="2" fill="currentColor" opacity="0.5"/><rect x="8" y="12" width="32" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="18" width="24" height="3" rx="1" fill="currentColor" opacity="0.6"/></svg>
                                 </button>
                             </div>
                         </div>
@@ -428,7 +563,7 @@ ob_start();
                                 </div>
                             </div>
                             <div class="alerts-form-group">
-                                <label>Opacity (percent)</label>
+                                <label>Opacity (%)</label>
                                 <input type="number" class="sp-input" id="set-bg-opacity" min="0" max="100" value="0">
                             </div>
                         </div>
@@ -444,7 +579,7 @@ ob_start();
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label style="margin:0;">Rounded Corners</label>
+                                <label>Rounded corners</label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-rounded-corners" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -453,7 +588,7 @@ ob_start();
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label style="margin:0;">Drop Shadow</label>
+                                <label>Drop shadow</label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-drop-shadow" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -461,106 +596,107 @@ ob_start();
                             </div>
                         </div>
                     </div>
-                </div>
-
+                </section>
                 <!-- Text & Speech -->
-                <div class="alerts-settings-section">
-                    <div class="alerts-settings-section-header">
+                <section class="alerts-settings-section">
+                    <header class="alerts-settings-section-header">
                         <i class="fas fa-font"></i>
-                        <span>Text & Speech</span>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
+                        <span>Text &amp; Speech</span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
-                            <label>Message</label>
+                            <label>Message template</label>
                             <textarea id="set-message-template" placeholder="{username}&#10;just followed!"></textarea>
                             <div class="variable-hints">
-                                Variables: <code>{username}</code> <code>{amount}</code> <code>{months}</code> <code>{viewers}</code> <code>{tier}</code>
+                                <span>Variables:</span>
+                                <code>{username}</code> <code>{amount}</code> <code>{months}</code> <code>{viewers}</code> <code>{tier}</code> <code>{added_minutes}</code> <code>{streak}</code>
                             </div>
                         </div>
                         <div class="alerts-form-group">
                             <label>Font</label>
-                            <div style="display:flex;gap:8px;">
-                                <select class="sp-select" id="set-font-family" style="flex:1;">
+                            <div class="alerts-inline-pair">
+                                <select class="sp-select" id="set-font-family">
                                     <?php foreach ($fonts as $font): ?>
                                     <option value="<?php echo $font; ?>"><?php echo $font; ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <select class="sp-select" id="set-font-weight" style="width:110px;">
+                                <select class="sp-select alerts-inline-pair-weight" id="set-font-weight">
                                     <?php foreach ($fontWeights as $label => $val): ?>
                                     <option value="<?php echo $label; ?>"><?php echo $label; ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <input type="number" class="sp-input" id="set-font-size" min="8" max="120" value="24" style="width:60px;">
+                                <input type="number" class="sp-input alerts-inline-pair-mini" id="set-font-size" min="8" max="120" value="24">
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Text Layout</label>
+                            <label>Alignment</label>
                             <div class="text-align-btns">
-                                <button type="button" class="text-align-btn" data-align="left" title="Left"><i class="fas fa-align-left"></i></button>
-                                <button type="button" class="text-align-btn active" data-align="center" title="Center"><i class="fas fa-align-center"></i></button>
-                                <button type="button" class="text-align-btn" data-align="right" title="Right"><i class="fas fa-align-right"></i></button>
+                                <button type="button" class="text-align-btn" data-align="left" title="Align left"><i class="fas fa-align-left"></i></button>
+                                <button type="button" class="text-align-btn active" data-align="center" title="Align center"><i class="fas fa-align-center"></i></button>
+                                <button type="button" class="text-align-btn" data-align="right" title="Align right"><i class="fas fa-align-right"></i></button>
                                 <button type="button" class="text-align-btn" data-align="justify" title="Justify"><i class="fas fa-align-justify"></i></button>
-                                <span style="width:8px;"></span>
-                                <button type="button" class="text-align-btn valign-btn" data-valign="top" title="Top"><i class="fas fa-arrow-up"></i></button>
-                                <button type="button" class="text-align-btn valign-btn active" data-valign="center" title="Middle"><i class="fas fa-arrows-alt-v"></i></button>
-                                <button type="button" class="text-align-btn valign-btn" data-valign="bottom" title="Bottom"><i class="fas fa-arrow-down"></i></button>
+                                <span class="text-align-divider"></span>
+                                <button type="button" class="text-align-btn valign-btn" data-valign="top" title="Align top"><i class="fas fa-arrow-up"></i></button>
+                                <button type="button" class="text-align-btn valign-btn active" data-valign="center" title="Align middle"><i class="fas fa-arrows-up-down"></i></button>
+                                <button type="button" class="text-align-btn valign-btn" data-valign="bottom" title="Align bottom"><i class="fas fa-arrow-down"></i></button>
                             </div>
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Text Color</label>
+                                <label>Text colour</label>
                                 <div class="alerts-color-input">
                                     <input type="color" id="set-text-color" value="#FFFFFF">
                                     <input type="text" class="sp-input" id="set-text-color-text" value="#FFFFFF">
                                 </div>
                             </div>
                             <div class="alerts-form-group">
-                                <label>Accent Color</label>
+                                <label>Accent colour</label>
                                 <div class="alerts-color-input">
-                                    <input type="color" id="set-accent-color" value="#A1C53A">
-                                    <input type="text" class="sp-input" id="set-accent-color-text" value="#A1C53A">
+                                    <input type="color" id="set-accent-color" value="#7C5CBF">
+                                    <input type="text" class="sp-input" id="set-accent-color-text" value="#7C5CBF">
                                 </div>
                             </div>
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label style="margin:0;">Drop Shadow</label>
+                                <label>Text drop shadow</label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-text-drop-shadow" checked>
                                     <span class="alerts-toggle-slider"></span>
                                 </label>
                             </div>
                         </div>
-                        <div class="alerts-form-group" style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+                        <div class="alerts-form-group alerts-form-group-divider">
                             <div class="alerts-toggle-wrap">
-                                <label style="margin:0;text-transform:uppercase;font-size:12px;font-weight:600;letter-spacing:0.5px;">Text-to-Speech</label>
+                                <div>
+                                    <label class="alerts-mini-section-label">Text-to-speech</label>
+                                    <div class="alerts-help-text">Read the alert text aloud through the TTS overlay.</div>
+                                </div>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-tts-enabled">
                                     <span class="alerts-toggle-slider"></span>
                                 </label>
                             </div>
-                            <div style="font-size:11px;color:#888;margin-top:4px;">Say Alert Text</div>
                         </div>
                     </div>
-                </div>
-
+                </section>
                 <!-- Visuals & Sound -->
-                <div class="alerts-settings-section">
-                    <div class="alerts-settings-section-header">
+                <section class="alerts-settings-section">
+                    <header class="alerts-settings-section-header">
                         <i class="fas fa-image"></i>
-                        <span>Visuals & Sound</span>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
+                        <span>Visuals &amp; sound</span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
-                            <label>Alert Image</label>
+                            <label>Alert image</label>
                             <div class="alerts-media-upload" id="image-upload-zone">
                                 <div class="alerts-media-preview" id="image-preview"></div>
                                 <div class="alerts-media-filename" id="image-filename">No image selected</div>
                                 <div class="alerts-media-actions">
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="image-upload-btn">
-                                        <i class="fas fa-upload"></i> Upload File
+                                        <i class="fas fa-upload"></i> Upload
                                     </button>
                                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" id="image-remove-btn" style="display:none;">
                                         <i class="fas fa-times"></i> Remove
@@ -570,26 +706,26 @@ ob_start();
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Scale</label>
+                            <label>Image scale</label>
                             <div class="alerts-range-wrap">
                                 <input type="range" id="set-image-scale" min="0" max="200" value="100">
                                 <span class="alerts-range-value" id="image-scale-val">100%</span>
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Image Volume</label>
+                            <label>Image volume</label>
                             <div class="alerts-range-wrap">
                                 <input type="range" id="set-image-volume" min="0" max="100" value="0">
                                 <span class="alerts-range-value" id="image-volume-val">0%</span>
                             </div>
                         </div>
-                        <div class="alerts-form-group" style="margin-top:20px;">
-                            <label>Alert Sound</label>
+                        <div class="alerts-form-group alerts-form-group-divider">
+                            <label>Alert sound</label>
                             <div class="alerts-media-upload" id="sound-upload-zone">
                                 <div class="alerts-media-filename" id="sound-filename">No sound selected</div>
                                 <div class="alerts-media-actions">
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="sound-upload-btn">
-                                        <i class="fas fa-upload"></i> Upload File
+                                        <i class="fas fa-upload"></i> Upload
                                     </button>
                                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" id="sound-remove-btn" style="display:none;">
                                         <i class="fas fa-times"></i> Remove
@@ -599,29 +735,28 @@ ob_start();
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Sound Volume</label>
+                            <label>Sound volume</label>
                             <div class="alerts-range-wrap">
-                                <span style="margin-right:4px;"><i class="fas fa-play" style="font-size:11px;color:#888;"></i></span>
+                                <i class="fas fa-volume-down alerts-range-icon"></i>
                                 <input type="range" id="set-sound-volume" min="0" max="100" value="50">
                                 <span class="alerts-range-value" id="sound-volume-val">50%</span>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Celebration (hidden) -->
-                <div class="alerts-settings-section" style="display:none;">
-                    <div class="alerts-settings-section-header">
+                </section>
+                <!-- Celebration -->
+                <section class="alerts-settings-section">
+                    <header class="alerts-settings-section-header">
                         <i class="fas fa-wand-magic-sparkles"></i>
                         <span>Celebration</span>
-                        <i class="fas fa-chevron-right chevron"></i>
-                    </div>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
                                 <div>
-                                    <label style="margin:0;text-transform:uppercase;font-size:12px;font-weight:600;">Celebrations</label>
-                                    <div style="font-size:11px;color:#888;">Add celebration animations to jazz up your Alerts.</div>
+                                    <label class="alerts-mini-section-label">Particle effect</label>
+                                    <div class="alerts-help-text">Layer a full-screen effect over the alert while it plays.</div>
                                 </div>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-celebration-enabled">
@@ -630,7 +765,7 @@ ob_start();
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Effects</label>
+                            <label>Effect</label>
                             <select class="sp-select" id="set-celebration-effect">
                                 <option value="fireworks">Fireworks</option>
                                 <option value="confetti">Confetti</option>
@@ -646,17 +781,38 @@ ob_start();
                             </select>
                         </div>
                     </div>
-                </div>
-
-                <!-- Save -->
-                <div class="alerts-save-bar">
-                    <button class="sp-btn sp-btn-primary" id="save-alert-btn" style="width:100%;">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
-                </div>
+                </section>
+                <!-- Danger zone: delete variant -->
+                <section class="alerts-settings-section alerts-settings-danger">
+                    <header class="alerts-settings-section-header">
+                        <i class="fas fa-trash"></i>
+                        <span>Delete variant</span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </header>
+                    <div class="alerts-settings-section-body">
+                        <p class="alerts-help-text">Removing this variant cannot be undone. Any conditions and uploaded media stay in your media library — only this variant's configuration is removed.</p>
+                        <button type="button" class="sp-btn sp-btn-danger" id="delete-variant-btn">
+                            <i class="fas fa-trash"></i> Delete this variant
+                        </button>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
+    <!-- Footer: priority hint + browser source URL with copy -->
+    <footer class="alerts-footer">
+        <div class="alerts-footer-left">
+            <i class="fas fa-info-circle"></i>
+            Variants fire in the order shown above. Drag the grip handle to reorder, or enable <strong>Randomize</strong> on a category to pick one at random when several match.
+        </div>
+        <div class="alerts-browser-source">
+            <span class="alerts-browser-source-label">OBS browser source</span>
+            <input type="text" class="sp-input alerts-browser-source-url" id="alerts-browser-source-url" readonly value="<?php echo htmlspecialchars($browserSourceUrl); ?>">
+            <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="alerts-copy-url-btn">
+                <i class="fas fa-copy"></i> Copy
+            </button>
+        </div>
+    </footer>
 </div>
 <?php
 $content = ob_get_clean();
@@ -669,37 +825,47 @@ $(document).ready(function() {
     const mediaBase = <?php echo json_encode($mediaBase); ?>;
     const apiKey = <?php echo json_encode($api_key); ?>;
     const channelName = <?php echo json_encode($username); ?>;
+    const MAX_VARIANTS = <?php echo (int)$MAX_VARIANTS; ?>;
     let currentAlertId = null;
-
-    // Category accordion
+    let isDirty = false;
+    let loadingVariant = false;
+    function markDirty() {
+        if (loadingVariant) return;
+        if (!isDirty) {
+            isDirty = true;
+            $('#alerts-save-btn, #alerts-discard-btn').prop('disabled', false);
+        }
+    }
+    function clearDirty() {
+        isDirty = false;
+        $('#alerts-save-btn, #alerts-discard-btn').prop('disabled', true);
+    }
     $(document).on('click', '.alerts-category-header', function() {
         $(this).closest('.alerts-category').toggleClass('open');
     });
-
     // Settings section accordion
     $(document).on('click', '.alerts-settings-section-header', function() {
         $(this).closest('.alerts-settings-section').toggleClass('open');
     });
-
-    // Variant selection
-    $(document).on('click', '.alerts-variant-item', function() {
+    $(document).on('click', '.alerts-variant-item', function(e) {
+        if ($(e.target).closest('.alerts-mini-toggle').length) return;
+        if ($(e.target).closest('.alerts-variant-handle').length) return;
         var id = $(this).data('id');
+        if (isDirty && !confirm('You have unsaved changes. Discard them and switch variant?')) return;
         $('.alerts-variant-item').removeClass('active');
         $(this).addClass('active');
-        loadAlert(id);
+        loadVariant(id);
     });
-
-    function loadAlert(id) {
+    function loadVariant(id) {
         currentAlertId = id;
         var a = alertsData[id];
         if (!a) return;
-
+        loadingVariant = true;
         $('#settings-placeholder').hide();
         $('#settings-form').show();
         $('#preview-placeholder').hide();
         $('#preview-box').show();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', false);
-
         // General
         $('#set-variant-name').val(a.variant_name);
         $('#set-alert-condition').val(a.alert_condition || '');
@@ -709,7 +875,6 @@ $(document).ready(function() {
         $('#set-animation-in-duration').val(a.animation_in_duration);
         $('#set-animation-out-duration').val(a.animation_out_duration);
         $('#set-enabled').prop('checked', a.enabled == 1);
-
         // Layout
         $('.layout-preset-btn').removeClass('active');
         $('.layout-preset-btn[data-layout="' + a.layout_preset + '"]').addClass('active');
@@ -720,7 +885,6 @@ $(document).ready(function() {
         $('#set-gap').val(a.gap);
         $('#set-rounded-corners').prop('checked', a.rounded_corners == 1);
         $('#set-drop-shadow').prop('checked', a.drop_shadow == 1);
-
         // Text
         $('#set-message-template').val((a.message_template || '').replace(/\\n/g, '\n'));
         $('#set-font-family').val(a.font_family);
@@ -736,7 +900,6 @@ $(document).ready(function() {
         $('#set-accent-color-text').val(a.accent_color);
         $('#set-text-drop-shadow').prop('checked', a.text_drop_shadow == 1);
         $('#set-tts-enabled').prop('checked', a.tts_enabled == 1);
-
         // Visuals
         updateMediaPreview('image', a.alert_image);
         updateMediaPreview('sound', a.alert_sound);
@@ -746,24 +909,23 @@ $(document).ready(function() {
         $('#image-volume-val').text(a.image_volume + '%');
         $('#set-sound-volume').val(a.sound_volume);
         $('#sound-volume-val').text(a.sound_volume + '%');
-
         // Celebration
         $('#set-celebration-enabled').prop('checked', a.celebration_enabled == 1);
         $('#set-celebration-effect').val(a.celebration_effect);
         $('#set-celebration-intensity').val(a.celebration_intensity);
-
         updatePreview();
+        loadingVariant = false;
+        clearDirty();
     }
-
     function updateMediaPreview(type, filename) {
         if (type === 'image') {
             if (filename) {
                 var ext = filename.split('.').pop().toLowerCase();
                 var url = mediaBase + filename;
                 if (['webm'].includes(ext)) {
-                    $('#image-preview').html('<video src="' + url + '" autoplay loop muted style="max-width:150px;max-height:100px;border-radius:4px;"></video>');
+                    $('#image-preview').html('<video src="' + url + '" autoplay loop muted></video>');
                 } else {
-                    $('#image-preview').html('<img src="' + url + '" alt="Alert Image" style="max-width:150px;max-height:100px;border-radius:4px;">');
+                    $('#image-preview').html('<img src="' + url + '" alt="Alert image">');
                 }
                 $('#image-filename').text(filename);
                 $('#image-remove-btn').show();
@@ -782,7 +944,6 @@ $(document).ready(function() {
             }
         }
     }
-
     function updatePreview() {
         if (!currentAlertId) return;
         var a = alertsData[currentAlertId];
@@ -802,17 +963,12 @@ $(document).ready(function() {
         var textAlign = $('.text-align-btn[data-align].active').data('align') || 'center';
         var msg = $('#set-message-template').val() || '';
         var imageScale = parseInt($('#set-image-scale').val()) || 100;
-
-        // Font weight mapping
         var weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
         var cssWeight = weightMap[fontWeight] || '600';
-
-        // Parse bg color to rgba
         var r = parseInt(bgColor.substr(1,2),16);
         var g = parseInt(bgColor.substr(3,2),16);
         var b = parseInt(bgColor.substr(5,2),16);
         var bgRgba = 'rgba('+r+','+g+','+b+','+bgOpacity+')';
-
         var $content = $('#preview-content');
         $content.attr('class', 'alerts-preview-content layout-' + layout);
         $content.css({
@@ -822,9 +978,7 @@ $(document).ready(function() {
             'border-radius': rounded ? '12px' : '0',
             'box-shadow': shadow ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'
         });
-
-        // Image
-        var imgFile = a.alert_image || $('#image-file-input').data('uploaded');
+        var imgFile = a.alert_image;
         if (imgFile) {
             var imgUrl = mediaBase + imgFile;
             var ext = imgFile.split('.').pop().toLowerCase();
@@ -846,15 +1000,15 @@ $(document).ready(function() {
         } else {
             $('#preview-img').hide();
         }
-
-        // Text
-        var displayMsg = msg.replace(/\{username\}/g, '<span class="preview-accent">maxart</span>')
+        var displayMsg = msg
+            .replace(/\{username\}/g, '<span class="preview-accent">PreviewUser</span>')
             .replace(/\{amount\}/g, '<span class="preview-accent">100</span>')
             .replace(/\{months\}/g, '<span class="preview-accent">3</span>')
             .replace(/\{viewers\}/g, '<span class="preview-accent">42</span>')
             .replace(/\{tier\}/g, '<span class="preview-accent">1</span>')
+            .replace(/\{added_minutes\}/g, '<span class="preview-accent">5</span>')
+            .replace(/\{streak\}/g, '<span class="preview-accent">7</span>')
             .replace(/\n/g, '<br>');
-
         var $text = $('#preview-text');
         $text.html(displayMsg);
         $text.css({
@@ -866,11 +1020,8 @@ $(document).ready(function() {
             'text-shadow': textShadow ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'
         });
         $('.preview-accent').css('color', accentColor);
-
-        // Load Google Font
         loadGoogleFont(fontFamily);
     }
-
     var loadedFonts = {};
     function loadGoogleFont(fontName) {
         if (loadedFonts[fontName]) return;
@@ -880,83 +1031,103 @@ $(document).ready(function() {
         link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(fontName) + ':wght@300;400;500;600;700;800&display=swap';
         document.head.appendChild(link);
     }
-
-    // Live preview updates on any input change
+    // Live preview + dirty tracking on any form change
     $(document).on('input change', '#settings-form input, #settings-form select, #settings-form textarea', function() {
         updatePreview();
+        markDirty();
     });
-
-    // Layout preset buttons
     $(document).on('click', '.layout-preset-btn', function() {
         $('.layout-preset-btn').removeClass('active');
         $(this).addClass('active');
         updatePreview();
+        markDirty();
     });
-
-    // Text alignment buttons
     $(document).on('click', '.text-align-btn[data-align]', function() {
         $('.text-align-btn[data-align]').removeClass('active');
         $(this).addClass('active');
         updatePreview();
+        markDirty();
     });
     $(document).on('click', '.valign-btn', function() {
         $('.valign-btn').removeClass('active');
         $(this).addClass('active');
         updatePreview();
+        markDirty();
     });
-
-    // Color input sync
+    // Colour input sync (color picker <-> hex text)
     $('#set-bg-color').on('input', function() { $('#set-bg-color-text').val(this.value); });
-    $('#set-bg-color-text').on('change', function() { $('#set-bg-color').val(this.value); updatePreview(); });
+    $('#set-bg-color-text').on('change', function() { $('#set-bg-color').val(this.value); updatePreview(); markDirty(); });
     $('#set-text-color').on('input', function() { $('#set-text-color-text').val(this.value); });
-    $('#set-text-color-text').on('change', function() { $('#set-text-color').val(this.value); updatePreview(); });
+    $('#set-text-color-text').on('change', function() { $('#set-text-color').val(this.value); updatePreview(); markDirty(); });
     $('#set-accent-color').on('input', function() { $('#set-accent-color-text').val(this.value); });
-    $('#set-accent-color-text').on('change', function() { $('#set-accent-color').val(this.value); updatePreview(); });
-
+    $('#set-accent-color-text').on('change', function() { $('#set-accent-color').val(this.value); updatePreview(); markDirty(); });
     // Range slider display updates
     $('#set-image-scale').on('input', function() { $('#image-scale-val').text(this.value + '%'); });
     $('#set-image-volume').on('input', function() { $('#image-volume-val').text(this.value + '%'); });
     $('#set-sound-volume').on('input', function() { $('#sound-volume-val').text(this.value + '%'); });
-
     // Preview background swatches
-    $(document).on('click', '.preview-bg-swatch', function() {
-        $('.preview-bg-swatch').removeClass('active');
+    $(document).on('click', '.alerts-bg-swatch', function() {
+        $('.alerts-bg-swatch').removeClass('active');
         $(this).addClass('active');
         var bg = $(this).data('bg');
         var area = $('#preview-area');
         switch(bg) {
             case 'transparent':
-                area.css('background-color', 'transparent');
-                area.css('background-image', 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%)');
+                area.css({ 'background-color': 'transparent', 'background-image': 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%)' });
                 break;
-            case 'dark':
-                area.css({'background-color': '#18181b', 'background-image': 'none'});
-                break;
-            case 'light':
-                area.css({'background-color': '#fff', 'background-image': 'none'});
-                break;
-            case 'red':
-                area.css({'background-color': '#e74c3c', 'background-image': 'none'});
-                break;
+            case 'dark':  area.css({ 'background-color': '#18181b', 'background-image': 'none' }); break;
+            case 'light': area.css({ 'background-color': '#fff',    'background-image': 'none' }); break;
+            case 'red':   area.css({ 'background-color': '#e74c3c', 'background-image': 'none' }); break;
         }
     });
-
-    // Enabled toggle - immediate save
-    $('#set-enabled').on('change', function() {
-        if (!currentAlertId) return;
+    $(document).on('change', '.alerts-variant-enabled-toggle', function(e) {
+        e.stopPropagation();
+        var id = $(this).data('id');
         var enabled = this.checked ? 1 : 0;
-        alertsData[currentAlertId].enabled = enabled;
-        var $badge = $('.alerts-variant-item[data-id="' + currentAlertId + '"] .alerts-toggle-badge');
-        $badge.toggleClass('enabled', this.checked).toggleClass('disabled', !this.checked);
-        $.post('', { action: 'toggle_alert', id: currentAlertId, enabled: enabled }, null, 'json');
+        if (alertsData[id]) alertsData[id].enabled = enabled;
+        if (id == currentAlertId) $('#set-enabled').prop('checked', this.checked);
+        $.post('', { action: 'toggle_alert', id: id, enabled: enabled }, null, 'json');
     });
-
-    // Save alert
-    $('#save-alert-btn').on('click', function() {
-        if (!currentAlertId) return;
-        var data = {
-            action: 'save_alert',
-            id: currentAlertId,
+    // Per-category randomize toggle — also fires immediately, single-field
+    $(document).on('change', '.alerts-randomize-toggle', function() {
+        var category = $(this).data('category');
+        var randomize = this.checked ? 1 : 0;
+        $.post('', { action: 'set_category_randomize', category: category, randomize: randomize }, null, 'json');
+    });
+    $('#alerts-save-btn').on('click', function() {
+        if (!currentAlertId || !isDirty) return;
+        var data = collectFormData();
+        $.ajax({
+            url: '', type: 'POST', data: data,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }, dataType: 'json',
+            success: function(resp) {
+                if (resp.success) {
+                    Object.assign(alertsData[currentAlertId], data);
+                    $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-name').text(data.variant_name);
+                    $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-condition').text(data.alert_condition || '');
+                    clearDirty();
+                    Swal.fire({ icon: 'success', title: 'Saved', text: resp.message, timer: 1500, showConfirmButton: false });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: resp.message });
+                }
+            },
+            error: function() { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save. Please try again.' }); }
+        });
+    });
+    $('#alerts-discard-btn').on('click', function() {
+        if (!currentAlertId || !isDirty) return;
+        Swal.fire({
+            title: 'Discard changes?',
+            text: 'Your unsaved changes to this variant will be lost.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonText: 'Yes, discard', cancelButtonText: 'Keep editing'
+        }).then(function(result) {
+            if (result.isConfirmed) loadVariant(currentAlertId);
+        });
+    });
+    function collectFormData() {
+        return {
+            action: 'save_alert', id: currentAlertId,
             variant_name: $('#set-variant-name').val(),
             enabled: $('#set-enabled').is(':checked') ? 1 : 0,
             alert_condition: $('#set-alert-condition').val() || null,
@@ -992,30 +1163,78 @@ $(document).ready(function() {
             celebration_intensity: $('#set-celebration-intensity').val(),
             celebration_area: 'full'
         };
-        $.ajax({
-            url: '',
-            type: 'POST',
-            data: data,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            dataType: 'json',
-            success: function(resp) {
-                if (resp.success) {
-                    // Update local data
-                    Object.assign(alertsData[currentAlertId], data);
-                    // Update sidebar name
-                    $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-name').text(data.variant_name);
-                    Swal.fire({ icon: 'success', title: 'Saved', text: resp.message, timer: 1500, showConfirmButton: false });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: resp.message });
-                }
-            },
-            error: function() {
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save. Please try again.' });
+    }
+    $(document).on('click', '.alerts-new-variant-btn', function(e) {
+        e.stopPropagation();
+        var category = $(this).data('category');
+        $.post('', { action: 'create_variant', category: category }, function(resp) {
+            if (!resp.success) {
+                Swal.fire({ icon: 'error', title: 'Cannot add variant', text: resp.message });
+                return;
             }
+            var v = resp.variant;
+            alertsData[v.id] = v;
+            var $cat = $('.alerts-category[data-category="' + category + '"]');
+            $cat.find('.alerts-variant-empty').remove();
+            var $list = $cat.find('.alerts-variant-list');
+            var html = ''
+                + '<li class="alerts-variant-item" data-id="' + v.id + '">'
+                +   '<span class="alerts-variant-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>'
+                +   '<span class="alerts-variant-priority">' + (parseInt(v.variant_index) + 1) + '</span>'
+                +   '<div class="alerts-variant-info">'
+                +     '<div class="variant-name">' + escapeHtml(v.variant_name) + '</div>'
+                +     (v.alert_condition ? '<div class="variant-condition">' + escapeHtml(v.alert_condition) + '</div>' : '')
+                +   '</div>'
+                +   '<label class="alerts-mini-toggle" onclick="event.stopPropagation();">'
+                +     '<input type="checkbox" class="alerts-variant-enabled-toggle" data-id="' + v.id + '" ' + (v.enabled == 1 ? 'checked' : '') + '>'
+                +     '<span class="alerts-mini-toggle-slider"></span>'
+                +   '</label>'
+                + '</li>';
+            $list.append(html);
+            $cat.find('.alerts-category-count').text($list.find('.alerts-variant-item').length);
+            updateVariantCount();
+            $('.alerts-variant-item[data-id="' + v.id + '"]').click();
+        }, 'json');
+    });
+    $('#delete-variant-btn').on('click', function() {
+        if (!currentAlertId) return;
+        var a = alertsData[currentAlertId];
+        Swal.fire({
+            title: 'Delete "' + a.variant_name + '"?',
+            text: 'This variant will be permanently removed.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+            $.post('', { action: 'delete_variant', id: currentAlertId }, function(resp) {
+                if (!resp.success) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: resp.message });
+                    return;
+                }
+                var $row = $('.alerts-variant-item[data-id="' + currentAlertId + '"]');
+                var $cat = $row.closest('.alerts-category');
+                $row.remove();
+                delete alertsData[currentAlertId];
+                currentAlertId = null;
+                var remaining = $cat.find('.alerts-variant-item').length;
+                $cat.find('.alerts-category-count').text(remaining);
+                if (remaining === 0) {
+                    $cat.find('.alerts-variant-list').append('<li class="alerts-variant-empty">No variants yet — add one above.</li>');
+                }
+                updateVariantCount();
+                $('#settings-form').hide();
+                $('#settings-placeholder').show();
+                $('#preview-box').hide();
+                $('#preview-placeholder').show();
+                $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
+                clearDirty();
+            }, 'json');
         });
     });
-
-    // File upload - Image
+    function updateVariantCount() {
+        var total = Object.keys(alertsData).length;
+        $('#alerts-variant-count').text(total);
+    }
     $('#image-upload-btn').on('click', function() { $('#image-file-input').click(); });
     $('#image-file-input').on('change', function() {
         if (!this.files[0] || !currentAlertId) return;
@@ -1023,43 +1242,30 @@ $(document).ready(function() {
         formData.append('action', 'upload_alert_media');
         formData.append('media_file', this.files[0]);
         $.ajax({
-            url: '',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            dataType: 'json',
+            url: '', type: 'POST', data: formData, contentType: false, processData: false,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }, dataType: 'json',
             success: function(resp) {
                 if (resp.success) {
                     alertsData[currentAlertId].alert_image = resp.filename;
                     updateMediaPreview('image', resp.filename);
                     updatePreview();
+                    markDirty();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Upload Failed', text: resp.message });
+                    Swal.fire({ icon: 'error', title: 'Upload failed', text: resp.message });
                 }
             }
         });
     });
     $('#image-remove-btn').on('click', function() {
         if (!currentAlertId) return;
-        $.ajax({
-            url: '',
-            type: 'POST',
-            data: { action: 'remove_alert_media', id: currentAlertId, field: 'alert_image' },
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            dataType: 'json',
-            success: function(resp) {
-                if (resp.success) {
-                    alertsData[currentAlertId].alert_image = null;
-                    updateMediaPreview('image', null);
-                    updatePreview();
-                }
+        $.post('', { action: 'remove_alert_media', id: currentAlertId, field: 'alert_image' }, function(resp) {
+            if (resp.success) {
+                alertsData[currentAlertId].alert_image = null;
+                updateMediaPreview('image', null);
+                updatePreview();
             }
-        });
+        }, 'json');
     });
-
-    // File upload - Sound
     $('#sound-upload-btn').on('click', function() { $('#sound-file-input').click(); });
     $('#sound-file-input').on('change', function() {
         if (!this.files[0] || !currentAlertId) return;
@@ -1067,51 +1273,36 @@ $(document).ready(function() {
         formData.append('action', 'upload_alert_media');
         formData.append('media_file', this.files[0]);
         $.ajax({
-            url: '',
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            dataType: 'json',
+            url: '', type: 'POST', data: formData, contentType: false, processData: false,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }, dataType: 'json',
             success: function(resp) {
                 if (resp.success) {
                     alertsData[currentAlertId].alert_sound = resp.filename;
                     updateMediaPreview('sound', resp.filename);
+                    markDirty();
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Upload Failed', text: resp.message });
+                    Swal.fire({ icon: 'error', title: 'Upload failed', text: resp.message });
                 }
             }
         });
     });
     $('#sound-remove-btn').on('click', function() {
         if (!currentAlertId) return;
-        $.ajax({
-            url: '',
-            type: 'POST',
-            data: { action: 'remove_alert_media', id: currentAlertId, field: 'alert_sound' },
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            dataType: 'json',
-            success: function(resp) {
-                if (resp.success) {
-                    alertsData[currentAlertId].alert_sound = null;
-                    updateMediaPreview('sound', null);
-                }
+        $.post('', { action: 'remove_alert_media', id: currentAlertId, field: 'alert_sound' }, function(resp) {
+            if (resp.success) {
+                alertsData[currentAlertId].alert_sound = null;
+                updateMediaPreview('sound', null);
             }
-        });
+        }, 'json');
     });
-
-    // Preview Alert button - animate in preview area
     $('#preview-alert-btn').on('click', function() {
         if (!currentAlertId) return;
-        var a = alertsData[currentAlertId];
         var $box = $('#preview-box');
         var animIn = $('#set-animation-in').val();
         var animOut = $('#set-animation-out').val();
         var duration = parseInt($('#set-duration').val()) * 1000;
         var animInDur = parseFloat($('#set-animation-in-duration').val());
         var animOutDur = parseFloat($('#set-animation-out-duration').val());
-
         $box.css('animation', 'none');
         void $box[0].offsetHeight;
         $box.css('animation', animIn + ' ' + animInDur + 's forwards');
@@ -1119,41 +1310,72 @@ $(document).ready(function() {
             $box.css('animation', animOut + ' ' + animOutDur + 's forwards');
         }, duration);
     });
-
-    // Send Test Alert button
     $('#test-alert-btn').on('click', function() {
         if (!currentAlertId) return;
         var a = alertsData[currentAlertId];
         var eventMap = {
-            'follow': { event: 'TWITCH_FOLLOW', params: { user: 'TestUser' } },
-            'subscription': { event: 'TWITCH_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '3' } },
-            'gift_subscription': { event: 'TWITCH_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '1' } },
-            'bits': { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: '100' } },
-            'raid': { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: '42' } },
+            'follow':            { event: 'TWITCH_FOLLOW', params: { user: 'TestUser' } },
+            'subscription':      { event: 'TWITCH_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '3' } },
+            'gift_subscription': { event: 'TWITCH_GIFT_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '1' } },
+            'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: '100' } },
+            'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: '42' } },
+            'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];
         if (!config) {
-            Swal.fire({ icon: 'info', title: 'Test Not Available', text: 'Test events for this category are not yet supported.' });
+            Swal.fire({ icon: 'info', title: 'Live test not available yet', text: 'Test events for this category aren\'t wired up here yet. Use the trigger in your bot to test live.' });
             return;
         }
-        var params = Object.assign({ event: config.event, api_key: apiKey }, config.params);
+        var params = Object.assign({ event: config.event, api_key: apiKey, channel_name: channelName }, config.params);
         $.post('notify_event.php', params, function(resp) {
             if (resp.success) {
-                Swal.fire({ icon: 'success', title: 'Test Sent', text: 'Check your overlay!', timer: 2000, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'Test sent', text: 'Check your OBS browser source.', timer: 2000, showConfirmButton: false });
             } else {
                 Swal.fire({ icon: 'error', title: 'Error', text: resp.message || 'Failed to send test event.' });
             }
         }, 'json');
     });
-
-    // Auto-open first category and select first variant
-    var $firstCategory = $('.alerts-category:visible:first');
+    $('#alerts-copy-url-btn').on('click', function() {
+        var $input = $('#alerts-browser-source-url');
+        $input[0].select();
+        $input[0].setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText($input.val()).then(function() {
+                var $btn = $('#alerts-copy-url-btn');
+                var orig = $btn.html();
+                $btn.html('<i class="fas fa-check"></i> Copied');
+                setTimeout(function() { $btn.html(orig); }, 1500);
+            });
+        } catch (_) {
+            document.execCommand('copy');
+        }
+    });
+    $('#alerts-edit-multiple-link').on('click', function(e) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'info', title: 'Edit multiple — coming soon',
+            text: 'Bulk-editing several variants at once is on the roadmap. For now, open each variant and use Save changes individually.'
+        });
+    });
+    // Warn on page leave with unsaved changes
+    window.addEventListener('beforeunload', function(e) {
+        if (isDirty) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    // Auto-open first category and select first variant on load
+    var $firstCategory = $('.alerts-category:first');
     if ($firstCategory.length) {
         $firstCategory.addClass('open');
         var $firstVariant = $firstCategory.find('.alerts-variant-item:first');
-        if ($firstVariant.length) {
-            $firstVariant.click();
-        }
+        if ($firstVariant.length) $firstVariant.click();
     }
 });
 </script>
