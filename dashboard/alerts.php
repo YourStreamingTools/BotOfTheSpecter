@@ -29,7 +29,6 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
-$MAX_VARIANTS = 200;
 $defaultAlerts = [
     // Native Twitch events
     ['follow', 'New follower', 0, null, "{username}\nfollowed!"],
@@ -158,11 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'create_variant') {
-        $cnt = $db->query("SELECT COUNT(*) AS cnt FROM twitch_alerts")->fetch_assoc()['cnt'];
-        if ($cnt >= $MAX_VARIANTS) {
-            echo json_encode(['success' => false, 'message' => "Variant cap of $MAX_VARIANTS reached. Delete unused variants first."]);
-            exit;
-        }
         $category = $_POST['category'] ?? '';
         if ($category === '') {
             echo json_encode(['success' => false, 'message' => 'Category required.']);
@@ -380,7 +374,7 @@ ob_start();
         <div class="alerts-top-bar-left">
             <h1 class="alerts-page-title">Alerts</h1>
             <span class="alerts-variant-counter">
-                <strong id="alerts-variant-count"><?php echo $totalVariants; ?></strong> / <?php echo $MAX_VARIANTS; ?> variants
+                <strong id="alerts-variant-count"><?php echo $totalVariants; ?></strong> variants
             </span>
         </div>
         <div class="alerts-top-bar-right">
@@ -884,7 +878,6 @@ $(document).ready(function() {
     const mediaBase = <?php echo json_encode($mediaBase); ?>;
     const apiKey = <?php echo json_encode($api_key); ?>;
     const channelName = <?php echo json_encode($username); ?>;
-    const MAX_VARIANTS = <?php echo (int)$MAX_VARIANTS; ?>;
     const libraryImages = <?php echo json_encode($libraryImages); ?>;
     const librarySounds = <?php echo json_encode($librarySounds); ?>;
     const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
