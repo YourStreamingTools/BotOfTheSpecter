@@ -12,21 +12,14 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $username = $user['username'] ?? '';
 $alertConfigs = [];
-$mediaMigrated = false;
 if ($username) {
     $db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
-    // Fetch alert settings
     $stmt = $db->prepare("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index");
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $row) {
         $alertConfigs[$row['alert_category']][] = $row;
     }
-    // Check media migration status
-    $stmt = $db->prepare("SELECT media_migrated FROM profile LIMIT 1");
-    $stmt->execute();
-    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
-    $mediaMigrated = !empty($profile['media_migrated']);
 }
 ?>
 <!DOCTYPE html>
@@ -64,10 +57,7 @@ if ($username) {
             }
             const alertConfigs = <?php echo json_encode($alertConfigs); ?>;
             const username = <?php echo json_encode($username); ?>;
-            const mediaMigrated = <?php echo json_encode($mediaMigrated); ?>;
-            const mediaBase = mediaMigrated
-                ? 'https://media.botofthespecter.com/' + username + '/'
-                : 'https://soundalerts.botofthespecter.com/' + username + '/';
+            const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
             const alertQueue = [];
             let isShowingAlert = false;
             let currentAudio = null;
