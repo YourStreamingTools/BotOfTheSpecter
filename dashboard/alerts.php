@@ -843,7 +843,7 @@ ob_start();
         </div>
         <div class="alerts-browser-source">
             <span class="alerts-browser-source-label">OBS browser source</span>
-            <input type="text" class="sp-input alerts-browser-source-url" id="alerts-browser-source-url" readonly value="<?php echo htmlspecialchars($browserSourceUrl); ?>">
+            <input type="password" class="sp-input alerts-browser-source-url" id="alerts-browser-source-url" readonly value="<?php echo htmlspecialchars($browserSourceUrl); ?>" title="Click to reveal">
             <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="alerts-copy-url-btn">
                 <i class="fas fa-copy"></i> Copy
             </button>
@@ -1490,8 +1490,19 @@ $(document).ready(function() {
             }
         }, 'json');
     });
+    // Click-to-reveal on the OBS browser source URL — masked by default so the
+    // API key embedded in the URL isn't visible in screen recordings.
+    $('#alerts-browser-source-url').on('focus click', function() {
+        this.type = 'text';
+        this.select();
+    }).on('blur', function() {
+        this.type = 'password';
+    });
     $('#alerts-copy-url-btn').on('click', function() {
         var $input = $('#alerts-browser-source-url');
+        // Temporarily flip to text so the copy/select path works reliably
+        var wasMasked = $input.attr('type') === 'password';
+        if (wasMasked) $input.attr('type', 'text');
         $input[0].select();
         $input[0].setSelectionRange(0, 99999);
         try {
@@ -1504,6 +1515,7 @@ $(document).ready(function() {
         } catch (_) {
             document.execCommand('copy');
         }
+        if (wasMasked) setTimeout(function() { $input.attr('type', 'password'); }, 200);
     });
     $('#alerts-edit-multiple-link').on('click', function(e) {
         e.preventDefault();
