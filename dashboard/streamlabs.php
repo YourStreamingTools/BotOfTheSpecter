@@ -1,5 +1,6 @@
 ﻿<?php
 require_once '/var/www/lib/session_bootstrap.php';
+require_once '/var/www/lib/require_auth.php';
 include "/var/www/config/streamlabs.php";
 include "/var/www/config/db_connect.php";
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
