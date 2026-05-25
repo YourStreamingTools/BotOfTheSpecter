@@ -491,6 +491,12 @@ try {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_category_variant (alert_category, variant_index)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'twitch_alert_category_settings' => "
+            CREATE TABLE IF NOT EXISTS twitch_alert_category_settings (
+                category VARCHAR(50) NOT NULL,
+                randomize TINYINT(1) DEFAULT 0,
+                PRIMARY KEY (category)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         'joke_settings' => "
             CREATE TABLE IF NOT EXISTS joke_settings (
                 id INT(11) NOT NULL AUTO_INCREMENT,
