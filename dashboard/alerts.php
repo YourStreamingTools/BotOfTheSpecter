@@ -342,7 +342,7 @@ $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-B
 // Media base URL for preview thumbnails inside this configurator
 $mediaBase = "https://media.botofthespecter.com/$username/";
 
-$browserSourceUrl = "https://overlay.botofthespecter.com/twitch.php?code=" . urlencode($api_key);
+$browserSourceUrl = "https://overlay.botofthespecter.com/?code=" . urlencode($api_key);
 $totalVariants = count($allAlerts);
 
 // Library files exposed to the picker — only types this builder can use
