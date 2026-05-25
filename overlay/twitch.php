@@ -247,8 +247,18 @@ if ($username) {
                 container.classList.add('show');
                 container.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
 
+                // Celebration effect — spawns over the alert's full duration
+                if (config.celebration_enabled == 1 && config.celebration_effect) {
+                    celebration.start(
+                        config.celebration_effect,
+                        config.celebration_intensity || 'medium',
+                        duration
+                    );
+                }
+
                 setTimeout(() => {
                     container.style.animation = `${config.animation_out || 'fadeOut'} ${animOutDur}s forwards`;
+                    celebration.stop();
                     setTimeout(() => {
                         container.classList.remove('show');
                         container.style.animation = '';
@@ -266,6 +276,214 @@ if ($username) {
                 div.textContent = text;
                 return div.innerHTML;
             }
+
+            // -------------------------------------------------------------
+            // Celebration particle engine — fireworks / confetti / bubbles
+            // -------------------------------------------------------------
+            const celebration = (function () {
+                let canvas = null, ctx = null, particles = [], rafId = null;
+                let spawning = false, spawnTimer = null;
+
+                const palette = ['#7c5cbf', '#9070d8', '#fbbf24', '#3ecf8e', '#5cb8ff', '#f87171', '#ffffff'];
+                const intensityScale = { light: 0.5, medium: 1, heavy: 2 };
+
+                function ensureCanvas() {
+                    if (canvas) return;
+                    canvas = document.createElement('canvas');
+                    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    document.body.appendChild(canvas);
+                    ctx = canvas.getContext('2d');
+                    window.addEventListener('resize', onResize);
+                }
+                function onResize() {
+                    if (!canvas) return;
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                }
+                function destroyCanvas() {
+                    if (rafId) cancelAnimationFrame(rafId);
+                    rafId = null;
+                    if (canvas) {
+                        canvas.remove();
+                        window.removeEventListener('resize', onResize);
+                    }
+                    canvas = null; ctx = null; particles = [];
+                }
+
+                function loop() {
+                    if (!ctx) return;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    for (let i = particles.length - 1; i >= 0; i--) {
+                        const p = particles[i];
+                        p.update();
+                        if (p.dead) particles.splice(i, 1);
+                        else p.draw(ctx);
+                    }
+                    if (particles.length === 0 && !spawning) {
+                        destroyCanvas();
+                        return;
+                    }
+                    rafId = requestAnimationFrame(loop);
+                }
+
+                // ---------- Particle factories ----------
+                function makeFirework() {
+                    const W = canvas.width, H = canvas.height;
+                    const startX = W * (0.15 + Math.random() * 0.7);
+                    const targetY = H * (0.15 + Math.random() * 0.35);
+                    const color = palette[Math.floor(Math.random() * palette.length)];
+                    return {
+                        x: startX, y: H + 10,
+                        vy: -(Math.sqrt(2 * 0.18 * (H - targetY))),
+                        vx: (Math.random() - 0.5) * 0.6,
+                        gravity: 0.18,
+                        exploded: false,
+                        color: color,
+                        dead: false,
+                        update() {
+                            if (!this.exploded) {
+                                this.x += this.vx;
+                                this.y += this.vy;
+                                this.vy += this.gravity;
+                                if (this.vy >= 0) {
+                                    this.exploded = true;
+                                    const burst = 28 + Math.floor(Math.random() * 14);
+                                    for (let i = 0; i < burst; i++) {
+                                        const a = (i / burst) * Math.PI * 2;
+                                        const speed = 2 + Math.random() * 3;
+                                        particles.push(makeSpark(this.x, this.y, Math.cos(a) * speed, Math.sin(a) * speed, this.color));
+                                    }
+                                    this.dead = true;
+                                }
+                            }
+                        },
+                        draw(c) {
+                            c.fillStyle = this.color;
+                            c.beginPath(); c.arc(this.x, this.y, 2.5, 0, Math.PI * 2); c.fill();
+                        }
+                    };
+                }
+                function makeSpark(x, y, vx, vy, color) {
+                    return {
+                        x, y, vx, vy, color,
+                        life: 1, gravity: 0.06, drag: 0.985,
+                        dead: false,
+                        update() {
+                            this.x += this.vx; this.y += this.vy;
+                            this.vy += this.gravity;
+                            this.vx *= this.drag; this.vy *= this.drag;
+                            this.life -= 0.012;
+                            if (this.life <= 0) this.dead = true;
+                        },
+                        draw(c) {
+                            c.globalAlpha = Math.max(0, this.life);
+                            c.fillStyle = this.color;
+                            c.beginPath(); c.arc(this.x, this.y, 2.4, 0, Math.PI * 2); c.fill();
+                            c.globalAlpha = 1;
+                        }
+                    };
+                }
+                function makeConfetti() {
+                    const W = canvas.width;
+                    const color = palette[Math.floor(Math.random() * palette.length)];
+                    return {
+                        x: Math.random() * W,
+                        y: -20 - Math.random() * 200,
+                        vx: (Math.random() - 0.5) * 1.4,
+                        vy: 1.5 + Math.random() * 2,
+                        rot: Math.random() * Math.PI * 2,
+                        vrot: (Math.random() - 0.5) * 0.25,
+                        w: 6 + Math.random() * 5,
+                        h: 10 + Math.random() * 6,
+                        sway: Math.random() * Math.PI * 2,
+                        color: color,
+                        dead: false,
+                        update() {
+                            this.sway += 0.04;
+                            this.x += this.vx + Math.sin(this.sway) * 0.6;
+                            this.y += this.vy;
+                            this.rot += this.vrot;
+                            if (this.y > canvas.height + 30) this.dead = true;
+                        },
+                        draw(c) {
+                            c.save();
+                            c.translate(this.x, this.y);
+                            c.rotate(this.rot);
+                            c.fillStyle = this.color;
+                            c.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+                            c.restore();
+                        }
+                    };
+                }
+                function makeBubble() {
+                    const W = canvas.width, H = canvas.height;
+                    const r = 8 + Math.random() * 22;
+                    return {
+                        x: Math.random() * W,
+                        y: H + r,
+                        r: r,
+                        vy: -(0.6 + Math.random() * 1.2),
+                        sway: Math.random() * Math.PI * 2,
+                        life: 1,
+                        dead: false,
+                        update() {
+                            this.sway += 0.02;
+                            this.x += Math.sin(this.sway) * 0.8;
+                            this.y += this.vy;
+                            if (this.y < -this.r) { this.dead = true; return; }
+                            if (this.y < canvas.height * 0.2) this.life -= 0.01;
+                            if (this.life <= 0) this.dead = true;
+                        },
+                        draw(c) {
+                            const grad = c.createRadialGradient(
+                                this.x - this.r * 0.3, this.y - this.r * 0.3, this.r * 0.1,
+                                this.x, this.y, this.r
+                            );
+                            grad.addColorStop(0, `rgba(255,255,255,${0.85 * this.life})`);
+                            grad.addColorStop(0.4, `rgba(180,210,255,${0.35 * this.life})`);
+                            grad.addColorStop(1, `rgba(124,92,191,${0.05 * this.life})`);
+                            c.fillStyle = grad;
+                            c.beginPath(); c.arc(this.x, this.y, this.r, 0, Math.PI * 2); c.fill();
+                            c.strokeStyle = `rgba(255,255,255,${0.5 * this.life})`;
+                            c.lineWidth = 1;
+                            c.stroke();
+                        }
+                    };
+                }
+
+                // ---------- Public API ----------
+                function start(effect, intensity, durationMs) {
+                    if (!effect) return;
+                    ensureCanvas();
+                    const scale = intensityScale[intensity] || 1;
+                    spawning = true;
+                    if (rafId === null) rafId = requestAnimationFrame(loop);
+                    const burst = () => {
+                        if (effect === 'fireworks') {
+                            const n = Math.round(2 * scale);
+                            for (let i = 0; i < Math.max(1, n); i++) particles.push(makeFirework());
+                        } else if (effect === 'confetti') {
+                            const n = Math.round(6 * scale);
+                            for (let i = 0; i < n; i++) particles.push(makeConfetti());
+                        } else if (effect === 'bubbles') {
+                            const n = Math.round(3 * scale);
+                            for (let i = 0; i < n; i++) particles.push(makeBubble());
+                        }
+                    };
+                    const interval = effect === 'fireworks' ? 450 : (effect === 'bubbles' ? 280 : 180);
+                    burst();
+                    spawnTimer = setInterval(burst, interval);
+                    setTimeout(stop, durationMs);
+                }
+                function stop() {
+                    spawning = false;
+                    if (spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+                    // particles fade out naturally; loop tears down canvas when empty
+                }
+                return { start, stop };
+            })();
 
             function connectWebSocket() {
                 socket = io('wss://websocket.botofthespecter.com', {
