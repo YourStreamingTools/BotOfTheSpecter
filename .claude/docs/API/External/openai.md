@@ -320,14 +320,7 @@ If you change the model, **recheck the system-message length-cap instructions** 
 
 ### 4.6 Post-processing filter
 
-`./bot/beta.py:4451`:
-
-```python
-if "Chaos Crew" in ai_text:
-    ai_text = ai_text.replace("Chaos Crew", "Stream Team")
-```
-
-A specific hallucination filter — the model will sometimes invent the phrase "Chaos Crew" for the bot owner's stream team, so it is rewritten. Don't remove this without confirming with the user.
+No post-processing filter on the AI response. A previous version substituted "Chaos Crew" → "Stream Team" but both phrases were inappropriate for Twitch chat. The constraint now lives in `api/ai.ad_messages.json` (the canonical AI instruction set), which tells the model never to use either phrase or any team-style group labels and to address viewers naturally (e.g. "everyone", "folks", "chat").
 
 ---
 
@@ -613,7 +606,7 @@ PHP usage endpoint .... https://api.openai.com/v1/organization/usage/completions
 - **Assistants API / Threads / Runs** — not used. The conversation state is project-managed JSON files, not OpenAI-managed threads.
 - **Function calling / tools** — not used. The bot's "tools" are Twitch/Discord/Kick command handlers, not OpenAI tool calls.
 - **Embeddings API** (`/v1/embeddings`) — `OPENAI_VECTOR_ID` exists in `.env.example` but no embedding code exists in the repo currently. If you add RAG, this is where it'd land.
-- **Moderation API** (`/v1/moderations`) — no automated content moderation on output. The "Chaos Crew" replace is a hardcoded post-filter, not Moderation API.
+- **Moderation API** (`/v1/moderations`) — no automated content moderation on output. Content rules (forbidden phrases, tone, viewer-address style) live in the AI instructions JSON (`api/ai.ad_messages.json` etc.) so the model avoids them at generation time rather than being patched after the fact.
 - **Realtime API** — referenced in `./bot/specterdiscord.py:6463` but the integration is dormant.
 - **Image generation** (`/v1/images`) — not used.
 - **Vision input** — Discord bot accepts text attachments only, not image inputs.
@@ -635,7 +628,7 @@ If the user asks for any of the above, treat it as new work and confirm scope be
 | Change TTS model | `MODEL_NAME` in `./websocket/tts_handler.py:11`. |
 | Change premium gate | `if premium_tier in (2000, 3000, 4000)` in each `get_ai_response`. |
 | Add a new instructions flow | Extend `./api/api.py:2749` (`chat_instructions`) with a new query flag and a new JSON file path. |
-| Add a hallucination filter | Extend the post-processing block (see "Chaos Crew" example, `./bot/beta.py:4451`). |
+| Add a content rule (forbidden phrase, tone, viewer-address style) | Edit the AI instructions JSON (`api/ai.ad_messages.json` or sibling) so the model avoids it at generation time. Avoid post-processing string-replace filters — they substitute one wrong output for another. |
 
 ---
 
