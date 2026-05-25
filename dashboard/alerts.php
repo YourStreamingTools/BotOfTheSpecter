@@ -418,6 +418,8 @@ ob_start();
                     $randomize = $categoryRandomize[$category] ?? 0;
                     $catLimit = $variantLimits[$category] ?? null;
                     $canAddVariant = ($catLimit === null) || (count($variants) < $catLimit);
+                    $showRandomize = ($catLimit === null || $catLimit > 1);
+                    $showControls = $showRandomize || $canAddVariant;
                 ?>
                 <section class="alerts-category" data-category="<?php echo htmlspecialchars($category); ?>">
                     <header class="alerts-category-header">
@@ -427,12 +429,14 @@ ob_start();
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-category-body">
-                        <div class="alerts-category-controls">
+                        <div class="alerts-category-controls"<?php echo $showControls ? '' : ' style="display:none;"'; ?>>
+                            <?php if ($showRandomize): ?>
                             <label class="alerts-mini-toggle">
                                 <input type="checkbox" class="alerts-randomize-toggle" data-category="<?php echo htmlspecialchars($category); ?>" <?php echo $randomize ? 'checked' : ''; ?>>
                                 <span class="alerts-mini-toggle-slider"></span>
                                 <span class="alerts-mini-toggle-text">Randomize</span>
                             </label>
+                            <?php endif; ?>
                             <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="Add a new variant"<?php echo $canAddVariant ? '' : ' style="display:none;"'; ?>>
                                 <i class="fas fa-plus"></i> New variant
                             </button>
@@ -908,6 +912,14 @@ $(document).ready(function() {
         var $btn = $cat.find('.alerts-new-variant-btn');
         if (limit !== undefined && count >= limit) $btn.hide();
         else $btn.show();
+        // Collapse the controls bar when nothing inside is visible (avoids the
+        // empty padded row on single-variant categories at cap).
+        var $controls = $cat.find('.alerts-category-controls');
+        var hasVisibleChild = $controls.children().filter(function() {
+            return $(this).css('display') !== 'none';
+        }).length > 0;
+        if (hasVisibleChild) $controls.show();
+        else $controls.hide();
     }
     // Variables available to each category's message template. Only what the
     // overlay actually substitutes for that event type is listed.
