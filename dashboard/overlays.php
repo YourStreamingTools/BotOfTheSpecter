@@ -64,7 +64,11 @@ ob_start();
     <span style="font-size:1.75rem; color:var(--amber); flex-shrink:0;"><i class="fas fa-bell"></i></span>
     <div>
         <p style="font-weight:700; margin-bottom:0.4rem;">📢 Upcoming Overlay System Update</p>
-        <p style="margin-bottom:0;">We're working on improvements to our overlay system. The main overlay is temporarily showing a notice page. Use the <strong>"All Overlays"</strong> option below with <code>all.php</code> for the complete overlay experience. Check back soon for updates!</p>
+        <p style="margin-bottom:0.5rem;">We're working on improvements to our overlay system. Use the <strong>"All Overlays"</strong> option below with <code>all.php</code> for the complete overlay experience.</p>
+        <p style="margin-bottom:0.4rem;">The root overlay URL is now the new <strong>Specter Alerts</strong> system &mdash; configure it in <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> and add this OBS browser source:</p>
+        <div class="info-box" style="font-family:monospace; margin-bottom:0;">
+            https://overlay.botofthespecter.com/?code=API_KEY_HERE
+        </div>
     </div>
 </div>
 <div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
