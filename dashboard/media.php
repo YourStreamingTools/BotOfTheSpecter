@@ -356,6 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
             foreach ($checks as $c) {
                 $cstmt = $db->prepare("SELECT COUNT(*) AS n FROM {$c[0]} WHERE {$c[1]} = ?");
+                if (!$cstmt) continue;
                 $cstmt->bind_param('s', $filename);
                 $cstmt->execute();
                 $n = (int)$cstmt->get_result()->fetch_assoc()['n'];
@@ -364,11 +365,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // Alert builder uses two columns on twitch_alerts; sum them
             $abstmt = $db->prepare("SELECT (SELECT COUNT(*) FROM twitch_alerts WHERE alert_image = ?) + (SELECT COUNT(*) FROM twitch_alerts WHERE alert_sound = ?) AS n");
-            $abstmt->bind_param('ss', $filename, $filename);
-            $abstmt->execute();
-            $abn = (int)$abstmt->get_result()->fetch_assoc()['n'];
-            $abstmt->close();
-            if ($abn > 0) $refParts[] = $abn . ' alert variant' . ($abn === 1 ? '' : 's');
+            if ($abstmt) {
+                $abstmt->bind_param('ss', $filename, $filename);
+                $abstmt->execute();
+                $abn = (int)$abstmt->get_result()->fetch_assoc()['n'];
+                $abstmt->close();
+                if ($abn > 0) $refParts[] = $abn . ' alert variant' . ($abn === 1 ? '' : 's');
+            }
             if (!empty($refParts)) {
                 $deleteStatus .= "<strong>" . htmlspecialchars($filename) . "</strong> is still linked to " . implode(', ', $refParts) . ". Remove the link(s) first, then try again.<br>";
                 continue;
