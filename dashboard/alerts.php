@@ -1315,6 +1315,10 @@ $(document).ready(function() {
             success: function(resp) {
                 if (resp.success) {
                     alertsData[currentAlertId].alert_image = resp.filename;
+                    // Surface the new file in the picker without a reload
+                    var ext = resp.filename.split('.').pop().toLowerCase();
+                    var bucket = ext === 'mp3' ? librarySounds : libraryImages;
+                    if (bucket.indexOf(resp.filename) === -1) bucket.push(resp.filename);
                     updateMediaPreview('image', resp.filename);
                     updatePreview();
                     markDirty();
@@ -1346,6 +1350,7 @@ $(document).ready(function() {
             success: function(resp) {
                 if (resp.success) {
                     alertsData[currentAlertId].alert_sound = resp.filename;
+                    if (librarySounds.indexOf(resp.filename) === -1) librarySounds.push(resp.filename);
                     updateMediaPreview('sound', resp.filename);
                     markDirty();
                 } else {
