@@ -2888,6 +2888,20 @@ label.switch .check { display: none; }
     padding: 2rem 0;
     color: var(--text-muted);
 }
+.media-delete-locked {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    cursor: help;
+}
+.media-delete-locked:hover {
+    color: var(--amber);
+    border-color: var(--amber);
+}
+.media-test-btn-placeholder {
+    visibility: hidden;
+    pointer-events: none;
+}
 
 /* Per-file modal contents */
 .media-modal {

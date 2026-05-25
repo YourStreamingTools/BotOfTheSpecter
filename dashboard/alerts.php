@@ -338,14 +338,57 @@ $fonts = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald', 'Raleway', 'Pop
 $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-Bold' => '600', 'Bold' => '700', 'Extra-Bold' => '800'];
 
 // Media base URL for preview thumbnails inside this configurator
-$mediaBase = $media_migrated ? "https://media.botofthespecter.com/$username/" : "https://soundalerts.botofthespecter.com/$username/";
+$mediaBase = "https://media.botofthespecter.com/$username/";
 
 $browserSourceUrl = "https://overlay.botofthespecter.com/twitch.php?code=" . urlencode($api_key);
 $totalVariants = count($allAlerts);
 
+// Library files exposed to the picker — only types this builder can use
+$libraryImageExts = ['png', 'jpg', 'jpeg', 'gif', 'webm'];
+$librarySoundExts = ['mp3'];
+$libraryImages = [];
+$librarySounds = [];
+if ($media_migrated && is_dir($media_path)) {
+    foreach (scandir($media_path) as $f) {
+        if ($f === '.' || $f === '..') continue;
+        if (!is_file($media_path . '/' . $f)) continue;
+        $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+        if (in_array($ext, $libraryImageExts, true)) $libraryImages[] = $f;
+        elseif (in_array($ext, $librarySoundExts, true)) $librarySounds[] = $f;
+    }
+    sort($libraryImages, SORT_STRING | SORT_FLAG_CASE);
+    sort($librarySounds, SORT_STRING | SORT_FLAG_CASE);
+}
+
 ob_start();
 ?>
+<?php if (!$media_migrated): ?>
 <div class="alerts-page-shell">
+    <div class="sp-card alerts-migrate-required">
+        <header class="sp-card-header">
+            <span class="sp-card-title"><i class="fas fa-lock"></i> Migrate to the Unified Media Library first</span>
+        </header>
+        <div class="sp-card-body">
+            <div class="sp-alert sp-alert-warning">
+                <p><i class="fas fa-exclamation-triangle"></i> <strong>Specter Alerts is powered by the Unified Media Library.</strong></p>
+                <p>This builder uploads, previews, and serves every alert image and sound through <code>media.botofthespecter.com</code>. The legacy <code>soundalerts.*</code> and <code>walkons.*</code> paths are not supported here — you must migrate before configuring alerts.</p>
+                <p>Migration is non-destructive: your existing files are copied into the new library, walkons are auto-linked, and your overlays keep working. <strong>Beta Bot (5.8+) is required after migration</strong> — once 5.8 ships to Stable, your channel will migrate automatically.</p>
+            </div>
+            <a href="media.php" class="sp-btn sp-btn-primary">
+                <i class="fas fa-arrow-right"></i> Open Media Library to migrate
+            </a>
+        </div>
+    </div>
+</div>
+<?php $content = ob_get_clean(); ob_start(); ?>
+<script>$(document).ready(function(){ /* alerts builder disabled until migration */ });</script>
+<?php $scripts = ob_get_clean(); include 'layout.php'; return; ?>
+<?php endif; ?>
+<div class="alerts-page-shell">
+    <div class="sp-alert sp-alert-info alerts-media-notice">
+        <i class="fas fa-photo-film"></i>
+        <span><strong>Powered by your Unified Media Library.</strong> Every alert image and sound is loaded from <code>media.botofthespecter.com</code>. Upload and manage files in <a href="media.php">Media</a> — they appear in the picker below.</span>
+    </div>
     <!-- Top header bar — title, counter, save/discard -->
     <header class="alerts-top-bar">
         <div class="alerts-top-bar-left">
@@ -695,6 +738,9 @@ ob_start();
                                 <div class="alerts-media-preview" id="image-preview"></div>
                                 <div class="alerts-media-filename" id="image-filename">No image selected</div>
                                 <div class="alerts-media-actions">
+                                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="image-library-btn">
+                                        <i class="fas fa-folder-open"></i> Browse library
+                                    </button>
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="image-upload-btn">
                                         <i class="fas fa-upload"></i> Upload
                                     </button>
@@ -724,6 +770,9 @@ ob_start();
                             <div class="alerts-media-upload" id="sound-upload-zone">
                                 <div class="alerts-media-filename" id="sound-filename">No sound selected</div>
                                 <div class="alerts-media-actions">
+                                    <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="sound-library-btn">
+                                        <i class="fas fa-folder-open"></i> Browse library
+                                    </button>
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="sound-upload-btn">
                                         <i class="fas fa-upload"></i> Upload
                                     </button>
@@ -814,6 +863,23 @@ ob_start();
         </div>
     </footer>
 </div>
+<!-- Media library picker — used by both image and sound "Browse library" buttons -->
+<div class="sp-modal-backdrop" id="alerts-library-modal" style="display:none;">
+    <div class="sp-modal alerts-library-modal-card" role="dialog" aria-modal="true" aria-labelledby="alerts-library-modal-title">
+        <header class="sp-modal-head">
+            <span class="sp-modal-title" id="alerts-library-modal-title">Choose from media library</span>
+            <button type="button" class="sp-modal-close" id="alerts-library-modal-close" aria-label="Close">&times;</button>
+        </header>
+        <div class="sp-modal-body">
+            <p class="alerts-help-text">Files uploaded in <a href="media.php">Media</a> appear here. Click a file to assign it to this variant.</p>
+            <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="Search files…">
+            <div class="alerts-library-grid" id="alerts-library-grid"></div>
+            <div class="alerts-library-empty" id="alerts-library-empty" style="display:none;">
+                No files of this type in your library yet. Upload one above or via <a href="media.php">Media</a>.
+            </div>
+        </div>
+    </div>
+</div>
 <?php
 $content = ob_get_clean();
 
@@ -826,6 +892,8 @@ $(document).ready(function() {
     const apiKey = <?php echo json_encode($api_key); ?>;
     const channelName = <?php echo json_encode($username); ?>;
     const MAX_VARIANTS = <?php echo (int)$MAX_VARIANTS; ?>;
+    const libraryImages = <?php echo json_encode($libraryImages); ?>;
+    const librarySounds = <?php echo json_encode($librarySounds); ?>;
     let currentAlertId = null;
     let isDirty = false;
     let loadingVariant = false;
@@ -1356,6 +1424,78 @@ $(document).ready(function() {
             icon: 'info', title: 'Edit multiple — coming soon',
             text: 'Bulk-editing several variants at once is on the roadmap. For now, open each variant and use Save changes individually.'
         });
+    });
+    var libraryMode = null; // 'image' | 'sound'
+    function openLibrary(mode) {
+        libraryMode = mode;
+        var files = mode === 'image' ? libraryImages : librarySounds;
+        $('#alerts-library-modal-title').text(mode === 'image' ? 'Choose an alert image' : 'Choose an alert sound');
+        renderLibrary(files, '');
+        $('#alerts-library-search').val('');
+        $('#alerts-library-modal').css('display', 'flex');
+    }
+    function closeLibrary() {
+        $('#alerts-library-modal').hide();
+        libraryMode = null;
+    }
+    function renderLibrary(files, search) {
+        var grid = $('#alerts-library-grid');
+        var filtered = files.filter(function(f) {
+            return !search || f.toLowerCase().indexOf(search.toLowerCase()) !== -1;
+        });
+        if (filtered.length === 0) {
+            grid.empty();
+            $('#alerts-library-empty').show();
+            return;
+        }
+        $('#alerts-library-empty').hide();
+        var html = filtered.map(function(f) {
+            var ext = f.split('.').pop().toLowerCase();
+            var url = mediaBase + f;
+            var thumb = '';
+            if (libraryMode === 'image') {
+                thumb = ext === 'webm'
+                    ? '<video src="' + url + '" muted autoplay loop playsinline></video>'
+                    : '<img src="' + url + '" alt="">';
+            } else {
+                thumb = '<div class="alerts-library-sound-thumb"><i class="fas fa-music"></i></div>';
+            }
+            return '<button type="button" class="alerts-library-item" data-file="' + escapeHtml(f) + '">'
+                +    '<div class="alerts-library-thumb">' + thumb + '</div>'
+                +    '<div class="alerts-library-name">' + escapeHtml(f) + '</div>'
+                +  '</button>';
+        }).join('');
+        grid.html(html);
+    }
+    $('#image-library-btn').on('click', function() {
+        if (!currentAlertId) return;
+        openLibrary('image');
+    });
+    $('#sound-library-btn').on('click', function() {
+        if (!currentAlertId) return;
+        openLibrary('sound');
+    });
+    $('#alerts-library-modal-close').on('click', closeLibrary);
+    $('#alerts-library-modal').on('click', function(e) {
+        if (e.target === this) closeLibrary();
+    });
+    $('#alerts-library-search').on('input', function() {
+        var files = libraryMode === 'image' ? libraryImages : librarySounds;
+        renderLibrary(files, this.value);
+    });
+    $(document).on('click', '.alerts-library-item', function() {
+        if (!currentAlertId || !libraryMode) return;
+        var file = $(this).data('file');
+        if (libraryMode === 'image') {
+            alertsData[currentAlertId].alert_image = file;
+            updateMediaPreview('image', file);
+            updatePreview();
+        } else {
+            alertsData[currentAlertId].alert_sound = file;
+            updateMediaPreview('sound', file);
+        }
+        markDirty();
+        closeLibrary();
     });
     // Warn on page leave with unsaved changes
     window.addEventListener('beforeunload', function(e) {
