@@ -47,7 +47,8 @@ $defaultAlerts = [
     ['bits', '10k+ bits', 3, 'bits >= 10000', "{username}\nrained {amount} bits!"],
     ['raid', 'Raid', 0, 'viewers >= 1', "{username}\nraiding with {viewers}!"],
     ['hype_train', 'Hype train started', 0, null, "The Hype Train is leaving the station!"],
-    ['hype_train', 'Hype train high', 1, null, "New all-time hype train high!"],
+    ['hype_train', 'Level 3 reached',    1, 'level >= 3', "Hype Train is at Level {level}!"],
+    ['hype_train', 'Level 5 reached',    2, 'level >= 5', "MAX LEVEL — Hype Train hit Level {level}!"],
     ['charity', 'Charity donation', 0, null, "{username}\ndonated to the cause!"],
     ['channel_points', 'Channel point reward', 0, null, "{username}\nredeemed a reward!"],
     // BotOfTheSpecter integrations — what makes this page ours
@@ -929,7 +930,7 @@ $(document).ready(function() {
         gift_subscription: ['{username}', '{amount}', '{tier}'],
         bits:              ['{username}', '{amount}'],
         raid:              ['{username}', '{viewers}'],
-        hype_train:        [],
+        hype_train:        ['{level}'],
         charity:           ['{username}', '{amount}'],
         channel_points:    ['{username}'],
         discord_join:      ['{username}'],
@@ -1516,6 +1517,7 @@ $(document).ready(function() {
             'gift_subscription': { event: 'TWITCH_GIFT_SUB', params: { user: 'TestUser', sub_tier: '1', sub_months: '1' } },
             'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: '100' } },
             'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: '42' } },
+            'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: '5' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];

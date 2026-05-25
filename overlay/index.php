@@ -101,6 +101,12 @@ if ($username) {
                         const viewers = parseInt(eventData.viewers) || 0;
                         const viewerMatch = cond.match(/viewers\s*>=\s*(\d+)/);
                         if (viewerMatch && viewers >= parseInt(viewerMatch[1])) return variant;
+                    } else if (category === 'hype_train') {
+                        const level = parseInt(eventData.level) || 1;
+                        const levelMatch = cond.match(/level\s*>=\s*(\d+)/);
+                        if (levelMatch && level >= parseInt(levelMatch[1])) return variant;
+                        const eqMatch = cond.match(/level\s*=\s*(\d+)/);
+                        if (eqMatch && level === parseInt(eqMatch[1])) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -145,7 +151,10 @@ if ($username) {
                     .replace(/\{amount\}/g, eventData.amount || '')
                     .replace(/\{months\}/g, eventData.months || '')
                     .replace(/\{viewers\}/g, eventData.viewers || '')
-                    .replace(/\{tier\}/g, eventData.tier || '');
+                    .replace(/\{tier\}/g, eventData.tier || '')
+                    .replace(/\{level\}/g, eventData.level || '')
+                    .replace(/\{added_minutes\}/g, eventData.added_minutes || '')
+                    .replace(/\{streak\}/g, eventData.streak || '');
                 // Split message into lines, first line uses accent color
                 const lines = message.split('\n');
                 let messageHtml = '';
@@ -488,7 +497,8 @@ if ($username) {
                 socket.on('TWITCH_HYPE_TRAIN', (data) => {
                     console.log('TWITCH_HYPE_TRAIN event received:', data);
                     queueAlert('hype_train', {
-                        username: data['twitch-username'] || ''
+                        username: data['twitch-username'] || '',
+                        level: parseInt(data['twitch-hype-level'] || data['level'] || 1)
                     });
                 });
                 socket.on('TWITCH_CHARITY', (data) => {
