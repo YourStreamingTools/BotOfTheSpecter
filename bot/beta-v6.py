@@ -4023,14 +4023,8 @@ class TwitchBot(commands.AutoBot):
                 api_logger.error(f"Failed to parse system instructions JSON: {e}")
             # Add a system message to tell the AI which Twitch user it's speaking to
             try:
-                user_context = f"You are speaking to Twitch user '{message_author_name}' (id: {user_id}). Address them by their display name @{message_author_name} and tailor the response to them. Keep responses concise and suitable for Twitch chat."
+                user_context = f"You are speaking to Twitch user '{message_author_name}' (id: {user_id}). Address them by their display name @{message_author_name} and tailor the response to them."
                 messages.append({'role': 'system', 'content': user_context})
-                # Instruct the AI to keep replies within the chat length limit
-                try:
-                    limiter = f"Important: Keep your final reply under {MAX_CHAT_MESSAGE_LENGTH} characters total so it fits in one Twitch chat message. If you need to be concise, prefer short sentences and avoid long lists."
-                    messages.append({'role': 'system', 'content': limiter})
-                except Exception:
-                    pass
             except Exception as e:
                 api_logger.error(f"Failed to build user context for AI: {e}")
             # Load per-user chat history and insert as prior messages
@@ -13636,18 +13630,6 @@ async def handle_ad_break_start(duration_seconds):
                                     uses_ad_manager = True
             except Exception as e:
                 api_logger.error(f"Error checking ad manager status: {e}")
-            system_prompt = (
-                "You are the witty and entertaining assistant for a Twitch stream. "
-                f"An ad break is STARTING RIGHT NOW (Duration: {formatted_duration}). "
-                "Your goal is to write a DURING-THE-BREAK follow-up message. "
-                "Frame it like: 'During this break, let's catch up on what's been going on.' "
-                "Reference recent chat/stream context briefly, keep it fun, and remind viewers we'll be right back. "
-                "IMPORTANT: "
-                "1. Keep your response under 500 characters. "
-                "2. Be kind, warm, and welcoming; keep language inclusive and respectful. "
-                "3. Do not shame, mock, insult, or use snark toward viewers. "
-                "4. DO NOT use the phrase 'Chaos Crew' (or misspellings like 'Chasos Crew') ever."
-            )
             if ad_break_count == 1 and uses_ad_manager:
                 user_content = "This is the FIRST ad break (automated start-of-stream). Write a catch-up style break message, welcome everyone in, and mention we are getting these automated ads out of the way early so we can enjoy the stream. Keep the vibe high and welcoming."
             else:
@@ -13708,10 +13690,6 @@ async def handle_ad_break_start(duration_seconds):
                 else:
                     ai_text = ai_text.strip()
                     clear_ad_break_chat_history("first-ai-ad-response-received")
-                    filtered_ai_text = re.sub(r"(?i)\b(?:chaos|chasos)\s+crew\b", "Stream Team", ai_text)
-                    if filtered_ai_text != ai_text:
-                        ai_text = filtered_ai_text
-                        api_logger.info("Filtered blocked crew phrase variant from AI response")
                     try:
                         if start_notice_sent or can_send_ad_message():
                             sent_ok = await send_chat_message(f"/me {ai_text}")
