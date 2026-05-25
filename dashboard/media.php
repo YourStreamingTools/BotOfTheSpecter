@@ -436,6 +436,15 @@ ob_start();
         <span class="sp-card-title"><i class="fas fa-arrow-circle-up"></i> Upgrade to Unified Media Library</span>
     </header>
     <div class="sp-card-body media-migrate-body">
+        <div class="sp-alert sp-alert-warning media-migrate-warning">
+            <p><i class="fas fa-exclamation-triangle"></i> <strong>Important — read before you migrate.</strong></p>
+            <p>The unified media library only works on <strong>Bot version 5.8 and above</strong>. The Stable Bot (5.7.x) has no awareness of this system and will <strong>stop firing your sound, video, and walkon alerts</strong> the moment you migrate.</p>
+            <p>You have two options:</p>
+            <ul>
+                <li><strong>Migrate now</strong> — switch your channel to the Beta Bot first (Bot &rsaquo; Run Beta Bot), then come back here and migrate.</li>
+                <li><strong>Hold tight</strong> — version 5.8 is being released to the Stable Bot soon. Once 5.8 ships as stable, your channel will be migrated automatically. No action required.</li>
+            </ul>
+        </div>
         <h4>How the New System Works</h4>
         <p>BotOfTheSpecter is moving to a unified media library. Instead of keeping separate folders for sound alerts, channel point sounds, Twitch event sounds, and walkons, <strong>all files live in one shared pool</strong>. A single file can be mapped to any combination of triggers — no more duplicating files.</p>
         <ul>
@@ -443,7 +452,6 @@ ob_start();
             <li><strong>Unified library</strong> &mdash; all audio and video files live in one shared pool.</li>
             <li><strong>Non-destructive migration</strong> &mdash; your existing files are <em>copied</em> into the new library; nothing is deleted from the old locations.</li>
             <li><strong>Walkons auto-linked</strong> &mdash; existing walkon files (named after their Twitch login) are auto-tagged to the right user during migration.</li>
-            <li><strong>Beta Bot required</strong> &mdash; after migration, the Stable Bot will no longer trigger media. You must run the Beta Bot for alerts to work.</li>
         </ul>
         <button type="button" id="media-migrate-btn" class="sp-btn sp-btn-warning">
             <i class="fas fa-arrow-right"></i> Migrate to Unified Media Library
@@ -994,8 +1002,13 @@ $(document).ready(function () {
         var btn = $(this);
         Swal.fire({
             title: 'Migrate to Unified Library?',
-            html: '<p>This copies your existing sound alerts, video alerts, and walkon files into the unified library. Existing walkons are auto-tagged to their Twitch user.</p><p><strong>Original files are not deleted</strong> — migration is non-destructive.</p>',
-            icon: 'info', showCancelButton: true,
+            html: '<div style="text-align:left;">'
+                + '<p><strong>Beta Bot required.</strong> The Stable Bot (5.7.x) cannot fire alerts from the unified library. If you migrate while still on the Stable Bot, your sound, video, and walkon alerts will stop working until you switch your channel to the Beta Bot.</p>'
+                + '<p>Version 5.8 will roll out to the Stable Bot soon and your channel will migrate automatically at that point — there is no rush.</p>'
+                + '<hr>'
+                + '<p>If you understand and want to migrate now, click <strong>Yes, migrate</strong>. Existing files are copied (not deleted), and walkons are auto-tagged to their Twitch user.</p>'
+                + '</div>',
+            icon: 'warning', showCancelButton: true,
             confirmButtonText: 'Yes, migrate', cancelButtonText: 'Cancel'
         }).then(function (result) {
             if (!result.isConfirmed) return;

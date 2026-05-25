@@ -2758,6 +2758,19 @@ label.switch .check { display: none; }
 .media-migrated-notice {
     margin-bottom: 1.25rem;
 }
+.media-migrate-warning {
+    margin: 0 0 1.25rem;
+}
+.media-migrate-warning p {
+    margin: 0 0 0.5rem;
+}
+.media-migrate-warning p:last-child {
+    margin-bottom: 0;
+}
+.media-migrate-warning ul {
+    margin: 0.25rem 0 0.5rem 1.25rem;
+    line-height: 1.7;
+}
 
 /* ---- media tables ---- */
 .media-table th,
