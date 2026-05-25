@@ -505,11 +505,18 @@ ob_start();
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
-                        <div class="alerts-form-group">
+                        <div class="alerts-form-group" id="variant-name-group">
                             <label>Variant name</label>
                             <input type="text" class="sp-input" id="set-variant-name">
                         </div>
-                        <div class="alerts-form-group">
+                        <div class="alerts-form-group" id="variant-reward-group" style="display:none;">
+                            <label>Channel point reward</label>
+                            <select class="sp-select" id="set-reward-id">
+                                <option value="">Select a reward…</option>
+                            </select>
+                            <small class="alerts-help-text">The variant name and trigger condition come from the selected reward. Sync more in <a href="channel_rewards.php">Channel Rewards</a>.</small>
+                        </div>
+                        <div class="alerts-form-group" id="variant-condition-group">
                             <label>Condition <span class="alerts-help">(advanced)</span></label>
                             <input type="text" class="sp-input" id="set-alert-condition" placeholder="e.g. bits >= 100, months = 1, gift_count >= 5">
                             <small class="alerts-help-text">Only fire this variant when the condition matches. Leave blank to always match.</small>
@@ -880,6 +887,54 @@ $(document).ready(function() {
     const MAX_VARIANTS = <?php echo (int)$MAX_VARIANTS; ?>;
     const libraryImages = <?php echo json_encode($libraryImages); ?>;
     const librarySounds = <?php echo json_encode($librarySounds); ?>;
+    const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
+    function extractRewardId(condition) {
+        if (!condition) return '';
+        var m = String(condition).match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
+        return m ? m[1] : '';
+    }
+    (function populateRewardDropdown() {
+        var sel = $('#set-reward-id');
+        if (!channelPointRewards.length) {
+            sel.append('<option value="" disabled>No rewards synced yet</option>');
+            return;
+        }
+        channelPointRewards.forEach(function(r) {
+            var label = r.reward_title + (r.reward_cost ? ' (' + r.reward_cost + ' pts)' : '');
+            sel.append('<option value="' + $('<div>').text(r.reward_id).html() + '">' + $('<div>').text(label).html() + '</option>');
+        });
+    })();
+    function applyCategoryUI(category, condition) {
+        if (category === 'channel_points') {
+            $('#variant-name-group').hide();
+            $('#variant-condition-group').hide();
+            $('#variant-reward-group').show();
+            var rid = extractRewardId(condition);
+            var sel = $('#set-reward-id');
+            // If the variant references a reward that no longer exists, add a
+            // synthetic option so the user can see the dangling reference
+            if (rid && sel.find('option[value="' + $('<div>').text(rid).html() + '"]').length === 0) {
+                sel.append('<option value="' + $('<div>').text(rid).html() + '" data-missing="1">Unknown reward (' + $('<div>').text(rid).html() + ')</option>');
+            }
+            sel.val(rid || '');
+        } else {
+            $('#variant-name-group').show();
+            $('#variant-condition-group').show();
+            $('#variant-reward-group').hide();
+        }
+    }
+    $('#set-reward-id').on('change', function() {
+        var id = this.value;
+        var reward = channelPointRewards.find(function(r) { return r.reward_id === id; });
+        if (!reward) return;
+        $('#set-variant-name').val(reward.reward_title);
+        $('#set-alert-condition').val("reward_id = '" + String(reward.reward_id).replace(/'/g, "\\'") + "'");
+        // Update the sidebar name immediately so the user sees the change
+        if (currentAlertId) {
+            $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-name').text(reward.reward_title);
+        }
+        markDirty();
+    });
     let currentAlertId = null;
     let isDirty = false;
     let loadingVariant = false;
@@ -923,6 +978,7 @@ $(document).ready(function() {
         // General
         $('#set-variant-name').val(a.variant_name);
         $('#set-alert-condition').val(a.alert_condition || '');
+        applyCategoryUI(a.alert_category, a.alert_condition);
         $('#set-duration').val(a.duration);
         $('#set-animation-in').val(a.animation_in);
         $('#set-animation-out').val(a.animation_out);
