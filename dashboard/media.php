@@ -288,8 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $remaining_storage = $max_storage_size - $current_storage_used;
         $uploadStatus = "";
         $targetDir = $media_path;
-        $allowedExts = ['mp3', 'mp4'];
-        $extLabel = 'MP3/MP4';
+        $allowedExts = ['mp3', 'mp4', 'png', 'jpg', 'jpeg', 'gif', 'webm'];
+        $extLabel = 'audio (MP3), video (MP4/WEBM), or image (PNG/JPG/GIF)';
         if ($targetDir) {
             foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
                 if (empty($tmp_name)) continue;
@@ -333,22 +333,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    // File deletion — wipes from the unified library and cleans up every mapping
-    // table the file might be referenced from.
+    // File deletion — safety-gated. A file that's still linked to a reward,
+    // event, walkon, or alert variant is refused; the user must unlink it
+    // first so an accidental delete can't silently break their overlays.
     if (isset($_POST['delete_files']) && is_array($_POST['delete_files'])) {
         $deleteStatus = "";
         $db->begin_transaction();
         foreach ($_POST['delete_files'] as $file_to_delete) {
             $filename = basename($file_to_delete);
             $full_path = $media_path . '/' . $filename;
-            if (is_file($full_path) && unlink($full_path)) {
+            if (!is_file($full_path)) {
+                $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
+                continue;
+            }
+            // Count every place this file is still referenced
+            $refParts = [];
+            $checks = [
+                ['sound_alerts',        'sound_mapping',  'channel point reward'],
+                ['video_alerts',        'video_mapping',  'video reward'],
+                ['twitch_sound_alerts', 'sound_mapping',  'Twitch event'],
+                ['walkons',             'media_file',     'walkon'],
+            ];
+            foreach ($checks as $c) {
+                $cstmt = $db->prepare("SELECT COUNT(*) AS n FROM {$c[0]} WHERE {$c[1]} = ?");
+                $cstmt->bind_param('s', $filename);
+                $cstmt->execute();
+                $n = (int)$cstmt->get_result()->fetch_assoc()['n'];
+                $cstmt->close();
+                if ($n > 0) $refParts[] = $n . ' ' . $c[2] . ($n === 1 ? '' : 's');
+            }
+            // Alert builder uses two columns on twitch_alerts; sum them
+            $abstmt = $db->prepare("SELECT (SELECT COUNT(*) FROM twitch_alerts WHERE alert_image = ?) + (SELECT COUNT(*) FROM twitch_alerts WHERE alert_sound = ?) AS n");
+            $abstmt->bind_param('ss', $filename, $filename);
+            $abstmt->execute();
+            $abn = (int)$abstmt->get_result()->fetch_assoc()['n'];
+            $abstmt->close();
+            if ($abn > 0) $refParts[] = $abn . ' alert variant' . ($abn === 1 ? '' : 's');
+            if (!empty($refParts)) {
+                $deleteStatus .= "<strong>" . htmlspecialchars($filename) . "</strong> is still linked to " . implode(', ', $refParts) . ". Remove the link(s) first, then try again.<br>";
+                continue;
+            }
+            if (unlink($full_path)) {
                 $deleteStatus .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
-                foreach (['sound_alerts' => 'sound_mapping', 'video_alerts' => 'video_mapping', 'twitch_sound_alerts' => 'sound_mapping', 'walkons' => 'media_file'] as $table => $col) {
-                    $stmt = $db->prepare("DELETE FROM $table WHERE $col = ?");
-                    $stmt->bind_param('s', $filename);
-                    $stmt->execute();
-                    $stmt->close();
-                }
             } else {
                 $deleteStatus .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
             }
@@ -368,6 +394,7 @@ function media_file_type($filename) {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
     if ($ext === 'mp3') return 'audio';
     if ($ext === 'mp4') return 'video';
+    if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webm'], true)) return 'image';
     return 'other';
 }
 function media_file_size($path) {
@@ -403,14 +430,14 @@ ob_start();
         <form action="" method="POST" enctype="multipart/form-data" class="media-upload-form" id="unified-upload-form">
             <input type="hidden" name="media_type" value="media_upload">
             <div class="sp-form-group">
-                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> Upload MP3 or MP4 files to your media library. Click a file in the list below to attach it to channel point rewards, Twitch events, or walkons. The same file can power any number of triggers — upload once, use everywhere.</small>
+                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> Upload audio (MP3), video (MP4/WEBM) or images (PNG/JPG/GIF) to your shared library. Click a file below to attach it to channel point rewards, Twitch events or walkons — and the same files power the <a href="alerts.php">Specter Alerts</a> builder. Upload once, use everywhere.</small>
             </div>
             <div class="sp-form-group">
                 <label class="media-drop-zone" id="unified-drop-zone">
                     <i class="fas fa-cloud-upload-alt media-drop-zone-icon"></i>
                     <span class="file-list-label">No files selected</span>
                     <div class="media-drop-zone-hint">Click or drag files here</div>
-                    <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3,.mp4" hidden>
+                    <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3,.mp4,.png,.jpg,.jpeg,.gif,.webm" hidden>
                 </label>
             </div>
             <div class="upload-status-container media-upload-status">
@@ -424,7 +451,7 @@ ob_start();
             </div>
             <button class="sp-btn sp-btn-primary upload-btn media-upload-btn" type="submit">
                 <i class="fas fa-upload"></i>
-                <span class="upload-btn-text">Upload Media (MP3/MP4)</span>
+                <span class="upload-btn-text">Upload Media</span>
             </button>
         </form>
     </div>
@@ -484,7 +511,7 @@ ob_start();
     <div class="sp-card-body">
         <?php if (empty($all_media_files)): ?>
             <div class="media-empty-state">
-                <p>No media files uploaded yet. Upload MP3 or MP4 files using the form above.</p>
+                <p>No media files uploaded yet. Upload audio, video or image files using the form above. They become available to channel points, Twitch events, walkons and the <a href="alerts.php">Specter Alerts</a> builder.</p>
             </div>
         <?php else: ?>
         <form action="" method="POST" id="mediaDeleteForm" class="media-delete-form">
@@ -496,11 +523,13 @@ ob_start();
                     $rewardCount = count($soundAlertMappings[$file] ?? []) + count($videoAlertMappings[$file] ?? []);
                     $eventCount  = count($twitchSoundAlertMappings[$file] ?? []);
                     $walkonCount = count($walkonsByFile[$file] ?? []);
-                    $totalCount  = $rewardCount + $eventCount + $walkonCount;
+                    $alertCount  = count($alertMediaFiles[$file] ?? []);
+                    $totalCount  = $rewardCount + $eventCount + $walkonCount + $alertCount;
                     $summaryParts = [];
                     if ($rewardCount > 0) $summaryParts[] = $rewardCount . ' reward' . ($rewardCount === 1 ? '' : 's');
                     if ($eventCount  > 0) $summaryParts[] = $eventCount . ' event' . ($eventCount === 1 ? '' : 's');
                     if ($walkonCount > 0) $summaryParts[] = $walkonCount . ' walkon' . ($walkonCount === 1 ? '' : 's');
+                    if ($alertCount  > 0) $summaryParts[] = $alertCount . ' alert' . ($alertCount === 1 ? '' : 's');
                     $summary = empty($summaryParts) ? 'Unused' : implode(' · ', $summaryParts);
                 ?>
                 <li class="media-file-row"
@@ -509,6 +538,8 @@ ob_start();
                     data-has-rewards="<?php echo $rewardCount > 0 ? '1' : '0'; ?>"
                     data-has-events="<?php echo $eventCount > 0 ? '1' : '0'; ?>"
                     data-has-walkons="<?php echo $walkonCount > 0 ? '1' : '0'; ?>"
+                    data-has-alerts="<?php echo $alertCount > 0 ? '1' : '0'; ?>"
+                    data-alert-count="<?php echo $alertCount; ?>"
                     data-total="<?php echo $totalCount; ?>">
                     <input type="checkbox" class="media-file-check" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>">
                     <button type="button" class="media-file-name" data-file="<?php echo htmlspecialchars($file); ?>">
@@ -516,12 +547,22 @@ ob_start();
                     </button>
                     <span class="media-file-meta"><?php echo strtoupper(pathinfo($file, PATHINFO_EXTENSION)); ?> · <?php echo format_bytes($size); ?></span>
                     <span class="media-file-summary<?php echo $totalCount === 0 ? ' is-unused' : ''; ?>"><?php echo htmlspecialchars($summary); ?></span>
+                    <?php if ($type === 'audio' || $type === 'video'): ?>
                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm media-test-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-type="<?php echo $type; ?>" title="Test playback">
                         <i class="fas fa-play"></i>
                     </button>
+                    <?php else: ?>
+                    <span class="sp-btn sp-btn-sm media-test-btn-placeholder" title="Images are managed via the alerts builder">&nbsp;</span>
+                    <?php endif; ?>
+                    <?php if ($totalCount > 0): ?>
+                    <button type="button" class="sp-btn sp-btn-sm media-delete-locked" data-file="<?php echo htmlspecialchars($file); ?>" data-summary="<?php echo htmlspecialchars($summary); ?>" title="This file is in use. Remove its links before deleting.">
+                        <i class="fas fa-lock"></i>
+                    </button>
+                    <?php else: ?>
                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm media-delete-single" data-file="<?php echo htmlspecialchars($file); ?>" title="Delete file">
                         <i class="fas fa-trash"></i>
                     </button>
+                    <?php endif; ?>
                 </li>
                 <?php endforeach; ?>
             </ul>
@@ -590,7 +631,10 @@ $(document).ready(function () {
     }
     function fileType(file) {
         var ext = (file.split('.').pop() || '').toLowerCase();
-        return ext === 'mp4' ? 'video' : (ext === 'mp3' ? 'audio' : 'other');
+        if (ext === 'mp4') return 'video';
+        if (ext === 'mp3') return 'audio';
+        if (['png', 'jpg', 'jpeg', 'gif', 'webm'].indexOf(ext) !== -1) return 'image';
+        return 'other';
     }
     function rewardTitle(id) {
         return data.reward_titles[id] || '(unknown reward)';
@@ -639,13 +683,35 @@ $(document).ready(function () {
         activeFile = file;
         modalTitle.textContent = file;
         var type = fileType(file);
+        var ext  = (file.split('.').pop() || '').toLowerCase();
+        var alertBuilder = data.alert_builder[file] || [];
+        var html = '';
+        // Header
+        var headerLabel = type === 'video' ? 'MP4 video'
+                        : type === 'audio' ? 'MP3 audio'
+                        : type === 'image' ? (ext.toUpperCase() + ' image')
+                        : 'File';
+        html += '<div class="media-modal-fileinfo">' + escapeHtml(headerLabel) + '</div>';
+        // Image files are alert-builder territory only — no channel-points,
+        // events or walkons. Render just the read-only usage chips.
+        if (type === 'image') {
+            if (alertBuilder.length === 0) {
+                html += '<div class="media-modal-section media-modal-section-readonly">'
+                     +    '<div class="media-modal-section-title">Used by Alert Builder</div>'
+                     +    '<div class="mapping-chips"><em class="mapping-empty">Not attached to any alert variant yet. Open <a href="alerts.php">Specter Alerts</a> and use Browse library to assign it.</em></div>'
+                     +  '</div>';
+            } else {
+                var abChips = alertBuilder.map(function (a) {
+                    return { label: a.category + ' · ' + a.variant + ' (' + a.type + ')' };
+                });
+                html += renderSection('Used by Alert Builder', abChips, '', true);
+            }
+            modalBody.innerHTML = html;
+            return;
+        }
         var rewards     = (type === 'video' ? data.video_alerts[file] : data.sound_alerts[file]) || [];
         var events      = data.twitch_events[file] || [];
         var walkons     = data.walkons[file]       || [];
-        var alertBuilder= data.alert_builder[file] || [];
-        var html = '';
-        // Header
-        html += '<div class="media-modal-fileinfo">' + escapeHtml(type === 'video' ? 'MP4 video' : 'MP3 audio') + '</div>';
         // Channel point rewards (sound for audio, video for video)
         var availRewards = availableRewards(rewards);
         var rewardChips = rewards.map(function (rid) {
@@ -762,17 +828,21 @@ $(document).ready(function () {
         var r = (data.sound_alerts[file] || []).length + (data.video_alerts[file] || []).length;
         var e = (data.twitch_events[file] || []).length;
         var w = (data.walkons[file] || []).length;
-        var total = r + e + w;
+        // Alert builder count is managed in alerts.php — keep what the row was rendered with
+        var a = parseInt(row.dataset.alertCount || '0', 10);
+        var total = r + e + w + a;
         var parts = [];
         if (r > 0) parts.push(r + ' reward' + (r === 1 ? '' : 's'));
         if (e > 0) parts.push(e + ' event' + (e === 1 ? '' : 's'));
         if (w > 0) parts.push(w + ' walkon' + (w === 1 ? '' : 's'));
+        if (a > 0) parts.push(a + ' alert' + (a === 1 ? '' : 's'));
         var summaryEl = row.querySelector('.media-file-summary');
         summaryEl.textContent = total === 0 ? 'Unused' : parts.join(' · ');
         summaryEl.classList.toggle('is-unused', total === 0);
         row.dataset.hasRewards = r > 0 ? '1' : '0';
         row.dataset.hasEvents  = e > 0 ? '1' : '0';
         row.dataset.hasWalkons = w > 0 ? '1' : '0';
+        row.dataset.hasAlerts  = a > 0 ? '1' : '0';
         row.dataset.total = String(total);
         applyFilter();
     }
@@ -942,7 +1012,7 @@ $(document).ready(function () {
                 if (d && !d.success) {
                     statusContainer.hide();
                     uploadBtn.prop('disabled', false).removeClass('sp-btn-loading');
-                    uploadBtnText.text('Upload Media (MP3/MP4)');
+                    uploadBtnText.text('Upload Media');
                     Swal.fire({ icon: 'error', title: 'Upload Failed', html: d.status || 'An error occurred during upload.', confirmButtonColor: '#3273dc' });
                     return;
                 }
@@ -962,14 +1032,34 @@ $(document).ready(function () {
         var checked = $('.media-file-check:checked').length;
         $('.media-delete-selected-btn').prop('disabled', checked < 1);
     });
-    // Delete selected (bulk)
+    // Delete selected (bulk) — refuse if any selection is still linked
     $(document).on('click', '.media-delete-selected-btn', function () {
         var form = $('#mediaDeleteForm');
         var checked = form.find('.media-file-check:checked');
         if (checked.length === 0) return;
+        var locked = [];
+        checked.each(function () {
+            var row = $(this).closest('.media-file-row');
+            if (parseInt(row.attr('data-total') || '0', 10) > 0) {
+                locked.push({
+                    file: row.attr('data-file'),
+                    summary: row.find('.media-file-summary').text()
+                });
+            }
+        });
+        if (locked.length > 0) {
+            var list = locked.map(function (l) { return '<li><strong>' + l.file + '</strong> — ' + l.summary + '</li>'; }).join('');
+            Swal.fire({
+                icon: 'warning',
+                title: 'Some files are still in use',
+                html: 'Remove the links on these files before deleting:<ul style="text-align:left;margin-top:8px;">' + list + '</ul>'
+                    + 'Open each file to unlink its rewards/events/walkons, or visit <a href="alerts.php">Specter Alerts</a> for alert builder usage.',
+            });
+            return;
+        }
         Swal.fire({
             title: 'Delete Files?',
-            text: 'Are you sure you want to delete the selected ' + checked.length + ' file(s)? All mappings will also be removed.',
+            text: 'Are you sure you want to delete the selected ' + checked.length + ' file(s)?',
             icon: 'warning', showCancelButton: true,
             confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
         }).then(function (result) { if (result.isConfirmed) form.submit(); });
@@ -979,7 +1069,7 @@ $(document).ready(function () {
         var fileName = $(this).data('file');
         Swal.fire({
             title: 'Delete File?',
-            text: 'Are you sure you want to delete "' + fileName + '"? All mappings will also be removed.',
+            text: 'Are you sure you want to delete "' + fileName + '"?',
             icon: 'warning', showCancelButton: true,
             confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
         }).then(function (result) {
@@ -987,6 +1077,19 @@ $(document).ready(function () {
                 $('<input>').attr({ type: 'hidden', name: 'delete_files[]', value: fileName }).appendTo('#mediaDeleteForm');
                 $('#mediaDeleteForm').submit();
             }
+        });
+    });
+    // Locked file delete — explain why and point to the right place to unlink
+    $(document).on('click', '.media-delete-locked', function () {
+        var fileName = $(this).data('file');
+        var summary = $(this).data('summary');
+        Swal.fire({
+            icon: 'info',
+            title: 'File is in use',
+            html: '<strong>' + fileName + '</strong> is still attached to ' + summary + '.<br><br>'
+                + 'Open the file to remove its channel-point reward, Twitch event or walkon links. '
+                + 'For alert builder usage, open <a href="alerts.php">Specter Alerts</a> and clear the file from the affected variants. '
+                + 'Then come back and try the delete again.',
         });
     });
     // Test playback (existing notify_event flow)
