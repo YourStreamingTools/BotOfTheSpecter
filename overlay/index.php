@@ -11,350 +11,527 @@ $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $username = $user['username'] ?? '';
+$alertConfigs = [];
+$mediaMigrated = false;
 if ($username) {
     $db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
-    $stmt = $db->prepare("SELECT * FROM profile");
+    // Fetch alert settings
+    $stmt = $db->prepare("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index");
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $row) {
+        $alertConfigs[$row['alert_category']][] = $row;
+    }
+    // Check media migration status
+    $stmt = $db->prepare("SELECT media_migrated FROM profile LIMIT 1");
     $stmt->execute();
     $profile = $stmt->fetch(PDO::FETCH_ASSOC);
-    $timezone = $profile['timezone'] ?? null;
-} else {
-    $timezone = null;
+    $mediaMigrated = !empty($profile['media_migrated']);
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Notifications & Overlay System for BotOfTheSpecter</title>
+    <title>Twitch Alerts Overlay - BotOfTheSpecter</title>
     <link rel="stylesheet" href="index.css?v=<?php echo filemtime(__DIR__ . '/index.css'); ?>">
     <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
-    <style>
-        .notice-banner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            z-index: 10000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            animation: slideDown 0.5s ease-out;
-        }
-
-        .notice-banner h2 {
-            margin: 0 0 10px 0;
-            font-size: 20px;
-        }
-
-        .notice-banner p {
-            margin: 0;
-            font-size: 14px;
-            opacity: 0.95;
-        }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateY(-100%);
-                opacity: 0;
-            }
-        }
-
-        .notice-banner.hide {
-            animation: slideUp 0.5s ease-out forwards;
-        }
-    </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let socket;
             const retryInterval = 5000;
             let reconnectAttempts = 0;
-            let currentAudio = null;
-            const audioQueue = [];
-            const timezone = <?php echo json_encode($timezone); ?>;
-            let timerIntervalId = null;
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code');
-            // Hide notice after 30 seconds
-            const noticeBanner = document.getElementById('noticeBanner');
-            if (noticeBanner) {
-                setTimeout(() => {
-                    noticeBanner.classList.add('hide');
-                    setTimeout(() => {
-                        noticeBanner.style.display = 'none';
-                    }, 500);
-                }, 30000);
+            function showOverlayError(message, type) {
+                let banner = document.getElementById('overlayErrorBanner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'overlayErrorBanner';
+                    document.body.appendChild(banner);
+                }
+                banner.textContent = message;
+                banner.className = 'overlay-error-banner ' + (type === 'warn' ? 'overlay-error-banner-warn' : 'overlay-error-banner-danger');
+                banner.style.display = 'block';
+                if (type === 'warn') {
+                    clearTimeout(banner._timeoutId);
+                    banner._timeoutId = setTimeout(() => { banner.style.display = 'none'; }, 6000);
+                }
             }
-            
             if (!code) {
-                console.error('No code provided in the URL');
+                showOverlayError('No code provided in the URL', 'danger');
                 return;
             }
-
-            function escapeHtml(str) {
-                return String(str ?? '')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#39;');
+            const alertConfigs = <?php echo json_encode($alertConfigs); ?>;
+            const username = <?php echo json_encode($username); ?>;
+            const mediaMigrated = <?php echo json_encode($mediaMigrated); ?>;
+            const mediaBase = mediaMigrated
+                ? 'https://media.botofthespecter.com/' + username + '/'
+                : 'https://soundalerts.botofthespecter.com/' + username + '/';
+            const alertQueue = [];
+            let isShowingAlert = false;
+            let currentAudio = null;
+            const loadedFonts = {};
+            function loadGoogleFont(fontName) {
+                if (loadedFonts[fontName]) return;
+                loadedFonts[fontName] = true;
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(fontName) + ':wght@300;400;500;600;700;800&display=swap';
+                document.head.appendChild(link);
             }
-
-            function enqueueAudio(url) {
-                audioQueue.push(url);
-                if (!currentAudio) {
-                    playNextAudio();
+            function getMatchingVariant(category, eventData) {
+                const variants = alertConfigs[category];
+                if (!variants || variants.length === 0) return null;
+                // Filter enabled variants
+                const enabled = variants.filter(v => v.enabled == 1);
+                if (enabled.length === 0) return null;
+                // For categories with conditions, find best match (highest index first = most specific)
+                const sorted = enabled.slice().sort((a, b) => b.variant_index - a.variant_index);
+                for (const variant of sorted) {
+                    const cond = variant.alert_condition;
+                    if (!cond) return variant; // No condition = matches all
+                    // Parse simple conditions
+                    if (category === 'bits') {
+                        const amount = parseInt(eventData.amount) || 0;
+                        if (cond === 'is_first = 1' && eventData.is_first) return variant;
+                        const bitsMatch = cond.match(/bits\s*>=\s*(\d+)/);
+                        if (bitsMatch && amount >= parseInt(bitsMatch[1])) return variant;
+                    } else if (category === 'subscription') {
+                        const months = parseInt(eventData.months) || 1;
+                        if (cond === 'months = 1' && months === 1) return variant;
+                        const monthsMatch = cond.match(/months\s*>=\s*(\d+)/);
+                        if (monthsMatch && months >= parseInt(monthsMatch[1])) return variant;
+                    } else if (category === 'gift_subscription') {
+                        const giftCount = parseInt(eventData.amount) || 1;
+                        const giftMatch = cond.match(/gift_count\s*>=\s*(\d+)/);
+                        if (giftMatch && giftCount >= parseInt(giftMatch[1])) return variant;
+                        if (!giftMatch) return variant;
+                    } else if (category === 'raid') {
+                        const viewers = parseInt(eventData.viewers) || 0;
+                        const viewerMatch = cond.match(/viewers\s*>=\s*(\d+)/);
+                        if (viewerMatch && viewers >= parseInt(viewerMatch[1])) return variant;
+                    } else {
+                        return variant; // Unknown condition type, use variant
+                    }
                 }
+                // Fallback to first enabled variant
+                return enabled[0];
             }
-
-            function playNextAudio() {
-                if (audioQueue.length === 0) {
-                    currentAudio = null;
+            function queueAlert(category, eventData) {
+                const config = getMatchingVariant(category, eventData);
+                if (!config) return;
+                alertQueue.push({ config, eventData });
+                if (!isShowingAlert) processAlertQueue();
+            }
+            function processAlertQueue() {
+                if (alertQueue.length === 0) {
+                    isShowingAlert = false;
                     return;
                 }
-
-                const url = audioQueue.shift();
-                currentAudio = new Audio(`${url}?t=${new Date().getTime()}`);
-                currentAudio.volume = 0.8;
-
-                currentAudio.addEventListener('canplaythrough', () => {
-                    console.log('Audio can play through without buffering');
-                });
-
-                currentAudio.addEventListener('ended', () => {
-                    currentAudio = null;
-                    playNextAudio();
-                });
-
-                currentAudio.addEventListener('error', (e) => {
-                    console.error('Error occurred while loading the audio file:', e);
-                    console.error('Failed to load audio file');
-                    currentAudio = null;
-                    playNextAudio();
-                });
-
-                currentAudio.play().catch(error => {
-                    console.error('Error playing audio:', error);
-                    console.warn('Autoplay blocked; awaiting user gesture or stream interaction');
-                });
+                isShowingAlert = true;
+                const { config, eventData } = alertQueue.shift();
+                renderAlert(config, eventData);
             }
-
+            function renderAlert(config, eventData) {
+                const container = document.getElementById('alertContainer');
+                const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
+                const cssWeight = weightMap[config.font_weight] || '600';
+                // Load font
+                if (config.font_family) loadGoogleFont(config.font_family);
+                // Parse background color — fall back to #000000 if the stored value
+                // isn't a valid #RRGGBB literal (anything else produces NaN channels
+                // and CSS silently drops the whole rgba()).
+                const hex6 = /^#[0-9a-fA-F]{6}$/;
+                const bgColor = hex6.test(config.bg_color) ? config.bg_color : '#000000';
+                const bgOpacity = (config.bg_opacity || 0) / 100;
+                const r = parseInt(bgColor.substr(1,2), 16);
+                const g = parseInt(bgColor.substr(3,2), 16);
+                const b = parseInt(bgColor.substr(5,2), 16);
+                const bgRgba = `rgba(${r},${g},${b},${bgOpacity})`;
+                // Process message template
+                let message = (config.message_template || '').replace(/\\n/g, '\n');
+                message = message.replace(/\{username\}/g, eventData.username || '')
+                    .replace(/\{amount\}/g, eventData.amount || '')
+                    .replace(/\{months\}/g, eventData.months || '')
+                    .replace(/\{viewers\}/g, eventData.viewers || '')
+                    .replace(/\{tier\}/g, eventData.tier || '');
+                // Split message into lines, first line uses accent color
+                const lines = message.split('\n');
+                let messageHtml = '';
+                if (lines.length > 1) {
+                    messageHtml = `<span class="twitch-alert-accent">${escapeHtml(lines[0])}</span><br>${escapeHtml(lines.slice(1).join('\n')).replace(/\n/g, '<br>')}`;
+                } else {
+                    messageHtml = escapeHtml(message).replace(/\n/g, '<br>');
+                }
+                // Build layout
+                const layout = config.layout_preset || 'above';
+                const imageScale = (config.image_scale || 100) / 100;
+                let imageHtml = '';
+                if (config.alert_image) {
+                    const imgUrl = mediaBase + config.alert_image;
+                    const ext = config.alert_image.split('.').pop().toLowerCase();
+                    if (ext === 'webm') {
+                        imageHtml = `<video class="twitch-alert-image" src="${imgUrl}" autoplay loop muted style="transform:scale(${imageScale})"></video>`;
+                    } else {
+                        imageHtml = `<img class="twitch-alert-image" src="${imgUrl}" alt="" style="transform:scale(${imageScale})">`;
+                    }
+                }
+                const boxStyles = [
+                    `background:${bgRgba}`,
+                    `padding:${config.padding || 16}px`,
+                    `gap:${config.gap || 16}px`,
+                    `border-radius:${config.rounded_corners == 1 ? '12px' : '0'}`,
+                    `box-shadow:${config.drop_shadow == 1 ? '0 4px 20px rgba(0,0,0,0.5)' : 'none'}`
+                ].join(';');
+                const textStyles = [
+                    `font-family:"${config.font_family || 'Roboto'}",sans-serif`,
+                    `font-weight:${cssWeight}`,
+                    `font-size:${config.font_size || 24}px`,
+                    `color:${config.text_color || '#FFFFFF'}`,
+                    `text-align:${config.text_alignment || 'center'}`,
+                    `text-shadow:${config.text_drop_shadow == 1 ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'}`
+                ].join(';');
+                container.innerHTML = `
+                    <div class="twitch-alert-box layout-${layout}" style="${boxStyles}">
+                        ${imageHtml}
+                        <div class="twitch-alert-text" style="${textStyles}">${messageHtml}</div>
+                    </div>
+                `;
+                // Apply accent color
+                const accentEls = container.querySelectorAll('.twitch-alert-accent');
+                accentEls.forEach(el => el.style.color = config.accent_color || '#A1C53A');
+                // Play alert sound
+                if (config.alert_sound) {
+                    const soundUrl = mediaBase + config.alert_sound;
+                    currentAudio = new Audio(soundUrl + '?t=' + Date.now());
+                    currentAudio.volume = (config.sound_volume || 50) / 100;
+                    currentAudio.play().catch(e => console.error('Audio play error:', e));
+                }
+                // Animate in
+                const animInDur = parseFloat(config.animation_in_duration) || 1;
+                const animOutDur = parseFloat(config.animation_out_duration) || 1;
+                const duration = (parseInt(config.duration) || 8) * 1000;
+                container.style.animation = 'none';
+                container.offsetHeight; // Trigger reflow
+                container.classList.add('show');
+                container.style.animation = `${config.animation_in || 'fadeIn'} ${animInDur}s forwards`;
+                // Celebration effect — spawns over the alert's full duration
+                if (config.celebration_enabled == 1 && config.celebration_effect) {
+                    celebration.start(
+                        config.celebration_effect,
+                        config.celebration_intensity || 'medium',
+                        duration
+                    );
+                }
+                setTimeout(() => {
+                    container.style.animation = `${config.animation_out || 'fadeOut'} ${animOutDur}s forwards`;
+                    celebration.stop();
+                    setTimeout(() => {
+                        container.classList.remove('show');
+                        container.style.animation = '';
+                        if (currentAudio) {
+                            currentAudio.pause();
+                            currentAudio = null;
+                        }
+                        processAlertQueue();
+                    }, animOutDur * 1000);
+                }, duration);
+            }
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+            const celebration = (function () {
+                let canvas = null, ctx = null, particles = [], rafId = null;
+                let spawning = false, spawnTimer = null;
+                const palette = ['#7c5cbf', '#9070d8', '#fbbf24', '#3ecf8e', '#5cb8ff', '#f87171', '#ffffff'];
+                const intensityScale = { light: 0.5, medium: 1, heavy: 2 };
+                function ensureCanvas() {
+                    if (canvas) return;
+                    canvas = document.createElement('canvas');
+                    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    document.body.appendChild(canvas);
+                    ctx = canvas.getContext('2d');
+                    window.addEventListener('resize', onResize);
+                }
+                function onResize() {
+                    if (!canvas) return;
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                }
+                function destroyCanvas() {
+                    if (rafId) cancelAnimationFrame(rafId);
+                    rafId = null;
+                    if (canvas) {
+                        canvas.remove();
+                        window.removeEventListener('resize', onResize);
+                    }
+                    canvas = null; ctx = null; particles = [];
+                }
+                function loop() {
+                    if (!ctx) return;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    for (let i = particles.length - 1; i >= 0; i--) {
+                        const p = particles[i];
+                        p.update();
+                        if (p.dead) particles.splice(i, 1);
+                        else p.draw(ctx);
+                    }
+                    if (particles.length === 0 && !spawning) {
+                        destroyCanvas();
+                        return;
+                    }
+                    rafId = requestAnimationFrame(loop);
+                }
+                function makeFirework() {
+                    const W = canvas.width, H = canvas.height;
+                    const startX = W * (0.15 + Math.random() * 0.7);
+                    const targetY = H * (0.15 + Math.random() * 0.35);
+                    const color = palette[Math.floor(Math.random() * palette.length)];
+                    return {
+                        x: startX, y: H + 10,
+                        vy: -(Math.sqrt(2 * 0.18 * (H - targetY))),
+                        vx: (Math.random() - 0.5) * 0.6,
+                        gravity: 0.18,
+                        exploded: false,
+                        color: color,
+                        dead: false,
+                        update() {
+                            if (!this.exploded) {
+                                this.x += this.vx;
+                                this.y += this.vy;
+                                this.vy += this.gravity;
+                                if (this.vy >= 0) {
+                                    this.exploded = true;
+                                    const burst = 28 + Math.floor(Math.random() * 14);
+                                    for (let i = 0; i < burst; i++) {
+                                        const a = (i / burst) * Math.PI * 2;
+                                        const speed = 2 + Math.random() * 3;
+                                        particles.push(makeSpark(this.x, this.y, Math.cos(a) * speed, Math.sin(a) * speed, this.color));
+                                    }
+                                    this.dead = true;
+                                }
+                            }
+                        },
+                        draw(c) {
+                            c.fillStyle = this.color;
+                            c.beginPath(); c.arc(this.x, this.y, 2.5, 0, Math.PI * 2); c.fill();
+                        }
+                    };
+                }
+                function makeSpark(x, y, vx, vy, color) {
+                    return {
+                        x, y, vx, vy, color,
+                        life: 1, gravity: 0.06, drag: 0.985,
+                        dead: false,
+                        update() {
+                            this.x += this.vx; this.y += this.vy;
+                            this.vy += this.gravity;
+                            this.vx *= this.drag; this.vy *= this.drag;
+                            this.life -= 0.012;
+                            if (this.life <= 0) this.dead = true;
+                        },
+                        draw(c) {
+                            c.globalAlpha = Math.max(0, this.life);
+                            c.fillStyle = this.color;
+                            c.beginPath(); c.arc(this.x, this.y, 2.4, 0, Math.PI * 2); c.fill();
+                            c.globalAlpha = 1;
+                        }
+                    };
+                }
+                function makeConfetti() {
+                    const W = canvas.width;
+                    const color = palette[Math.floor(Math.random() * palette.length)];
+                    return {
+                        x: Math.random() * W,
+                        y: -20 - Math.random() * 200,
+                        vx: (Math.random() - 0.5) * 1.4,
+                        vy: 1.5 + Math.random() * 2,
+                        rot: Math.random() * Math.PI * 2,
+                        vrot: (Math.random() - 0.5) * 0.25,
+                        w: 6 + Math.random() * 5,
+                        h: 10 + Math.random() * 6,
+                        sway: Math.random() * Math.PI * 2,
+                        color: color,
+                        dead: false,
+                        update() {
+                            this.sway += 0.04;
+                            this.x += this.vx + Math.sin(this.sway) * 0.6;
+                            this.y += this.vy;
+                            this.rot += this.vrot;
+                            if (this.y > canvas.height + 30) this.dead = true;
+                        },
+                        draw(c) {
+                            c.save();
+                            c.translate(this.x, this.y);
+                            c.rotate(this.rot);
+                            c.fillStyle = this.color;
+                            c.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+                            c.restore();
+                        }
+                    };
+                }
+                function makeBubble() {
+                    const W = canvas.width, H = canvas.height;
+                    const r = 8 + Math.random() * 22;
+                    return {
+                        x: Math.random() * W,
+                        y: H + r,
+                        r: r,
+                        vy: -(0.6 + Math.random() * 1.2),
+                        sway: Math.random() * Math.PI * 2,
+                        life: 1,
+                        dead: false,
+                        update() {
+                            this.sway += 0.02;
+                            this.x += Math.sin(this.sway) * 0.8;
+                            this.y += this.vy;
+                            if (this.y < -this.r) { this.dead = true; return; }
+                            if (this.y < canvas.height * 0.2) this.life -= 0.01;
+                            if (this.life <= 0) this.dead = true;
+                        },
+                        draw(c) {
+                            const grad = c.createRadialGradient(
+                                this.x - this.r * 0.3, this.y - this.r * 0.3, this.r * 0.1,
+                                this.x, this.y, this.r
+                            );
+                            grad.addColorStop(0, `rgba(255,255,255,${0.85 * this.life})`);
+                            grad.addColorStop(0.4, `rgba(180,210,255,${0.35 * this.life})`);
+                            grad.addColorStop(1, `rgba(124,92,191,${0.05 * this.life})`);
+                            c.fillStyle = grad;
+                            c.beginPath(); c.arc(this.x, this.y, this.r, 0, Math.PI * 2); c.fill();
+                            c.strokeStyle = `rgba(255,255,255,${0.5 * this.life})`;
+                            c.lineWidth = 1;
+                            c.stroke();
+                        }
+                    };
+                }
+                function start(effect, intensity, durationMs) {
+                    if (!effect) return;
+                    ensureCanvas();
+                    const scale = intensityScale[intensity] || 1;
+                    spawning = true;
+                    if (rafId === null) rafId = requestAnimationFrame(loop);
+                    const burst = () => {
+                        if (effect === 'fireworks') {
+                            const n = Math.round(2 * scale);
+                            for (let i = 0; i < Math.max(1, n); i++) particles.push(makeFirework());
+                        } else if (effect === 'confetti') {
+                            const n = Math.round(6 * scale);
+                            for (let i = 0; i < n; i++) particles.push(makeConfetti());
+                        } else if (effect === 'bubbles') {
+                            const n = Math.round(3 * scale);
+                            for (let i = 0; i < n; i++) particles.push(makeBubble());
+                        }
+                    };
+                    const interval = effect === 'fireworks' ? 450 : (effect === 'bubbles' ? 280 : 180);
+                    burst();
+                    spawnTimer = setInterval(burst, interval);
+                    setTimeout(stop, durationMs);
+                }
+                function stop() {
+                    spawning = false;
+                    if (spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+                    // particles fade out naturally; loop tears down canvas when empty
+                }
+                return { start, stop };
+            })();
             function connectWebSocket() {
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
                 });
-
                 socket.on('connect', () => {
                     console.log('Connected to WebSocket server');
                     reconnectAttempts = 0;
-                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Everything' });
+                    socket.emit('REGISTER', { code: code, channel:'Overlay', name: 'Twitch Alerts' });
                 });
-
                 socket.on('disconnect', () => {
                     console.log('Disconnected from WebSocket server');
                     attemptReconnect();
                 });
-
                 socket.on('connect_error', (error) => {
                     console.error('Connection error:', error);
                     attemptReconnect();
                 });
-
                 socket.on('WELCOME', (data) => {
                     console.log('Server says:', data.message);
                 });
-
-                socket.on('NOTIFY', (data) => {
-                    console.log('Notification:', data);
-                    console.log('NOTIFY message:', data.message);
+                // Twitch events
+                socket.on('TWITCH_FOLLOW', (data) => {
+                    console.log('TWITCH_FOLLOW event received:', data);
+                    queueAlert('follow', { username: data['twitch-username'] });
                 });
-
-                socket.on('TTS', (data) => {
-                    console.log('TTS event received:', data);
-                    enqueueAudio(data.audio_file);
+                socket.on('TWITCH_CHEER', (data) => {
+                    console.log('TWITCH_CHEER event received:', data);
+                    queueAlert('bits', {
+                        username: data['twitch-username'],
+                        amount: data['twitch-cheer-amount'],
+                        is_first: data['twitch-cheer-first'] || false
+                    });
                 });
-
-                socket.on('WALKON', (data) => {
-                    console.log('WALKON event received:', data);
-                    // Migrated channels send `media_file` from the walkons table; the
-                    // bot has already resolved the file the user is tagged to.
-                    // Legacy channels send `user` (+ optional ext) and the overlay
-                    // builds the URL against the old per-trigger host.
-                    let audioFile;
-                    if (data.media_file) {
-                        audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
-                    } else {
-                        const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
-                        audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
-                    }
-                    enqueueAudio(audioFile);
+                socket.on('TWITCH_SUB', (data) => {
+                    console.log('TWITCH_SUB event received:', data);
+                    queueAlert('subscription', {
+                        username: data['twitch-username'],
+                        tier: data['twitch-tier'],
+                        months: data['twitch-sub-months']
+                    });
                 });
-
-                socket.on('SOUND_ALERT', (data) => {
-                    console.log('SOUND_ALERT event received:', data);
-                    enqueueAudio(data.sound);
+                socket.on('TWITCH_RAID', (data) => {
+                    console.log('TWITCH_RAID event received:', data);
+                    queueAlert('raid', {
+                        username: data['twitch-username'],
+                        viewers: data['twitch-raid']
+                    });
                 });
-
-                socket.on('DEATHS', (data) => {
-                    console.log('DEATHS event received:', data);
-                    const deathOverlay = document.getElementById('deathOverlay');
-                    deathOverlay.innerHTML = `
-                        <div class="deaths-overlay-page-content">
-                            <div class="deaths-overlay-page-title">
-                                <span class="deaths-overlay-page-emote"></span>
-                                <span>Current Deaths</span>
-                            </div>
-                            <div>${escapeHtml(data.game)}</div>
-                            <div>${escapeHtml(data['death-text'])}</div>
-                        </div>
-                    `;
-                    deathOverlay.classList.remove('hide');
-                    deathOverlay.classList.add('show');
-                    deathOverlay.style.display = 'block';
-
-                    setTimeout(() => {
-                        deathOverlay.classList.remove('show');
-                        deathOverlay.classList.add('hide');
-                    }, 10000);
-
-                    setTimeout(() => {
-                        deathOverlay.style.display = 'none';
-                    }, 11000);
+                socket.on('TWITCH_GIFT_SUB', (data) => {
+                    console.log('TWITCH_GIFT_SUB event received:', data);
+                    queueAlert('gift_subscription', {
+                        username: data['twitch-username'],
+                        amount: data['twitch-gift-count'] || 1
+                    });
                 });
-
-                // Listen for WEATHER_DATA events
-                socket.on('WEATHER_DATA', (data) => {
-                    console.log('WEATHER_DATA event received:', data);
-                    let weather;
-                    try {
-                        weather = JSON.parse(data.weather_data);
-                    } catch (_) {
-                        // Legacy payload: api.py used to send str(dict) via urlencode.
-                        weather = JSON.parse(data.weather_data.replace(/'/g, '"'));
-                    }
-                    updateWeatherOverlay(weather, weather.location);
+                socket.on('TWITCH_HYPE_TRAIN', (data) => {
+                    console.log('TWITCH_HYPE_TRAIN event received:', data);
+                    queueAlert('hype_train', {
+                        username: data['twitch-username'] || ''
+                    });
                 });
-
-                // Listen for DISCORD_JOIN events
-                socket.on('DISCORD_JOIN', (data) => {
-                    console.log('DISCORD_JOIN event received:', data);
-                    const discordOverlay = document.getElementById('discordOverlay');
-                    discordOverlay.innerHTML = `
-                        <div class="discord-overlay-page-content">
-                            <span>
-                                <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/discord.svg" alt="Discord Icon" class="discord-overlay-page-icon">
-                                ${escapeHtml(data.member)} has joined the Discord server
-                            </span>
-                        </div>
-                    `;
-                    discordOverlay.classList.add('show');
-                    discordOverlay.style.display = 'block';
-
-                    // Display for 10 seconds
-                    setTimeout(() => {
-                        discordOverlay.classList.remove('show');
-                        discordOverlay.classList.add('hide');
-                    }, 10000);
-
-                    // Hide after the transition
-                    setTimeout(() => {
-                        discordOverlay.style.display = 'none';
-                    }, 11000);
+                socket.on('TWITCH_CHARITY', (data) => {
+                    console.log('TWITCH_CHARITY event received:', data);
+                    queueAlert('charity', {
+                        username: data['twitch-username'] || ''
+                    });
                 });
-
+                socket.on('TWITCH_CHANNEL_POINTS', (data) => {
+                    console.log('TWITCH_CHANNEL_POINTS event received:', data);
+                    queueAlert('channel_points', {
+                        username: data['twitch-username'] || ''
+                    });
+                });
                 // Log all events
                 socket.onAny((event, ...args) => {
-                    console.log(`Event: ${event}`, args);
+                    console.log(`[onAny] Event: ${event}`, ...args);
                 });
             }
-
             function attemptReconnect() {
                 reconnectAttempts++;
-                const delay = Math.min(retryInterval * reconnectAttempts, 30000); // Max delay of 30 seconds
+                const delay = Math.min(retryInterval * reconnectAttempts, 30000);
                 console.log(`Attempting to reconnect in ${delay / 1000} seconds...`);
                 setTimeout(() => {
                     connectWebSocket();
                 }, delay);
             }
-
-            // Function to update weather overlay
-            function updateWeatherOverlay(weather, location) {
-                console.log('Updating weather overlay with data:', weather);
-                const weatherOverlay = document.getElementById('weatherOverlay');
-                weatherOverlay.innerHTML = `
-                    <div class="weather-overlay-page-content">
-                        <div class="weather-overlay-page-header">
-                            <div id="currentTime" class="weather-overlay-page-time"></div>
-                            <div class="weather-overlay-page-location">${escapeHtml(location)}</div>
-                            <div class="weather-overlay-page-temperature">${escapeHtml(weather.temperature)}</div>
-                        </div>
-                        <div class="weather-overlay-page-details">
-                            <img src="${escapeHtml(weather.icon)}" alt="${escapeHtml(weather.status)}" class="weather-overlay-page-icon">
-                            <div class="weather-overlay-page-status">${escapeHtml(weather.status)}</div>
-                            <div class="weather-overlay-page-wind">${escapeHtml(weather.wind)}</div>
-                            <div class="weather-overlay-page-humidity">${escapeHtml(weather.humidity)}</div>
-                        </div>
-                    </div>
-                `;
-                weatherOverlay.classList.add('show');
-                weatherOverlay.style.display = 'block';
-
-                // Start the timer for updating the time
-                startTimer(timezone);
-
-                setTimeout(() => {
-                    weatherOverlay.classList.add('hide');
-                    weatherOverlay.classList.remove('show');
-                }, 10000);
-
-                setTimeout(() => {
-                    weatherOverlay.style.display = 'none';
-                }, 11000);
-            }
-
-            // Function to start the timer for current time
-            function startTimer(timezone) {
-                function updateTime() {
-                    const currentTimeElement = document.getElementById('currentTime');
-                    if (currentTimeElement) {
-                        currentTimeElement.innerHTML = new Date().toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    }
-                }
-                if (timerIntervalId !== null) {
-                    clearInterval(timerIntervalId);
-                }
-                updateTime();
-                timerIntervalId = setInterval(updateTime, 1000);
-            }
-
             // Start initial connection
             connectWebSocket();
         });
     </script>
 </head>
 <body>
-    <div id="noticeBanner" class="notice-banner">
-        <h2>🚀 Upcoming Changes</h2>
-        <p>We're working on improvements to our overlay system. Check the <strong>overlays</strong> page on your dashboard for updates!</p>
-    </div>
-    <div id="deathOverlay" class="deaths-overlay-page"></div>
-    <div id="weatherOverlay" class="weather-overlay-page hide"></div>
-    <div id="discordOverlay" class="discord-overlay-page"></div>
+    <div id="alertContainer" class="twitch-alert-container"></div>
 </body>
 </html>
