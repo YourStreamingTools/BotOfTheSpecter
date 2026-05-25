@@ -350,7 +350,7 @@ $libraryImageExts = ['png', 'jpg', 'jpeg', 'gif', 'webm'];
 $librarySoundExts = ['mp3'];
 $libraryImages = [];
 $librarySounds = [];
-if ($media_migrated && is_dir($media_path)) {
+if (is_dir($media_path)) {
     foreach (scandir($media_path) as $f) {
         if ($f === '.' || $f === '..') continue;
         if (!is_file($media_path . '/' . $f)) continue;
