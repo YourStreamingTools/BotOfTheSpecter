@@ -1570,6 +1570,11 @@ async def process_twitch_eventsub_message(message):
                     if result and result.get("sound_mapping"):
                         sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                         safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                    # Specter Alerts overlay — variant matcher picks tier by level
+                    safe_create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
+                        "twitch-hype-level": int(level),
+                        "twitch-hype-phase": "begin",
+                    }))
                 # Hype Train End Event
                 elif event_type == "channel.hype_train.end":
                     event_logger.info(f"[EVENTSUB] Hype Train End Event Data: {event_data}")
@@ -1587,6 +1592,10 @@ async def process_twitch_eventsub_message(message):
                     if result and result.get("sound_mapping"):
                         sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                         safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                    safe_create_task(websocket_notice(event="TWITCH_HYPE_TRAIN", additional_data={
+                        "twitch-hype-level": int(level),
+                        "twitch-hype-phase": "end",
+                    }))
                 # Channel Update Event
                 elif event_type == 'channel.update':
                     global current_game

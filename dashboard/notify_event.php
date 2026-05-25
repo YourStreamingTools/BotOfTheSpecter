@@ -43,6 +43,9 @@ try {
         } elseif ($event === "TWITCH_RAID" && isset($_POST['user'], $_POST['raid_viewers'])) {
             $params['twitch-username'] = $_POST['user'];
             $params['twitch-raid'] = $_POST['raid_viewers'];
+        } elseif ($event === "TWITCH_HYPE_TRAIN" && isset($_POST['level'])) {
+            $params['twitch-hype-level'] = intval($_POST['level']);
+            if (isset($_POST['user'])) $params['twitch-username'] = $_POST['user'];
         } elseif ($event === "TTS" && isset($_POST['text'])) {
             $params['text'] = $_POST['text'];
         } elseif (in_array($event, ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]) && isset($_POST['additional_data'])) {
