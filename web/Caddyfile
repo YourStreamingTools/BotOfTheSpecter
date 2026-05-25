@@ -166,6 +166,18 @@ walkons.botofthespecter.com {
     }
 }
 
+# Unified media library — single host for every per-channel MP3/MP4 once the
+# streamer has migrated. URLs look like:
+#   https://media.botofthespecter.com/{channel}/{filename}
+# which maps to /var/www/media/{channel}/{filename} on disk.
+media.botofthespecter.com {
+    root * /var/www/media
+    import static_long_cache
+    log {
+        output file /var/log/caddy/media.log
+    }
+}
+
 music.botspecter.com {
     root * /var/www/usermusic
     import static_long_cache
