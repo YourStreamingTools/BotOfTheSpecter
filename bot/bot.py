@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.10"
+VERSION = "5.7.11"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -4695,7 +4695,7 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('lurking', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    user_id = ctx.author.id
+                    user_id = str(ctx.author.id)
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await send_chat_message(f"Streamer, you're always present!")
                         chat_logger.info(f"{ctx.author.name} tried to check lurk time in their own channel.")
@@ -4807,7 +4807,7 @@ class TwitchBot(commands.Bot):
                     bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
                     if not await check_cooldown('unlurk', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                         return
-                    user_id = ctx.author.id
+                    user_id = str(ctx.author.id)
                     if ctx.author.name.lower() == CHANNEL_NAME.lower():
                         await send_chat_message(f"Streamer, you've been here all along!")
                         chat_logger.info(f"{ctx.author.name} tried to unlurk in their own channel.")
@@ -4825,28 +4825,24 @@ class TwitchBot(commands.Bot):
                     await cursor.execute('SELECT start_time FROM lurk_times WHERE user_id = %s', (user_id,))
                     result = await cursor.fetchone()
                     if result:
+                        time_string = None
                         if timer_enabled:
-                            time_now = time_right_now()
-                            # Convert start_time from string to datetime
-                            start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
-                            elapsed_time = time_now - start_time
-                            time_string = format_lurk_time(elapsed_time)
-                            # Log the unlurk command execution and send a response
+                            try:
+                                start_time = datetime.strptime(result["start_time"], "%Y-%m-%d %H:%M:%S")
+                                time_string = format_lurk_time(time_right_now() - start_time)
+                            except (ValueError, TypeError) as parse_err:
+                                chat_logger.error(f"Could not parse start_time '{result['start_time']}' for {ctx.author.name}: {parse_err}")
+                        await cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
+                        await connection.commit()
+                        if time_string:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking. Time lurking: {time_string}")
                             await send_chat_message(f"{ctx.author.name} has returned from the shadows after {time_string}, welcome back!")
-                            # Record usage
-                            add_usage('unlurk', bucket_key, cooldown_bucket)
                         else:
                             chat_logger.info(f"{ctx.author.name} is no longer lurking.")
                             await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
-                            # Record usage
-                            add_usage('unlurk', bucket_key, cooldown_bucket)
-                        # Remove the user's start time from the database
-                        await cursor.execute('DELETE FROM lurk_times WHERE user_id = %s', (user_id,))
-                        await connection.commit()
+                        add_usage('unlurk', bucket_key, cooldown_bucket)
                     else:
                         await send_chat_message(f"{ctx.author.name} has returned from lurking, welcome back!")
-                        # Record usage
                         add_usage('unlurk', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"Error in unlurk_command: {e}... Time now: {time_right_now()}... User Time {start_time if 'start_time' in locals() else 'N/A'}")
