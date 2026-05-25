@@ -4562,10 +4562,11 @@ class TwitchBot(commands.AutoBot):
                 await connection.release()
 
     @commands.command(name='points')
-    async def points_command(ctx: commands.Context):
+    async def points_command(self, ctx: commands.Context, user: str = None):
         global bot_owner
-        user_id = str(ctx.author.id)
-        user_name = ctx.author.name
+        target_user_id = str(ctx.author.id)
+        target_user_name = ctx.author.name
+        is_self_lookup = True
         connection = None
         connection = await mysql_handler.get_connection()
         try:
@@ -4588,17 +4589,32 @@ class TwitchBot(commands.AutoBot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
+                        if user:
+                            lookup_name = user.lstrip('@')
+                            user_info = await self.fetch_users(logins=[lookup_name])
+                            if not user_info:
+                                await send_chat_message(f"User {lookup_name} not found.")
+                                return
+                            target_user_id = str(user_info[0].id)
+                            target_user_name = user_info[0].name
+                            is_self_lookup = (target_user_id == str(ctx.author.id))
                         settings = await get_point_settings()
                         if settings and 'excluded_users' in settings:
-                            excluded_users = [user.strip().lower() for user in settings['excluded_users'].split(',')]
-                            if user_name.lower() in excluded_users:
-                                await send_chat_message(f'@{user_name}, you have 0 points.')
+                            excluded_users = [u.strip().lower() for u in settings['excluded_users'].split(',')]
+                            if target_user_name.lower() in excluded_users:
+                                if is_self_lookup:
+                                    await send_chat_message(f'@{target_user_name}, you have 0 points.')
+                                else:
+                                    await send_chat_message(f'@{target_user_name} has 0 points.')
                                 add_usage('points', bucket_key, cooldown_bucket)
                                 return
-                        result = await manage_user_points(user_id, user_name, "get")
+                        result = await manage_user_points(target_user_id, target_user_name, "get")
                         if result["success"]:
                             points = result["points"]
-                            await send_chat_message(f'@{user_name}, you have {points} points.')
+                            if is_self_lookup:
+                                await send_chat_message(f'@{target_user_name}, you have {points} points.')
+                            else:
+                                await send_chat_message(f'@{target_user_name} has {points} points.')
                             add_usage('points', bucket_key, cooldown_bucket)
                         else:
                             await send_chat_message(f"Error checking points: {result['error']}")
@@ -4644,6 +4660,7 @@ class TwitchBot(commands.AutoBot):
                             return
                         target_user_id = str(user_info[0].id)
                         target_user_name = user_info[0].name
+                        chat_logger.info(f"[ADD POINTS] {ctx.author.name} crediting {points_to_add} to {target_user_name} (id={target_user_id})")
                         result = await manage_user_points(target_user_id, target_user_name, "credit", points_to_add)
                         if result["success"]:
                             await send_chat_message(f"Added {points_to_add} points to {target_user_name}. They now have {result['points']} points.")
@@ -4689,6 +4706,7 @@ class TwitchBot(commands.AutoBot):
                             return
                         target_user_id = str(user_info[0].id)
                         target_user_name = user_info[0].name
+                        chat_logger.info(f"[REMOVE POINTS] {ctx.author.name} debiting {points_to_remove} from {target_user_name} (id={target_user_id})")
                         result = await manage_user_points(target_user_id, target_user_name, "debit", points_to_remove)
                         if result["success"]:
                             await send_chat_message(f"Removed {result['amount_changed']} points from {target_user_name}. They now have {result['points']} points.")
@@ -14261,19 +14279,10 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
     try:
         connection = await mysql_handler.get_connection()
         async with connection.cursor(DictCursor) as cursor:
-            await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-            result = await cursor.fetchone()
-            if result:
-                current_points = result.get("points", 0)
-            else:
-                await cursor.execute(
-                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0)",
-                    (user_id, user_name)
-                )
-                await connection.commit()
-                current_points = 0
-            previous_points = current_points
             if action == "get":
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                row = await cursor.fetchone()
+                current_points = row.get("points", 0) if row else 0
                 return {
                     "success": True,
                     "points": current_points,
@@ -14282,27 +14291,40 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
                     "error": None
                 }
             elif action == "credit":
-                new_points = current_points + amount
                 await cursor.execute(
-                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
-                    (new_points, user_id)
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s) "
+                    "ON DUPLICATE KEY UPDATE points = points + VALUES(points), user_name = VALUES(user_name)",
+                    (user_id, user_name, amount)
                 )
                 await connection.commit()
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                row = await cursor.fetchone()
+                new_points = row.get("points", 0) if row else 0
                 return {
                     "success": True,
                     "points": new_points,
-                    "previous_points": previous_points,
+                    "previous_points": new_points - amount,
                     "amount_changed": amount,
                     "error": None
                 }
             elif action == "debit":
-                actual_debit = min(amount, current_points)
-                new_points = max(0, current_points - amount)
                 await cursor.execute(
-                    "UPDATE bot_points SET points = %s WHERE user_id = %s",
-                    (new_points, user_id)
+                    "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, 0) "
+                    "ON DUPLICATE KEY UPDATE user_name = VALUES(user_name)",
+                    (user_id, user_name)
+                )
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                row = await cursor.fetchone()
+                previous_points = row.get("points", 0) if row else 0
+                actual_debit = min(amount, previous_points)
+                await cursor.execute(
+                    "UPDATE bot_points SET points = GREATEST(0, points - %s) WHERE user_id = %s",
+                    (amount, user_id)
                 )
                 await connection.commit()
+                await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
+                row = await cursor.fetchone()
+                new_points = row.get("points", 0) if row else 0
                 return {
                     "success": True,
                     "points": new_points,
@@ -14313,8 +14335,8 @@ async def manage_user_points(user_id: str, user_name: str, action: str, amount: 
             else:
                 return {
                     "success": False,
-                    "points": current_points,
-                    "previous_points": current_points,
+                    "points": 0,
+                    "previous_points": 0,
                     "amount_changed": 0,
                     "error": f"Invalid action: {action}. Use 'get', 'credit', or 'debit'."
                 }

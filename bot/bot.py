@@ -60,7 +60,7 @@ CHANNEL_AUTH = args.channel_auth_token
 REFRESH_TOKEN = args.refresh_token
 API_TOKEN = args.api_token
 BOT_USERNAME = "botofthespecter"
-VERSION = "5.7.9"
+VERSION = "5.7.10"
 SYSTEM = "STABLE"
 SQL_HOST = os.getenv('SQL_HOST')
 SQL_USER = os.getenv('SQL_USER')
@@ -3001,10 +3001,11 @@ class TwitchBot(commands.Bot):
             await connection.ensure_closed()
 
     @commands.command(name='points')
-    async def points_command(self, ctx):
+    async def points_command(self, ctx, user: str = None):
         global bot_owner
-        user_id = str(ctx.author.id)
-        user_name = ctx.author.name.lower()
+        target_user_id = str(ctx.author.id)
+        target_user_name = ctx.author.name.lower()
+        is_self_lookup = True
         connection = await mysql_connection()
         try:
             async with connection.cursor(DictCursor) as cursor:
@@ -3026,21 +3027,23 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        # Check if the user exists in the database
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            points = result.get("points")
-                            chat_logger.info(f"{user_name} has {points} points")
+                        if user:
+                            lookup_name = user.lstrip('@').lower()
+                            user_info = await self.fetch_users(names=[lookup_name])
+                            if not user_info:
+                                await send_chat_message(f"User {lookup_name} not found.")
+                                return
+                            target_user_id = str(user_info[0].id)
+                            target_user_name = user_info[0].name.lower()
+                            is_self_lookup = (target_user_id == str(ctx.author.id))
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (target_user_id,))
+                        row = await cursor.fetchone()
+                        points = row.get("points", 0) if row else 0
+                        chat_logger.info(f"{target_user_name} has {points} points")
+                        if is_self_lookup:
+                            await send_chat_message(f'@{target_user_name}, you have {points} points.')
                         else:
-                            points = 0
-                            chat_logger.info(f"{user_name} has {points} points")
-                            await cursor.execute(
-                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                                (user_id, user_name, points)
-                            )
-                            await connection.commit()
-                        await send_chat_message(f'@{user_name}, you have {points} points.')
+                            await send_chat_message(f'@{target_user_name} has {points} points.')
                         # Record usage
                         add_usage('points', bucket_key, cooldown_bucket)
                     else:
@@ -3076,22 +3079,24 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@').lower()  # Remove @ if present
-                        user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name.lower()
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            new_points = result["points"] + points_to_add
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
-                        else:
-                            new_points = points_to_add
-                            await cursor.execute(
-                                "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s)",
-                                (user_id, user_name, new_points)
-                            )
+                        lookup_name = user.lstrip('@').lower()
+                        user_info = await self.fetch_users(names=[lookup_name])
+                        if not user_info:
+                            await send_chat_message(f"User {lookup_name} not found.")
+                            return
+                        target_user_id = str(user_info[0].id)
+                        target_user_name = user_info[0].name.lower()
+                        chat_logger.info(f"[ADD POINTS] {ctx.author.name} crediting {points_to_add} to {target_user_name} (id={target_user_id})")
+                        await cursor.execute(
+                            "INSERT INTO bot_points (user_id, user_name, points) VALUES (%s, %s, %s) "
+                            "ON DUPLICATE KEY UPDATE points = points + VALUES(points), user_name = VALUES(user_name)",
+                            (target_user_id, target_user_name, points_to_add)
+                        )
                         await connection.commit()
-                        await send_chat_message(f"Added {points_to_add} points to {user_name}. They now have {new_points} points.")
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (target_user_id,))
+                        row = await cursor.fetchone()
+                        new_points = row.get("points", 0) if row else 0
+                        await send_chat_message(f"Added {points_to_add} points to {target_user_name}. They now have {new_points} points.")
                         # Record usage
                         add_usage('addpoints', bucket_key, cooldown_bucket)
         except Exception as e:
@@ -3124,20 +3129,31 @@ class TwitchBot(commands.Bot):
                         return
                     # Check if the user has the correct permissions
                     if await command_permissions(permissions, ctx.author):
-                        user = user.lstrip('@').lower()  # Remove @ if present
-                        user_id = str(ctx.author.id)
-                        user_name = user if user else ctx.author.name.lower()
-                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (user_id,))
-                        result = await cursor.fetchone()
-                        if result:
-                            new_points = max(0, result["points"] - points_to_remove)
-                            await cursor.execute("UPDATE bot_points SET points = %s WHERE user_id = %s", (new_points, user_id))
-                            await connection.commit()
-                            await send_chat_message(f"Removed {points_to_remove} points from {user_name}. They now have {new_points} points.")
-                            # Record usage
-                            add_usage('removepoints', bucket_key, cooldown_bucket)
-                        else:
-                            await send_chat_message(f"{user_name} does not have any points.")
+                        lookup_name = user.lstrip('@').lower()
+                        user_info = await self.fetch_users(names=[lookup_name])
+                        if not user_info:
+                            await send_chat_message(f"User {lookup_name} not found.")
+                            return
+                        target_user_id = str(user_info[0].id)
+                        target_user_name = user_info[0].name.lower()
+                        chat_logger.info(f"[REMOVE POINTS] {ctx.author.name} debiting {points_to_remove} from {target_user_name} (id={target_user_id})")
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (target_user_id,))
+                        row = await cursor.fetchone()
+                        if not row:
+                            await send_chat_message(f"{target_user_name} does not have any points.")
+                            return
+                        previous_points = row.get("points", 0)
+                        actual_debit = min(points_to_remove, previous_points)
+                        await cursor.execute(
+                            "UPDATE bot_points SET points = GREATEST(0, points - %s) WHERE user_id = %s",
+                            (points_to_remove, target_user_id)
+                        )
+                        await connection.commit()
+                        await cursor.execute("SELECT points FROM bot_points WHERE user_id = %s", (target_user_id,))
+                        row = await cursor.fetchone()
+                        new_points = row.get("points", 0) if row else 0
+                        await send_chat_message(f"Removed {actual_debit} points from {target_user_name}. They now have {new_points} points.")
+                        add_usage('removepoints', bucket_key, cooldown_bucket)
         except Exception as e:
             chat_logger.error(f"An error occurred during the execution of removepoints_command: {e}")
             await send_chat_message("An unexpected error occurred. Please try again later.")
