@@ -2797,6 +2797,166 @@ label.switch .check { display: none; }
     margin-bottom: 1.25rem;
 }
 
+/* Filter bar above the file list — buttons act as lenses, plus a search input. */
+.media-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 1rem 0 1.25rem;
+}
+.media-filter-btn {
+    font-size: 0.85rem;
+}
+.media-filter-btn.is-active {
+    background: var(--accent-light);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.media-search-input {
+    max-width: 260px;
+    margin-left: auto;
+}
+
+.media-files-card .sp-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.media-file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.media-file-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.media-file-row:last-child { border-bottom: none; }
+.media-file-check {
+    margin: 0;
+}
+.media-file-name {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.95rem;
+    text-align: left;
+    text-decoration: underline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.media-file-name:hover { color: var(--accent-hover); }
+.media-file-meta {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+.media-file-summary {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+.media-file-summary.is-unused {
+    color: var(--text-muted);
+    font-style: italic;
+}
+.media-empty-filter {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--text-muted);
+}
+
+/* Per-file modal contents */
+.media-modal {
+    max-width: 600px;
+    width: 90vw;
+}
+.media-modal-fileinfo {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+.media-modal-section {
+    margin-bottom: 1.25rem;
+}
+.media-modal-section-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.4rem;
+    font-size: 0.95rem;
+}
+.media-modal-section-readonly .mapping-chip {
+    background: var(--bg-card-hover);
+    color: var(--text-secondary);
+    cursor: default;
+}
+
+/* Mapping chips (channel point rewards, twitch events, walkon users) */
+.mapping-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.mapping-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 0.85rem;
+    line-height: 1.2;
+}
+.mapping-chip-remove {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 1.1em;
+    line-height: 1;
+    padding: 0 2px;
+    margin-left: 2px;
+}
+.mapping-chip-remove:hover { color: var(--red); }
+.mapping-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.85rem;
+}
+.mapping-add-select {
+    max-width: 280px;
+    font-size: 0.85rem;
+    padding: 0.35rem 1.8rem 0.35rem 0.6rem;
+}
+
+/* Walkon add picker — typeahead input + confirm button + status text */
+.walkon-add-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.walkon-add-input {
+    max-width: 240px;
+    font-size: 0.85rem;
+}
+.walkon-add-status {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
 /* ----------------------------------------------------------
    SweetAlert2 Dark Theme Overrides
    ---------------------------------------------------------- */
