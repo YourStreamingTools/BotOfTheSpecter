@@ -960,3 +960,34 @@
 .alerts-library-grid::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* ---- Preview animation keyframes ------------------------------------- */
+/* Mirrors overlay/index.css so the configurator's Replay preview button can
+   actually run the in/out animations live inside the dashboard pane. */
+
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+@keyframes slideInLeft   { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOutLeft  { from { transform: translateX(0); opacity: 1; }    to { transform: translateX(-100%); opacity: 0; } }
+@keyframes slideInRight  { from { transform: translateX(100%); opacity: 0; }  to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOutRight { from { transform: translateX(0); opacity: 1; }    to { transform: translateX(100%); opacity: 0; } }
+@keyframes slideInUp     { from { transform: translateY(100%); opacity: 0; }  to { transform: translateY(0); opacity: 1; } }
+@keyframes slideOutUp    { from { transform: translateY(0); opacity: 1; }    to { transform: translateY(-100%); opacity: 0; } }
+@keyframes slideInDown   { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideOutDown  { from { transform: translateY(0); opacity: 1; }    to { transform: translateY(100%); opacity: 0; } }
+
+@keyframes bounceIn {
+    0%   { transform: scale(0.3); opacity: 0; }
+    50%  { transform: scale(1.05); opacity: 1; }
+    70%  { transform: scale(0.9); }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes bounceOut {
+    0%   { transform: scale(1); opacity: 1; }
+    20%  { transform: scale(1.1); }
+    100% { transform: scale(0.3); opacity: 0; }
+}
+
+@keyframes zoomIn  { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes zoomOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0); opacity: 0; } }
