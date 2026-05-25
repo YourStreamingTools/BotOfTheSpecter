@@ -638,9 +638,9 @@ ob_start();
                         <div class="alerts-form-group">
                             <label>Message template</label>
                             <textarea id="set-message-template" placeholder="{username}&#10;just followed!"></textarea>
-                            <div class="variable-hints">
+                            <div class="variable-hints" id="variable-hints">
                                 <span>Variables:</span>
-                                <code>{username}</code> <code>{amount}</code> <code>{months}</code> <code>{viewers}</code> <code>{tier}</code> <code>{added_minutes}</code> <code>{streak}</code>
+                                <span id="variable-hints-list"></span>
                             </div>
                         </div>
                         <div class="alerts-form-group">
@@ -881,6 +881,36 @@ $(document).ready(function() {
     const libraryImages = <?php echo json_encode($libraryImages); ?>;
     const librarySounds = <?php echo json_encode($librarySounds); ?>;
     const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
+    // Variables available to each category's message template. Only what the
+    // overlay actually substitutes for that event type is listed.
+    const categoryVariables = {
+        follow:            ['{username}'],
+        subscription:      ['{username}', '{months}', '{tier}'],
+        gift_subscription: ['{username}', '{amount}', '{tier}'],
+        bits:              ['{username}', '{amount}'],
+        raid:              ['{username}', '{viewers}'],
+        hype_train:        [],
+        charity:           ['{username}', '{amount}'],
+        channel_points:    ['{username}'],
+        discord_join:      ['{username}'],
+        kofi:              ['{username}', '{amount}'],
+        patreon:           ['{username}'],
+        fourthwall:        ['{username}', '{amount}'],
+        subathon:          ['{added_minutes}'],
+        stream_bingo:      ['{username}'],
+        watch_streak:      ['{username}', '{streak}']
+    };
+    function renderVariableHints(category) {
+        var vars = categoryVariables[category] || ['{username}'];
+        var $hints = $('#variable-hints');
+        var $list = $('#variable-hints-list');
+        if (vars.length === 0) {
+            $hints.hide();
+            return;
+        }
+        $hints.show();
+        $list.html(vars.map(function(v) { return '<code>' + v + '</code>'; }).join(' '));
+    }
     function extractRewardId(condition) {
         if (!condition) return '';
         var m = String(condition).match(/reward_id\s*=\s*['"]?([^'"\s]+)['"]?/);
@@ -898,6 +928,7 @@ $(document).ready(function() {
         });
     })();
     function applyCategoryUI(category, condition) {
+        renderVariableHints(category);
         if (category === 'channel_points') {
             $('#variant-name-group').hide();
             $('#variant-condition-group').hide();
