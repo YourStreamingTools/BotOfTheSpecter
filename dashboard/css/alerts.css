@@ -861,22 +861,6 @@
     text-decoration: underline;
 }
 
-/* ---- Migration-required full-page state ------------------------------- */
-
-.alerts-migrate-required {
-    max-width: 720px;
-    margin: 40px auto;
-}
-.alerts-migrate-required .sp-card-title i {
-    color: var(--amber);
-    margin-right: 8px;
-}
-.alerts-migrate-required code {
-    background: rgba(255, 255, 255, 0.06);
-    padding: 1px 6px;
-    border-radius: 3px;
-}
-
 /* ---- Library picker modal -------------------------------------------- */
 
 .alerts-library-modal-card {

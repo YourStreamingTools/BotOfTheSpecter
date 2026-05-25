@@ -362,32 +362,10 @@ if ($media_migrated && is_dir($media_path)) {
 
 ob_start();
 ?>
-<?php if (!$media_migrated): ?>
-<div class="alerts-page-shell">
-    <div class="sp-card alerts-migrate-required">
-        <header class="sp-card-header">
-            <span class="sp-card-title"><i class="fas fa-lock"></i> Migrate to the Unified Media Library first</span>
-        </header>
-        <div class="sp-card-body">
-            <div class="sp-alert sp-alert-warning">
-                <p><i class="fas fa-exclamation-triangle"></i> <strong>Specter Alerts is powered by the Unified Media Library.</strong></p>
-                <p>This builder uploads, previews, and serves every alert image and sound through <code>media.botofthespecter.com</code>. The legacy <code>soundalerts.*</code> and <code>walkons.*</code> paths are not supported here — you must migrate before configuring alerts.</p>
-                <p>Migration is non-destructive: your existing files are copied into the new library, walkons are auto-linked, and your overlays keep working. <strong>Beta Bot (5.8+) is required after migration</strong> — once 5.8 ships to Stable, your channel will migrate automatically.</p>
-            </div>
-            <a href="media.php" class="sp-btn sp-btn-primary">
-                <i class="fas fa-arrow-right"></i> Open Media Library to migrate
-            </a>
-        </div>
-    </div>
-</div>
-<?php $content = ob_get_clean(); ob_start(); ?>
-<script>$(document).ready(function(){ /* alerts builder disabled until migration */ });</script>
-<?php $scripts = ob_get_clean(); include 'layout.php'; return; ?>
-<?php endif; ?>
 <div class="alerts-page-shell">
     <div class="sp-alert sp-alert-info alerts-media-notice">
         <i class="fas fa-photo-film"></i>
-        <span><strong>Powered by your Unified Media Library.</strong> Every alert image and sound is loaded from <code>media.botofthespecter.com</code>. Upload and manage files in <a href="media.php">Media</a> — they appear in the picker below.</span>
+        <span><strong>Specter Alerts uses the new Unified Media Library.</strong> Upload your files on the <a href="media.php">Media</a> page.</span>
     </div>
     <!-- Top header bar — title, counter, save/discard -->
     <header class="alerts-top-bar">
