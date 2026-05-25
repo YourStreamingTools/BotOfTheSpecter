@@ -113,9 +113,17 @@
                 // Listen for WALKON events
                 socket.on('WALKON', (data) => {
                     console.log('WALKON event received:', data);
-                    const channel_name = data.channel;
-                    const user_name = data.user;
-                    const audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(channel_name)}/${encodeURIComponent(user_name)}.mp3`;
+                    // Migrated channels send `media_file` from the walkons table; the
+                    // bot has already resolved the file the user is tagged to.
+                    // Legacy channels send `user` (+ optional ext) and the overlay
+                    // builds the URL against the old per-trigger host.
+                    let audioFile;
+                    if (data.media_file) {
+                        audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
+                    } else {
+                        const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
+                        audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
+                    }
                     enqueueAudio(audioFile);
                 });
 

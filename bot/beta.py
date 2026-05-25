@@ -120,7 +120,7 @@ _cached_ad_instructions_time = 0
 _cached_home_instructions = None
 _cached_home_instructions_time = 0
 INSTRUCTIONS_CACHE_TTL = int('300') # seconds
-MEDIA_MIGRATED = False  # Loaded from profile.media_migrated at startup; enables unified /var/www/media/ library
+MEDIA_MIGRATED = False  # Loaded from website.users.new_media at startup; enables unified /var/www/media/ library
 HISTORY_DIR = '/home/botofthespecter/ai/chat-history'
 # ContextVars track the current chat message author so send_chat_message can log bot replies to AI history
 _cv_cmd_author_id: ContextVar[str] = ContextVar('_cv_cmd_author_id', default='')
@@ -3853,7 +3853,7 @@ class TwitchBot(commands.Bot):
                         interceptable=True,
                     )
                     if _module_handled:
-                        safe_create_task(self.safe_walkon(messageAuthor))
+                        safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                         return
                     # Only send welcome message if enabled
                     if user_status_enabled and send_welcome_messages:
@@ -3895,7 +3895,7 @@ class TwitchBot(commands.Bot):
                                 source="welcome_message"
                             )
                         chat_logger.info(f"[WELCOME] Sent welcome message to {messageAuthor}")
-                    safe_create_task(self.safe_walkon(messageAuthor))
+                    safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
                 elif not already_seen_today and stream_online and is_command_message:
                     # First message is a command - do not mark as seen yet.
                     chat_logger.info(f"[WELCOME] {messageAuthor} sent a command as their first message; deferring 'seen' until a non-command message is received.")
@@ -4015,7 +4015,7 @@ class TwitchBot(commands.Bot):
                             source="welcome_message"
                         )
                     chat_logger.info(f"[WELCOME] Sent first-command welcome message to {messageAuthor}")
-                    safe_create_task(self.safe_walkon(messageAuthor))
+                    safe_create_task(self.safe_walkon(messageAuthor, messageAuthorID))
         except Exception as e:
             chat_logger.error(f"[WELCOME] Error in send_first_command_welcome_if_needed for {messageAuthor}: {e}")
 
@@ -4100,9 +4100,11 @@ class TwitchBot(commands.Bot):
             bot_logger.error(f"[EVENT MESSAGE] Error checking pre-command first-message protection: {e}")
         return False
 
-    async def safe_walkon(self, user):
+    async def safe_walkon(self, user, user_id=None):
         try:
-            await websocket_notice(event="WALKON", user=user)
+            # user_id is passed through so the migrated walkon path can look
+            # up the file in the walkons table (keyed by twitch_user_id).
+            await websocket_notice(event="WALKON", user=user, user_id=user_id)
             chat_logger.info(f"[WALKON] Sent WALKON notice for {user}")
         except Exception as e:
             chat_logger.error(f"[WALKON] Failed to send WALKON for {user}: {e}")
@@ -12737,7 +12739,7 @@ async def ban_user(username, user_id, use_streamer=False):
 
 # Unified function to connect to the websocket server and push notices
 async def websocket_notice(
-    event, user=None, death=None, game=None, weather=None, cheer_amount=None,
+    event, user=None, user_id=None, death=None, game=None, weather=None, cheer_amount=None,
     sub_tier=None, sub_months=None, raid_viewers=None, text=None, sound=None,
     video=None, additional_data=None, rewards_data=None,
     interceptable=False, _http_only=False,
@@ -12782,22 +12784,47 @@ async def websocket_notice(
                 }
                 # Event-specific parameter handling
                 if event == "WALKON" and user:
-                    found = False
-                    # Check for supported walkon file types (audio and video) on WEB server via SSH
-                    for ext in ['.mp3', '.mp4']:
-                        walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
-                        try:
-                            if await ssh_manager.file_exists('WEB', walkon_file_path):
-                                params['channel'] = CHANNEL_NAME
-                                params['user'] = user
-                                params['ext'] = ext
-                                websocket_logger.info(f"[WS NOTICE] WALKON triggered for {user}: found file {walkon_file_path} on WEB server")
-                                found = True
-                                break
-                        except Exception as e:
-                            websocket_logger.error(f"[WS NOTICE] Error checking walkon file {walkon_file_path} on WEB server: {e}")
-                    if not found:
-                        websocket_logger.error(f"[WS NOTICE] WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
+                    if MEDIA_MIGRATED:
+                        # Unified library: look up the walkon by twitch_user_id in the
+                        # walkons table. Overlay constructs the URL from media_file.
+                        walkon_media_file = None
+                        if user_id:
+                            try:
+                                async with await mysql_connection() as walkon_conn:
+                                    async with walkon_conn.cursor(DictCursor) as walkon_cur:
+                                        await walkon_cur.execute(
+                                            "SELECT media_file FROM walkons WHERE twitch_user_id = %s LIMIT 1",
+                                            (str(user_id),)
+                                        )
+                                        walkon_row = await walkon_cur.fetchone()
+                                        if walkon_row and walkon_row.get('media_file'):
+                                            walkon_media_file = walkon_row['media_file']
+                            except Exception as e:
+                                websocket_logger.error(f"[WS NOTICE] WALKON lookup failed for user_id {user_id}: {e}")
+                        if walkon_media_file:
+                            params['channel'] = CHANNEL_NAME
+                            params['user'] = user
+                            params['media_file'] = walkon_media_file
+                            websocket_logger.info(f"[WS NOTICE] WALKON triggered for {user} (id={user_id}): file={walkon_media_file}")
+                        else:
+                            websocket_logger.info(f"[WS NOTICE] WALKON triggered for {user} (id={user_id}), but no walkons row matched")
+                    else:
+                        # Legacy: probe the WEB host for /var/www/walkons/{channel}/{user}.{ext}
+                        found = False
+                        for ext in ['.mp3', '.mp4']:
+                            walkon_file_path = f"/var/www/walkons/{CHANNEL_NAME}/{user}{ext}"
+                            try:
+                                if await ssh_manager.file_exists('WEB', walkon_file_path):
+                                    params['channel'] = CHANNEL_NAME
+                                    params['user'] = user
+                                    params['ext'] = ext
+                                    websocket_logger.info(f"[WS NOTICE] WALKON triggered for {user}: found file {walkon_file_path} on WEB server")
+                                    found = True
+                                    break
+                            except Exception as e:
+                                websocket_logger.error(f"[WS NOTICE] Error checking walkon file {walkon_file_path} on WEB server: {e}")
+                        if not found:
+                            websocket_logger.error(f"[WS NOTICE] WALKON triggered for {user}, but no walk-on file found in /var/www/walkons/{CHANNEL_NAME}/ on WEB server")
                 elif event == "DEATHS" and death and game:
                     params['death-text'] = death
                     params['game'] = game
@@ -12859,7 +12886,10 @@ async def websocket_notice(
                     else:
                         params['sound'] = f"https://soundalerts.botofthespecter.com/{CHANNEL_NAME}/{sound}"
                 elif event == "VIDEO_ALERT" and video:
-                    params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
+                    if MEDIA_MIGRATED:
+                        params['video'] = f"https://media.botofthespecter.com/{CHANNEL_NAME}/{video}"
+                    else:
+                        params['video'] = f"https://videoalerts.botofthespecter.com/{CHANNEL_NAME}/{video}"
                 elif event == "MODERATION":
                     if additional_data:
                         params.update(additional_data)
@@ -12918,15 +12948,18 @@ async def websocket_notice(
         if connection:
             await connection.close()
 
-# Function to load media settings (unified media library migration flag) from the profile table
+# Load the unified-media-library flag from website.users.new_media. The flag
+# was moved out of the per-user profile.media_migrated column so the bot,
+# overlays, and API can all route on it without hopping to each per-user DB
+# on every event.
 async def load_media_settings():
     global MEDIA_MIGRATED
     try:
-        async with await mysql_connection() as connection:
+        async with await mysql_connection("website") as connection:
             async with connection.cursor(DictCursor) as cursor:
-                await cursor.execute("SELECT media_migrated FROM profile LIMIT 1")
+                await cursor.execute("SELECT new_media FROM users WHERE username = %s LIMIT 1", (CHANNEL_NAME,))
                 result = await cursor.fetchone()
-                MEDIA_MIGRATED = bool(result.get("media_migrated")) if result else False
+                MEDIA_MIGRATED = bool(result.get("new_media")) if result else False
                 bot_logger.info(f"[MEDIA] Unified media library: {'enabled' if MEDIA_MIGRATED else 'disabled'}")
     except Exception as e:
         bot_logger.error(f"[MEDIA] Failed to load media settings: {e}")
