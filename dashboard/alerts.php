@@ -9,13 +9,10 @@ require_once '/var/www/lib/require_auth.php';
 $pageTitle = 'Specter Alerts';
 
 require_once "/var/www/config/db_connect.php";
-include '/var/www/config/twitch.php';
 include 'userdata.php';
-include 'bot_control.php';
-include "mod_access.php";
 include 'user_db.php';
-include 'storage_used.php';
 require_once __DIR__ . '/upload_helpers.php';
+require_once __DIR__ . '/file_paths.php';
 session_write_close();
 
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
@@ -233,6 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'upload_alert_media') {
+        include __DIR__ . '/storage_used.php';
         if (!isset($_FILES['media_file'])) {
             echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
             exit;
@@ -289,6 +287,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
     }
     echo json_encode(['success' => false, 'message' => 'Unknown action.']);
     exit;
+}
+
+include '/var/www/config/twitch.php';
+include 'bot_control.php';
+include "mod_access.php";
+include 'storage_used.php';
+
+$db = new mysqli($db_servername, $db_username, $db_password, $dbname);
+if ($db->connect_error) {
+    die('Connection failed: ' . $db->connect_error);
 }
 
 # Data load for page render
@@ -1212,8 +1220,13 @@ $(document).ready(function() {
     }
     $(document).on('click', '.alerts-new-variant-btn', function(e) {
         e.stopPropagation();
-        var category = $(this).data('category');
+        var $btn = $(this);
+        if ($btn.prop('disabled')) return;
+        var category = $btn.data('category');
+        var origHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Adding…');
         $.post('', { action: 'create_variant', category: category }, function(resp) {
+            $btn.prop('disabled', false).html(origHtml);
             if (!resp.success) {
                 Swal.fire({ icon: 'error', title: 'Cannot add variant', text: resp.message });
                 return;
@@ -1240,10 +1253,14 @@ $(document).ready(function() {
             $cat.find('.alerts-category-count').text($list.find('.alerts-variant-item').length);
             updateVariantCount();
             $('.alerts-variant-item[data-id="' + v.id + '"]').click();
-        }, 'json');
+        }, 'json').fail(function() {
+            $btn.prop('disabled', false).html(origHtml);
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to add variant. Please try again.' });
+        });
     });
     $('#delete-variant-btn').on('click', function() {
-        if (!currentAlertId) return;
+        var $btn = $(this);
+        if ($btn.prop('disabled') || !currentAlertId) return;
         var a = alertsData[currentAlertId];
         Swal.fire({
             title: 'Delete "' + a.variant_name + '"?',
@@ -1252,16 +1269,20 @@ $(document).ready(function() {
             confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete', cancelButtonText: 'Cancel'
         }).then(function(result) {
             if (!result.isConfirmed) return;
-            $.post('', { action: 'delete_variant', id: currentAlertId }, function(resp) {
+            var origHtml = $btn.html();
+            var idToDelete = currentAlertId;
+            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Deleting…');
+            $.post('', { action: 'delete_variant', id: idToDelete }, function(resp) {
+                $btn.prop('disabled', false).html(origHtml);
                 if (!resp.success) {
                     Swal.fire({ icon: 'error', title: 'Error', text: resp.message });
                     return;
                 }
-                var $row = $('.alerts-variant-item[data-id="' + currentAlertId + '"]');
+                var $row = $('.alerts-variant-item[data-id="' + idToDelete + '"]');
                 var $cat = $row.closest('.alerts-category');
                 $row.remove();
-                delete alertsData[currentAlertId];
-                currentAlertId = null;
+                delete alertsData[idToDelete];
+                if (currentAlertId === idToDelete) currentAlertId = null;
                 var remaining = $cat.find('.alerts-variant-item').length;
                 $cat.find('.alerts-category-count').text(remaining);
                 if (remaining === 0) {
@@ -1274,7 +1295,10 @@ $(document).ready(function() {
                 $('#preview-placeholder').show();
                 $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
                 clearDirty();
-            }, 'json');
+            }, 'json').fail(function() {
+                $btn.prop('disabled', false).html(origHtml);
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete variant. Please try again.' });
+            });
         });
     });
     function updateVariantCount() {
