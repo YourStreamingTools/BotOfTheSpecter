@@ -65,137 +65,155 @@ The "+ Add another reward to this file" capability doesn't exist in the UI today
 - **Does not** copy walkon files.
 - **Does not** create any walkon DB rows.
 
-## 3. UI refactor — 1:N mapping editor
+## 3. UI refactor — master/detail with per-file modal
 
-Three tabs need the same restructure: Sound Alerts, Video Alerts, Twitch Events. Each file row gets:
+Replace the five-tab table structure entirely. New shape:
+
+- **Single compact file list** (no category tabs).
+- **Click a filename → opens a modal** scoped to that one file. The modal is where all mappings (rewards, events, walkons, alert builder) are managed.
+- Filename click + modal is the **only** path to add/remove mappings. The list itself stays uncluttered.
+
+### 3.1 Main view layout
 
 ```
-[ ] shared.mp3          [1st ×] [I'm here ×]  [+ Add reward ▾]      [🗑] [▶]
+Storage bar          (existing, unchanged)
+Upload card          (existing, unchanged)
+Migration card       (existing, button gets wired up — see §5)
+Filter bar           [All] [With rewards] [With events] [Walkons] [Unused] [Videos]   🔍 [Search files…]
+File list:
+  ☐  shared.mp3       MP3 · 2.4 MB  ·  3 mappings        [🗑] [▶]
+  ☐  hello.mp3        MP3 · 1.1 MB  ·  Unused             [🗑] [▶]
+  ☐  intro.mp4        MP4 · 8.7 MB  ·  1 mapping          [🗑] [▶]
+  …
+[Delete selected]    (enabled when ≥2 checked, existing pattern)
 ```
 
-### 3.1 Data-loading change
+- **Filename is a `<button class="media-file-open">`** — keyboard-accessible, opens the modal.
+- **"3 mappings" summary** — sum across all trigger types: rewards + events + walkons. Hover/title attribute breaks it down ("2 rewards, 1 event"). For zero mappings, show `Unused` as a muted badge so streamers can find orphan files for cleanup.
+- **Filter bar** acts as lenses over the same file list:
+  - `All` — every file (default)
+  - `With rewards` — files mapped to ≥1 channel point reward (sound or video)
+  - `With events` — files mapped to ≥1 twitch event
+  - `Walkons` — files used as ≥1 user's walkon
+  - `Unused` — zero mappings anywhere
+  - `Videos` — `.mp4` only
+  - Plus a text input for substring search on filename.
+- **Inline action buttons** (delete one, test playback) stay on the row — they don't need the modal.
 
-Replace overwrite-keyed dict with collect-into-list:
+### 3.2 The per-file modal
+
+Triggered by clicking the filename. Single source of truth for "what does this file do?". Section visibility adapts to file type:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  shared.mp3                                            [×] │
+│  MP3 · 2.4 MB                                              │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  Channel Point Rewards                                      │
+│    [1st ×] [I'm here ×]                                    │
+│    [+ Add reward ▾]                                        │
+│                                                             │
+│  Twitch Events                                              │
+│    [Follow ×]                                              │
+│    [+ Add event ▾]                                         │
+│                                                             │
+│  Walkons                                                    │
+│    [@bandit ×]                                             │
+│    [+ Add user ▾]                                          │
+│                                                             │
+│  Used by Alert Builder         (read-only)                  │
+│    Sub alert · Default variant                              │
+│                                                             │
+│                                          [▶ Test] [Close]  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Section adaptation by file type:**
+- **MP3 file**: shows Channel Point Rewards (`sound_alerts`), Twitch Events (`twitch_sound_alerts`), Walkons, Alert Builder.
+- **MP4 file**: shows Channel Point Rewards via `video_alerts` (relabel section header to "Channel Point Rewards (Video)" so it's unambiguous), Alert Builder. No Twitch Events section (no MP4 events today), no Walkons section (walkons are audio).
+- Empty sections (file is MP3 but has zero reward mappings) still render the `[+ Add reward ▾]` so the streamer can attach. Only the "Used by Alert Builder" section hides entirely when empty (it's read-only — nothing to do with an empty slot).
+
+**Modal mechanics:**
+- Bulma-style or sp-modal pattern already used elsewhere in the dashboard.
+- Open via JS, no full page navigation.
+- Add/remove operations POST via AJAX; on success, refresh **only the modal contents** (re-fetch this file's mappings) and the "3 mappings" summary on the underlying row. No `location.reload()`.
+- Closes on `×`, Escape key, or backdrop click.
+
+### 3.3 Data-loading change
+
+`media.php` still loads all mapping tables on page render — the modal uses pre-loaded data on open (no extra round trip):
 
 ```php
 // Before (line 53-60)
 while ($getSoundAlerts->fetch()) {
-    $soundAlertMappings[$sound_mapping] = $reward_id;  // overwrites
+    $soundAlertMappings[$sound_mapping] = $reward_id;  // overwrites!
 }
 
-// After
+// After — collect into list per file
 while ($getSoundAlerts->fetch()) {
-    $soundAlertMappings[$sound_mapping][] = $reward_id;  // collects
+    $soundAlertMappings[$sound_mapping][] = $reward_id;
 }
 ```
 
-Same change for `$videoAlertMappings` (line 65-71) and `$twitchSoundAlertMappings` (line 75-81).
+Same flip for `$videoAlertMappings` and `$twitchSoundAlertMappings`. Plus a new load for walkons (see §4).
 
-The exclusion lists (`$videoMappedRewards`, `$soundMappedRewards` at lines 99-106) need to be rebuilt to flatten across all values:
+All mapping data ships to the page as JSON so the modal can render without an extra AJAX hop on open:
 
 ```php
-$soundMappedRewards = [];
-foreach ($soundAlertMappings as $rewards) {
-    foreach ((array)$rewards as $rid) {
-        $soundMappedRewards[] = $rid;
-    }
-}
+echo '<script>window.__MEDIA_MAPPINGS = ' . json_encode([
+    'sound_alerts'   => $soundAlertMappings,
+    'video_alerts'   => $videoAlertMappings,
+    'twitch_events'  => $twitchSoundAlertMappings,
+    'walkons'        => $walkonsByFile,
+    'alert_builder'  => $alertMediaFiles,
+    'rewards'        => $channelPointRewards,
+    'twitch_events_list' => $allEvents,
+    'reward_titles'  => $rewardIdToTitle,
+]) . ';</script>';
 ```
 
-### 3.2 POST handlers
+### 3.4 POST handlers
 
-Today there's a single combined handler that does "create if missing, update if present, delete if reward is empty". For 1:N we need three explicit verbs:
+Three explicit verbs per trigger type (replacing today's "if exists update, else insert, else delete" mega-handler):
 
-| Action | POST field | DB op |
+| Trigger | Add | Remove |
 |---|---|---|
-| Add a new mapping | `media_type=sound_alert_mapping`, `action=add`, `sound_file=X`, `reward_id=R` | `INSERT INTO sound_alerts (reward_id, sound_mapping) VALUES (R, X)` (idempotent via `INSERT ... ON DUPLICATE KEY UPDATE sound_mapping = VALUES(sound_mapping)` since `reward_id` is PK) |
-| Remove a mapping | `media_type=sound_alert_mapping`, `action=remove`, `reward_id=R` | `DELETE FROM sound_alerts WHERE reward_id = R` |
-| (No "edit" needed) | — | A streamer changes the file a reward triggers by removing + adding |
+| Channel point reward (sound) | `media_type=sound_alert_mapping&action=add&sound_file=X&reward_id=R` | `media_type=sound_alert_mapping&action=remove&reward_id=R` |
+| Channel point reward (video) | `media_type=video_alert_mapping&action=add&video_file=X&reward_id=R` | `media_type=video_alert_mapping&action=remove&reward_id=R` |
+| Twitch event | `media_type=twitch_event_mapping&action=add&sound_file=X&twitch_alert_id=E` | `media_type=twitch_event_mapping&action=remove&twitch_alert_id=E` |
+| Walkon | `media_type=walkon_mapping&action=add&media_file=X&twitch_user_id=U&twitch_user_name=N` | `media_type=walkon_mapping&action=remove&twitch_user_id=U` |
 
-Same shape for video_alerts (PK = reward_id) and twitch_sound_alerts (PK = twitch_alert_id).
+Each ADD uses `INSERT ... ON DUPLICATE KEY UPDATE` keyed by the PK (`reward_id` / `twitch_alert_id` / `twitch_user_id`) so the same call also handles "change which file this trigger uses" atomically.
 
-### 3.3 Render changes per file row
+All four handlers return JSON: `{success: bool, mappings: {updated mapping list for this file}, error: null}`. The modal uses the returned `mappings` to re-render its sections without reloading the page.
 
-Inside the `<tbody>` loop for each tab (lines 499-543 for sound alerts; same pattern for video and twitch):
+### 3.5 CSS additions
 
-```php
-<?php
-$current_mappings = $soundAlertMappings[$file] ?? [];
-// Rewards still available to map (not already used by ANY file, sound or video)
-$available_rewards = array_filter($channelPointRewards, function ($r) use ($soundMappedRewards, $videoMappedRewards) {
-    return !in_array($r['reward_id'], $soundMappedRewards)
-        && !in_array($r['reward_id'], $videoMappedRewards);
-});
-?>
-<tr>
-    <td><input type="checkbox" name="delete_files[]" value="<?php echo htmlspecialchars($file); ?>"></td>
-    <td><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></td>
-    <td>
-        <div class="mapping-chips">
-            <?php foreach ($current_mappings as $rid):
-                $title = htmlspecialchars($rewardIdToTitle[$rid] ?? '(unknown reward)');
-            ?>
-                <span class="mapping-chip" data-reward-id="<?php echo htmlspecialchars($rid); ?>">
-                    <?php echo $title; ?>
-                    <button type="button" class="mapping-chip-remove"
-                            data-file="<?php echo htmlspecialchars($file); ?>"
-                            data-reward-id="<?php echo htmlspecialchars($rid); ?>"
-                            data-kind="sound">×</button>
-                </span>
-            <?php endforeach; ?>
-            <?php if (empty($current_mappings)): ?>
-                <em class="mapping-empty"><?php echo t('sound_alerts_not_mapped'); ?></em>
-            <?php endif; ?>
-        </div>
-        <?php if (!empty($available_rewards)): ?>
-            <form class="mapping-add-form" data-kind="sound">
-                <input type="hidden" name="media_type" value="sound_alert_mapping">
-                <input type="hidden" name="action" value="add">
-                <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
-                <select name="reward_id" class="sp-select mapping-add-select">
-                    <option value="">+ Add reward…</option>
-                    <?php foreach ($available_rewards as $r): ?>
-                        <option value="<?php echo htmlspecialchars($r['reward_id']); ?>">
-                            <?php echo htmlspecialchars($r['reward_title']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </form>
-        <?php endif; ?>
-    </td>
-    <td>…delete/test buttons unchanged…</td>
-</tr>
-```
-
-### 3.4 JS changes (`<script>` block at end of media.php)
-
-Replace the existing `.mapping-select` change handler (line 961-966) with two handlers:
-
-```js
-// Add a mapping
-$(document).on('change', '.mapping-add-select', function () {
-    if (!this.value) return;
-    $.post('', $(this).closest('form').serialize(), function () { location.reload(); });
-});
-// Remove a mapping (clicks the × on a chip)
-$(document).on('click', '.mapping-chip-remove', function () {
-    var kind = $(this).data('kind');
-    var mediaType = kind === 'video' ? 'video_alert_mapping'
-                  : kind === 'twitch' ? 'twitch_event_mapping'
-                  : 'sound_alert_mapping';
-    $.post('', {
-        media_type: mediaType,
-        action: 'remove',
-        reward_id: $(this).data('reward-id')
-    }, function () { location.reload(); });
-});
-```
-
-### 3.5 CSS additions (overlay/dashboard scope)
-
-Small chip styling in `./dashboard/css/dashboard.css`:
+In `./dashboard/css/dashboard.css`:
 
 ```css
+/* File list */
+.media-file-row { display: grid; grid-template-columns: auto 1fr auto auto auto auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.media-file-name {
+    background: transparent; border: none; padding: 0; cursor: pointer;
+    color: var(--accent); text-decoration: underline; font-family: inherit;
+    font-size: inherit; text-align: left;
+}
+.media-file-name:hover { color: var(--accent-hover); }
+.media-file-meta { color: var(--text-muted); font-size: 0.85em; }
+.media-file-summary { color: var(--text-secondary); font-size: 0.9em; }
+.media-file-summary.is-unused { color: var(--text-muted); }
+
+/* Filter bar */
+.media-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+.media-filter-btn { /* uses sp-btn-ghost base */ }
+.media-filter-btn.is-active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.media-search-input { max-width: 260px; }
+
+/* Modal mapping chips */
+.media-modal-section { margin-bottom: 18px; }
+.media-modal-section-title { font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 0.95em; }
 .mapping-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .mapping-chip {
     display: inline-flex; align-items: center; gap: 4px;
@@ -210,6 +228,7 @@ Small chip styling in `./dashboard/css/dashboard.css`:
 .mapping-chip-remove:hover { color: var(--red); }
 .mapping-add-select { max-width: 240px; }
 .mapping-empty { color: var(--text-muted); display: inline-block; margin-bottom: 6px; }
+.media-modal-section-readonly .mapping-chip { background: var(--bg-card-hover); color: var(--text-secondary); cursor: default; }
 ```
 
 ## 4. Walkons rebuild
@@ -236,16 +255,11 @@ Semantics:
 - `media_file` is just an index — **one file can be the walkon for many users** (the 1:N benefit the streamer is asking for).
 - `twitch_user_name` denormalized for display so the walkons tab can render without a cross-DB join to `seen_users` on every page render.
 
-### 4.2 Walkons tab rewrite
+### 4.2 Walkons in the per-file modal
 
-Replace the current Walkons tab (lines 638-689 in media.php) which lists raw files with delete/test buttons. New structure: same per-file row pattern as sound alerts, but the chips are Twitch users instead of channel-point rewards.
+The current Walkons tab (lines 638-689 in media.php) is **removed entirely**. Walkons become one section of the per-file modal (see §3.2). The streamer clicks a file in the unified list → modal opens → Walkons section shows current user chips + an "Add user" picker.
 
-```
-[ ] thanks_for_lurking.mp3      [@gfaundead ×] [@bandit ×]  [+ Add user ▾]   [🗑] [▶]
-[ ] hello_world.mp3                                          [+ Add user ▾]   [🗑] [▶]
-```
-
-Data load — once per page render, build `$walkonsByFile = [media_file => [{user_id, user_name}, ...]]`:
+Data load — once per page render, build `$walkonsByFile = [media_file => [{user_id, user_name}, ...]]` and ship it with the rest of the mapping data via `window.__MEDIA_MAPPINGS` (§3.3):
 
 ```php
 $walkonsByFile = [];
@@ -261,9 +275,12 @@ if ($walkonsResult) {
 }
 ```
 
-The "+ Add user" picker has two modes (see §8 open decision):
-- **Typeahead from `seen_users`** — fast common case, no Helix round trip.
-- **Free-form Twitch username** — fallback that calls a small endpoint to resolve via Helix at save time.
+The "+ Add user" picker is a **combined typeahead + free-form** input (decided):
+- As the streamer types, autocomplete from `seen_users` (cached locally; users who have chatted in the channel).
+- If their input doesn't match any cached user, an "Use this exact Twitch username" affordance appears that triggers a Helix lookup at submit time to resolve `login → user_id` and inserts the row.
+- Both paths post to the same `walkon_mapping&action=add` handler with the resolved `twitch_user_id` and `twitch_user_name`.
+
+The Walkons filter at the top of the unified list lets a streamer narrow to "files used as ≥1 walkon" — that's the only place the old "walkons tab" concept survives.
 
 ### 4.3 POST handlers
 
@@ -353,10 +370,17 @@ Sound alert / video alert / twitch event mapping reads on the bot side already q
 
 Each stage is independently shippable. Steps 1+2 alone deliver the headline win (one upload, many rewards).
 
-## 8. Open decisions
+## 8. Decisions log
 
-1. **Migrate existing walkons into the new table** — auto-create `walkons` rows from `/var/www/walkons/{user}/{login}.mp3` files during migration, looking up `user_id` via Helix for any login not already in `seen_users`? Or leave migration as files-only and require the streamer to re-tag in the new UI? **Recommendation:** auto-create — Helix lookups are cheap and existing walkons should keep working without re-tagging.
-2. **"+ Add user" picker for walkons** — typeahead from `seen_users` only, free-form Twitch username only, or both? **Recommendation:** both — typeahead for fast common case, free-form fallback with Helix lookup at save time so streamers can pre-set walkons for viewers who haven't chatted yet.
-3. **Old-directory cleanup** — should a post-migration step delete the contents of `/var/www/soundalerts/{user}/`, `/var/www/videoalerts/{user}/`, `/var/www/walkons/{user}/` once we've verified the unified library is populated? **Recommendation:** not in this plan — too destructive to bundle with the rest. Add as a separate "verified migration, free up storage" button in the dashboard later.
-4. **Storage-usage display post-migration** — `media.php:358` sums all four old paths plus the unified one, so post-migration the displayed total roughly doubles until cleanup (decision #3). Should the storage bar switch to "unified path only" when `media_migrated = 1`? **Recommendation:** yes, gate it on the flag — `calculateStorageUsed([$media_path])` when migrated, current four-path sum otherwise.
-5. **Concurrency for chip add/remove** — should the UI optimistically update without a full `location.reload()` on every chip change, to avoid scroll-position loss on long file lists? **Recommendation:** out of scope for v1 — reload is simpler and the file lists are typically small. Revisit if it becomes annoying in practice.
+Resolved during planning:
+
+1. ✅ **Auto-create walkon rows during migration** — yes. Migration scans `/var/www/walkons/{user}/{login}.mp3`, looks up `login → user_id` via Helix (or `seen_users` cache), and inserts a `walkons` row per file. Existing walkons keep working without the streamer re-tagging.
+2. ✅ **"+ Add user" picker** — combined typeahead + free-form. Autocomplete against `seen_users` for common case; free-form Twitch username with Helix-lookup-at-save-time fallback so streamers can pre-set walkons for viewers who haven't chatted yet.
+3. ✅ **Tabs vs unified list** — no tabs. Single file list with filter bar (lenses, not categories). All mappings for a file managed inside a per-file modal opened by clicking the filename. Removes the divided mental model the new system is meant to escape.
+4. ✅ **Modal for editing vs inline/side-panel** — modal. Clicking a filename opens a focused mapping editor scoped to that one file. Keeps the main list compact and uncluttered, supports the "click → assign → close" pattern naturally.
+
+Still open:
+
+5. **Old-directory cleanup** — should a post-migration step delete the contents of `/var/www/soundalerts/{user}/`, `/var/www/videoalerts/{user}/`, `/var/www/walkons/{user}/` once the unified library is populated? **Recommendation:** not in this plan — too destructive to bundle with the rest. Add as a separate "verified migration, free up storage" button in the dashboard later.
+6. **Storage-usage display post-migration** — `media.php:358` sums all four old paths plus the unified one, so post-migration the displayed total roughly doubles until cleanup (decision #5). Should the storage bar switch to "unified path only" when `media_migrated = 1`? **Recommendation:** yes, gate it on the flag — `calculateStorageUsed([$media_path])` when migrated, current four-path sum otherwise.
+7. **Filter set at launch** — proposed filters are `All / With rewards / With events / Walkons / Unused / Videos`. Add anything else (e.g. file-type breakouts for `MP3 / MP4`, sortable columns for size or date uploaded)? **Recommendation:** ship the six listed; add more on demand.
