@@ -54,22 +54,33 @@ try {
                 echo json_encode($response);
                 exit();
             }
-        } elseif ($event === "SOUND_ALERT" && isset($_POST['sound'], $_POST['channel_name'])) {
-            // Check whether this channel has migrated to the new unified media library
-            $soundBase = 'soundalerts.botofthespecter.com';
-            $mnConn = new mysqli($db_servername, $db_username, $db_password, $_POST['channel_name']);
+        } elseif (($event === "SOUND_ALERT" && isset($_POST['sound'], $_POST['channel_name']))
+               || ($event === "VIDEO_ALERT" && isset($_POST['video'], $_POST['channel_name']))) {
+            // Single migration check shared by sound/video test playback. Reads the
+            // global flag (website.users.new_media) so this stays consistent with
+            // the bot's own routing in beta.py / beta-v6.py.
+            $channelName = $_POST['channel_name'];
+            $isMigrated = false;
+            $mnConn = new mysqli($db_servername, $db_username, $db_password, 'website');
             if (!$mnConn->connect_error) {
-                $mnRes = $mnConn->query("SELECT media_migrated FROM profile LIMIT 1");
-                if ($mnRes && $mnRow = $mnRes->fetch_assoc()) {
-                    if (!empty($mnRow['media_migrated'])) {
-                        $soundBase = 'media.botofthespecter.com';
+                if ($flagStmt = $mnConn->prepare("SELECT new_media FROM users WHERE username = ? LIMIT 1")) {
+                    $flagStmt->bind_param('s', $channelName);
+                    $flagStmt->execute();
+                    $flagRes = $flagStmt->get_result();
+                    if ($flagRow = $flagRes->fetch_assoc()) {
+                        $isMigrated = !empty($flagRow['new_media']);
                     }
+                    $flagStmt->close();
                 }
                 $mnConn->close();
             }
-            $params['sound'] = "https://$soundBase/" . $_POST['channel_name'] . "/" . $_POST['sound'];
-        } elseif ($event === "VIDEO_ALERT" && isset($_POST['video'], $_POST['channel_name'])) {
-            $params['video'] = "https://videoalerts.botofthespecter.com/" . $_POST['channel_name'] . "/" . $_POST['video'];
+            if ($event === "SOUND_ALERT") {
+                $soundBase = $isMigrated ? 'media.botofthespecter.com' : 'soundalerts.botofthespecter.com';
+                $params['sound'] = "https://$soundBase/" . $channelName . "/" . $_POST['sound'];
+            } else {
+                $videoBase = $isMigrated ? 'media.botofthespecter.com' : 'videoalerts.botofthespecter.com';
+                $params['video'] = "https://$videoBase/" . $channelName . "/" . $_POST['video'];
+            }
         } else {
             $response['message'] = "Event '$event' requires additional parameters or is not recognized.";
             echo json_encode($response);
