@@ -930,3 +930,33 @@
     color: var(--accent);
     text-decoration: underline;
 }
+
+/* ---- Scrollbars (match dashboard sp-nav pattern) --------------------- */
+
+.alerts-categories-scroll,
+.alerts-settings-panel,
+.alerts-library-grid {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+}
+.alerts-categories-scroll::-webkit-scrollbar,
+.alerts-settings-panel::-webkit-scrollbar,
+.alerts-library-grid::-webkit-scrollbar {
+    width: 6px;
+}
+.alerts-categories-scroll::-webkit-scrollbar-track,
+.alerts-settings-panel::-webkit-scrollbar-track,
+.alerts-library-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+.alerts-categories-scroll::-webkit-scrollbar-thumb,
+.alerts-settings-panel::-webkit-scrollbar-thumb,
+.alerts-library-grid::-webkit-scrollbar-thumb {
+    background: var(--border-hover);
+    border-radius: 4px;
+}
+.alerts-categories-scroll::-webkit-scrollbar-thumb:hover,
+.alerts-settings-panel::-webkit-scrollbar-thumb:hover,
+.alerts-library-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
