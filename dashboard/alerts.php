@@ -29,6 +29,11 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
+// Per-category variant caps. A follow is a follow — no condition can
+// meaningfully split it, so 1 is the only sane number.
+$variantLimits = [
+    'follow' => 1,
+];
 $defaultAlerts = [
     // Native Twitch events
     ['follow', 'New follower', 0, null, "{username}\nfollowed!"],
@@ -161,6 +166,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         if ($category === '') {
             echo json_encode(['success' => false, 'message' => 'Category required.']);
             exit;
+        }
+        if (isset($variantLimits[$category])) {
+            $capStmt = $db->prepare("SELECT COUNT(*) AS cnt FROM twitch_alerts WHERE alert_category = ?");
+            $capStmt->bind_param('s', $category);
+            $capStmt->execute();
+            $capCnt = (int)$capStmt->get_result()->fetch_assoc()['cnt'];
+            $capStmt->close();
+            if ($capCnt >= $variantLimits[$category]) {
+                echo json_encode(['success' => false, 'message' => 'This category only supports ' . $variantLimits[$category] . ' variant' . ($variantLimits[$category] === 1 ? '' : 's') . '.']);
+                exit;
+            }
         }
         // Pick a name that doesn't collide with siblings
         $base = 'New variant';
@@ -400,6 +416,8 @@ ob_start();
                 <?php foreach ($categoryMeta as $category => $meta):
                     $variants = $alertsByCategory[$category] ?? [];
                     $randomize = $categoryRandomize[$category] ?? 0;
+                    $catLimit = $variantLimits[$category] ?? null;
+                    $canAddVariant = ($catLimit === null) || (count($variants) < $catLimit);
                 ?>
                 <section class="alerts-category" data-category="<?php echo htmlspecialchars($category); ?>">
                     <header class="alerts-category-header">
@@ -415,7 +433,7 @@ ob_start();
                                 <span class="alerts-mini-toggle-slider"></span>
                                 <span class="alerts-mini-toggle-text">Randomize</span>
                             </label>
-                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="Add a new variant">
+                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="Add a new variant"<?php echo $canAddVariant ? '' : ' style="display:none;"'; ?>>
                                 <i class="fas fa-plus"></i> New variant
                             </button>
                         </div>
@@ -881,6 +899,16 @@ $(document).ready(function() {
     const libraryImages = <?php echo json_encode($libraryImages); ?>;
     const librarySounds = <?php echo json_encode($librarySounds); ?>;
     const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
+    const variantLimits = <?php echo json_encode($variantLimits); ?>;
+    function updateAddButtonFor(category) {
+        var $cat = $('.alerts-category[data-category="' + category + '"]');
+        if (!$cat.length) return;
+        var limit = variantLimits[category];
+        var count = $cat.find('.alerts-variant-item').length;
+        var $btn = $cat.find('.alerts-new-variant-btn');
+        if (limit !== undefined && count >= limit) $btn.hide();
+        else $btn.show();
+    }
     // Variables available to each category's message template. Only what the
     // overlay actually substitutes for that event type is listed.
     const categoryVariables = {
@@ -1331,6 +1359,7 @@ $(document).ready(function() {
                 + '</li>';
             $list.append(html);
             $cat.find('.alerts-category-count').text($list.find('.alerts-variant-item').length);
+            updateAddButtonFor(category);
             updateVariantCount();
             $('.alerts-variant-item[data-id="' + v.id + '"]').click();
         }, 'json').fail(function() {
@@ -1368,6 +1397,7 @@ $(document).ready(function() {
                 if (remaining === 0) {
                     $cat.find('.alerts-variant-list').append('<li class="alerts-variant-empty">No variants yet — add one above.</li>');
                 }
+                updateAddButtonFor($cat.data('category'));
                 updateVariantCount();
                 $('#settings-form').hide();
                 $('#settings-placeholder').show();
