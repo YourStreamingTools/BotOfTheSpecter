@@ -382,18 +382,78 @@ ob_start();
             </div>
         </div>
         <div class="sp-card-body">
-            <p style="margin-bottom:0.5rem;">Display the live value of any of your custom <code>counters</code> - great for things like "cats spotted: 7" on screen. Pick the counter name and the format you want.</p>
-            <ul style="margin: 0 0 0.75rem 1.25rem; list-style:disc; font-size:0.85rem;">
-                &amp;type=text
-                <br>&amp;type=number
-                <br>&amp;type=name
-                <br>&amp;type=json
-            </ul>
-            <div class="info-box" style="font-family:monospace; margin-bottom:0;">
-                https://overlay.botofthespecter.com/counters.php?code=API_KEY_HERE&amp;counter=COUNTER_NAME&amp;type=text
+            <p style="margin-bottom:0.5rem;">Display the live value of any counter &mdash; great for things like "cats spotted: 7" on screen. Type a counter name below, tweak the colours if you like, and drop the URL into OBS as a browser source.</p>
+            <p style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--text-secondary);">Built-in counters you can use right away: <code>deaths</code>, <code>stream_deaths</code>, <code>hugs</code>, <code>kisses</code>, <code>highfives</code>, <code>typos</code>, <code>lurkers</code>. Any other name pulls from your custom <code>!count</code> counters.</p>
+            <div style="display:flex; gap:0.75rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                <div style="flex:1; min-width:160px;">
+                    <label class="sp-label" style="font-size:0.8rem;">Counter name</label>
+                    <input type="text" class="sp-input" id="counter-builder-name" placeholder="e.g. frog">
+                </div>
+                <div style="flex:1; min-width:140px;">
+                    <label class="sp-label" style="font-size:0.8rem;">Text colour <span style="color:var(--text-muted); font-weight:normal;">(optional)</span></label>
+                    <input type="text" class="sp-input" id="counter-builder-color" placeholder="white or ffffff">
+                </div>
+                <div style="flex:1; min-width:140px;">
+                    <label class="sp-label" style="font-size:0.8rem;">Background <span style="color:var(--text-muted); font-weight:normal;">(optional)</span></label>
+                    <input type="text" class="sp-input" id="counter-builder-bg" placeholder="transparent or 000000">
+                </div>
             </div>
+            <div style="display:flex; gap:0.5rem; align-items:stretch;">
+                <input type="password" class="sp-input" id="counter-builder-url" readonly placeholder="Enter a counter name to build your URL" style="flex:1; font-family:monospace;" title="Click to reveal your URL">
+                <button class="sp-btn sp-btn-primary" id="counter-builder-copy" type="button" disabled>
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+            <details style="margin-top:0.75rem;">
+                <summary style="cursor:pointer; font-size:0.85rem; color:var(--text-secondary);">Need raw output instead of a styled overlay? (for custom HTML / API use)</summary>
+                <p style="font-size:0.85rem; margin:0.5rem 0 0.25rem 0;">Append <code>&amp;type=</code> to the URL with one of:</p>
+                <ul style="margin: 0 0 0 1.25rem; list-style:disc; font-size:0.85rem;">
+                    <li><code>text</code> &rarr; <em>frog: 5</em></li>
+                    <li><code>number</code> &rarr; <em>5</em></li>
+                    <li><code>name</code> &rarr; <em>frog</em></li>
+                    <li><code>json</code> &rarr; <em>{"counter":"frog","count":5}</em></li>
+                </ul>
+            </details>
         </div>
     </div>
+    <script>
+    (function () {
+        var apiKey = <?php echo json_encode($api_key); ?>;
+        var $name  = document.getElementById('counter-builder-name');
+        var $color = document.getElementById('counter-builder-color');
+        var $bg    = document.getElementById('counter-builder-bg');
+        var $url   = document.getElementById('counter-builder-url');
+        var $copy  = document.getElementById('counter-builder-copy');
+        if (!$name || !$url || !$copy) return;
+        function update() {
+            var name = $name.value.trim();
+            if (!name) { $url.value = ''; $copy.disabled = true; return; }
+            var params = new URLSearchParams({ code: apiKey, counter: name });
+            if ($color.value.trim()) params.set('color', $color.value.trim());
+            if ($bg.value.trim())    params.set('bg',    $bg.value.trim());
+            $url.value = 'https://overlay.botofthespecter.com/counters.php?' + params.toString();
+            $copy.disabled = false;
+        }
+        $name.addEventListener('input', update);
+        $color.addEventListener('input', update);
+        $bg.addEventListener('input', update);
+        $url.addEventListener('focus', function () { this.type = 'text'; this.select(); });
+        $url.addEventListener('click', function () { if (this.value) { this.type = 'text'; this.select(); } });
+        $url.addEventListener('blur',  function () { this.type = 'password'; });
+        $copy.addEventListener('click', function () {
+            if (!$url.value) return;
+            var wasMasked = $url.type === 'password';
+            if (wasMasked) $url.type = 'text';
+            $url.select(); $url.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText($url.value).then(function () {
+                var orig = $copy.innerHTML;
+                $copy.innerHTML = '<i class="fas fa-check"></i> Copied';
+                setTimeout(function () { $copy.innerHTML = orig; }, 1500);
+            }).catch(function () { document.execCommand('copy'); });
+            if (wasMasked) setTimeout(function () { $url.type = 'password'; }, 200);
+        });
+    })();
+    </script>
 </div>
 <?php
 // End buffering and assign to $content
