@@ -111,6 +111,9 @@ if ($username) {
                         const donation = parseFloat(eventData.amount_value) || 0;
                         const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
                         if (amountMatch && donation >= parseFloat(amountMatch[1])) return variant;
+                    } else if (category === 'stream_bingo') {
+                        const bingoMatch = cond.match(/bingo_event\s*=\s*['"]?([^'"\s]+)['"]?/);
+                        if (bingoMatch && eventData.bingo_event && bingoMatch[1] === eventData.bingo_event) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -159,7 +162,11 @@ if ($username) {
                     .replace(/\{level\}/g, eventData.level || '')
                     .replace(/\{added_minutes\}/g, eventData.added_minutes || '')
                     .replace(/\{streak\}/g, eventData.streak || '')
-                    .replace(/\{charity_name\}/g, eventData.charity_name || '');
+                    .replace(/\{charity_name\}/g, eventData.charity_name || '')
+                    .replace(/\{rank_text\}/g, eventData.rank_text || '')
+                    .replace(/\{bingo_event_name\}/g, eventData.bingo_event_name || '')
+                    .replace(/\{bingo_number\}/g, eventData.bingo_number || '')
+                    .replace(/\{events_count\}/g, eventData.events_count || '');
                 // Split message into lines, first line uses accent color
                 const lines = message.split('\n');
                 let messageHtml = '';
@@ -518,9 +525,40 @@ if ($username) {
                 socket.on('TWITCH_CHANNEL_POINTS', (data) => {
                     console.log('TWITCH_CHANNEL_POINTS event received:', data);
                     queueAlert('channel_points', {
-                        username: data['twitch-username'] || ''
+                        username:  data['twitch-username'] || '',
+                        reward_id: data['reward-id'] || data['reward_id'] || ''
                     });
                 });
+
+                // Stream Bingo — four sub-events, each picks its own variant
+                socket.on('STREAM_BINGO_STARTED', (data) => {
+                    console.log('STREAM_BINGO_STARTED event received:', data);
+                    queueAlert('stream_bingo', {
+                        bingo_event:  'STREAM_BINGO_STARTED',
+                        events_count: data.events_count || ''
+                    });
+                });
+                socket.on('STREAM_BINGO_ENDED', (data) => {
+                    console.log('STREAM_BINGO_ENDED event received:', data);
+                    queueAlert('stream_bingo', { bingo_event: 'STREAM_BINGO_ENDED' });
+                });
+                socket.on('STREAM_BINGO_EVENT_CALLED', (data) => {
+                    console.log('STREAM_BINGO_EVENT_CALLED event received:', data);
+                    queueAlert('stream_bingo', {
+                        bingo_event:      'STREAM_BINGO_EVENT_CALLED',
+                        bingo_number:     data.display_number || '',
+                        bingo_event_name: data.event_name || ''
+                    });
+                });
+                socket.on('STREAM_BINGO_WINNER', (data) => {
+                    console.log('STREAM_BINGO_WINNER event received:', data);
+                    queueAlert('stream_bingo', {
+                        bingo_event: 'STREAM_BINGO_WINNER',
+                        username:    data.player_name || '',
+                        rank_text:   data.rank_text || ''
+                    });
+                });
+
                 // Log all events
                 socket.onAny((event, ...args) => {
                     console.log(`[onAny] Event: ${event}`, ...args);
