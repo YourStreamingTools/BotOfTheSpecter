@@ -67,7 +67,9 @@ $defaultAlerts = [
     ['kofi', 'Donation',     0, "kofi_type = 'Donation'",     "{username}\ndonated {amount}!"],
     ['kofi', 'Subscription', 1, "kofi_type = 'Subscription'", "{username}\nsubscribed via Ko-fi!"],
     ['kofi', 'Shop Order',   2, "kofi_type = 'Shop Order'",   "{username}\nordered from the shop!"],
-    ['patreon', 'New patron', 0, null, "{username}\nbecame a patron!"],
+    ['patreon', 'New patron',      0, "patreon_type = 'pledge'",    "{username}\nbecame a patron!"],
+    ['patreon', 'Pledge updated',   1, "patreon_type = 'update'",    "{username}\nupdated their pledge"],
+    ['patreon', 'Patron left',      2, "patreon_type = 'cancelled'", "{username}\nended their support."],
     ['fourthwall', 'Fourthwall order', 0, null, "{username}\nbought from the shop!"],
     ['subathon', 'Subathon time added', 0, null, "{added_minutes} minutes added to the subathon!"],
     ['stream_bingo', 'Game Started', 0, "bingo_event = 'STREAM_BINGO_STARTED'",      "Stream Bingo is starting!"],
@@ -962,7 +964,7 @@ $(document).ready(function() {
         channel_points:    ['{username}'],
         discord_join:      ['{username}'],
         kofi:              ['{username}', '{amount}', '{message}', '{tier_name}'],
-        patreon:           ['{username}'],
+        patreon:           ['{username}', '{amount}', '{tier_name}', '{lifetime}'],
         fourthwall:        ['{username}', '{amount}'],
         subathon:          ['{added_minutes}'],
         stream_bingo:      ['{username}', '{rank_text}', '{bingo_event_name}', '{bingo_number}', '{events_count}'],
@@ -1573,6 +1575,13 @@ $(document).ready(function() {
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];
+        // Patreon variants are tied to one of three sub-types via their condition;
+        // pick the matching sub-type for the live test from the variant itself.
+        if (!config && a.alert_category === 'patreon') {
+            var ptMatch = (a.alert_condition || '').match(/patreon_type\s*=\s*['"]([^'"]+)['"]/);
+            var patreonType = ptMatch ? ptMatch[1] : 'pledge';
+            config = { event: 'PATREON', params: { patreon_type: patreonType, user: 'TestUser', amount: '5.00', currency: 'USD', tier_name: 'Gold Tier', lifetime: '50.00' } };
+        }
         // Ko-fi variants are tied to one of three sub-types via their condition;
         // pick the matching sub-type for the live test from the variant itself.
         if (!config && a.alert_category === 'kofi') {

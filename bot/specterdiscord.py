@@ -686,6 +686,10 @@ class WebsocketListener:
         @self.specterSocket.event
         async def KOFI(data):
             await self.bot.handle_twitch_event("KOFI", data)
+        # Event handlers for Patreon (new patron / pledge update / cancellation)
+        @self.specterSocket.event
+        async def PATREON(data):
+            await self.bot.handle_twitch_event("PATREON", data)
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
@@ -3293,7 +3297,7 @@ class BotOfTheSpecter(commands.Bot):
         # Determine which channel to send the message to based on event type
         channel_id = None
         mention_everyone = False
-        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB", "KOFI"]:
+        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB", "KOFI", "PATREON"]:
             if not alert_channel_id:
                 self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id}")
                 return
@@ -3404,7 +3408,6 @@ class BotOfTheSpecter(commands.Bot):
                 description = f"The Hype Train is leaving the station at **Level {level}**!"
                 color = discord.Color.orange()
             embed = discord.Embed(title=title, description=description, color=color)
-            embed.set_thumbnail(url=(f"{thumbnail_url}/hype.png"))
         elif event_type == "CHARITY":
             donor = data.get("twitch-username") or twitch_username
             amount = data.get("twitch-charity-amount", "")
@@ -3414,7 +3417,6 @@ class BotOfTheSpecter(commands.Bot):
                 description=f"**{donor}** donated **{amount}** to **{charity_name}**!",
                 color=discord.Color.from_rgb(231, 76, 60)
             )
-            embed.set_thumbnail(url=(f"{thumbnail_url}/charity.png"))
         elif event_type == "KOFI":
             # Ko-fi webhook payload arrives JSON-stringified in data.data
             payload = {}
@@ -3459,7 +3461,66 @@ class BotOfTheSpecter(commands.Bot):
                 description=desc,
                 color=discord.Color.from_rgb(255, 94, 91)  # Ko-fi red
             )
-            embed.set_thumbnail(url=(f"{thumbnail_url}/kofi.png"))
+        elif event_type == "PATREON":
+            # Patreon JSON:API envelope arrives in data.data — same Python-literal
+            # tolerance as overlay/patreon.php since api.py uses urlencode(dict).
+            payload = {}
+            raw = data.get("data") if isinstance(data, dict) else None
+            if isinstance(raw, str):
+                try:
+                    import json as _json
+                    payload = _json.loads(raw)
+                except Exception:
+                    try:
+                        import ast as _ast
+                        payload = _ast.literal_eval(raw)
+                    except Exception:
+                        payload = {}
+            elif isinstance(raw, dict):
+                payload = raw
+            member = (payload.get("data") if isinstance(payload, dict) else None) or payload or {}
+            attrs  = member.get("attributes") if isinstance(member, dict) else {}
+            attrs  = attrs or {}
+            status_str = str(attrs.get("patron_status") or "").lower()
+            if status_str in ("former_patron", "declined_patron"):
+                patreon_type = "cancelled"
+            elif attrs.get("last_charge_status") == "Paid" and attrs.get("campaign_lifetime_support_cents"):
+                patreon_type = "update"
+            else:
+                patreon_type = "pledge"
+            tier_name = ""
+            included = payload.get("included") if isinstance(payload, dict) else None
+            if isinstance(included, list):
+                for r in included:
+                    if isinstance(r, dict) and r.get("type") == "tier":
+                        ta = r.get("attributes") or {}
+                        if ta.get("title"):
+                            tier_name = ta["title"]
+                            break
+            currency = attrs.get("currency_code") or "USD"
+            cents    = attrs.get("currently_entitled_amount_cents") or 0
+            lt_cents = attrs.get("campaign_lifetime_support_cents") or 0
+            amount_label = f"{currency} {cents/100:.2f}" if cents else ""
+            lifetime_label = f"{currency} {lt_cents/100:.2f}" if lt_cents else ""
+            patron = attrs.get("full_name") or attrs.get("email") or "A patron"
+            if patreon_type == "cancelled":
+                title = "Patron Cancellation"
+                desc  = f"**{patron}** ended their support"
+                if lifetime_label: desc += f"\n*Lifetime: {lifetime_label}*"
+                color = discord.Color.from_rgb(155, 89, 182)
+            elif patreon_type == "update":
+                title = "Patron Pledge Updated"
+                desc  = f"**{patron}** updated their pledge"
+                if amount_label: desc += f" — **{amount_label}**"
+                if tier_name:    desc += f"\n*Tier: {tier_name}*"
+                color = discord.Color.from_rgb(155, 89, 182)
+            else:
+                title = "New Patron!"
+                desc  = f"**{patron}** is now a patron!"
+                if amount_label: desc += f" — **{amount_label}**"
+                if tier_name:    desc += f"\n*Tier: {tier_name}*"
+                color = discord.Color.from_rgb(232, 91, 70)
+            embed = discord.Embed(title=title, description=desc, color=color)
         elif event_type == "GIFT_SUB":
             count = safe_int_convert(data.get("twitch-gift-count", 1), default=1, logger=self.logger)
             tier = data.get("twitch-tier")
