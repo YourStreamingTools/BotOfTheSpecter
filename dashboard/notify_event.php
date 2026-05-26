@@ -46,6 +46,18 @@ try {
         } elseif ($event === "TWITCH_HYPE_TRAIN" && isset($_POST['level'])) {
             $params['twitch-hype-level'] = intval($_POST['level']);
             if (isset($_POST['user'])) $params['twitch-username'] = $_POST['user'];
+        } elseif ($event === "TWITCH_CHARITY" && isset($_POST['user'], $_POST['amount'])) {
+            $params['twitch-username']      = $_POST['user'];
+            $params['twitch-charity-amount']= $_POST['amount'];
+            // amount_value is the numeric form used by condition matching.
+            // For the live test we extract the leading number from "100.00 USD".
+            if (isset($_POST['amount_value'])) {
+                $params['twitch-charity-value'] = floatval($_POST['amount_value']);
+            } else {
+                preg_match('/[\d.]+/', $_POST['amount'], $m);
+                $params['twitch-charity-value'] = isset($m[0]) ? floatval($m[0]) : 0;
+            }
+            if (isset($_POST['charity_name'])) $params['twitch-charity-name'] = $_POST['charity_name'];
         } elseif ($event === "TTS" && isset($_POST['text'])) {
             $params['text'] = $_POST['text'];
         } elseif (in_array($event, ["SUBATHON_START", "SUBATHON_STOP", "SUBATHON_PAUSE", "SUBATHON_RESUME", "SUBATHON_ADD_TIME"]) && isset($_POST['additional_data'])) {

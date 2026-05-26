@@ -1612,11 +1612,22 @@ async def process_twitch_eventsub_message(message):
                 elif event_type == 'channel.charity_campaign.donate':
                     user = event_data["user_name"]
                     charity = event_data["charity_name"]
-                    value = event_data["amount"]["value"]
-                    currency = event_data["amount"]["currency"]
-                    value_formatted = "{:,.2f}".format(value)
-                    message = f"Thank you so much {user} for your ${value_formatted}{currency} donation to {charity}. Your support means so much to us and to {charity}."
+                    amount_data = event_data["amount"]
+                    value = amount_data["value"]
+                    decimal_places = amount_data.get("decimal_places", 2)
+                    currency = amount_data["currency"]
+                    # Twitch sends value in the currency's smallest unit (e.g. cents)
+                    donation = value / (10 ** decimal_places)
+                    value_formatted = f"{donation:,.{decimal_places}f}"
+                    message = f"Thank you so much {user} for your {value_formatted} {currency} donation to {charity}. Your support means so much to us and to {charity}."
                     await send_chat_message(message)
+                    # Specter Alerts overlay — variant matcher tiers by donation value
+                    safe_create_task(websocket_notice(event="TWITCH_CHARITY", additional_data={
+                        "twitch-username":       user,
+                        "twitch-charity-amount": f"{value_formatted} {currency}",
+                        "twitch-charity-value":  donation,
+                        "twitch-charity-name":   charity,
+                    }))
                 # Moderation Event
                 elif event_type == 'channel.moderate':
                     moderator_user_name = event_data.get("moderator_user_name", "Unknown Moderator")
@@ -12611,6 +12622,14 @@ async def process_giftsub_event(gifter_user_name, givent_sub_plan, number_gifts,
                 if result and result.get("sound_mapping"):
                     sound_file = result.get("sound_mapping") if MEDIA_MIGRATED else "twitch/" + result.get("sound_mapping")
                     safe_create_task(websocket_notice(event="SOUND_ALERT", sound=sound_file))
+                # Specter Alerts overlay + Discord — variant matcher tiers by gift count
+                safe_create_task(websocket_notice(event="TWITCH_GIFT_SUB", additional_data={
+                    "twitch-username":      giftsubfrom,
+                    "twitch-gift-count":    int(number_gifts),
+                    "twitch-tier":          givent_sub_plan,
+                    "twitch-total-gifted":  int(total_gifted) if total_gifted is not None else 0,
+                    "twitch-anonymous":     bool(anonymous),
+                }))
     finally:
         if connection:
             await connection.close()
