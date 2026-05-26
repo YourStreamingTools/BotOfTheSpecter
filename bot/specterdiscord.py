@@ -670,6 +670,18 @@ class WebsocketListener:
         @self.specterSocket.event
         async def TWITCH_RAID(data):
             await self.bot.handle_twitch_event("RAID", data)
+        # Event handlers for Twitch Hype Train Events (begin / end)
+        @self.specterSocket.event
+        async def TWITCH_HYPE_TRAIN(data):
+            await self.bot.handle_twitch_event("HYPE_TRAIN", data)
+        # Event handlers for Twitch Charity Campaign Donate Events
+        @self.specterSocket.event
+        async def TWITCH_CHARITY(data):
+            await self.bot.handle_twitch_event("CHARITY", data)
+        # Event handlers for Twitch Gift Subscription Events (single / community / pay-it-forward)
+        @self.specterSocket.event
+        async def TWITCH_GIFT_SUB(data):
+            await self.bot.handle_twitch_event("GIFT_SUB", data)
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
@@ -3277,7 +3289,7 @@ class BotOfTheSpecter(commands.Bot):
         # Determine which channel to send the message to based on event type
         channel_id = None
         mention_everyone = False
-        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID"]:
+        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB"]:
             if not alert_channel_id:
                 self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id}")
                 return
@@ -3376,6 +3388,49 @@ class BotOfTheSpecter(commands.Bot):
                 color=discord.Color.green()
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/raid.png"))
+        elif event_type == "HYPE_TRAIN":
+            level = safe_int_convert(data.get("twitch-hype-level", 1), default=1, logger=self.logger)
+            phase = (data.get("twitch-hype-phase") or "begin").lower()
+            if phase == "end":
+                title = "Hype Train Ended!"
+                description = f"The Hype Train just ended at **Level {level}**."
+                color = discord.Color.dark_orange()
+            else:
+                title = "Hype Train Started!"
+                description = f"The Hype Train is leaving the station at **Level {level}**!"
+                color = discord.Color.orange()
+            embed = discord.Embed(title=title, description=description, color=color)
+            embed.set_thumbnail(url=(f"{thumbnail_url}/hype.png"))
+        elif event_type == "CHARITY":
+            donor = data.get("twitch-username") or twitch_username
+            amount = data.get("twitch-charity-amount", "")
+            charity_name = data.get("twitch-charity-name", "the charity")
+            embed = discord.Embed(
+                title="Charity Donation!",
+                description=f"**{donor}** donated **{amount}** to **{charity_name}**!",
+                color=discord.Color.from_rgb(231, 76, 60)
+            )
+            embed.set_thumbnail(url=(f"{thumbnail_url}/charity.png"))
+        elif event_type == "GIFT_SUB":
+            count = safe_int_convert(data.get("twitch-gift-count", 1), default=1, logger=self.logger)
+            tier = data.get("twitch-tier")
+            total = safe_int_convert(data.get("twitch-total-gifted", 0), default=0, logger=self.logger)
+            anonymous = bool(data.get("twitch-anonymous", False))
+            gifter = "Anonymous" if anonymous else (data.get("twitch-username") or twitch_username)
+            if count == 1:
+                title = "Gift Sub!"
+                desc = f"**{gifter}** gifted a {tier} subscription!"
+            else:
+                title = f"{count} Gift Subs!"
+                desc = f"**{gifter}** gifted **{count}** {tier} subscriptions!"
+            if total > count:
+                desc += f"\n*Total community gifts: {total}*"
+            embed = discord.Embed(
+                title=title,
+                description=desc,
+                color=discord.Color.gold()
+            )
+            embed.set_thumbnail(url=(f"{thumbnail_url}/sub.png"))
         elif event_type == "MODERATION":
             action = data.get("action", "unknown")
             moderator_name = data.get("moderator_user_name", "Unknown Moderator")

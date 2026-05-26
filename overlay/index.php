@@ -107,6 +107,10 @@ if ($username) {
                         if (levelMatch && level >= parseInt(levelMatch[1])) return variant;
                         const eqMatch = cond.match(/level\s*=\s*(\d+)/);
                         if (eqMatch && level === parseInt(eqMatch[1])) return variant;
+                    } else if (category === 'charity') {
+                        const donation = parseFloat(eventData.amount_value) || 0;
+                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                        if (amountMatch && donation >= parseFloat(amountMatch[1])) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -154,7 +158,8 @@ if ($username) {
                     .replace(/\{tier\}/g, eventData.tier || '')
                     .replace(/\{level\}/g, eventData.level || '')
                     .replace(/\{added_minutes\}/g, eventData.added_minutes || '')
-                    .replace(/\{streak\}/g, eventData.streak || '');
+                    .replace(/\{streak\}/g, eventData.streak || '')
+                    .replace(/\{charity_name\}/g, eventData.charity_name || '');
                 // Split message into lines, first line uses accent color
                 const lines = message.split('\n');
                 let messageHtml = '';
@@ -504,7 +509,10 @@ if ($username) {
                 socket.on('TWITCH_CHARITY', (data) => {
                     console.log('TWITCH_CHARITY event received:', data);
                     queueAlert('charity', {
-                        username: data['twitch-username'] || ''
+                        username:     data['twitch-username'] || '',
+                        amount:       data['twitch-charity-amount'] || '',     // formatted "100.00 USD" for display
+                        amount_value: parseFloat(data['twitch-charity-value'] || 0), // numeric, for condition matching
+                        charity_name: data['twitch-charity-name'] || ''
                     });
                 });
                 socket.on('TWITCH_CHANNEL_POINTS', (data) => {

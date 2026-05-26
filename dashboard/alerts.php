@@ -49,7 +49,9 @@ $defaultAlerts = [
     ['hype_train', 'Hype train started', 0, null, "The Hype Train is leaving the station!"],
     ['hype_train', 'Level 3 reached',    1, 'level >= 3', "Hype Train is at Level {level}!"],
     ['hype_train', 'Level 5 reached',    2, 'level >= 5', "MAX LEVEL — Hype Train hit Level {level}!"],
-    ['charity', 'Charity donation', 0, null, "{username}\ndonated to the cause!"],
+    ['charity', 'Charity donation',  0, null,             "{username}\ndonated {amount} to {charity_name}!"],
+    ['charity', 'Large donation',    1, 'amount >= 100',  "Massive thank-you to {username}\n— {amount} for {charity_name}!"],
+    ['charity', 'Mega donation',     2, 'amount >= 500',  "INCREDIBLE — {username} just dropped {amount} for {charity_name}!"],
     ['channel_points', 'Channel point reward', 0, null, "{username}\nredeemed a reward!"],
     // BotOfTheSpecter integrations — what makes this page ours
     ['discord_join', 'New Discord member', 0, null, "{username}\nhopped into the Discord!"],
@@ -931,7 +933,7 @@ $(document).ready(function() {
         bits:              ['{username}', '{amount}'],
         raid:              ['{username}', '{viewers}'],
         hype_train:        ['{level}'],
-        charity:           ['{username}', '{amount}'],
+        charity:           ['{username}', '{amount}', '{charity_name}'],
         channel_points:    ['{username}'],
         discord_join:      ['{username}'],
         kofi:              ['{username}', '{amount}'],
@@ -1518,6 +1520,7 @@ $(document).ready(function() {
             'bits':              { event: 'TWITCH_CHEER', params: { user: 'TestUser', cheer_amount: '100' } },
             'raid':              { event: 'TWITCH_RAID', params: { user: 'TestUser', raid_viewers: '42' } },
             'hype_train':        { event: 'TWITCH_HYPE_TRAIN', params: { level: '5' } },
+            'charity':           { event: 'TWITCH_CHARITY', params: { user: 'TestUser', amount: '100.00 USD', charity_name: 'Example Charity' } },
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];
