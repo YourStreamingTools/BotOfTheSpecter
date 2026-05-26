@@ -70,7 +70,10 @@ $defaultAlerts = [
     ['patreon', 'New patron',      0, "patreon_type = 'pledge'",    "{username}\nbecame a patron!"],
     ['patreon', 'Pledge updated',   1, "patreon_type = 'update'",    "{username}\nupdated their pledge"],
     ['patreon', 'Patron left',      2, "patreon_type = 'cancelled'", "{username}\nended their support."],
-    ['fourthwall', 'Fourthwall order', 0, null, "{username}\nbought from the shop!"],
+    ['fourthwall', 'Order placed',  0, "fourthwall_type = 'ORDER_PLACED'",          "{username}\nbought {item} from the shop!"],
+    ['fourthwall', 'Donation',      1, "fourthwall_type = 'DONATION'",              "{username}\ndonated {amount}!"],
+    ['fourthwall', 'Giveaway',      2, "fourthwall_type = 'GIVEAWAY_PURCHASED'",    "{username}\npurchased a giveaway!"],
+    ['fourthwall', 'Subscription',  3, "fourthwall_type = 'SUBSCRIPTION_PURCHASED'","{username}\nsubscribed via Fourthwall!"],
     ['subathon', 'Subathon time added', 0, null, "{added_minutes} minutes added to the subathon!"],
     ['stream_bingo', 'Game Started', 0, "bingo_event = 'STREAM_BINGO_STARTED'",      "Stream Bingo is starting!"],
     ['stream_bingo', 'Game Event',   1, "bingo_event = 'STREAM_BINGO_EVENT_CALLED'", "Event called:\n{bingo_event_name}"],
@@ -965,7 +968,7 @@ $(document).ready(function() {
         discord_join:      ['{username}'],
         kofi:              ['{username}', '{amount}', '{message}', '{tier_name}'],
         patreon:           ['{username}', '{amount}', '{tier_name}', '{lifetime}'],
-        fourthwall:        ['{username}', '{amount}'],
+        fourthwall:        ['{username}', '{amount}', '{item}', '{message}', '{interval}'],
         subathon:          ['{added_minutes}'],
         stream_bingo:      ['{username}', '{rank_text}', '{bingo_event_name}', '{bingo_number}', '{events_count}'],
         watch_streak:      ['{username}', '{streak}']
@@ -1575,6 +1578,13 @@ $(document).ready(function() {
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];
+        // Fourthwall variants are tied to one of four sub-types via their condition;
+        // pick the matching sub-type for the live test from the variant itself.
+        if (!config && a.alert_category === 'fourthwall') {
+            var fwMatch = (a.alert_condition || '').match(/fourthwall_type\s*=\s*['"]([^'"]+)['"]/);
+            var fwType = fwMatch ? fwMatch[1] : 'DONATION';
+            config = { event: 'FOURTHWALL', params: { fourthwall_type: fwType, user: 'TestUser', amount: '10.00', currency: 'USD', message: 'Awesome stream!', item: 'Test Item' } };
+        }
         // Patreon variants are tied to one of three sub-types via their condition;
         // pick the matching sub-type for the live test from the variant itself.
         if (!config && a.alert_category === 'patreon') {

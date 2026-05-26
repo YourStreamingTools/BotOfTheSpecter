@@ -128,6 +128,13 @@ if ($username) {
                         const typeOk   = !typeMatch   || (typeMatch[1] === eventData.patreon_type);
                         const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
                         if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
+                    } else if (category === 'fourthwall') {
+                        const typeMatch   = cond.match(/fourthwall_type\s*=\s*['"]([^'"]+)['"]/);
+                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                        const val = parseFloat(eventData.amount_value) || 0;
+                        const typeOk   = !typeMatch   || (typeMatch[1] === eventData.fourthwall_type);
+                        const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
+                        if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -180,6 +187,8 @@ if ($username) {
                     .replace(/\{message\}/g, eventData.message || '')
                     .replace(/\{tier_name\}/g, eventData.tier_name || '')
                     .replace(/\{lifetime\}/g, eventData.lifetime || '')
+                    .replace(/\{item\}/g, eventData.item || '')
+                    .replace(/\{interval\}/g, eventData.interval || '')
                     .replace(/\{rank_text\}/g, eventData.rank_text || '')
                     .replace(/\{bingo_event_name\}/g, eventData.bingo_event_name || '')
                     .replace(/\{bingo_number\}/g, eventData.bingo_number || '')
@@ -618,6 +627,46 @@ if ($username) {
                         amount_value: cents ? cents / 100 : 0,
                         tier_name,
                         lifetime:     ltCents ? `${currency} ${ltDollars}` : ''
+                    });
+                });
+
+                // Fourthwall — envelope { type, data } nested in event.data
+                socket.on('FOURTHWALL', (data) => {
+                    console.log('FOURTHWALL event received:', data);
+                    const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
+                    if (!parsed) { console.warn('FOURTHWALL payload unparseable'); return; }
+                    const fwType    = parsed.type || '';
+                    const eventData = parsed.data || {};
+                    const totals = (eventData.amounts && eventData.amounts.total) ||
+                                   (eventData.subscription && eventData.subscription.variant && eventData.subscription.variant.amount) ||
+                                   null;
+                    let amountStr = '';
+                    let amountValue = 0;
+                    if (totals) {
+                        amountStr = `${totals.value} ${totals.currency || ''}`.trim();
+                        amountValue = parseFloat(totals.value) || 0;
+                    }
+                    let username = eventData.username || eventData.nickname || '';
+                    let item = '';
+                    let interval = '';
+                    if (fwType === 'ORDER_PLACED') {
+                        const offer = (eventData.offers && eventData.offers[0]) || {};
+                        const qty   = (offer.variant && offer.variant.quantity) || 1;
+                        item = qty > 1 ? `${qty}× ${offer.name || 'item'}` : (offer.name || 'item');
+                    } else if (fwType === 'GIVEAWAY_PURCHASED') {
+                        item = (eventData.offer && eventData.offer.name) || 'giveaway';
+                    } else if (fwType === 'SUBSCRIPTION_PURCHASED') {
+                        const variant = (eventData.subscription && eventData.subscription.variant) || {};
+                        interval = variant.interval || '';
+                    }
+                    queueAlert('fourthwall', {
+                        fourthwall_type: fwType,
+                        username,
+                        amount:       amountStr,
+                        amount_value: amountValue,
+                        message:      eventData.message || '',
+                        item,
+                        interval
                     });
                 });
 

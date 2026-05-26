@@ -690,6 +690,10 @@ class WebsocketListener:
         @self.specterSocket.event
         async def PATREON(data):
             await self.bot.handle_twitch_event("PATREON", data)
+        # Event handlers for Fourthwall (order / donation / giveaway / subscription)
+        @self.specterSocket.event
+        async def FOURTHWALL(data):
+            await self.bot.handle_twitch_event("FOURTHWALL", data)
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
@@ -3297,7 +3301,7 @@ class BotOfTheSpecter(commands.Bot):
         # Determine which channel to send the message to based on event type
         channel_id = None
         mention_everyone = False
-        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB", "KOFI", "PATREON"]:
+        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB", "KOFI", "PATREON", "FOURTHWALL"]:
             if not alert_channel_id:
                 self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id}")
                 return
@@ -3461,6 +3465,69 @@ class BotOfTheSpecter(commands.Bot):
                 description=desc,
                 color=discord.Color.from_rgb(255, 94, 91)  # Ko-fi red
             )
+        elif event_type == "FOURTHWALL":
+            # Fourthwall envelope { type, data: {...} } arrives JSON-stringified in data.data
+            payload = {}
+            raw = data.get("data") if isinstance(data, dict) else None
+            if isinstance(raw, str):
+                try:
+                    import json as _json
+                    payload = _json.loads(raw)
+                except Exception:
+                    try:
+                        import ast as _ast
+                        payload = _ast.literal_eval(raw)
+                    except Exception:
+                        payload = {}
+            elif isinstance(raw, dict):
+                payload = raw
+            fw_type    = (payload.get("type") if isinstance(payload, dict) else None) or "ORDER_PLACED"
+            event_data = (payload.get("data") if isinstance(payload, dict) else None) or {}
+            totals = (event_data.get("amounts") or {}).get("total") or {}
+            if not totals:
+                sub = event_data.get("subscription") or {}
+                variant = sub.get("variant") or {}
+                totals = variant.get("amount") or {}
+            amount_label = ""
+            if totals.get("value"):
+                amount_label = f"{totals.get('value')} {totals.get('currency') or ''}".strip()
+            buyer = event_data.get("username") or event_data.get("nickname") or "Someone"
+            if fw_type == "ORDER_PLACED":
+                offers = event_data.get("offers") or []
+                first = offers[0] if isinstance(offers, list) and offers else {}
+                qty = ((first.get("variant") or {}).get("quantity")) or 1
+                item_name = first.get("name") or "an item"
+                item_label = f"{qty}× {item_name}" if qty and qty > 1 else item_name
+                title = "Fourthwall Order!"
+                desc  = f"**{buyer}** bought **{item_label}**"
+                if amount_label: desc += f" — **{amount_label}**"
+                color = discord.Color.from_rgb(155, 89, 182)
+            elif fw_type == "DONATION":
+                msg = (event_data.get("message") or "").strip()
+                title = "Fourthwall Donation!"
+                desc  = f"**{buyer}** donated"
+                if amount_label: desc += f" **{amount_label}**"
+                if msg: desc += f"\n*“{msg}”*"
+                color = discord.Color.from_rgb(231, 76, 60)
+            elif fw_type == "GIVEAWAY_PURCHASED":
+                gname = ((event_data.get("offer") or {}).get("name")) or "a giveaway"
+                title = "Fourthwall Giveaway!"
+                desc  = f"**{buyer}** purchased **{gname}**"
+                if amount_label: desc += f" — **{amount_label}**"
+                color = discord.Color.from_rgb(241, 196, 15)
+            elif fw_type == "SUBSCRIPTION_PURCHASED":
+                variant = (event_data.get("subscription") or {}).get("variant") or {}
+                interval = variant.get("interval") or ""
+                title = "Fourthwall Subscription!"
+                desc  = f"**{buyer}** subscribed"
+                if interval: desc += f" ({interval} plan)"
+                if amount_label: desc += f" — **{amount_label}**"
+                color = discord.Color.gold()
+            else:
+                title = "Fourthwall Event"
+                desc  = f"**{buyer}** — {fw_type.replace('_', ' ').title()}"
+                color = discord.Color.blurple()
+            embed = discord.Embed(title=title, description=desc, color=color)
         elif event_type == "PATREON":
             # Patreon JSON:API envelope arrives in data.data — same Python-literal
             # tolerance as overlay/patreon.php since api.py uses urlencode(dict).

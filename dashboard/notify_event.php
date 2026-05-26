@@ -46,6 +46,35 @@ try {
         } elseif ($event === "TWITCH_HYPE_TRAIN" && isset($_POST['level'])) {
             $params['twitch-hype-level'] = intval($_POST['level']);
             if (isset($_POST['user'])) $params['twitch-username'] = $_POST['user'];
+        } elseif ($event === "FOURTHWALL") {
+            // Mirror Fourthwall webhook envelope: { type, data: { ...per-type fields } }
+            $fwType   = $_POST['fourthwall_type'] ?? 'DONATION';
+            $username = $_POST['user']     ?? 'TestUser';
+            $amount   = $_POST['amount']   ?? '5.00';
+            $currency = $_POST['currency'] ?? 'USD';
+            $itemName = $_POST['item']     ?? 'Test Item';
+            $message  = $_POST['message']  ?? '';
+            $eventData = [];
+            if ($fwType === 'SUBSCRIPTION_PURCHASED') {
+                $eventData['nickname'] = $username;
+                $eventData['subscription'] = [
+                    'variant' => [
+                        'interval' => $_POST['interval'] ?? 'monthly',
+                        'amount'   => ['value' => $amount, 'currency' => $currency],
+                    ],
+                ];
+            } else {
+                $eventData['username'] = $username;
+                $eventData['amounts']  = ['total' => ['value' => $amount, 'currency' => $currency]];
+                if ($fwType === 'ORDER_PLACED') {
+                    $eventData['offers'] = [['name' => $itemName, 'variant' => ['quantity' => 1]]];
+                } elseif ($fwType === 'GIVEAWAY_PURCHASED') {
+                    $eventData['offer'] = ['name' => $itemName];
+                } elseif ($fwType === 'DONATION' && $message !== '') {
+                    $eventData['message'] = $message;
+                }
+            }
+            $params['data'] = json_encode(['type' => $fwType, 'data' => $eventData]);
         } elseif ($event === "PATREON") {
             // Patreon webhooks are JSON:API shaped. Build the same envelope so
             // the overlay's classifyEvent + tolerant parser fire correctly.
