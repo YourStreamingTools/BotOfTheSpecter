@@ -34,6 +34,14 @@ if ($db->connect_error) {
 $variantLimits = [
     'follow' => 1,
 ];
+// Stream Bingo sub-events: each variant ties to one of these via the dropdown.
+// Same pattern as channel_points where the variant picks the trigger.
+$bingoSubtypes = [
+    'STREAM_BINGO_STARTED'      => 'Game Started',
+    'STREAM_BINGO_EVENT_CALLED' => 'Game Event',
+    'STREAM_BINGO_WINNER'       => 'Game Winner',
+    'STREAM_BINGO_ENDED'        => 'Game Ended',
+];
 $defaultAlerts = [
     // Native Twitch events
     ['follow', 'New follower', 0, null, "{username}\nfollowed!"],
@@ -59,7 +67,10 @@ $defaultAlerts = [
     ['patreon', 'New patron', 0, null, "{username}\nbecame a patron!"],
     ['fourthwall', 'Fourthwall order', 0, null, "{username}\nbought from the shop!"],
     ['subathon', 'Subathon time added', 0, null, "{added_minutes} minutes added to the subathon!"],
-    ['stream_bingo', 'Bingo winner', 0, null, "BINGO! {username}\ngot it!"],
+    ['stream_bingo', 'Game Started', 0, "bingo_event = 'STREAM_BINGO_STARTED'",      "Stream Bingo is starting!"],
+    ['stream_bingo', 'Game Event',   1, "bingo_event = 'STREAM_BINGO_EVENT_CALLED'", "Event called:\n{bingo_event_name}"],
+    ['stream_bingo', 'Game Winner',  2, "bingo_event = 'STREAM_BINGO_WINNER'",       "BINGO! {username}\ngot {rank_text}!"],
+    ['stream_bingo', 'Game Ended',   3, "bingo_event = 'STREAM_BINGO_ENDED'",        "Stream Bingo has ended!"],
     ['watch_streak', 'Watch streak', 0, 'streak >= 7', "{username}\nis on a {streak}-stream watch streak!"],
 ];
 
@@ -535,6 +546,16 @@ ob_start();
                             </select>
                             <small class="alerts-help-text">The variant name and trigger condition come from the selected reward. Sync more in <a href="channel_rewards.php">Channel Rewards</a>.</small>
                         </div>
+                        <div class="alerts-form-group" id="variant-bingo-group" style="display:none;">
+                            <label>Bingo event</label>
+                            <select class="sp-select" id="set-bingo-event">
+                                <option value="">Select a bingo event…</option>
+                                <?php foreach ($bingoSubtypes as $key => $label): ?>
+                                <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="alerts-help-text">Variants fire only when the selected bingo event happens. Each sub-event can have its own visual.</small>
+                        </div>
                         <div class="alerts-form-group" id="variant-condition-group">
                             <label>Condition <span class="alerts-help">(advanced)</span></label>
                             <input type="text" class="sp-input" id="set-alert-condition" placeholder="e.g. bits >= 100, months = 1, gift_count >= 5">
@@ -906,6 +927,7 @@ $(document).ready(function() {
     const libraryImages = <?php echo json_encode($libraryImages); ?>;
     const librarySounds = <?php echo json_encode($librarySounds); ?>;
     const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
+    const bingoSubtypes = <?php echo json_encode($bingoSubtypes); ?>;
     const variantLimits = <?php echo json_encode($variantLimits); ?>;
     function updateAddButtonFor(category) {
         var $cat = $('.alerts-category[data-category="' + category + '"]');
@@ -940,7 +962,7 @@ $(document).ready(function() {
         patreon:           ['{username}'],
         fourthwall:        ['{username}', '{amount}'],
         subathon:          ['{added_minutes}'],
-        stream_bingo:      ['{username}'],
+        stream_bingo:      ['{username}', '{rank_text}', '{bingo_event_name}', '{bingo_number}', '{events_count}'],
         watch_streak:      ['{username}', '{streak}']
     };
     function renderVariableHints(category) {
@@ -970,11 +992,28 @@ $(document).ready(function() {
             sel.append('<option value="' + $('<div>').text(r.reward_id).html() + '">' + $('<div>').text(label).html() + '</option>');
         });
     })();
+    function extractBingoEvent(condition) {
+        if (!condition) return '';
+        var m = String(condition).match(/bingo_event\s*=\s*['"]?([^'"\s]+)['"]?/);
+        return m ? m[1] : '';
+    }
+    $('#set-bingo-event').on('change', function() {
+        var key = this.value;
+        if (!key || !bingoSubtypes[key]) return;
+        var label = bingoSubtypes[key];
+        $('#set-variant-name').val(label);
+        $('#set-alert-condition').val("bingo_event = '" + key + "'");
+        if (currentAlertId) {
+            $('.alerts-variant-item[data-id="' + currentAlertId + '"] .variant-name').text(label);
+        }
+        markDirty();
+    });
     function applyCategoryUI(category, condition) {
         renderVariableHints(category);
         if (category === 'channel_points') {
             $('#variant-name-group').hide();
             $('#variant-condition-group').hide();
+            $('#variant-bingo-group').hide();
             $('#variant-reward-group').show();
             var rid = extractRewardId(condition);
             var sel = $('#set-reward-id');
@@ -984,10 +1023,17 @@ $(document).ready(function() {
                 sel.append('<option value="' + $('<div>').text(rid).html() + '" data-missing="1">Unknown reward (' + $('<div>').text(rid).html() + ')</option>');
             }
             sel.val(rid || '');
+        } else if (category === 'stream_bingo') {
+            $('#variant-name-group').hide();
+            $('#variant-condition-group').hide();
+            $('#variant-reward-group').hide();
+            $('#variant-bingo-group').show();
+            $('#set-bingo-event').val(extractBingoEvent(condition) || '');
         } else {
             $('#variant-name-group').show();
             $('#variant-condition-group').show();
             $('#variant-reward-group').hide();
+            $('#variant-bingo-group').hide();
         }
     }
     $('#set-reward-id').on('change', function() {
@@ -1524,6 +1570,21 @@ $(document).ready(function() {
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];
+        // Stream bingo variants are tied to specific sub-events via their condition;
+        // pick the right sub-event for the live test from the variant itself.
+        if (!config && a.alert_category === 'stream_bingo') {
+            var be = extractBingoEvent(a.alert_condition);
+            if (!be) {
+                Swal.fire({ icon: 'info', title: 'Pick a bingo event first', text: 'Choose a bingo event from the dropdown and save before testing.' });
+                return;
+            }
+            var bingoParams = {};
+            if (be === 'STREAM_BINGO_WINNER')         bingoParams = { player_name: 'TestUser', rank: 1, rank_text: '1st' };
+            else if (be === 'STREAM_BINGO_EVENT_CALLED') bingoParams = { display_number: 42, event_name: 'Test bingo event' };
+            else if (be === 'STREAM_BINGO_STARTED')      bingoParams = { is_sub_only: 0, events_count: 25 };
+            // STREAM_BINGO_ENDED carries no extra params
+            config = { event: be, params: bingoParams };
+        }
         if (!config) {
             Swal.fire({ icon: 'info', title: 'Live test not available yet', text: 'Test events for this category aren\'t wired up here yet. Use the trigger in your bot to test live.' });
             return;

@@ -46,6 +46,19 @@ try {
         } elseif ($event === "TWITCH_HYPE_TRAIN" && isset($_POST['level'])) {
             $params['twitch-hype-level'] = intval($_POST['level']);
             if (isset($_POST['user'])) $params['twitch-username'] = $_POST['user'];
+        } elseif ($event === "STREAM_BINGO_STARTED") {
+            if (isset($_POST['is_sub_only']))  $params['is_sub_only']  = intval($_POST['is_sub_only']);
+            if (isset($_POST['events_count'])) $params['events_count'] = intval($_POST['events_count']);
+        } elseif ($event === "STREAM_BINGO_ENDED") {
+            // no extras
+        } elseif ($event === "STREAM_BINGO_EVENT_CALLED") {
+            if (isset($_POST['display_number'])) $params['display_number'] = intval($_POST['display_number']);
+            if (isset($_POST['event_name']))     $params['event_name']     = $_POST['event_name'];
+            if (isset($_POST['event_id']))       $params['event_id']       = $_POST['event_id'];
+        } elseif ($event === "STREAM_BINGO_WINNER") {
+            if (isset($_POST['player_name'])) $params['player_name'] = $_POST['player_name'];
+            if (isset($_POST['rank']))        $params['rank']        = intval($_POST['rank']);
+            if (isset($_POST['rank_text']))   $params['rank_text']   = $_POST['rank_text'];
         } elseif ($event === "TWITCH_CHARITY" && isset($_POST['user'], $_POST['amount'])) {
             $params['twitch-username']      = $_POST['user'];
             $params['twitch-charity-amount']= $_POST['amount'];
