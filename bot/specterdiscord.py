@@ -682,6 +682,10 @@ class WebsocketListener:
         @self.specterSocket.event
         async def TWITCH_GIFT_SUB(data):
             await self.bot.handle_twitch_event("GIFT_SUB", data)
+        # Event handlers for Ko-fi (donation / subscription / shop order)
+        @self.specterSocket.event
+        async def KOFI(data):
+            await self.bot.handle_twitch_event("KOFI", data)
         # Event handlers for Twitch Stream Online Events
         @self.specterSocket.event
         async def STREAM_ONLINE(data):
@@ -3289,7 +3293,7 @@ class BotOfTheSpecter(commands.Bot):
         # Determine which channel to send the message to based on event type
         channel_id = None
         mention_everyone = False
-        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB"]:
+        if event_type in ["FOLLOW", "SUBSCRIPTION", "CHEER", "RAID", "HYPE_TRAIN", "CHARITY", "GIFT_SUB", "KOFI"]:
             if not alert_channel_id:
                 self.logger.warning(f"No alert_channel_id for {event_type} event in guild {guild_id}")
                 return
@@ -3411,6 +3415,51 @@ class BotOfTheSpecter(commands.Bot):
                 color=discord.Color.from_rgb(231, 76, 60)
             )
             embed.set_thumbnail(url=(f"{thumbnail_url}/charity.png"))
+        elif event_type == "KOFI":
+            # Ko-fi webhook payload arrives JSON-stringified in data.data
+            payload = {}
+            raw = data.get("data") if isinstance(data, dict) else None
+            if isinstance(raw, str):
+                try:
+                    import json as _json
+                    payload = _json.loads(raw)
+                except Exception:
+                    payload = {}
+            elif isinstance(raw, dict):
+                payload = raw
+            kofi_type = payload.get("type", "Donation")
+            donor     = payload.get("from_name", "Someone")
+            amt       = payload.get("amount", "")
+            cur       = payload.get("currency", "")
+            amount_label = f"{amt} {cur}".strip() if amt else ""
+            message   = (payload.get("message") or "").strip()
+            tier_name = payload.get("tier_name", "")
+            if kofi_type == "Subscription":
+                title = "Ko-fi Subscription!"
+                desc  = f"**{donor}** subscribed via Ko-fi"
+                if tier_name: desc += f" *(Tier: {tier_name})*"
+                if amount_label: desc += f" — **{amount_label}**"
+            elif kofi_type == "Shop Order":
+                title = "Ko-fi Shop Order!"
+                desc  = f"**{donor}** placed an order"
+                if amount_label: desc += f" — **{amount_label}**"
+                items = payload.get("shop_items") or []
+                if isinstance(items, list) and items:
+                    desc += "\n" + ", ".join(
+                        f"{it.get('quantity', 1)}× {it.get('variation_name', 'item')}"
+                        for it in items if isinstance(it, dict)
+                    )
+            else:
+                title = "Ko-fi Donation!"
+                desc  = f"**{donor}** donated"
+                if amount_label: desc += f" **{amount_label}**"
+                if message: desc += f"\n*“{message}”*"
+            embed = discord.Embed(
+                title=title,
+                description=desc,
+                color=discord.Color.from_rgb(255, 94, 91)  # Ko-fi red
+            )
+            embed.set_thumbnail(url=(f"{thumbnail_url}/kofi.png"))
         elif event_type == "GIFT_SUB":
             count = safe_int_convert(data.get("twitch-gift-count", 1), default=1, logger=self.logger)
             tier = data.get("twitch-tier")

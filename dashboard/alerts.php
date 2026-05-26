@@ -64,7 +64,9 @@ $defaultAlerts = [
     ['channel_points', 'Channel point reward', 0, null, "{username}\nredeemed a reward!"],
     // BotOfTheSpecter integrations — what makes this page ours
     ['discord_join', 'New Discord member', 0, null, "{username}\nhopped into the Discord!"],
-    ['kofi', 'Ko-fi tip', 0, null, "{username}\nsent a Ko-fi!"],
+    ['kofi', 'Donation',     0, "kofi_type = 'Donation'",     "{username}\ndonated {amount}!"],
+    ['kofi', 'Subscription', 1, "kofi_type = 'Subscription'", "{username}\nsubscribed via Ko-fi!"],
+    ['kofi', 'Shop Order',   2, "kofi_type = 'Shop Order'",   "{username}\nordered from the shop!"],
     ['patreon', 'New patron', 0, null, "{username}\nbecame a patron!"],
     ['fourthwall', 'Fourthwall order', 0, null, "{username}\nbought from the shop!"],
     ['subathon', 'Subathon time added', 0, null, "{added_minutes} minutes added to the subathon!"],
@@ -959,7 +961,7 @@ $(document).ready(function() {
         charity:           ['{username}', '{amount}', '{charity_name}'],
         channel_points:    ['{username}'],
         discord_join:      ['{username}'],
-        kofi:              ['{username}', '{amount}'],
+        kofi:              ['{username}', '{amount}', '{message}', '{tier_name}'],
         patreon:           ['{username}'],
         fourthwall:        ['{username}', '{amount}'],
         subathon:          ['{added_minutes}'],
@@ -1571,6 +1573,16 @@ $(document).ready(function() {
             'discord_join':      { event: 'DISCORD_JOIN', params: { member: 'TestUser' } },
         };
         var config = eventMap[a.alert_category];
+        // Ko-fi variants are tied to one of three sub-types via their condition;
+        // pick the matching sub-type for the live test from the variant itself.
+        if (!config && a.alert_category === 'kofi') {
+            var ktMatch = (a.alert_condition || '').match(/kofi_type\s*=\s*['"]([^'"]+)['"]/);
+            var kofiType = ktMatch ? ktMatch[1] : 'Donation';
+            var kofiParams = { kofi_type: kofiType, user: 'TestUser', amount: '5.00', currency: 'USD' };
+            if (kofiType === 'Donation')     kofiParams.message = 'Awesome stream!';
+            if (kofiType === 'Subscription') kofiParams.tier_name = 'Gold';
+            config = { event: 'KOFI', params: kofiParams };
+        }
         // Stream bingo variants are tied to specific sub-events via their condition;
         // pick the right sub-event for the live test from the variant itself.
         if (!config && a.alert_category === 'stream_bingo') {

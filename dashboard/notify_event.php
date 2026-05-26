@@ -46,6 +46,20 @@ try {
         } elseif ($event === "TWITCH_HYPE_TRAIN" && isset($_POST['level'])) {
             $params['twitch-hype-level'] = intval($_POST['level']);
             if (isset($_POST['user'])) $params['twitch-username'] = $_POST['user'];
+        } elseif ($event === "KOFI") {
+            $kofiPayload = [
+                'type'      => $_POST['kofi_type'] ?? 'Donation',
+                'from_name' => $_POST['user']      ?? 'TestUser',
+                'amount'    => $_POST['amount']    ?? '5.00',
+                'currency'  => $_POST['currency']  ?? 'USD',
+            ];
+            if (isset($_POST['message']))   $kofiPayload['message']   = $_POST['message'];
+            if (isset($_POST['tier_name'])) $kofiPayload['tier_name'] = $_POST['tier_name'];
+            if (($_POST['kofi_type'] ?? '') === 'Subscription') {
+                $kofiPayload['is_subscription_payment']       = true;
+                $kofiPayload['is_first_subscription_payment'] = true;
+            }
+            $params['data'] = json_encode($kofiPayload);
         } elseif ($event === "STREAM_BINGO_STARTED") {
             if (isset($_POST['is_sub_only']))  $params['is_sub_only']  = intval($_POST['is_sub_only']);
             if (isset($_POST['events_count'])) $params['events_count'] = intval($_POST['events_count']);
