@@ -65,7 +65,7 @@ ob_start();
     <div>
         <p style="font-weight:700; margin-bottom:0.4rem;">📢 Upcoming Overlay System Update</p>
         <p style="margin-bottom:0.5rem;">We're working on improvements to our overlay system. Use the <strong>"All Overlays"</strong> option below with <code>all.php</code> for the complete overlay experience.</p>
-        <p style="margin-bottom:0.4rem;">The root overlay URL is now the new <strong>Specter Alerts</strong> system &mdash; configure it in <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> and add this OBS browser source:</p>
+        <p style="margin-bottom:0.4rem;">The root overlay URL is now the new <strong>Specter Alerts</strong> system configure it in <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> and add this OBS browser source:</p>
         <div class="info-box" style="font-family:monospace; margin-bottom:0;">
             https://overlay.botofthespecter.com/?code=API_KEY_HERE
         </div>
@@ -84,7 +84,7 @@ ob_start();
     </div>
 </div>
 <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:1.5rem;">
-    <!-- All Overlays (full width) -->
+    <!-All Overlays (full width) -->
     <div style="grid-column:1/-1;">
         <div class="sp-card" style="margin-bottom:0;">
             <div class="sp-card-header">
@@ -371,6 +371,26 @@ ob_start();
             <?= t('overlays_patreon_desc') ?>
             <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
                 https://overlay.botofthespecter.com/patreon.php?code=API_KEY_HERE
+            </div>
+        </div>
+    </div>
+    <!-- Counters -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header">
+            <div class="sp-card-title">
+                <i class="fas fa-hashtag"></i> Counter Display
+            </div>
+        </div>
+        <div class="sp-card-body">
+            <p style="margin-bottom:0.5rem;">Display the live value of any of your custom <code>counters</code> - great for things like "cats spotted: 7" on screen. Pick the counter name and the format you want.</p>
+            <ul style="margin: 0 0 0.75rem 1.25rem; list-style:disc; font-size:0.85rem;">
+                &amp;type=text
+                <br>&amp;type=number
+                <br>&amp;type=name
+                <br>&amp;type=json
+            </ul>
+            <div class="info-box" style="font-family:monospace; margin-bottom:0;">
+                https://overlay.botofthespecter.com/counters.php?code=API_KEY_HERE&amp;counter=COUNTER_NAME&amp;type=text
             </div>
         </div>
     </div>
