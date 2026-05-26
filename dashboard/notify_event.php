@@ -46,6 +46,44 @@ try {
         } elseif ($event === "TWITCH_HYPE_TRAIN" && isset($_POST['level'])) {
             $params['twitch-hype-level'] = intval($_POST['level']);
             if (isset($_POST['user'])) $params['twitch-username'] = $_POST['user'];
+        } elseif ($event === "PATREON") {
+            // Patreon webhooks are JSON:API shaped. Build the same envelope so
+            // the overlay's classifyEvent + tolerant parser fire correctly.
+            $patreonType = $_POST['patreon_type'] ?? 'pledge';
+            $cents       = isset($_POST['amount']) ? (int) round(floatval($_POST['amount']) * 100) : 500;
+            $lifetimeCt  = isset($_POST['lifetime']) ? (int) round(floatval($_POST['lifetime']) * 100) : null;
+            $patronStatus = $patreonType === 'cancelled' ? 'former_patron' : 'active_patron';
+            $attrs = [
+                'full_name'                       => $_POST['user'] ?? 'TestUser',
+                'patron_status'                   => $patronStatus,
+                'currency_code'                   => $_POST['currency'] ?? 'USD',
+                'currently_entitled_amount_cents' => $cents,
+            ];
+            if ($lifetimeCt !== null) {
+                $attrs['campaign_lifetime_support_cents'] = $lifetimeCt;
+            }
+            // Mark as an update (vs first pledge) via last_charge_status + lifetime
+            if ($patreonType === 'update') {
+                $attrs['last_charge_status'] = 'Paid';
+                if (!isset($attrs['campaign_lifetime_support_cents'])) {
+                    $attrs['campaign_lifetime_support_cents'] = $cents * 4;
+                }
+            }
+            $envelope = [
+                'data' => [
+                    'type'       => 'member',
+                    'attributes' => $attrs,
+                ],
+            ];
+            if (!empty($_POST['tier_name'])) {
+                $envelope['included'] = [
+                    [
+                        'type'       => 'tier',
+                        'attributes' => ['title' => $_POST['tier_name']],
+                    ],
+                ];
+            }
+            $params['data'] = json_encode($envelope);
         } elseif ($event === "KOFI") {
             $kofiPayload = [
                 'type'      => $_POST['kofi_type'] ?? 'Donation',

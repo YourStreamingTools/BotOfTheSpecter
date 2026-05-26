@@ -121,6 +121,13 @@ if ($username) {
                         const typeOk   = !typeMatch   || (typeMatch[1] === eventData.kofi_type);
                         const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
                         if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
+                    } else if (category === 'patreon') {
+                        const typeMatch   = cond.match(/patreon_type\s*=\s*['"]([^'"]+)['"]/);
+                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                        const val = parseFloat(eventData.amount_value) || 0;
+                        const typeOk   = !typeMatch   || (typeMatch[1] === eventData.patreon_type);
+                        const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
+                        if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -172,6 +179,7 @@ if ($username) {
                     .replace(/\{charity_name\}/g, eventData.charity_name || '')
                     .replace(/\{message\}/g, eventData.message || '')
                     .replace(/\{tier_name\}/g, eventData.tier_name || '')
+                    .replace(/\{lifetime\}/g, eventData.lifetime || '')
                     .replace(/\{rank_text\}/g, eventData.rank_text || '')
                     .replace(/\{bingo_event_name\}/g, eventData.bingo_event_name || '')
                     .replace(/\{bingo_number\}/g, eventData.bingo_number || '')
@@ -560,6 +568,56 @@ if ($username) {
                         amount_value: parseFloat(amt) || 0,
                         message:      payload.message || '',
                         tier_name:    payload.tier_name || ''
+                    });
+                });
+
+                // Patreon — JSON:API envelope nested in data.data; api.py forwards it
+                // via urlencode(dict) so the payload may be Python-literal rather than
+                // strict JSON (mirrors what overlay/patreon.php has to deal with).
+                function _parsePatreonPayload(raw) {
+                    if (!raw) return null;
+                    if (typeof raw === 'object') return raw;
+                    try { return JSON.parse(raw); } catch (_) {}
+                    try {
+                        const jsonStr = raw
+                            .replace(/'/g, '"')
+                            .replace(/\bNone\b/g, 'null')
+                            .replace(/\bTrue\b/g, 'true')
+                            .replace(/\bFalse\b/g, 'false');
+                        return JSON.parse(jsonStr);
+                    } catch (_) {}
+                    return null;
+                }
+                socket.on('PATREON', (data) => {
+                    console.log('PATREON event received:', data);
+                    const parsed = _parsePatreonPayload(data && data.data !== undefined ? data.data : data);
+                    if (!parsed) { console.warn('PATREON payload unparseable'); return; }
+                    const member = (parsed.data || parsed || {});
+                    const attrs  = member.attributes || {};
+                    // Classify (matches overlay/patreon.php logic)
+                    const status = String(attrs.patron_status || '').toLowerCase();
+                    let patreon_type;
+                    if (status === 'declined_patron' || status === 'former_patron') patreon_type = 'cancelled';
+                    else if (attrs.last_charge_status === 'Paid' && attrs.campaign_lifetime_support_cents) patreon_type = 'update';
+                    else patreon_type = 'pledge';
+                    // Tier lookup from included array
+                    let tier_name = '';
+                    if (Array.isArray(parsed.included)) {
+                        const t = parsed.included.find(r => r && r.type === 'tier' && r.attributes && r.attributes.title);
+                        if (t) tier_name = t.attributes.title;
+                    }
+                    const currency = attrs.currency_code || 'USD';
+                    const cents    = Number(attrs.currently_entitled_amount_cents) || 0;
+                    const ltCents  = Number(attrs.campaign_lifetime_support_cents) || 0;
+                    const dollars  = (cents / 100).toFixed(2);
+                    const ltDollars= (ltCents / 100).toFixed(2);
+                    queueAlert('patreon', {
+                        patreon_type,
+                        username:     attrs.full_name || attrs.email || '',
+                        amount:       cents ? `${currency} ${dollars}` : '',
+                        amount_value: cents ? cents / 100 : 0,
+                        tier_name,
+                        lifetime:     ltCents ? `${currency} ${ltDollars}` : ''
                     });
                 });
 
