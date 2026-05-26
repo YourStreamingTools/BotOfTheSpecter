@@ -114,6 +114,13 @@ if ($username) {
                     } else if (category === 'stream_bingo') {
                         const bingoMatch = cond.match(/bingo_event\s*=\s*['"]?([^'"\s]+)['"]?/);
                         if (bingoMatch && eventData.bingo_event && bingoMatch[1] === eventData.bingo_event) return variant;
+                    } else if (category === 'kofi') {
+                        const typeMatch   = cond.match(/kofi_type\s*=\s*['"]([^'"]+)['"]/);
+                        const amountMatch = cond.match(/amount\s*>=\s*(\d+(?:\.\d+)?)/);
+                        const val = parseFloat(eventData.amount_value) || 0;
+                        const typeOk   = !typeMatch   || (typeMatch[1] === eventData.kofi_type);
+                        const amountOk = !amountMatch || (val >= parseFloat(amountMatch[1]));
+                        if (typeOk && amountOk && (typeMatch || amountMatch)) return variant;
                     } else {
                         return variant; // Unknown condition type, use variant
                     }
@@ -163,6 +170,8 @@ if ($username) {
                     .replace(/\{added_minutes\}/g, eventData.added_minutes || '')
                     .replace(/\{streak\}/g, eventData.streak || '')
                     .replace(/\{charity_name\}/g, eventData.charity_name || '')
+                    .replace(/\{message\}/g, eventData.message || '')
+                    .replace(/\{tier_name\}/g, eventData.tier_name || '')
                     .replace(/\{rank_text\}/g, eventData.rank_text || '')
                     .replace(/\{bingo_event_name\}/g, eventData.bingo_event_name || '')
                     .replace(/\{bingo_number\}/g, eventData.bingo_number || '')
@@ -527,6 +536,30 @@ if ($username) {
                     queueAlert('channel_points', {
                         username:  data['twitch-username'] || '',
                         reward_id: data['reward-id'] || data['reward_id'] || ''
+                    });
+                });
+
+                // Ko-fi — webhook payload comes wrapped as a JSON string in data.data
+                socket.on('KOFI', (data) => {
+                    console.log('KOFI event received:', data);
+                    let payload = {};
+                    try {
+                        if (data && typeof data.data === 'string') payload = JSON.parse(data.data);
+                        else if (data && typeof data.data === 'object' && data.data) payload = data.data;
+                        else payload = data || {};
+                    } catch (e) {
+                        console.warn('Failed to parse KOFI payload:', e);
+                        return;
+                    }
+                    const amt = payload.amount || '';
+                    const cur = payload.currency || '';
+                    queueAlert('kofi', {
+                        kofi_type:    payload.type || '',
+                        username:     payload.from_name || '',
+                        amount:       amt && cur ? `${amt} ${cur}` : amt,
+                        amount_value: parseFloat(amt) || 0,
+                        message:      payload.message || '',
+                        tier_name:    payload.tier_name || ''
                     });
                 });
 
