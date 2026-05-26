@@ -32,7 +32,8 @@ if ($db->connect_error) {
 // Per-category variant caps. A follow is a follow — no condition can
 // meaningfully split it, so 1 is the only sane number.
 $variantLimits = [
-    'follow' => 1,
+    'follow'       => 1,
+    'stream_bingo' => 4,   // one per bingo sub-event (Started / Event / Winner / Ended)
 ];
 // Stream Bingo sub-events: each variant ties to one of these via the dropdown.
 // Same pattern as channel_points where the variant picks the trigger.
