@@ -53,6 +53,12 @@ $autoRecordEnabled = 0;
 $remoteFileSections = [];
 $remoteFileError = null;
 
+// Feature flag — flip to false once the recorder server bug is fixed. While
+// true, the page skips ALL SSH attempts (which otherwise hang and slow the
+// page down when the recorder host is offline) and shows a single notice
+// instead of the file listing.
+$RECORDING_DISABLED = true;
+
 function isSafeRecorderFileName($fileName) {
     if (!is_string($fileName) || $fileName === '') {
         return false;
@@ -239,7 +245,14 @@ if (isset($_GET['ajax'])) {
 
 // Wrap SSH connection logic in try-catch for AJAX error handling
 try {
-if (!function_exists('ssh2_connect')) {
+if ($RECORDING_DISABLED) {
+    $remoteFileError = 'Channel recording is currently disabled — see the notice above.';
+    if (isset($_GET['download']) && $_GET['download'] === '1') {
+        http_response_code(503);
+        echo 'Channel recording is currently disabled.';
+        exit;
+    }
+} elseif (!function_exists('ssh2_connect')) {
     $remoteFileError = 'SSH2 extension is not installed on the server.';
 } elseif (empty($recorderHost) || empty($recorderSshUser) || empty($recorderSshPassword)) {
     $remoteFileError = 'Recorder server connection details are missing.';
@@ -369,6 +382,13 @@ ob_start();
         </p>
     </header>
     <div class="sp-card-body">
+        <div class="sp-alert sp-alert-warning" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.5rem; border-left:4px solid var(--amber);">
+            <span style="font-size:1.5rem; color:var(--amber); flex-shrink:0;"><i class="fas fa-exclamation-triangle"></i></span>
+            <div>
+                <p style="font-weight:700; margin-bottom:0.4rem;">Channel recording is currently disabled</p>
+                <p style="margin-bottom:0;">We've found a bug in our recording software, so this feature has been temporarily switched off. <strong>Stream forwarding runs on the same software</strong>, so it's likely affected as well until the fix lands. This is on the list, but has been deprioritised while we work through other more pressing system issues. The file listing and download buttons are paused while the recorder is offline.</p>
+            </div>
+        </div>
         <div class="content mb-5">
             <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
                 <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
@@ -410,10 +430,12 @@ ob_start();
             </form>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0 0.5rem;">
                 <h3 style="font-size:0.95rem;font-weight:700;margin:0;">Files on Recorder Server</h3>
+                <?php if (!$RECORDING_DISABLED): ?>
                 <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                     <span>Refresh</span>
                 </button>
+                <?php endif; ?>
             </div>
             <div id="remote-files-container">
                 <?php if ($remoteFileError): ?>
@@ -738,6 +760,7 @@ document.addEventListener('DOMContentLoaded', function () {
             refreshRemoteFiles();
         });
     }
+    var recorderEnabled = !!refreshBtn;
     container.addEventListener('click', function (event) {
         var target = event.target;
         if (!(target instanceof Element)) {
@@ -765,7 +788,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }, 12000);
     });
-    window.setInterval(refreshRemoteFiles, 60000);
+    if (recorderEnabled) {
+        window.setInterval(refreshRemoteFiles, 60000);
+    }
 });
 </script>
 <?php
