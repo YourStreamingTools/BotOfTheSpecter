@@ -34,7 +34,7 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from starlette.responses import Response
 from pydantic import BaseModel, Field
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from jokeapi import Jokes
 from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlencode, parse_qsl, quote
@@ -1560,7 +1560,9 @@ class UserPointsModificationResponse(BaseModel):
 
 class CheckKeyResponse(BaseModel):
     status: str
-    username: str
+    # Optional — only set when the key validates. The invalid-key branch
+    # returns just `status` so the model must allow that shape.
+    username: Optional[str] = None
     class Config:
         json_schema_extra = {
             "example": {
