@@ -55,6 +55,72 @@
     --sidebar-width:  240px;
     --topbar-height:  56px;
     --transition:     0.2s ease;
+    color-scheme: dark;
+}
+
+/* ----------------------------------------------------------
+   Light theme token overrides — applied when <html data-theme="light">.
+   Components reading the colour tokens above follow automatically.
+   ---------------------------------------------------------- */
+[data-theme="light"] {
+    color-scheme: light;
+    --bg-base:        #f4f4f7;
+    --bg-surface:     #ffffff;
+    --bg-card:        #ffffff;
+    --bg-card-hover:  #eeeef2;
+    --bg-input:       #ffffff;
+    --bg-sidebar:     #ffffff;
+    --border:         #e2e2ea;
+    --border-hover:   #c9c9d6;
+    --text-primary:   #1a1a20;
+    --text-secondary: #555567;
+    --text-muted:     #6e6e84;
+    --text-inverse:   #ffffff;
+    --accent:         #6b48b0;
+    --accent-hover:   #5a3a98;
+    --accent-light:   rgba(124, 92, 191, 0.12);
+    --accent-glow:    rgba(124, 92, 191, 0.20);
+    --green:          #1f9d6b;
+    --green-bg:       rgba(62, 207, 142, 0.18);
+    --amber:          #b67200;
+    --amber-bg:       rgba(240, 165, 0, 0.20);
+    --blue:           #2080d6;
+    --blue-bg:        rgba(74, 163, 240, 0.18);
+    --red:            #c84040;
+    --red-bg:         rgba(240, 80, 80, 0.16);
+    --grey:           #6c6c80;
+    --grey-bg:        rgba(96, 96, 112, 0.12);
+    --purple:         #7040c0;
+    --purple-bg:      rgba(112, 64, 192, 0.14);
+    --teal:           #1a9090;
+    --teal-bg:        rgba(26, 144, 144, 0.14);
+    --orange:         #c05020;
+    --orange-bg:      rgba(192, 80, 32, 0.14);
+    --shadow-sm:      0 1px 3px rgba(0,0,0,0.08);
+    --shadow:         0 4px 16px rgba(0,0,0,0.10);
+    --shadow-lg:      0 8px 32px rgba(0,0,0,0.14);
+}
+
+/* Light/dark theme toggle button (topbar) */
+.sp-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: color var(--transition), background var(--transition), border-color var(--transition);
+    flex-shrink: 0;
+}
+.sp-theme-toggle:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
 }
 
 html, body {
