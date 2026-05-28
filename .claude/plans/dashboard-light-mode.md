@@ -1,7 +1,7 @@
 # Dashboard Light Mode — Plan
 
-> Status: **draft**, awaiting decisions (see end of doc).
-> Owner: TBD. Last revised 2026-05-20.
+> Status: **in progress** — decisions locked (see §9); foundation + toggle shipped to dashboard/home/support/members.
+> Owner: TBD. Last revised 2026-05-28.
 
 ## 1. Scope
 
@@ -131,25 +131,44 @@ This cleanup is the largest chunk of the work, probably **60% of total time**. T
 - **Charts / data viz** — if any exist (the dashboard uses chart libraries somewhere?), their default palettes need light-aware variants.
 - **Images and icons** — most icons are Font Awesome which respect `color`. Any raster images used in headers/illustrations may need light-mode variants.
 
-## 9. Decisions needed before we start
+## 9. Decisions (locked 2026-05-28)
 
 1. **Default mode for new users** (no localStorage value)
-   - [ ] Dark (current, no change in default UX)
-   - [ ] Light
-   - [ ] Auto — respect OS `prefers-color-scheme`
+   - [x] Auto — respect OS `prefers-color-scheme` (falls back to dark with no JS)
 
 2. **Persistence**
-   - [ ] localStorage (recommended)
-   - [ ] Session
-   - [ ] Per-user DB column on `profile`
+   - [x] localStorage (key `sp-theme`; per-origin, so each subdomain stores its own — see follow-ups)
 
-3. **Scope of this pass**
-   - [ ] Dashboard + admin only
-   - [ ] Dashboard + admin + portal forks (members/support/roadmap/etc.)
+3. **Scope of this pass** *(refined by goal message — narrower than the earlier "all portals" answer)*
+   - [x] dashboard + admin, home, support, members
+   - [ ] roadmap / specterbotapp / specterbotsystems / yourlinks — deferred to a later pass
 
 4. **Toggle placement**
-   - [ ] Topbar (next to user menu)
-   - [ ] Settings page
-   - [ ] Both
+   - [x] Topbar / top nav (and the landing top nav for the logged-out dashboard)
 
-Once those are answered, implementation kicks off at section 7 phase 1.
+## 10. Shipped in this pass (2026-05-28)
+
+**Mechanism:** `[data-theme="light"]` override block added to each surface's `:root`, plus `color-scheme` declared per theme. An inline `<head>` bootstrap reads `localStorage['sp-theme']`, else the OS preference, and sets `data-theme` before stylesheets paint (no FOUC). A topbar button (`#spThemeToggle`) flips the attribute, persists to localStorage, and syncs other open tabs via the `storage` event.
+
+**Stylesheets (light tokens + `.sp-theme-toggle` / `.hs-theme-toggle`):**
+- `dashboard/css/dashboard.css`
+- `support/css/style.css`
+- `members/style.css`
+- `home/style.css` (also tokenised the hardcoded `a:hover` colour `#b89fe8` → `var(--accent-hover)`)
+
+Palette tweak vs §3: `--text-muted` darkened to `#6e6e84` (the proposed `#9090a0` only hit ~3:1 on white, failing AA for body text).
+
+**Pages wired:**
+- Dashboard: `layout.php` (all authed pages) + `dashboard.php` logged-out landing get the full toggle; `login.php` + `restricted.php` get bootstrap-only (render in-theme, no on-page button).
+- Home: `layout.php` (covers all home pages).
+- Support: `layout.php` (covers all support pages).
+- Members (no shared layout — per-page): `index.php` + `freegames.php` full toggle; `login.php` bootstrap-only.
+
+Admin pages inherit via `dashboard.css` + `layout.php`. `admin.css` still carries legacy hardcoded colours (`#3273dc`, `#7a7a7a`) not yet light-audited.
+
+**Members cleanup — done 2026-05-28:** members portal is token-driven so the main pages follow light mode directly. Two fixes applied: tokenised the hardcoded `a:hover` (`#b89fe8` → `var(--accent-hover)`), and **pinned the In Memoriam page to dark in both themes** via `[data-theme="light"] .memorial-page { …dark tokens… }`. The memorial page is a deliberate dark/cosmic, sensitive design (star field, candle glow, gradients fading into `--bg-surface`, embedded crisis helplines) that breaks if forced light; the whole `.memorial-page` subtree (helplines included, all nested) re-inherits the dark palette. **Reuse this same `.memorial-page` pin pattern for any deliberately-dark/branded section in the other portals.**
+
+**Follow-ups (do NOT block the toggle being live):**
+- Hardcoded-colour cleanup pass (§6) for the remaining surfaces: inline `style="color:#..."` across pages, SweetAlert2 light overrides, brand-purple landing sections, `admin.css` legacy colours. Light mode functions; some spots may need polish.
+- localStorage is per-origin → the theme does not follow across subdomains. If cross-subdomain sync matters, switch the store to a cookie scoped to `.botofthespecter.com` (also lets PHP set `data-theme` server-side and drop the JS bootstrap).
+- Remaining portals (roadmap, specterbotapp, specterbotsystems, yourlinks): same override-block + toggle pattern, deferred.
