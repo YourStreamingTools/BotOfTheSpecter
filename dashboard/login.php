@@ -481,6 +481,19 @@ if (isset($_GET['code'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (t !== 'light' && t !== 'dark') {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+                }
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
     <title>BotOfTheSpecter - Twitch Login</title>
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="icon" href="https://cdn.botofthespecter.com/logo.png" sizes="32x32">

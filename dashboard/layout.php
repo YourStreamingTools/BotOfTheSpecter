@@ -113,6 +113,19 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (t !== 'light' && t !== 'dark') {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+                }
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
     <title>BotOfTheSpecter - <?php echo isset($pageTitle) ? $pageTitle : 'Dashboard'; ?></title>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
@@ -213,6 +226,9 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                     <?php endif; ?>
                 </div>
                 <div class="sp-topbar-actions">
+                    <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+                        <i class="fas fa-moon"></i>
+                    </button>
                     <?php if ($profileUsername): ?>
                         <span style="font-size:0.82rem; color:var(--text-muted);"><?php echo $profileUsername; ?></span>
                     <?php endif; ?>
@@ -393,6 +409,34 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                 // no-op on error
             }
         });
+    </script>
+    <script>
+        // Light/dark theme toggle (topbar). The <head> bootstrap sets the initial theme.
+        (function () {
+            var btn = document.getElementById('spThemeToggle');
+            function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+            function syncIcon(theme) {
+                if (!btn) return;
+                var icon = btn.querySelector('i');
+                if (icon) icon.className = (theme === 'light' ? 'fas fa-sun' : 'fas fa-moon');
+            }
+            function apply(theme, persist) {
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+                if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+                syncIcon(theme);
+            }
+            syncIcon(current());
+            if (btn) btn.addEventListener('click', function () {
+                apply(current() === 'light' ? 'dark' : 'light', true);
+            });
+            // Keep other open tabs in sync
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) {
+                    apply(e.newValue, false);
+                }
+            });
+        })();
     </script>
 </body>
 </html>

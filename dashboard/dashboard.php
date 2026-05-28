@@ -339,6 +339,19 @@ session_write_close();
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+        <script>
+            (function () {
+                try {
+                    var t = localStorage.getItem('sp-theme');
+                    if (t !== 'light' && t !== 'dark') {
+                        t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+                    }
+                    document.documentElement.setAttribute('data-theme', t);
+                    document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+                } catch (e) {}
+            })();
+        </script>
         <title>BotOfTheSpecter - <?php echo $pageTitle; ?></title>
         <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
         <link rel="stylesheet" href="/css/dashboard.css?v=<?php echo filemtime(__DIR__ . '/css/dashboard.css'); ?>">
@@ -353,6 +366,9 @@ session_write_close();
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter">
                 BotOfTheSpecter
             </a>
+            <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+                <i class="fas fa-moon"></i>
+            </button>
             <a href="login.php" class="sp-btn sp-btn-primary" style="border-radius: var(--radius-pill);"><i class="fab fa-twitch"></i> Login with Twitch</a>
         </header>
         <!-- Hero -->
@@ -492,6 +508,29 @@ session_write_close();
             All trademarks, logos, and brand names are the property of their respective owners and are used for identification purposes only.
             <br><span class="sp-version-badge" style="margin-top: 0.5rem; display: inline-flex;">Dashboard v<?php echo $dashboardVersion; ?></span>
         </footer>
+        <script>
+            // Light/dark theme toggle (landing top nav). The <head> bootstrap sets the initial theme.
+            (function () {
+                var btn = document.getElementById('spThemeToggle');
+                function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+                function syncIcon(theme) {
+                    if (!btn) return;
+                    var icon = btn.querySelector('i');
+                    if (icon) icon.className = (theme === 'light' ? 'fas fa-sun' : 'fas fa-moon');
+                }
+                function apply(theme, persist) {
+                    document.documentElement.setAttribute('data-theme', theme);
+                    document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+                    if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+                    syncIcon(theme);
+                }
+                syncIcon(current());
+                if (btn) btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+                window.addEventListener('storage', function (e) {
+                    if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+                });
+            })();
+        </script>
     </body>
     </html>
     <?php
