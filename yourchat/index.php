@@ -587,7 +587,7 @@ $cssFile = __DIR__ . '/style.css';
 $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -601,6 +601,14 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     <link rel="stylesheet" href="style.css?v=<?php echo $cssVersion; ?>">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <!-- Theme bootstrap: apply saved/OS theme before first paint -->
+    <script>
+        (function () {
+            var t = localStorage.getItem('sp-theme');
+            if (!t) { t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -641,6 +649,7 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             aria-label="Clear chat history">🗑️</button>
                         <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen"
                             aria-label="Toggle fullscreen"><span id="fullscreen-icon">⛶</span></button>
+                        <button class="clear-history-btn" id="spThemeToggle" title="Toggle light or dark theme" aria-label="Toggle theme">🌙</button>
                         <button class="clear-history-btn" onclick="logoutUser()" title="Logout"
                             aria-label="Logout">Logout</button>
                     </div>
@@ -4327,6 +4336,23 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
     </script>
     <?php endif; ?>
     </div>
+    <script>
+        (function () {
+            var btn = document.getElementById('spThemeToggle');
+            if (!btn) { return; }
+            function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+            function apply(theme, persist) {
+                document.documentElement.setAttribute('data-theme', theme);
+                btn.textContent = theme === 'light' ? '☀️' : '🌙';
+                if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+            }
+            apply(current(), false);
+            btn.addEventListener('click', function () { apply(current() === 'dark' ? 'light' : 'dark', true); });
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+            });
+        })();
+    </script>
     <footer class="page-footer">
         <p>&copy; 2023–<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
             BotOfTheSpecter is a project operated under the business name "YourStreamingTools", registered in Australia
