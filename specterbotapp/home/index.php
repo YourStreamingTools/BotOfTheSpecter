@@ -102,7 +102,7 @@ if (isset($_GET['auth_data']) || isset($_GET['auth_data_sig']) || isset($_GET['s
 $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&scopes=user:read:email&return_url=' . urlencode($redirectURI);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -118,6 +118,18 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
         content="BotOfTheSpecter is a powerful bot system designed to enhance your Twitch and Discord experiences, offering dedicated tools for community interaction, channel management, and analytics." />
     <meta name="twitter:image" content="https://cdn.botofthespecter.com/BotOfTheSpecter.jpeg" />
     <link rel="stylesheet" href="css/custom.css?v=<?php echo filemtime(__DIR__ . '/css/custom.css'); ?>">
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (!t) t = (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                if (t !== 'light') t = 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body class="dark-mode">
     <header>
@@ -143,6 +155,9 @@ $loginURL = 'https://streamersconnect.com/?service=twitch&login=specterbot.app&s
                 <div class="navbar-end">
                     <div class="navbar-item">
                         <div class="buttons">
+                            <button class="sa-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+                                <i class="fa-solid fa-moon" id="spThemeIcon"></i>
+                            </button>
                             <?php if (!isset($_SESSION['access_token'])): ?>
                                 <a href="<?php echo filter_var($loginURL, FILTER_SANITIZE_URL); ?>"
                                     class="button is-primary">Login with Twitch</a>
@@ -573,6 +588,29 @@ socket.on('disconnect', () => {
     <script>console.log('Your Twitch username is: <?php echo $twitchUsername; ?>');</script>
     <script>console.log('User database status: <?php echo $userDatabaseExists; ?>');</script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script>
+        // Light/dark theme toggle. The <head> bootstrap sets the initial theme.
+        (function () {
+            var btn = document.getElementById('spThemeToggle');
+            if (!btn) return;
+            function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+            function syncIcon(theme) {
+                var icon = document.getElementById('spThemeIcon');
+                if (icon) icon.className = (theme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon');
+            }
+            function apply(theme, persist) {
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+                syncIcon(theme);
+                if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+            }
+            syncIcon(current());
+            btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+            });
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-markup-templating.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-php.min.js"></script>
     <script>
