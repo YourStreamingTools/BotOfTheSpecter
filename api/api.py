@@ -2758,31 +2758,53 @@ async def chat_instructions(
     use_discord = discord
     use_ad_messages = ad_messages
     use_home_ai = home_ai
-    # Decide which file to load
-    base_dir = "/home/botofthespecter"
-    discord_path = os.path.join(base_dir, "ai.discord.json")
-    ad_messages_path = os.path.join(base_dir, "ai.ad_messages.json")
-    home_ai_path = os.path.join(base_dir, "ai.home.json")
-    default_path = os.path.join(base_dir, "ai.json")
-    if use_ad_messages and os.path.exists(ad_messages_path):
-        path = ad_messages_path
-    elif use_home_ai and os.path.exists(home_ai_path):
-        path = home_ai_path
-    elif use_discord and os.path.exists(discord_path):
-        path = discord_path
+    server_dir = "/home/botofthespecter"
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    def _resolve_ai_file(filename: str):
+        # Prefer the server copy, fall back to the repo-shipped copy.
+        for d in (server_dir, repo_dir):
+            candidate = os.path.join(d, filename)
+            if os.path.exists(candidate):
+                return candidate
+        return None
+    if use_ad_messages:
+        filename = "ai.ad_messages.json"
+    elif use_home_ai:
+        filename = "ai.home.json"
+    elif use_discord:
+        filename = "ai.discord.json"
     else:
-        path = default_path
+        filename = "ai.json"
+    path = _resolve_ai_file(filename)
+    # Preserve the original behaviour: a specialised file that exists nowhere
+    # falls through to the default instruction set.
+    if path is None and filename != "ai.json":
+        filename = "ai.json"
+        path = _resolve_ai_file(filename)
     try:
-        if os.path.exists(path):
+        server_copy = os.path.join(server_dir, filename)
+        repo_copy = os.path.join(repo_dir, filename)
+        if (os.path.exists(server_copy) and os.path.exists(repo_copy)
+                and os.path.abspath(server_copy) != os.path.abspath(repo_copy)
+                and os.path.getmtime(repo_copy) > os.path.getmtime(server_copy) + 1):
+            logging.warning(
+                f"AI instructions '{filename}': deployed server copy is OLDER than the "
+                f"repo-shipped copy — the server file may be stale. Redeploy it "
+                f"(e.g. run api/deploy-ai-instructions.sh)."
+            )
+    except Exception:
+        pass
+    try:
+        if path and os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return JSONResponse(status_code=200, content=data)
-        # Not found
-        raise HTTPException(status_code=404, detail=f"AI instructions not found at {path}")
+        # Not found in either location
+        raise HTTPException(status_code=404, detail=f"AI instructions not found for {filename}")
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error loading AI instructions from {path}: {e}")
+        logging.error(f"Error loading AI instructions ({filename}): {e}")
         raise HTTPException(status_code=500, detail="Failed to load AI instructions")
 
 # Public API Requests Remaining (for song)
