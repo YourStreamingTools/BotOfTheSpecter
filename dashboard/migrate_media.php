@@ -92,14 +92,18 @@ if (is_dir($walkon_path)) {
     // Bot Helix credentials for unknown-login lookups
     $botClientId = '';
     $botOauth    = '';
-    $tokRes = $db->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
-    if ($tokRes && ($tokRow = $tokRes->fetch_assoc())) {
-        foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
-            if (!empty($tokRow[$k])) { $botClientId = trim($tokRow[$k]); break; }
+    $bconn = new mysqli($db_servername, $db_username, $db_password, 'website');
+    if (!$bconn->connect_error) {
+        $bres = $bconn->query("SELECT * FROM bot_chat_token ORDER BY id ASC LIMIT 1");
+        if ($bres && ($brow = $bres->fetch_assoc())) {
+            foreach (['twitch_client_id', 'client_id', 'clientID'] as $k) {
+                if (!empty($brow[$k])) { $botClientId = trim($brow[$k]); break; }
+            }
+            foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $k) {
+                if (!empty($brow[$k])) { $botOauth = trim($brow[$k]); break; }
+            }
         }
-        foreach (['twitch_oauth_api_token', 'oauth', 'chat_oauth_token', 'twitch_oauth_token', 'twitch_access_token', 'bot_oauth_token'] as $k) {
-            if (!empty($tokRow[$k])) { $botOauth = trim($tokRow[$k]); break; }
-        }
+        $bconn->close();
     }
     $resolveLoginToUserId = function ($login) use ($db, $botClientId, $botOauth, &$walkonsHelixLookups) {
         // seen_users cache first
