@@ -257,6 +257,19 @@ session_write_close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (t !== 'light' && t !== 'dark') {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+                }
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
     <title>BotOfTheSpecter — <?php echo htmlspecialchars($title); ?></title>
     <meta name="description" content="BotOfTheSpecter Members Portal — view channel data, commands, stats and more.">
     <meta property="og:title" content="BotOfTheSpecter — <?php echo htmlspecialchars($title); ?>">
@@ -348,6 +361,9 @@ session_write_close();
             </button>
             <span class="sp-topbar-title"><?php echo htmlspecialchars($title); ?></span>
             <div class="sp-topbar-actions">
+                <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
                 <?php if ($username && !$notFound && !$isRestricted && !$isDeceased): ?>
                     <a href="/" class="sp-btn sp-btn-secondary sp-btn-sm">
                         <i class="fa-solid fa-arrow-left"></i> Back to Search
@@ -1245,6 +1261,29 @@ session_write_close();
             function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('visible'); }
             hamburger.addEventListener('click', openSidebar);
             overlay.addEventListener('click', closeSidebar);
+        })();
+    </script>
+    <script>
+        // Light/dark theme toggle (topbar). The <head> bootstrap sets the initial theme.
+        (function () {
+            var btn = document.getElementById('spThemeToggle');
+            function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+            function syncIcon(theme) {
+                if (!btn) return;
+                var icon = btn.querySelector('i');
+                if (icon) icon.className = (theme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon');
+            }
+            function apply(theme, persist) {
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+                if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+                syncIcon(theme);
+            }
+            syncIcon(current());
+            if (btn) btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+            });
         })();
     </script>
 </body>
