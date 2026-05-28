@@ -23,7 +23,7 @@ $displayName = htmlspecialchars($_SESSION['display_name'] ?? $_SESSION['username
 $v = uuidv4();
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -36,6 +36,18 @@ $v = uuidv4();
     <link rel="stylesheet" href="https://cdn.botofthespecter.com/css/fontawesome-7.1.0/css/all.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <link rel="stylesheet" href="/css/style.css?v=<?php echo $v; ?>">
+    <!-- Theme bootstrap: apply saved/OS theme before stylesheets paint (avoids flash) -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('sp-theme');
+                if (!t) t = (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                if (t !== 'light') t = 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.className = (t === 'light' ? 'light-theme' : 'dark-theme');
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
 <div id="sp-sidebar-overlay" class="sp-sidebar-overlay"></div>
@@ -97,6 +109,9 @@ $v = uuidv4();
             </button>
             <span class="sp-topbar-title"><?php echo htmlspecialchars($topbarTitle); ?></span>
             <div class="sp-topbar-actions">
+                <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+                    <i class="fa-solid fa-moon" id="spThemeIcon"></i>
+                </button>
                 <?php if (!$isLoggedIn): ?>
                     <a href="/login.php" class="sp-btn sp-btn-secondary sp-btn-sm">
                         <i class="fa-brands fa-twitch"></i> Log In
@@ -359,6 +374,29 @@ $v = uuidv4();
 </div>
 <?php endif; ?>
 
+<script>
+    // Light/dark theme toggle. The <head> bootstrap sets the initial theme.
+    (function () {
+        var btn = document.getElementById('spThemeToggle');
+        if (!btn) return;
+        function current() { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+        function syncIcon(theme) {
+            var icon = document.getElementById('spThemeIcon');
+            if (icon) icon.className = (theme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon');
+        }
+        function apply(theme, persist) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.className = (theme === 'light' ? 'light-theme' : 'dark-theme');
+            syncIcon(theme);
+            if (persist) { try { localStorage.setItem('sp-theme', theme); } catch (e) {} }
+        }
+        syncIcon(current());
+        btn.addEventListener('click', function () { apply(current() === 'light' ? 'dark' : 'light', true); });
+        window.addEventListener('storage', function (e) {
+            if (e.key === 'sp-theme' && (e.newValue === 'light' || e.newValue === 'dark')) { apply(e.newValue, false); }
+        });
+    })();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
