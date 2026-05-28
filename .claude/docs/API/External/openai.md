@@ -218,18 +218,28 @@ GET https://api.botofthespecter.com/chat-instructions?ad_messages=true
 GET https://api.botofthespecter.com/chat-instructions?home_ai=true
 ```
 
-Endpoint code: `./api/api.py:2742-2784` (operation_id `get_chat_instructions`).
+Endpoint code: `./api/api.py` (operation_id `get_chat_instructions`).
 
-Server-side files (loaded in priority by query flag):
+Files (loaded in priority by query flag):
 
 | Flag | File |
 | ---- | ---- |
-| `?ad_messages=true` | `/home/botofthespecter/ai.ad_messages.json` |
-| `?home_ai=true` | `/home/botofthespecter/ai.home.json` |
-| `?discord=true` | `/home/botofthespecter/ai.discord.json` |
-| (none) | `/home/botofthespecter/ai.json` (default) |
+| `?ad_messages=true` | `ai.ad_messages.json` |
+| `?home_ai=true` | `ai.home.json` |
+| `?discord=true` | `ai.discord.json` |
+| (none) | `ai.json` (default) |
 
-Returns 404 if the flagged file is missing. The default file (`ai.json`) is the fallback for the bot's main per-user reply flow.
+**Resolution order per file:** the endpoint prefers the server copy at
+`/home/botofthespecter/{file}`, then falls back to the repo-shipped copy next to
+`api.py` (`./api/{file}`). A flagged file that exists in neither location falls
+through to the default `ai.json`; only if *that* is also absent does it return 404.
+
+**Staleness guard:** if the deployed server copy is older than the repo-shipped
+copy (i.e. the repo was edited but never re-deployed), the endpoint logs a
+`WARNING` naming the file. This is the "Stream Team" failure mode made visible —
+the rule was corrected in the repo but the server file was never updated. Push
+the repo copies to the server with `./api/deploy-ai-instructions.sh`; bots
+refresh within `INSTRUCTIONS_CACHE_TTL` (5 min), no restart needed.
 
 **Accepted response shapes** (the bots tolerate all three):
 
