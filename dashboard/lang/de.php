@@ -122,6 +122,7 @@ return [
     'navbar_sound_alerts' => 'Sound-Alerts',
     'navbar_video_alerts' => 'Video-Alerts',
     'navbar_walkon_alerts' => 'Walk-On-Alerts',
+    'navbar_makers_crafting' => 'Basteln & Handwerk',
     'navbar_streamelements' => 'StreamElements',
     'navbar_streamlabs' => 'StreamLabs',
     'navbar_obsconnector' => 'Controller App',

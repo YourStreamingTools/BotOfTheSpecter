@@ -144,6 +144,7 @@ return [
     'navbar_recording' => 'Recording',
     'navbar_stream_overlays' => 'Stream Overlays',
     'navbar_overlays' => 'Overlays',
+    'navbar_makers_crafting' => 'Makers & Crafting',
     'navbar_counter_stats' => 'Counter Stats',
     'navbar_stream_tools' => 'Stream Tools',
     'navbar_media' => 'Media',

@@ -873,6 +873,45 @@ try {
                 redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_reward_id (reward_id),
                 INDEX idx_username (username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'maker_projects' => "
+            CREATE TABLE IF NOT EXISTS maker_projects (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                status ENUM('current','finished','upcoming') NOT NULL DEFAULT 'current',
+                link_url VARCHAR(500) DEFAULT NULL,
+                sort_order INT DEFAULT 0,
+                completed_at DATETIME DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'maker_project_images' => "
+            CREATE TABLE IF NOT EXISTS maker_project_images (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                project_id INT NOT NULL,
+                media_file VARCHAR(255) NOT NULL,
+                caption VARCHAR(255) DEFAULT NULL,
+                sort_order INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_project (project_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'maker_overlay_settings' => "
+            CREATE TABLE IF NOT EXISTS maker_overlay_settings (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                display_mode ENUM('current','finished','upcoming') NOT NULL DEFAULT 'current',
+                current_project_id INT DEFAULT NULL,
+                visible TINYINT(1) NOT NULL DEFAULT 1,
+                carousel_seconds INT NOT NULL DEFAULT 6,
+                project_rotate_seconds INT NOT NULL DEFAULT 15,
+                accent_color VARCHAR(7) DEFAULT '#9146FF',
+                text_color VARCHAR(7) DEFAULT '#FFFFFF',
+                font_family VARCHAR(50) DEFAULT 'Arial',
+                position ENUM('top-left','top-right','bottom-left','bottom-right') NOT NULL DEFAULT 'bottom-right',
+                show_title TINYINT(1) NOT NULL DEFAULT 1,
+                show_description TINYINT(1) NOT NULL DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically

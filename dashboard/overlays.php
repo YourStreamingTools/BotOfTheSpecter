@@ -107,6 +107,19 @@ ob_start();
             </div>
         </div>
     </div>
+    <!-- Makers & Crafting Overlay -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="sp-card-title"><i class="fas fa-palette"></i> Makers &amp; Crafting</div>
+            <a href="makers.php" class="sp-btn sp-btn-sm sp-btn-secondary" title="Manage projects"><i class="fas fa-cog"></i></a>
+        </div>
+        <div class="sp-card-body">
+            Show your current project, finished builds, or upcoming ideas &mdash; updated live from chat with <code>!craft</code> or from the <a href="makers.php">Makers manager</a>.
+            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
+                https://overlay.botofthespecter.com/maker.php?code=API_KEY_HERE
+            </div>
+        </div>
+    </div>
     <!-- Stream Ending Credits -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header" style="display:flex; justify-content:space-between; align-items:center;">
