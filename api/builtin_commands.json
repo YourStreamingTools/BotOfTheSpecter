@@ -379,6 +379,24 @@
 			"force_level": "mod",
 			"syntax": ["!obs", "!obs scene Gaming Layout"]
 		},
+		"craft": {
+			"description": "Manages the Makers & Crafting overlay: set the current project, add notes/links/images, mark projects finished, queue upcoming ideas, and switch the display mode. Updates the overlay live.",
+			"force_level": "mod",
+			"syntax": [
+				"!craft new <title>",
+				"!craft note <text>",
+				"!craft link <url>",
+				"!craft current <id>",
+				"!craft finish",
+				"!craft upcoming <title>",
+				"!craft mode <current|finished|upcoming>",
+				"!craft image <file>",
+				"!craft show",
+				"!craft hide",
+				"!craft list",
+				"!craft remove <id>"
+			]
+		},
 		"createraffle": {
 			"description": "Creates and schedules a new raffle with a name, prize, and number of winners. Add weighted to give subscribers and VIPs better odds. Start it when ready with !startraffle.",
 			"force_level": "mod",

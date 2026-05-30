@@ -153,7 +153,7 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline"
+    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -7493,6 +7493,184 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    @commands.command(name='craft')
+    async def craft_command(self, ctx):
+        global bot_owner
+        # Makers & Crafting overlay control. Mirrors the builtin-command pattern:
+        # status / permission / cooldown come from the builtin_commands table so the
+        # dashboard enable toggle, permission and cooldown settings are respected.
+        content = ctx.message.content.strip()
+        parts = content.split(' ', 2)
+        subcommand = parts[1].lower() if len(parts) > 1 else ''
+        argument = parts[2].strip() if len(parts) > 2 else ''
+        valid_modes = ('current', 'finished', 'upcoming')
+        connection = None
+        mutated = False
+        # Defaults if the command has no builtin_commands row yet (mod-only by design).
+        permissions = "mod"
+        cooldown_rate = 1
+        cooldown_time = 0
+        cooldown_bucket = "default"
+        bucket_key = 'global'
+        try:
+            connection = await mysql_connection()
+            async with connection.cursor(DictCursor) as cursor:
+                # Respect dashboard configuration (status / permission / cooldown).
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("craft",))
+                result = await cursor.fetchone()
+                if result:
+                    status = result.get("status")
+                    permissions = result.get("permission")
+                    cooldown_rate = result.get("cooldown_rate")
+                    cooldown_time = result.get("cooldown_time")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if status == 'Disabled' and ctx.author.name != bot_owner:
+                        return
+                if not await command_permissions(permissions, ctx.author):
+                    await send_chat_message("You do not have the required permissions to use this command.")
+                    return
+                bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                if not await check_cooldown('craft', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
+                    return
+                # Make sure the singleton settings row exists.
+                await cursor.execute("INSERT INTO maker_overlay_settings (id) VALUES (1) ON DUPLICATE KEY UPDATE id = id")
+
+                async def featured_id():
+                    await cursor.execute("SELECT current_project_id FROM maker_overlay_settings WHERE id = 1")
+                    row = await cursor.fetchone()
+                    return row.get('current_project_id') if row else None
+
+                if subcommand in ('new', 'wip'):
+                    if not argument:
+                        await send_chat_message("Usage: !craft new <project title>")
+                        return
+                    title = argument[:255]
+                    await cursor.execute("INSERT INTO maker_projects (title, status) VALUES (%s, 'current')", (title,))
+                    new_id = cursor.lastrowid
+                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = %s, display_mode = 'current' WHERE id = 1", (new_id,))
+                    mutated = True
+                    await send_chat_message(f"New project #{new_id} set as current: {title}")
+                elif subcommand in ('note', 'desc', 'context'):
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project. Use !craft new <title> first.")
+                        return
+                    if not argument:
+                        await send_chat_message("Usage: !craft note <text> (prefix with + to append)")
+                        return
+                    if argument.startswith('+'):
+                        addition = argument[1:].strip()
+                        await cursor.execute("SELECT description FROM maker_projects WHERE id = %s", (pid,))
+                        row = await cursor.fetchone()
+                        existing = (row.get('description') or '') if row else ''
+                        new_desc = (existing + ' ' + addition).strip() if existing else addition
+                    else:
+                        new_desc = argument
+                    await cursor.execute("UPDATE maker_projects SET description = %s WHERE id = %s", (new_desc[:2000], pid))
+                    mutated = True
+                    await send_chat_message("Project note updated.")
+                elif subcommand == 'link':
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project. Use !craft new <title> first.")
+                        return
+                    url = argument.strip()
+                    if url and not (url.startswith('http://') or url.startswith('https://')):
+                        await send_chat_message("Link must start with http:// or https://")
+                        return
+                    await cursor.execute("UPDATE maker_projects SET link_url = %s WHERE id = %s", (url[:500] or None, pid))
+                    mutated = True
+                    await send_chat_message("Project link updated.")
+                elif subcommand == 'current':
+                    if not argument.isdigit():
+                        await send_chat_message("Usage: !craft current <project id> (see !craft list)")
+                        return
+                    target = int(argument)
+                    await cursor.execute("SELECT title FROM maker_projects WHERE id = %s", (target,))
+                    row = await cursor.fetchone()
+                    if not row:
+                        await send_chat_message(f"No project with id #{target}.")
+                        return
+                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = %s, display_mode = 'current' WHERE id = 1", (target,))
+                    mutated = True
+                    await send_chat_message(f"Now featuring project #{target}: {row.get('title')}")
+                elif subcommand == 'finish':
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project to finish.")
+                        return
+                    await cursor.execute("UPDATE maker_projects SET status = 'finished', completed_at = NOW() WHERE id = %s", (pid,))
+                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = NULL WHERE id = 1")
+                    mutated = True
+                    await send_chat_message("Project marked as finished. Set a new one with !craft new <title>.")
+                elif subcommand == 'upcoming':
+                    if not argument:
+                        await send_chat_message("Usage: !craft upcoming <idea title>")
+                        return
+                    await cursor.execute("INSERT INTO maker_projects (title, status) VALUES (%s, 'upcoming')", (argument[:255],))
+                    new_id = cursor.lastrowid
+                    mutated = True
+                    await send_chat_message(f"Added upcoming idea #{new_id}: {argument[:255]}")
+                elif subcommand == 'mode':
+                    mode = argument.lower()
+                    if mode not in valid_modes:
+                        await send_chat_message("Usage: !craft mode <current|finished|upcoming>")
+                        return
+                    await cursor.execute("UPDATE maker_overlay_settings SET display_mode = %s WHERE id = 1", (mode,))
+                    mutated = True
+                    await send_chat_message(f"Overlay display mode set to {mode}.")
+                elif subcommand == 'image':
+                    pid = await featured_id()
+                    if not pid:
+                        await send_chat_message("No current project. Use !craft new <title> first.")
+                        return
+                    filename = ''.join(c for c in argument if c.isalnum() or c in '._-')
+                    if not filename:
+                        await send_chat_message("Usage: !craft image <uploaded filename> (upload images on the dashboard first)")
+                        return
+                    if '.' not in filename or filename.rsplit('.', 1)[1].lower() not in ('png', 'jpg', 'jpeg', 'gif'):
+                        await send_chat_message("Image must be a .png, .jpg, .jpeg or .gif file uploaded on the dashboard.")
+                        return
+                    await cursor.execute("INSERT INTO maker_project_images (project_id, media_file) VALUES (%s, %s)", (pid, filename))
+                    mutated = True
+                    await send_chat_message(f"Image '{filename}' attached to the current project.")
+                elif subcommand in ('show', 'hide'):
+                    vis = 1 if subcommand == 'show' else 0
+                    await cursor.execute("UPDATE maker_overlay_settings SET visible = %s WHERE id = 1", (vis,))
+                    mutated = True
+                    await send_chat_message(f"Makers overlay {'shown' if vis else 'hidden'}.")
+                elif subcommand in ('remove', 'delete'):
+                    if not argument.isdigit():
+                        await send_chat_message("Usage: !craft remove <project id>")
+                        return
+                    target = int(argument)
+                    await cursor.execute("DELETE FROM maker_project_images WHERE project_id = %s", (target,))
+                    await cursor.execute("DELETE FROM maker_projects WHERE id = %s", (target,))
+                    await cursor.execute("UPDATE maker_overlay_settings SET current_project_id = NULL WHERE id = 1 AND current_project_id = %s", (target,))
+                    mutated = True
+                    await send_chat_message(f"Removed project #{target}.")
+                elif subcommand in ('list', 'projects'):
+                    await cursor.execute("SELECT id, title, status FROM maker_projects ORDER BY FIELD(status,'current','upcoming','finished'), id")
+                    rows = await cursor.fetchall()
+                    if not rows:
+                        await send_chat_message("No maker projects yet. Add one with !craft new <title>.")
+                        return
+                    summary = ' | '.join(f"#{r['id']} {r['title']} ({r['status']})" for r in rows[:10])
+                    await send_chat_message(f"Projects: {summary}")
+                    return
+                else:
+                    await send_chat_message("!craft: new <title>, note <text>, link <url>, current <id>, finish, upcoming <title>, mode <current|finished|upcoming>, image <file>, show, hide, list, remove <id>")
+                    return
+            if mutated:
+                add_usage('craft', bucket_key, cooldown_bucket)
+                safe_create_task(websocket_notice(event="MAKER_UPDATE", additional_data={"action": subcommand}))
+        except Exception as e:
+            chat_logger.error(f"[CRAFT] Error in craft_command: {e}")
+            await send_chat_message(f"An error occurred while updating the makers overlay. {e}")
+        finally:
+            if connection:
+                await connection.close()
+
     @commands.command(name='deaths')
     async def deaths_command(self, ctx):
         global current_game, bot_owner
@@ -12935,6 +13113,9 @@ async def websocket_notice(
                     "STREAM_BINGO_WINNER", "STREAM_BINGO_EXTRA_CARD",
                     "STREAM_BINGO_VOTE_STARTED", "STREAM_BINGO_VOTE_ENDED", "STREAM_BINGO_ALL_CALLED"
                 ]:
+                    if additional_data:
+                        params.update(additional_data)
+                elif event == "MAKER_UPDATE":
                     if additional_data:
                         params.update(additional_data)
                 else:
