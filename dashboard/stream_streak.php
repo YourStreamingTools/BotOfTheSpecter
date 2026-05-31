@@ -53,42 +53,42 @@ ob_start();
 ?>
 <div class="sp-alert sp-alert-info mb-4">
     <span class="icon"><i class="fas fa-info-circle"></i></span>
-    <strong>Beta 5.8 Feature:</strong> Stream Watch Streak tracking is available in version 5.8 and above. Milestones are automatically recorded when viewers hit consecutive stream watch streaks (e.g. 3, 7, 10, 50 streams in a row).
+    <?= t('stream_streak_beta_notice') ?>
 </div>
 <div class="sp-card mb-5">
     <header class="sp-card-header">
         <div class="sp-card-title">
             <span class="icon mr-2"><i class="fas fa-fire"></i></span>
-            Stream Watch Streaks
+            <?= t('stream_streak_card_title') ?>
         </div>
     </header>
     <div class="sp-card-body">
         <div class="raids-layout">
             <div>
-                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;">Recent Milestones</h3>
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;"><?= t('stream_streak_recent_milestones') ?></h3>
                 <?php if (empty($recentStreaks)): ?>
                     <div style="text-align:center;padding:3rem 0;">
-                        <p class="sp-text-muted" style="font-size:1.1rem;">No stream watch streak data available yet.</p>
+                        <p class="sp-text-muted" style="font-size:1.1rem;"><?= t('stream_streak_no_data') ?></p>
                     </div>
                 <?php else: ?>
                     <div class="sp-table-wrap">
                         <table class="sp-table">
                             <thead>
                                 <tr>
-                                    <th>Viewer</th>
-                                    <th>Current Streak</th>
-                                    <th>Best Streak</th>
-                                    <th>Total Watched</th>
-                                    <th>Last Milestone</th>
+                                    <th><?= t('stream_streak_th_viewer') ?></th>
+                                    <th><?= t('stream_streak_th_current') ?></th>
+                                    <th><?= t('stream_streak_th_best') ?></th>
+                                    <th><?= t('stream_streak_th_total') ?></th>
+                                    <th><?= t('stream_streak_th_last_milestone') ?></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($recentStreaks as $row): ?>
                                     <tr>
                                         <td><?php echo htmlspecialchars($row['user_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($row['streak_value']); ?> streams</td>
-                                        <td><?php echo htmlspecialchars(max((int)$row['highest_streak'], (int)$row['streak_value'])); ?> streams</td>
-                                        <td><?php echo htmlspecialchars(max((int)$row['total_streams_watched'], (int)$row['streak_value'])); ?> streams</td>
+                                        <td><?php echo htmlspecialchars($row['streak_value']); ?> <?= t('stream_streak_unit_streams') ?></td>
+                                        <td><?php echo htmlspecialchars(max((int)$row['highest_streak'], (int)$row['streak_value'])); ?> <?= t('stream_streak_unit_streams') ?></td>
+                                        <td><?php echo htmlspecialchars(max((int)$row['total_streams_watched'], (int)$row['streak_value'])); ?> <?= t('stream_streak_unit_streams') ?></td>
                                         <td><?php echo htmlspecialchars($row['updated_at']); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -98,30 +98,30 @@ ob_start();
                 <?php endif; ?>
             </div>
             <div>
-                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">All-Time Highest Streaks</h3>
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;"><?= t('stream_streak_all_time_title') ?></h3>
                 <?php if (empty($topStreakers)): ?>
-                    <p class="sp-text-muted">No data yet.</p>
+                    <p class="sp-text-muted"><?= t('stream_streak_no_data_yet') ?></p>
                 <?php else: ?>
                     <ul style="padding-left:1.25rem;margin:0 0 1rem;">
                         <?php foreach ($topStreakers as $t): ?>
                             <li style="margin-bottom:0.5rem;">
                                 <strong><?php echo htmlspecialchars($t['user_name']); ?></strong>
-                                &mdash; best: <?php echo htmlspecialchars($t['highest_streak']); ?> streams
-                                &bull; total: <?php echo htmlspecialchars($t['total_streams_watched']); ?> streams
+                                <?= t('stream_streak_best_label') ?> <?php echo htmlspecialchars($t['highest_streak']); ?> <?= t('stream_streak_unit_streams') ?>
+                                <?= t('stream_streak_total_label') ?> <?php echo htmlspecialchars($t['total_streams_watched']); ?> <?= t('stream_streak_unit_streams') ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>
                 <?php endif; ?>
                 <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0;">
-                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">Milestone Breakdown</h3>
+                <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;"><?= t('stream_streak_breakdown_title') ?></h3>
                 <?php if (empty($milestoneBreakdown)): ?>
-                    <p class="sp-text-muted">No data yet.</p>
+                    <p class="sp-text-muted"><?= t('stream_streak_no_data_yet') ?></p>
                 <?php else: ?>
                     <ul style="padding-left:1.25rem;margin:0;">
                         <?php foreach ($milestoneBreakdown as $m): ?>
                             <li style="margin-bottom:0.4rem;">
-                                <strong><?php echo htmlspecialchars($m['streak_value']); ?> streams</strong>
-                                - <?php echo htmlspecialchars($m['user_count']); ?> viewer<?php echo $m['user_count'] != 1 ? 's' : ''; ?>
+                                <strong><?php echo htmlspecialchars($m['streak_value']); ?> <?= t('stream_streak_unit_streams') ?></strong>
+                                - <?php echo htmlspecialchars($m['user_count']); ?> <?php echo $m['user_count'] != 1 ? t('stream_streak_unit_viewers') : t('stream_streak_unit_viewer'); ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>
