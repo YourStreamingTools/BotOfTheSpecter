@@ -163,14 +163,14 @@ ob_start();
 <?php endif; ?>
 <?php if (!$credentials_exist): ?>
     <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
-        <strong>Configuration Required:</strong> Please enter your Tanggle API credentials below to enable puzzle integration.
+        <strong><?= t('tanggle_config_required_label') ?></strong> <?= t('tanggle_config_required_text') ?>
     </div>
 <?php endif; ?>
 <div class="sp-card">
     <header class="sp-card-header">
         <p class="sp-card-title">
             <i class="fas fa-puzzle-piece" style="margin-right:0.5rem;"></i>
-            Tanggle Integration
+            <?= t('tanggle_integration_title') ?>
         </p>
     </header>
     <div class="sp-card-body">
@@ -178,34 +178,34 @@ ob_start();
             <header class="sp-card-header">
                 <p class="sp-card-title">
                     <i class="fas fa-wrench" style="margin-right:0.5rem;"></i>
-                    Tanggle Configuration
+                    <?= t('tanggle_configuration_title') ?>
                 </p>
             </header>
             <div class="sp-card-body">
-                <p style="color:var(--text-secondary);margin-bottom:1.25rem;">Enter your Tanggle API credentials below. These will be used to integrate with Tanggle puzzles.</p>
+                <p style="color:var(--text-secondary);margin-bottom:1.25rem;"><?= t('tanggle_configuration_intro') ?></p>
                 <form method="post" action="">
                     <div class="sp-form-group">
-                        <label class="sp-label">API Access Token</label>
+                        <label class="sp-label"><?= t('tanggle_api_token_label') ?></label>
                         <div style="position:relative;">
                             <input class="sp-input" type="password" name="api_token"
                                 value="<?php echo htmlspecialchars($current_api_token); ?>"
-                                placeholder="Enter your API Access Token" required id="api-token-field"
+                                placeholder="<?= htmlspecialchars(t('tanggle_api_token_placeholder')) ?>" required id="api-token-field"
                                 style="padding-right:2.5rem;">
                             <span id="api-token-visibility-icon"
                                 style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text-muted);">
                                 <i class="fas fa-eye"></i>
                             </span>
                         </div>
-                        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem;">Click the eye icon to show/hide the API token</p>
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem;"><?= t('tanggle_api_token_hint') ?></p>
                     </div>
                     <div class="sp-form-group">
-                        <label class="sp-label">Community UUID</label>
+                        <label class="sp-label"><?= t('tanggle_community_uuid_label') ?></label>
                         <input class="sp-input" type="text" name="community_uuid"
                             value="<?php echo htmlspecialchars($current_community_uuid); ?>"
-                            placeholder="Enter your Community UUID" required id="community-uuid-field">
-                        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem;">Example: 12345678-1234-1234-1234-123456789012</p>
+                            placeholder="<?= htmlspecialchars(t('tanggle_community_uuid_placeholder')) ?>" required id="community-uuid-field">
+                        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem;"><?= t('tanggle_community_uuid_hint') ?></p>
                     </div>
-                    <button class="sp-btn sp-btn-primary" type="submit">Save Credentials</button>
+                    <button class="sp-btn sp-btn-primary" type="submit"><?= t('tanggle_save_credentials_btn') ?></button>
                 </form>
             </div>
         </div>
@@ -214,26 +214,26 @@ ob_start();
                 <header class="sp-card-header">
                     <p class="sp-card-title">
                         <i class="fas fa-question-circle" style="margin-right:0.5rem;"></i>
-                        How to Get Your Tanggle Credentials
+                        <?= t('tanggle_howto_title') ?>
                     </p>
                 </header>
                 <div class="sp-card-body">
-                    <p style="font-weight:700;color:var(--text-primary);margin-bottom:0.5rem;">API Access Token:</p>
+                    <p style="font-weight:700;color:var(--text-primary);margin-bottom:0.5rem;"><?= t('tanggle_howto_token_heading') ?></p>
                     <ol style="color:var(--text-secondary);padding-left:1.5rem;margin-bottom:1.25rem;">
-                        <li><strong>Navigate to your Tanggle community:</strong> Go to <a href="https://tanggle.io" target="_blank">https://tanggle.io</a></li>
-                        <li><strong>Access Administration:</strong> Click on your community settings or administration panel</li>
-                        <li><strong>Go to Integrations:</strong> Find and click on the "Integrations" section</li>
-                        <li><strong>Open Custom Tab:</strong> Click on the "Custom" tab within Integrations</li>
-                        <li><strong>Copy API Token:</strong> Click the "Copy token" button to copy your API access token</li>
-                        <li><strong>Paste Here:</strong> Paste the token in the "API Access Token" field above</li>
+                        <li><?= t('tanggle_howto_token_step1') ?></li>
+                        <li><?= t('tanggle_howto_token_step2') ?></li>
+                        <li><?= t('tanggle_howto_token_step3') ?></li>
+                        <li><?= t('tanggle_howto_token_step4') ?></li>
+                        <li><?= t('tanggle_howto_token_step5') ?></li>
+                        <li><?= t('tanggle_howto_token_step6') ?></li>
                     </ol>
-                    <p style="font-weight:700;color:var(--text-primary);margin-bottom:0.5rem;">Community UUID:</p>
+                    <p style="font-weight:700;color:var(--text-primary);margin-bottom:0.5rem;"><?= t('tanggle_howto_uuid_heading') ?></p>
                     <ol style="color:var(--text-secondary);padding-left:1.5rem;">
-                        <li><strong>View Your Community Page:</strong> Navigate to your community on Tanggle</li>
-                        <li><strong>Check the URL:</strong> Look at your browser's address bar</li>
-                        <li><strong>Find the UUID:</strong> The URL will look like <code>tanggle.io/community/12345678-1234-1234-1234-123456789012</code></li>
-                        <li><strong>Copy the UUID:</strong> Copy the long string after <code>/community/</code> (e.g., <code>12345678-1234-1234-1234-123456789012</code>)</li>
-                        <li><strong>Paste Here:</strong> Paste the UUID in the "Community UUID" field above</li>
+                        <li><?= t('tanggle_howto_uuid_step1') ?></li>
+                        <li><?= t('tanggle_howto_uuid_step2') ?></li>
+                        <li><?= t('tanggle_howto_uuid_step3') ?></li>
+                        <li><?= t('tanggle_howto_uuid_step4') ?></li>
+                        <li><?= t('tanggle_howto_uuid_step5') ?></li>
                     </ol>
                 </div>
             </div>
@@ -241,27 +241,27 @@ ob_start();
         <?php if ($credentials_exist): ?>
             <?php if ($api_error): ?>
                 <div class="sp-alert sp-alert-danger" style="margin-bottom:1.5rem;">
-                    <strong>API Error:</strong> <?php echo htmlspecialchars($api_error); ?>
+                    <strong><?= t('tanggle_api_error_label') ?></strong> <?php echo htmlspecialchars($api_error); ?>
                 </div>
             <?php endif; ?>
             <div class="sp-card" style="margin-bottom:1.5rem;">
                 <header class="sp-card-header">
                     <p class="sp-card-title">
                         <i class="fas fa-chart-line" style="margin-right:0.5rem;"></i>
-                        Puzzle Completion Stats
+                        <?= t('tanggle_stats_title') ?>
                     </p>
                 </header>
                 <div class="sp-card-body">
                     <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
                         <div style="flex:1;min-width:200px;">
                             <p style="color:var(--text-secondary);">
-                                <strong style="color:var(--text-primary);">Total Completed:</strong>
+                                <strong style="color:var(--text-primary);"><?= t('tanggle_stats_total_completed') ?></strong>
                                 <span class="sp-badge sp-badge-green" style="margin-left:0.5rem;"><?php echo (int)$puzzle_stats['completed_count']; ?></span>
                             </p>
                         </div>
                         <div style="flex:1;min-width:200px;">
                             <p style="color:var(--text-secondary);">
-                                <strong style="color:var(--text-primary);">Last Completed:</strong>
+                                <strong style="color:var(--text-primary);"><?= t('tanggle_stats_last_completed') ?></strong>
                                 <?php
                                 $last_completed_display = 'N/A';
                                 if (!empty($puzzle_stats['last_completed_at'])) {
@@ -282,52 +282,52 @@ ob_start();
                     <header class="sp-card-header">
                         <p class="sp-card-title">
                             <i class="fas fa-puzzle-piece" style="margin-right:0.5rem;"></i>
-                            Active Puzzle
+                            <?= t('tanggle_active_puzzle_title') ?>
                         </p>
                     </header>
                     <div class="sp-card-body">
                         <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
                             <div style="flex:0 0 240px;max-width:240px;">
                                 <img src="<?php echo htmlspecialchars($active_room['image']['sources']['preview'][3]['url'] ?? ''); ?>"
-                                    alt="Puzzle Preview" style="width:100%;border-radius:var(--radius);display:block;">
+                                    alt="<?= htmlspecialchars(t('tanggle_puzzle_preview_alt')) ?>" style="width:100%;border-radius:var(--radius);display:block;">
                             </div>
                             <div style="flex:1;min-width:200px;">
                                 <p style="font-weight:700;font-size:1rem;color:var(--text-primary);margin-bottom:0.75rem;">
-                                    <?php echo htmlspecialchars($active_room['image']['attribution']['title'] ?? 'Untitled Puzzle'); ?>
+                                    <?php echo htmlspecialchars($active_room['image']['attribution']['title'] ?? t('tanggle_untitled_puzzle')); ?>
                                 </p>
                                 <p style="color:var(--text-secondary);margin-bottom:0.5rem;">
-                                    <strong style="color:var(--text-primary);">Status:</strong>
+                                    <strong style="color:var(--text-primary);"><?= t('tanggle_status_label') ?></strong>
                                     <?php if ($active_room['isCompleted']): ?>
-                                        <span class="sp-badge sp-badge-green" style="margin-left:0.35rem;">Completed</span>
+                                        <span class="sp-badge sp-badge-green" style="margin-left:0.35rem;"><?= t('tanggle_status_completed') ?></span>
                                     <?php else: ?>
-                                        <span class="sp-badge sp-badge-blue" style="margin-left:0.35rem;">In Progress</span>
+                                        <span class="sp-badge sp-badge-blue" style="margin-left:0.35rem;"><?= t('tanggle_status_in_progress') ?></span>
                                     <?php endif; ?>
                                 </p>
                                 <p style="color:var(--text-secondary);margin-bottom:0.5rem;">
-                                    <strong style="color:var(--text-primary);">Pieces:</strong>
+                                    <strong style="color:var(--text-primary);"><?= t('tanggle_pieces_label') ?></strong>
                                     <?php echo $active_room['pieces']['completed']; ?> /
                                     <?php echo $active_room['pieces']['count']; ?>
                                     (<?php echo round($active_room['pieces']['completedRate'] * 100, 1); ?>%)
                                 </p>
                                 <p style="color:var(--text-secondary);margin-bottom:0.5rem;">
-                                    <strong style="color:var(--text-primary);">Grid:</strong>
+                                    <strong style="color:var(--text-primary);"><?= t('tanggle_grid_label') ?></strong>
                                     <?php echo $active_room['pieces']['x']; ?>x<?php echo $active_room['pieces']['y']; ?>
                                 </p>
                                 <p style="color:var(--text-secondary);margin-bottom:0.5rem;">
-                                    <strong style="color:var(--text-primary);">Players:</strong>
+                                    <strong style="color:var(--text-primary);"><?= t('tanggle_players_label') ?></strong>
                                     <?php echo $active_room['playerCount']; ?> /
                                     <?php echo $active_room['playerLimit']; ?>
                                 </p>
                                 <?php if (isset($active_room['image']['attribution']['creator']['name'])): ?>
                                     <p style="color:var(--text-secondary);margin-bottom:0.75rem;">
-                                        <strong style="color:var(--text-primary);">Creator:</strong>
+                                        <strong style="color:var(--text-primary);"><?= t('tanggle_creator_label') ?></strong>
                                         <?php echo htmlspecialchars($active_room['image']['attribution']['creator']['name']); ?>
                                     </p>
                                 <?php endif; ?>
                                 <a href="<?php echo htmlspecialchars($active_room['redirectUrl']); ?>"
                                     target="_blank" class="sp-btn sp-btn-primary sp-btn-sm">
                                     <i class="fas fa-external-link-alt"></i>
-                                    Open Puzzle
+                                    <?= t('tanggle_open_puzzle_btn') ?>
                                 </a>
                             </div>
                         </div>
@@ -335,7 +335,7 @@ ob_start();
                 </div>
             <?php elseif (!$api_error): ?>
                 <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
-                    <strong>No Active Puzzle:</strong> There are currently no active puzzle rooms in your community.
+                    <strong><?= t('tanggle_no_active_puzzle_label') ?></strong> <?= t('tanggle_no_active_puzzle_text') ?>
                 </div>
             <?php endif; ?>
             <?php if (!empty($queue_items)): ?>
@@ -343,7 +343,7 @@ ob_start();
                     <header class="sp-card-header">
                         <p class="sp-card-title">
                             <i class="fas fa-list" style="margin-right:0.5rem;"></i>
-                            Puzzle Queue (<?php echo count($queue_items); ?> puzzles)
+                            <?= t('tanggle_queue_title') ?> (<?php echo count($queue_items); ?> <?= t('tanggle_queue_puzzles_word') ?>)
                         </p>
                     </header>
                     <div class="sp-card-body">
@@ -351,23 +351,23 @@ ob_start();
                             <?php foreach ($queue_items as $queue_item): ?>
                                 <div class="sp-card" style="margin-bottom:0;">
                                     <img src="<?php echo htmlspecialchars($queue_item['image']['sources']['preview'][3]['url'] ?? ''); ?>"
-                                        alt="<?php echo htmlspecialchars($queue_item['image']['attribution']['title'] ?? 'Puzzle'); ?>"
+                                        alt="<?php echo htmlspecialchars($queue_item['image']['attribution']['title'] ?? t('tanggle_queue_item_alt')); ?>"
                                         style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">
                                     <div style="padding:0.75rem;">
                                         <p style="font-weight:700;color:var(--text-primary);margin-bottom:0.3rem;font-size:0.88rem;">
-                                            <?php echo htmlspecialchars($queue_item['image']['attribution']['title'] ?? 'Untitled'); ?>
+                                            <?php echo htmlspecialchars($queue_item['image']['attribution']['title'] ?? t('tanggle_untitled')); ?>
                                         </p>
                                         <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.3rem;">
-                                            Position: #<?php echo $queue_item['position']; ?>
+                                            <?= t('tanggle_queue_position_label') ?> #<?php echo $queue_item['position']; ?>
                                         </p>
                                         <p style="font-size:0.8rem;color:var(--text-secondary);">
-                                            <strong>Grid:</strong>
+                                            <strong><?= t('tanggle_grid_label') ?></strong>
                                             <?php echo $queue_item['body']['pieces']['x']; ?>x<?php echo $queue_item['body']['pieces']['y']; ?>
-                                            (<?php echo ($queue_item['body']['pieces']['x'] * $queue_item['body']['pieces']['y']); ?> pieces)
+                                            (<?php echo ($queue_item['body']['pieces']['x'] * $queue_item['body']['pieces']['y']); ?> <?= t('tanggle_pieces_word') ?>)
                                         </p>
                                         <?php if (isset($queue_item['image']['attribution']['creator']['name'])): ?>
                                             <p style="font-size:0.8rem;color:var(--text-secondary);">
-                                                <strong>By:</strong>
+                                                <strong><?= t('tanggle_by_label') ?></strong>
                                                 <?php echo htmlspecialchars($queue_item['image']['attribution']['creator']['name']); ?>
                                             </p>
                                         <?php endif; ?>
@@ -382,7 +382,7 @@ ob_start();
                 <header class="sp-card-header">
                     <p class="sp-card-title">
                         <i class="fas fa-history" style="margin-right:0.5rem;"></i>
-                        Recent Completed Puzzles
+                        <?= t('tanggle_recent_completed_title') ?>
                     </p>
                 </header>
                 <div class="sp-card-body">
@@ -391,24 +391,24 @@ ob_start();
                             <table class="sp-table">
                                 <thead>
                                     <tr>
-                                        <th>Puzzle</th>
-                                        <th>Winner</th>
-                                        <th>Pieces</th>
-                                        <th>Completed</th>
-                                        <th>Link</th>
+                                        <th><?= t('tanggle_table_puzzle') ?></th>
+                                        <th><?= t('tanggle_table_winner') ?></th>
+                                        <th><?= t('tanggle_table_pieces') ?></th>
+                                        <th><?= t('tanggle_table_completed') ?></th>
+                                        <th><?= t('tanggle_table_link') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($recent_completions as $completion): ?>
                                         <tr>
                                             <td>
-                                                <?php echo htmlspecialchars($completion['room_title'] ?: 'Untitled Puzzle'); ?><br>
+                                                <?php echo htmlspecialchars($completion['room_title'] ?: t('tanggle_untitled_puzzle')); ?><br>
                                                 <span style="font-size:0.78rem;color:var(--text-muted);"><?php echo htmlspecialchars($completion['room_uuid'] ?? ''); ?></span>
                                             </td>
                                             <td>
                                                 <?php
                                                 $winner = $completion['winner_twitch_username'] ?: $completion['winner_username'];
-                                                echo htmlspecialchars($winner ?: 'Unknown');
+                                                echo htmlspecialchars($winner ?: t('tanggle_winner_unknown'));
                                                 ?>
                                             </td>
                                             <td>
@@ -433,7 +433,7 @@ ob_start();
                                             </td>
                                             <td>
                                                 <?php if (!empty($completion['redirect_url'])): ?>
-                                                    <a href="<?php echo htmlspecialchars($completion['redirect_url']); ?>" target="_blank" class="sp-btn sp-btn-info sp-btn-sm">Open</a>
+                                                    <a href="<?php echo htmlspecialchars($completion['redirect_url']); ?>" target="_blank" class="sp-btn sp-btn-info sp-btn-sm"><?= t('tanggle_open_btn') ?></a>
                                                 <?php else: ?>
                                                     <span style="color:var(--text-muted);">N/A</span>
                                                 <?php endif; ?>
@@ -445,7 +445,7 @@ ob_start();
                         </div>
                     <?php else: ?>
                         <div class="sp-alert sp-alert-info">
-                            <strong>No Completion History Yet:</strong> Completed puzzles will appear here after the bot records a room completion event.
+                            <strong><?= t('tanggle_no_history_label') ?></strong> <?= t('tanggle_no_history_text') ?>
                         </div>
                     <?php endif; ?>
                 </div>

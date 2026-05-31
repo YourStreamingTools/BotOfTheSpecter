@@ -428,22 +428,14 @@ ob_start();
     <div style="display:flex; align-items:flex-start; gap:1rem;">
         <i class="fas fa-code fa-2x" style="flex-shrink:0; margin-top:0.2rem;"></i>
         <div>
-            <p style="font-weight:700; margin-bottom:0.5rem;">Variables for Modules</p>
-            <p style="margin-bottom:0.5rem;">Use variables in your Welcome Messages, Ad Notices, and Twitch Chat Alerts to create
-                dynamic, personalized messages for your community.</p>
-            <p style="margin-bottom:0.5rem;"><strong>What are Module Variables?</strong>
-                <br>Variables are placeholders that get replaced with real information when the message is sent.
-                <br>For example, <code>(user)</code> becomes the viewer's username, and <code>(bits)</code> shows the
-                number of bits cheered.
-            </p>
-            <p style="margin-bottom:0.5rem;"><strong>Available Variables:</strong>
-                <br>Each module has specific variables you can use - from usernames and viewer counts to subscription
-                tiers and hype train levels.
-            </p>
+            <p style="font-weight:700; margin-bottom:0.5rem;"><?= t('modules_variables_notice_title') ?></p>
+            <p style="margin-bottom:0.5rem;"><?= t('modules_variables_notice_intro') ?></p>
+            <p style="margin-bottom:0.5rem;"><?= t('modules_variables_notice_what') ?></p>
+            <p style="margin-bottom:0.5rem;"><?= t('modules_variables_notice_available') ?></p>
             <a href="https://help.botofthespecter.com/specter_module_variables.php" target="_blank"
                 class="sp-btn sp-btn-primary sp-btn-sm">
                 <i class="fas fa-code"></i>
-                <span>View All Module Variables</span>
+                <span><?= t('modules_view_all_variables_btn') ?></span>
             </a>
         </div>
     </div>
@@ -460,7 +452,7 @@ ob_start();
         <a><i class="fas fa-shield-alt"></i><span><?php echo t('modules_tab_chat_protection'); ?></span></a>
     </li>
     <li data-tab="game-deaths">
-        <a><i class="fas fa-skull-crossbones"></i><span>Game Deaths</span></a>
+        <a><i class="fas fa-skull-crossbones"></i><span><?= t('modules_tab_game_deaths') ?></span></a>
     </li>
     <li data-tab="ad-notices">
         <a><i class="fas fa-bullhorn"></i><span><?php echo t('modules_tab_ad_notices'); ?></span></a>
@@ -472,13 +464,13 @@ ob_start();
         <a><i class="fas fa-comment-dots"></i><span><?php echo t('modules_tab_twitch_chat_alerts'); ?></span></a>
     </li>
     <li data-tab="automated-shoutouts">
-        <a><i class="fas fa-bullhorn"></i><span>Automated Shoutouts</span></a>
+        <a><i class="fas fa-bullhorn"></i><span><?= t('modules_tab_automated_shoutouts') ?></span></a>
     </li>
     <li data-tab="tts-settings">
-        <a><i class="fas fa-microphone"></i><span>TTS Settings</span></a>
+        <a><i class="fas fa-microphone"></i><span><?= t('modules_tab_tts_settings') ?></span></a>
     </li>
     <li data-tab="custom-module-bot">
-        <a><i class="fas fa-robot"></i><span>Custom Module Bots</span></a>
+        <a><i class="fas fa-robot"></i><span><?= t('modules_tab_custom_module_bots') ?></span></a>
     </li>
 </ul>
 <div class="sp-card">
@@ -515,7 +507,7 @@ ob_start();
                                         <div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
                                             <span class="sp-badge sp-badge-grey">
                                                 <i class="fas fa-terminal"></i>
-                                                Joke Command
+                                                <?= t('modules_joke_command_badge') ?>
                                             </span>
                                             <span class="sp-badge <?php echo ($joke_command_status == 'Enabled') ? 'sp-badge-green' : 'sp-badge-red'; ?>">
                                                 <?php echo ($joke_command_status == 'Enabled') ? t('builtin_commands_status_enabled') : t('builtin_commands_status_disabled'); ?>
@@ -576,7 +568,7 @@ ob_start();
                                 <div>
                                     <h2 style="font-size:1.25rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;">
                                         <i class="fas fa-cog"></i>
-                                        Welcome Message Configuration
+                                        <?= t('modules_welcome_config_title') ?>
                                     </h2>
                                 </div>
                                 <div>
@@ -585,22 +577,22 @@ ob_start();
                                         <div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
                                             <span class="sp-badge sp-badge-grey">
                                                 <i class="fas fa-comment"></i>
-                                                Welcome Messages
+                                                <?= t('modules_welcome_messages_badge') ?>
                                             </span>
                                             <span class="sp-badge <?php echo ($send_welcome_messages) ? 'sp-badge-green' : 'sp-badge-red'; ?>">
-                                                <?php echo ($send_welcome_messages) ? 'Enabled' : 'Disabled'; ?>
+                                                <?php echo ($send_welcome_messages) ? t('builtin_commands_status_enabled') : t('builtin_commands_status_disabled'); ?>
                                             </span>
                                             <form method="POST" action="module_data_post.php" style="display:inline;">
                                                 <input type="hidden" name="toggle_welcome_messages" value="1">
                                                 <input type="hidden" name="welcome_messages_status" value="<?php echo ($send_welcome_messages) ? '0' : '1'; ?>">
                                                 <button type="submit" class="sp-btn sp-btn-sm <?php echo ($send_welcome_messages) ? 'sp-btn-danger' : 'sp-btn-success'; ?>">
                                                     <i class="fas <?php echo ($send_welcome_messages) ? 'fa-times' : 'fa-check'; ?>"></i>
-                                                    <span><?php echo ($send_welcome_messages) ? 'Disable' : 'Enable'; ?></span>
+                                                    <span><?php echo ($send_welcome_messages) ? t('builtin_commands_disable') : t('builtin_commands_enable'); ?></span>
                                                 </button>
                                             </form>
                                         </div>
                                         <p style="color:var(--text-muted); font-size:0.78rem; text-align:center; margin-top:0.5rem; margin-bottom:0;">
-                                            Toggle automatic welcome messages for viewers
+                                            <?= t('modules_welcome_toggle_description') ?>
                                         </p>
                                     </div>
                                 </div>
@@ -612,11 +604,11 @@ ob_start();
                                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                             <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                                 <i class="fas fa-users"></i>
-                                                Regular Members
+                                                <?= t('modules_welcome_regular_members') ?>
                                             </h5>
                                             <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="regular-members">
                                                 <i class="fas fa-save"></i>
-                                                <span>Save Regular Members</span>
+                                                <span><?= t('modules_welcome_save_regular_members') ?></span>
                                             </button>
                                         </div>
                                         <div class="sp-form-group">
@@ -627,7 +619,7 @@ ob_start();
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="new_default_welcome_message" maxlength="255"
                                                 value="<?php echo htmlspecialchars($new_default_welcome_message !== '' ? $new_default_welcome_message : t('modules_welcome_new_member_default')); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="new_default_welcome_message">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="new_default_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -637,7 +629,7 @@ ob_start();
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="default_welcome_message" maxlength="255"
                                                 value="<?php echo htmlspecialchars($default_welcome_message !== '' ? $default_welcome_message : t('modules_welcome_returning_member_default')); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="default_welcome_message">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="default_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
                                     <!-- VIP Members Column -->
@@ -645,11 +637,11 @@ ob_start();
                                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                             <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                                 <i class="fas fa-gem"></i>
-                                                VIP Members
+                                                <?= t('modules_welcome_vip_members') ?>
                                             </h5>
                                             <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="vip-members">
                                                 <i class="fas fa-save"></i>
-                                                <span>Save VIP Members</span>
+                                                <span><?= t('modules_welcome_save_vip_members') ?></span>
                                             </button>
                                         </div>
                                         <div class="sp-form-group">
@@ -660,7 +652,7 @@ ob_start();
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="new_default_vip_welcome_message" maxlength="255"
                                                 value="<?php echo htmlspecialchars($new_default_vip_welcome_message !== '' ? $new_default_vip_welcome_message : t('modules_welcome_new_vip_default')); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="new_default_vip_welcome_message">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="new_default_vip_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -670,7 +662,7 @@ ob_start();
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="default_vip_welcome_message" maxlength="255"
                                                 value="<?php echo htmlspecialchars($default_vip_welcome_message !== '' ? $default_vip_welcome_message : t('modules_welcome_returning_vip_default')); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="default_vip_welcome_message">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="default_vip_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -679,11 +671,11 @@ ob_start();
                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                         <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                             <i class="fas fa-shield-alt"></i>
-                                            Moderators
+                                            <?= t('modules_welcome_moderators') ?>
                                         </h5>
                                         <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="moderators">
                                             <i class="fas fa-save"></i>
-                                            <span>Save Moderators</span>
+                                            <span><?= t('modules_welcome_save_moderators') ?></span>
                                         </button>
                                     </div>
                                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
@@ -695,7 +687,7 @@ ob_start();
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="new_default_mod_welcome_message" maxlength="255"
                                                 value="<?php echo htmlspecialchars($new_default_mod_welcome_message !== '' ? $new_default_mod_welcome_message : t('modules_welcome_new_mod_default')); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="new_default_mod_welcome_message">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="new_default_mod_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -705,7 +697,7 @@ ob_start();
                                             <input class="sp-input welcome-message-input" type="text"
                                                 name="default_mod_welcome_message" maxlength="255"
                                                 value="<?php echo htmlspecialchars($default_mod_welcome_message !== '' ? $default_mod_welcome_message : t('modules_welcome_returning_mod_default')); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="default_mod_welcome_message">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="default_mod_welcome_message">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -723,36 +715,35 @@ ob_start();
                             <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;">
                                 <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">
                                     <i class="fas fa-info-circle"></i>
-                                    <strong>URL Blocking System Overview (Version 5.8)</strong>
+                                    <strong><?= t('modules_url_blocking_overview_title') ?></strong>
                                 </h4>
-                                <p><strong>How URL Blocking Works:</strong></p>
+                                <p><strong><?= t('modules_url_blocking_how_works') ?></strong></p>
                                 <ul>
                                     <li>
-                                        <strong style="color:var(--red);"><i class="fas fa-ban"></i> Blacklist (Always Active):</strong>
-                                        URLs in the blacklist are <strong>ALWAYS blocked</strong> regardless of URL Blocking setting.
-                                        Triggers a "Code Red" alert to moderators when detected.
+                                        <strong style="color:var(--red);"><i class="fas fa-ban"></i> <?= t('modules_url_blocking_blacklist_label') ?></strong>
+                                        <?= t('modules_url_blocking_blacklist_desc') ?>
                                     </li>
                                     <li>
-                                        <strong style="color:var(--accent);"><i class="fas fa-toggle-on"></i> URL Blocking Enabled:</strong>
-                                        Removes all links from chat <strong>except</strong>:
+                                        <strong style="color:var(--accent);"><i class="fas fa-toggle-on"></i> <?= t('modules_url_blocking_enabled_label') ?></strong>
+                                        <?= t('modules_url_blocking_enabled_desc') ?>
                                         <ul>
-                                            <li>URLs matching whitelist regex patterns</li>
-                                            <li>Twitch.tv and clips.twitch.tv links</li>
-                                            <li>Messages from mods/streamers (bypass)</li>
+                                            <li><?= t('modules_url_blocking_enabled_item1') ?></li>
+                                            <li><?= t('modules_url_blocking_enabled_item2') ?></li>
+                                            <li><?= t('modules_url_blocking_enabled_item3') ?></li>
                                         </ul>
                                     </li>
                                     <li>
-                                        <strong style="color: #00947e;"><i class="fas fa-toggle-off"></i> URL Blocking Disabled:</strong>
-                                        Allows all URLs in chat <strong>except</strong> blacklisted ones.
+                                        <strong style="color: #00947e;"><i class="fas fa-toggle-off"></i> <?= t('modules_url_blocking_disabled_label') ?></strong>
+                                        <?= t('modules_url_blocking_disabled_desc') ?>
                                     </li>
                                     <li>
-                                        <strong style="color: #00947e;"><i class="fas fa-check-circle"></i> Whitelist Supports Regex:</strong>
-                                        Use regular expressions for flexible pattern matching (e.g., <code>.*\.youtube\.com</code> for all YouTube subdomains).
+                                        <strong style="color: #00947e;"><i class="fas fa-check-circle"></i> <?= t('modules_url_blocking_regex_label') ?></strong>
+                                        <?= t('modules_url_blocking_regex_desc') ?>
                                     </li>
                                 </ul>
                                 <p style="margin-top:0.75rem; margin-bottom:0;">
                                     <i class="fas fa-exclamation-triangle" style="color:var(--amber);"></i>
-                                    <strong>Important:</strong> Moderators and streamers can post URLs even when URL Blocking is enabled.
+                                    <?= t('modules_url_blocking_important_note') ?>
                                 </p>
                             </div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
@@ -795,20 +786,20 @@ ob_start();
                                                 </select>
                                             </div>
                                             <div class="sp-form-group" style="margin-top:1rem;">
-                                                <label class="sp-label">Blocking Mode</label>
+                                                <label class="sp-label"><?= t('modules_blocking_mode_label') ?></label>
                                                 <select class="sp-select" name="block_first_message_command_mode" id="block_first_message_command_mode">
-                                                    <option value="all"<?php echo $blockFirstMessageCommandMode === 'all' ? ' selected' : ''; ?>>Allow for all commands</option>
-                                                    <option value="selected"<?php echo $blockFirstMessageCommandMode === 'selected' ? ' selected' : ''; ?>>Allow for selected commands only</option>
+                                                    <option value="all"<?php echo $blockFirstMessageCommandMode === 'all' ? ' selected' : ''; ?>><?= t('modules_blocking_mode_all') ?></option>
+                                                    <option value="selected"<?php echo $blockFirstMessageCommandMode === 'selected' ? ' selected' : ''; ?>><?= t('modules_blocking_mode_selected') ?></option>
                                                 </select>
                                             </div>
                                             <div class="sp-form-group" id="block-first-message-selected-wrapper" style="margin-top:1rem;<?php echo ($blockFirstMessageCommands === 'True' && $blockFirstMessageCommandMode === 'selected') ? '' : 'display:none;'; ?>">
-                                                <label class="sp-label">Commands to block until user has chatted</label>
+                                                <label class="sp-label"><?= t('modules_commands_to_block_label') ?></label>
                                                 <select class="sp-select" name="block_first_message_selected_commands[]" id="block_first_message_selected_commands" multiple size="10">
                                                     <?php foreach ($availableBlockFirstMessageCommands as $cmd): ?>
                                                         <option value="<?php echo htmlspecialchars($cmd); ?>"<?php echo isset($blockFirstMessageSelectedCommands[$cmd]) ? ' selected' : ''; ?>><?php echo htmlspecialchars('!' . $cmd); ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
-                                                <p class="field-help">Includes built-in and custom commands. Hold Ctrl (Windows) or Cmd (Mac) to select multiple commands.</p>
+                                                <p class="field-help"><?= t('modules_commands_to_block_help') ?></p>
                                             </div>
                                             <div style="margin-top:1rem;">
                                                 <button type="submit" name="submit" class="sp-btn sp-btn-primary" style="width:100%;">
@@ -873,7 +864,7 @@ ob_start();
                                                         <tr>
                                                             <td colspan="2" style="text-align:center; color:var(--text-muted);">
                                                                 <i class="fas fa-info-circle"></i>
-                                                                No whitelisted links configured
+                                                                <?= t('modules_no_whitelisted_links') ?>
                                                             </td>
                                                         </tr>
                                                     <?php else: ?>
@@ -910,7 +901,7 @@ ob_start();
                                                         <tr>
                                                             <td colspan="2" style="text-align:center; color:var(--text-muted);">
                                                                 <i class="fas fa-info-circle"></i>
-                                                                No blacklisted links configured
+                                                                <?= t('modules_no_blacklisted_links') ?>
                                                             </td>
                                                         </tr>
                                                     <?php else: ?>
@@ -940,33 +931,33 @@ ob_start();
                         <div class="module-container" style="margin-top:2rem;">
                             <h2 style="font-size:1.4rem; font-weight:700; color:var(--text-primary); margin-bottom:1rem;">
                                 <i class="fas fa-comment-slash" style="color:var(--amber);"></i>
-                                Text Term Blocking
-                                <span class="sp-badge sp-badge-amber" style="margin-left:0.75rem;">Beta - Version 5.8</span>
+                                <?= t('modules_term_blocking_title') ?>
+                                <span class="sp-badge sp-badge-amber" style="margin-left:0.75rem;"><?= t('modules_term_blocking_beta_badge') ?></span>
                             </h2>
                             <!-- Term Blocking Information -->
                             <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
                                 <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">
                                     <i class="fas fa-flask"></i>
-                                    <strong>Term Blocking System (Beta Feature)</strong>
+                                    <strong><?= t('modules_term_blocking_system_title') ?></strong>
                                 </h4>
-                                <p><strong>How Term Blocking Works:</strong></p>
+                                <p><strong><?= t('modules_term_blocking_how_works') ?></strong></p>
                                 <ul>
                                     <li>
-                                        <strong style="color:var(--red);"><i class="fas fa-ban"></i> Blocked Terms:</strong>
-                                        Messages containing blocked terms will be automatically deleted from chat.
+                                        <strong style="color:var(--red);"><i class="fas fa-ban"></i> <?= t('modules_term_blocking_blocked_label') ?></strong>
+                                        <?= t('modules_term_blocking_blocked_desc') ?>
                                     </li>
                                     <li>
-                                        <strong style="color:var(--accent);"><i class="fas fa-toggle-on"></i> When Enabled:</strong>
-                                        Bot will scan all chat messages for blocked terms and remove matching messages instantly.
+                                        <strong style="color:var(--accent);"><i class="fas fa-toggle-on"></i> <?= t('modules_term_blocking_enabled_label') ?></strong>
+                                        <?= t('modules_term_blocking_enabled_desc') ?>
                                     </li>
                                     <li>
-                                        <strong style="color: #00947e;"><i class="fas fa-shield-alt"></i> Case-Insensitive:</strong>
-                                        Term matching is case-insensitive (e.g., "badword", "BADWORD", "BadWord" all match).
+                                        <strong style="color: #00947e;"><i class="fas fa-shield-alt"></i> <?= t('modules_term_blocking_case_label') ?></strong>
+                                        <?= t('modules_term_blocking_case_desc') ?>
                                     </li>
                                 </ul>
                                 <p style="margin-top:0.75rem; margin-bottom:0;">
                                     <i class="fas fa-exclamation-triangle" style="color:var(--amber);"></i>
-                                    <strong>Note:</strong> This feature is in beta testing. Report any issues via feedback.
+                                    <?= t('modules_term_blocking_beta_note') ?>
                                 </p>
                             </div>
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
@@ -975,7 +966,7 @@ ob_start();
                                     <div class="sp-card-body">
                                         <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:1rem;">
                                             <i class="fas fa-comment-slash" style="color:var(--amber);"></i>
-                                            Enable Term Blocking
+                                            <?= t('modules_enable_term_blocking') ?>
                                         </h3>
                                         <form action="module_data_post.php" method="post">
                                             <div class="sp-form-group">
@@ -998,16 +989,16 @@ ob_start();
                                     <div class="sp-card-body">
                                         <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:1rem;">
                                             <i class="fas fa-ban" style="color:var(--red);"></i>
-                                            Add Blocked Term
+                                            <?= t('modules_add_blocked_term_title') ?>
                                         </h3>
                                         <form action="module_data_post.php" method="post">
                                             <div class="sp-form-group">
-                                                <input class="sp-input" type="text" name="blocked_term" id="blocked_term" placeholder="Enter term to block..." required>
+                                                <input class="sp-input" type="text" name="blocked_term" id="blocked_term" placeholder="<?= htmlspecialchars(t('modules_blocked_term_placeholder')) ?>" required>
                                             </div>
                                             <div style="margin-top:1rem;">
                                                 <button type="submit" name="submit" class="sp-btn sp-btn-danger" style="width:100%;">
                                                     <i class="fas fa-minus-circle"></i>
-                                                    <span>Add to Blocked Terms</span>
+                                                    <span><?= t('modules_add_to_blocked_terms') ?></span>
                                                 </button>
                                             </div>
                                         </form>
@@ -1018,7 +1009,7 @@ ob_start();
                                     <div class="sp-card-body">
                                         <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">
                                             <i class="fas fa-list-ul" style="color:var(--red);"></i>
-                                            Blocked Terms List
+                                            <?= t('modules_blocked_terms_list') ?>
                                         </h3>
                                         <div class="sp-table-wrap">
                                             <table class="sp-table">
@@ -1027,7 +1018,7 @@ ob_start();
                                                         <tr>
                                                             <td colspan="2" style="text-align:center; color:var(--text-muted);">
                                                                 <i class="fas fa-info-circle"></i>
-                                                                No blocked terms configured
+                                                                <?= t('modules_no_blocked_terms') ?>
                                                             </td>
                                                         </tr>
                                                     <?php else: ?>
@@ -1039,7 +1030,7 @@ ob_start();
                                                                         <input type="hidden" name="remove_blocked_term" value="<?php echo htmlspecialchars($term['term']); ?>">
                                                                         <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
                                                                             <i class="fas fa-trash-alt"></i>
-                                                                            <span>Remove</span>
+                                                                            <span><?php echo t('protection_remove'); ?></span>
                                                                         </button>
                                                                     </form>
                                                                 </td>
@@ -1060,33 +1051,30 @@ ob_start();
                             <div style="display:flex; align-items:center; margin-bottom:1rem;">
                                 <h2 style="font-size:1.3rem; font-weight:700; color:var(--text-primary); margin:0;">
                                     <i class="fas fa-skull-crossbones"></i>
-                                    Game Deaths Configuration
+                                    <?= t('modules_game_deaths_config_title') ?>
                                 </h2>
                             </div>
                             <!-- Configuration Note -->
                             <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
                                 <i class="fas fa-info-circle"></i>
-                                <strong>Game Deaths Configuration:</strong><br>
-                                Configure games to ignore when counting deaths.<br>
-                                Deaths in these games will not be added to the total death counter
-                                for the !deathadd command.
+                                <?= t('modules_game_deaths_config_note') ?>
                             </div>
                             <!-- Add Game Form -->
                             <form method="POST" action="module_data_post.php" style="margin-bottom:1rem;">
                                 <div style="display:flex; gap:0.5rem;">
                                     <input class="sp-input" type="text" name="ignore_game_name"
-                                        placeholder="Enter game name to ignore (e.g., Minecraft, Fortnite)"
+                                        placeholder="<?= htmlspecialchars(t('modules_ignore_game_placeholder')) ?>"
                                         maxlength="100" required style="flex:1;">
                                     <button class="sp-btn sp-btn-primary" type="submit" name="add_ignored_game">
                                         <i class="fas fa-plus"></i>
-                                        <span>Add Game</span>
+                                        <span><?= t('modules_add_game') ?></span>
                                     </button>
                                 </div>
                             </form>
                             <!-- Current Ignored Games -->
                             <h4 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
                                 <i class="fas fa-list"></i>
-                                Currently Ignored Games
+                                <?= t('modules_currently_ignored_games') ?>
                             </h4>
                             <div>
                                 <?php
@@ -1100,7 +1088,7 @@ ob_start();
                                     }
                                     echo '</div>';
                                 } else {
-                                    echo '<p style="color:var(--text-muted);">No games are currently being ignored.</p>';
+                                    echo '<p style="color:var(--text-muted);">' . t('modules_no_games_ignored') . '</p>';
                                 }
                                 ?>
                             </div>
@@ -1112,14 +1100,14 @@ ob_start();
                             <div style="display:flex; align-items:center; margin-bottom:1rem;">
                                 <h2 style="font-size:1.3rem; font-weight:700; color:var(--text-primary); margin:0;">
                                     <i class="fas fa-cog"></i>
-                                    Ad Notice Messages
+                                    <?= t('modules_ad_notice_messages_title') ?>
                                 </h2>
                             </div>
                             <form method="POST" action="module_data_post.php">
                                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                     <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                         <i class="fas fa-bullhorn"></i>
-                                        Advertisement Messages
+                                        <?= t('modules_advertisement_messages') ?>
                                     </h5>
                                 </div>
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
@@ -1141,7 +1129,7 @@ ob_start();
                                             maxlength="255" placeholder="<?php echo t('modules_ad_upcoming_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_upcoming_message ?? ''); ?></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_upcoming_message">0</span>/255 characters
+                                            <span class="char-count" data-field="ad_upcoming_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
@@ -1162,7 +1150,7 @@ ob_start();
                                             maxlength="255" placeholder="<?php echo t('modules_ad_1min_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_1min_message ?? ''); ?></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_1min_message">0</span>/255 characters
+                                            <span class="char-count" data-field="ad_1min_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
@@ -1183,7 +1171,7 @@ ob_start();
                                             maxlength="255" placeholder="<?php echo t('modules_ad_start_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_start_message ?? ''); ?></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_start_message">0</span>/255 characters
+                                            <span class="char-count" data-field="ad_start_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
                                     </div>
                                     <div class="sp-form-group">
@@ -1204,14 +1192,12 @@ ob_start();
                                             maxlength="255" placeholder="<?php echo t('modules_ad_end_message_placeholder'); ?>"
                                             rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_end_message ?? ''); ?></textarea>
                                         <p class="field-help">
-                                            <span class="char-count" data-field="ad_end_message">0</span>/255 characters
+                                            <span class="char-count" data-field="ad_end_message">0</span><?= t('modules_char_count_255') ?>
                                         </p>
                                     </div>
                                 </div>
                                 <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
-                                    <p><strong>Note:</strong> The Ad Snoozed Message may be delayed in chat due to polling intervals.
-                                        Additionally, there is a known issue where an extra warning message after the ad is snoozed does not
-                                        post. This will be fixed in the next release.</p>
+                                    <p><?= t('modules_ad_snoozed_note') ?></p>
                                 </div>
                                 <div class="sp-form-group" style="margin-bottom:1rem;">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
@@ -1231,7 +1217,7 @@ ob_start();
                                         maxlength="255" placeholder="<?php echo t('modules_ad_snoozed_message_placeholder'); ?>"
                                         rows="3" style="word-wrap: break-word; white-space: pre-wrap;"><?php echo htmlspecialchars($ad_snoozed_message ?? ''); ?></textarea>
                                     <p class="field-help">
-                                        <span class="char-count" data-field="ad_snoozed_message">0</span>/255 characters
+                                        <span class="char-count" data-field="ad_snoozed_message">0</span><?= t('modules_char_count_255') ?>
                                     </p>
                                 </div>
                                 <!-- Enable/Disable Toggle -->
@@ -1243,7 +1229,7 @@ ob_start();
                                                 <?php echo t('modules_enable_ad_notice'); ?>
                                             </label>
                                             <p class="field-help">
-                                                Toggle this switch to enable or disable advertisement notices in your stream chat.
+                                                <?= t('modules_enable_ad_notice_help') ?>
                                             </p>
                                         </div>
                                         <label for="enable_ad_notice" style="cursor: pointer;">
@@ -1260,12 +1246,11 @@ ob_start();
                                         <div>
                                             <label class="sp-label">
                                                 <i class="fas fa-robot"></i>
-                                                Enable AI-Powered Ad Break Messages
+                                                <?= t('modules_enable_ai_ad_breaks_label') ?>
                                             </label>
                                             <p class="field-help">
-                                                <span class="sp-badge sp-badge-amber" style="margin-right:0.5rem;">Premium Feature</span>
-                                                When enabled, the bot will use AI to generate dynamic, context-aware ad break
-                                                messages based on recent chat activity. Requires Tier 2 subscription or higher.
+                                                <span class="sp-badge sp-badge-amber" style="margin-right:0.5rem;"><?= t('modules_premium_feature_badge') ?></span>
+                                                <?= t('modules_enable_ai_ad_breaks_help') ?>
                                             </p>
                                         </div>
                                         <label for="enable_ai_ad_breaks" style="cursor: pointer;">
@@ -1325,7 +1310,7 @@ ob_start();
                                         <div id="uploadStatusContainer" style="display: none; margin-bottom:1rem;">
                                             <div class="sp-alert sp-alert-info">
                                                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-                                                    <strong id="uploadStatusText">Preparing upload...</strong>
+                                                    <strong id="uploadStatusText"><?= t('modules_preparing_upload') ?></strong>
                                                     <span id="uploadProgressPercent" style="font-weight:600;">0%</span>
                                                 </div>
                                                 <progress id="uploadProgress" value="0" max="100" style="width:100%; height:1.5rem; border-radius:0.75rem;">0%</progress>
@@ -1456,7 +1441,7 @@ ob_start();
                             <div style="display:flex; align-items:center; margin-bottom:1rem;">
                                 <h2 style="font-size:1.3rem; font-weight:700; color:var(--text-primary); margin:0;">
                                     <i class="fas fa-cog"></i>
-                                    Chat Alert Messages
+                                    <?= t('modules_chat_alert_messages_title') ?>
                                 </h2>
                             </div>
                             <form action="module_data_post.php" method="POST" id="chatAlertsForm">
@@ -1466,11 +1451,11 @@ ob_start();
                                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                             <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                                 <i class="fas fa-users"></i>
-                                                General Events
+                                                <?= t('modules_general_events') ?>
                                             </h5>
                                             <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="general">
                                                 <i class="fas fa-save"></i>
-                                                <span>Save General Events</span>
+                                                <span><?= t('modules_save_general_events') ?></span>
                                             </button>
                                         </div>
                                         <div class="sp-form-group">
@@ -1480,7 +1465,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="follower_alert" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['follower_alert']) ? $chat_alerts['follower_alert'] : $default_chat_alerts['follower_alert']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="follower_alert">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="follower_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -1489,7 +1474,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="cheer_alert" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['cheer_alert']) ? $chat_alerts['cheer_alert'] : $default_chat_alerts['cheer_alert']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="cheer_alert">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="cheer_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -1498,7 +1483,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="raid_alert" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['raid_alert']) ? $chat_alerts['raid_alert'] : $default_chat_alerts['raid_alert']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="raid_alert">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="raid_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
                                     <!-- Subscription Events Column -->
@@ -1506,11 +1491,11 @@ ob_start();
                                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                             <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                                 <i class="fas fa-star"></i>
-                                                Subscription Events
+                                                <?= t('modules_subscription_events') ?>
                                             </h5>
                                             <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="subscription">
                                                 <i class="fas fa-save"></i>
-                                                <span>Save Subscription Events</span>
+                                                <span><?= t('modules_save_subscription_events') ?></span>
                                             </button>
                                         </div>
                                         <div class="sp-form-group">
@@ -1521,18 +1506,18 @@ ob_start();
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="subscription_alert" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['subscription_alert']) ? $chat_alerts['subscription_alert'] : $default_chat_alerts['subscription_alert']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="subscription_alert">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="subscription_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-gift"></i>
                                                 <?php echo t('modules_gift_subscription_alert'); ?>
                                                 <span class="sp-badge sp-badge-red" style="font-size:0.7rem;">*</span>
-                                                <i class="fas fa-info-circle" style="color:var(--amber);" title="This message uses the user variable to thank the person who sent the gift, not the recipients."></i>
+                                                <i class="fas fa-info-circle" style="color:var(--amber);" title="<?= htmlspecialchars(t('modules_gift_sub_info_tooltip')) ?>"></i>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="gift_subscription_alert" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['gift_subscription_alert']) ? $chat_alerts['gift_subscription_alert'] : $default_chat_alerts['gift_subscription_alert']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="gift_subscription_alert">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="gift_subscription_alert">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1541,11 +1526,11 @@ ob_start();
                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                         <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                             <i class="fas fa-train"></i>
-                                            Hype Train Events
+                                            <?= t('modules_hype_train_events') ?>
                                         </h5>
                                         <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="hype-train">
                                             <i class="fas fa-save"></i>
-                                            <span>Save Hype Train Events</span>
+                                            <span><?= t('modules_save_hype_train_events') ?></span>
                                         </button>
                                     </div>
                                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
@@ -1556,7 +1541,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="hype_train_start" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_start']) ? $chat_alerts['hype_train_start'] : $default_chat_alerts['hype_train_start']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="hype_train_start">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="hype_train_start">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
@@ -1565,7 +1550,7 @@ ob_start();
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="hype_train_end" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['hype_train_end']) ? $chat_alerts['hype_train_end'] : $default_chat_alerts['hype_train_end']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="hype_train_end">0</span>/255 characters</p>
+                                            <p class="field-help"><span class="char-count" data-field="hype_train_end">0</span><?= t('modules_char_count_255') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1574,44 +1559,44 @@ ob_start();
                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                         <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                             <i class="fas fa-flask"></i>
-                                            BETA Features
+                                            <?= t('modules_beta_features') ?>
                                         </h5>
                                         <button type="button" class="section-save-btn sp-btn sp-btn-success sp-btn-sm" data-section="beta">
                                             <i class="fas fa-save"></i>
-                                            <span>Save BETA Features</span>
+                                            <span><?= t('modules_save_beta_features') ?></span>
                                         </button>
                                     </div>
                                     <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
                                         <i class="fas fa-flask"></i>
-                                        <strong>BETA Features:</strong> These subscription upgrade alerts are currently in beta testing. They use the new Twitch EventSub "Chat Notification" system.
+                                        <?= t('modules_beta_features_note') ?>
                                     </div>
                                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-arrow-up"></i>
-                                                Gift Paid Upgrade <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
+                                                <?= t('modules_gift_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="gift_paid_upgrade" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['gift_paid_upgrade']) ? $chat_alerts['gift_paid_upgrade'] : $default_chat_alerts['gift_paid_upgrade']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="gift_paid_upgrade">0</span>/255 characters. Placeholders: (user), (tier)</p>
+                                            <p class="field-help"><span class="char-count" data-field="gift_paid_upgrade">0</span><?= t('modules_char_count_255_placeholders_user_tier') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-arrow-up"></i>
-                                                Prime Paid Upgrade <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
+                                                <?= t('modules_prime_paid_upgrade_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="prime_paid_upgrade" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['prime_paid_upgrade']) ? $chat_alerts['prime_paid_upgrade'] : $default_chat_alerts['prime_paid_upgrade']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="prime_paid_upgrade">0</span>/255 characters. Placeholders: (user), (tier)</p>
+                                            <p class="field-help"><span class="char-count" data-field="prime_paid_upgrade">0</span><?= t('modules_char_count_255_placeholders_user_tier') ?></p>
                                         </div>
                                         <div class="sp-form-group" style="grid-column: 1 / -1;">
                                             <label class="sp-label">
                                                 <i class="fas fa-gift"></i>
-                                                Pay It Forward <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
+                                                <?= t('modules_pay_it_forward_label') ?> <span class="sp-badge sp-badge-amber" style="font-size:0.7rem;">BETA</span>
                                             </label>
                                             <input class="sp-input chat-alert-input" type="text" name="pay_it_forward" maxlength="255"
                                                 value="<?php echo htmlspecialchars(isset($chat_alerts['pay_it_forward']) ? $chat_alerts['pay_it_forward'] : $default_chat_alerts['pay_it_forward']); ?>">
-                                            <p class="field-help"><span class="char-count" data-field="pay_it_forward">0</span>/255 characters. Placeholders: (user), (tier), (gifter)</p>
+                                            <p class="field-help"><span class="char-count" data-field="pay_it_forward">0</span><?= t('modules_char_count_255_placeholders_user_tier_gifter') ?></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1625,9 +1610,9 @@ ob_start();
                                 <div>
                                     <h2 style="font-size:1.3rem; font-weight:700; color:var(--text-primary); margin:0 0 0.25rem;">
                                         <i class="fas fa-bullhorn" style="color:var(--blue);"></i>
-                                        Automated Shoutouts
+                                        <?= t('modules_automated_shoutouts_title') ?>
                                     </h2>
-                                    <p style="color:var(--text-muted); margin:0;">Manage cooldown settings for automated shoutouts triggered by raids, follows, cheers, subs, and welcome messages.</p>
+                                    <p style="color:var(--text-muted); margin:0;"><?= t('modules_automated_shoutouts_description') ?></p>
                                 </div>
                             </div>
                             <form method="POST" action="module_data_post.php">
@@ -1635,18 +1620,18 @@ ob_start();
                                     <div class="sp-card-body">
                                         <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 1rem;">
                                             <i class="fas fa-clock" style="color:var(--amber);"></i>
-                                            Cooldown Settings
+                                            <?= t('modules_cooldown_settings') ?>
                                         </h3>
                                         <div class="sp-form-group">
-                                            <label class="sp-label">Automated Shoutout Cooldown (minutes)</label>
+                                            <label class="sp-label"><?= t('modules_automated_shoutout_cooldown_label') ?></label>
                                             <input class="sp-input" type="number" name="cooldown_minutes"
                                                 value="<?php echo htmlspecialchars($automated_shoutout_cooldown); ?>"
                                                 min="60" required>
-                                            <p class="field-help">Minimum 60 minutes due to Twitch API rate limits. This prevents the same user from receiving multiple automated shoutouts within the cooldown period.</p>
+                                            <p class="field-help"><?= t('modules_automated_shoutout_cooldown_help') ?></p>
                                         </div>
                                         <button type="submit" class="sp-btn sp-btn-success">
                                             <i class="fas fa-save"></i>
-                                            <span>Save Cooldown Settings</span>
+                                            <span><?= t('modules_save_cooldown_settings') ?></span>
                                         </button>
                                     </div>
                                 </div>
@@ -1656,20 +1641,20 @@ ob_start();
                                 <div class="sp-card-body">
                                     <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 0.5rem;">
                                         <i class="fas fa-hourglass-half" style="color:var(--red);"></i>
-                                        Users on Cooldown
+                                        <?= t('modules_users_on_cooldown') ?>
                                     </h3>
-                                    <p style="color:var(--text-muted); margin:0 0 1rem;">These users recently received an automated shoutout and are currently in the cooldown period. The cooldown resets when the stream goes offline or the timer above is reached.</p>
+                                    <p style="color:var(--text-muted); margin:0 0 1rem;"><?= t('modules_users_on_cooldown_description') ?></p>
                                     <div class="sp-alert sp-alert-info"<?php echo !empty($automated_shoutout_tracking) ? ' style="display:none;"' : ''; ?>>
                                         <i class="fas fa-info-circle"></i>
-                                        No users are currently on automated shoutout cooldown.
+                                        <?= t('modules_no_users_on_cooldown') ?>
                                     </div>
                                     <div class="sp-table-wrap"<?php echo empty($automated_shoutout_tracking) ? ' style="display:none;"' : ''; ?>>
                                         <table class="sp-table">
                                             <thead>
                                                 <tr>
-                                                    <th>User</th>
-                                                    <th>Last Shoutout</th>
-                                                    <th>Cooldown Remaining</th>
+                                                    <th><?= t('modules_table_user') ?></th>
+                                                    <th><?= t('modules_table_last_shoutout') ?></th>
+                                                    <th><?= t('modules_table_cooldown_remaining') ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1687,9 +1672,9 @@ ob_start();
                                                         <td><?php echo $shoutout_time->format('Y-m-d H:i:s'); ?></td>
                                                         <td>
                                                             <?php if ($is_expired): ?>
-                                                                <span class="sp-badge sp-badge-green">Ready</span>
+                                                                <span class="sp-badge sp-badge-green"><?= t('modules_cooldown_ready') ?></span>
                                                             <?php else: ?>
-                                                                <span class="sp-badge sp-badge-amber"><?php echo $remaining_minutes; ?> min</span>
+                                                                <span class="sp-badge sp-badge-amber"><?php echo $remaining_minutes; ?> <?= t('modules_cooldown_min') ?></span>
                                                             <?php endif; ?>
                                                         </td>
                                                     </tr>
@@ -1709,9 +1694,9 @@ ob_start();
                             <div>
                                 <h2 style="font-size:1.3rem; font-weight:700; color:var(--text-primary); margin:0 0 0.25rem;">
                                     <i class="fas fa-microphone" style="color:var(--blue);"></i>
-                                    Text-to-Speech (TTS) Settings
+                                    <?= t('modules_tts_settings_title') ?>
                                 </h2>
-                                <p style="color:var(--text-muted); margin:0;">Configure the voice and language for TTS messages in your channel.</p>
+                                <p style="color:var(--text-muted); margin:0;"><?= t('modules_tts_settings_description') ?></p>
                             </div>
                         </div>
                         <form method="POST" action="module_data_post.php">
@@ -1719,21 +1704,20 @@ ob_start();
                                 <div class="sp-card-body">
                                     <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 1rem;">
                                         <i class="fas fa-cog"></i>
-                                        Voice Configuration
+                                        <?= t('modules_voice_configuration') ?>
                                     </h3>
                                     <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
                                         <i class="fas fa-info-circle"></i>
-                                        <strong>Need help choosing a voice?</strong><br>
-                                        Visit our <a href="https://help.botofthespecter.com/tts_setup.php" target="_blank" style="color:var(--accent);"><strong>TTS Setup Guide</strong></a> to hear voice samples and learn more about each option.
+                                        <?= t('modules_tts_help_choosing_voice') ?>
                                     </div>
                                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-volume-up"></i>
-                                                TTS Voice
+                                                <?= t('modules_tts_voice_label') ?>
                                             </label>
                                             <select class="sp-select" name="tts_voice" required>
-                                                <option value="Alloy" <?php echo ($tts_voice === 'Alloy') ? 'selected' : ''; ?>>Alloy [default]</option>
+                                                <option value="Alloy" <?php echo ($tts_voice === 'Alloy') ? 'selected' : ''; ?>>Alloy <?= t('modules_tts_voice_default_suffix') ?></option>
                                                 <option value="Ash" <?php echo ($tts_voice === 'Ash') ? 'selected' : ''; ?>>Ash</option>
                                                 <option value="Ballad" <?php echo ($tts_voice === 'Ballad') ? 'selected' : ''; ?>>Ballad</option>
                                                 <option value="Coral" <?php echo ($tts_voice === 'Coral') ? 'selected' : ''; ?>>Coral</option>
@@ -1745,23 +1729,23 @@ ob_start();
                                                 <option value="Shimmer" <?php echo ($tts_voice === 'Shimmer') ? 'selected' : ''; ?>>Shimmer</option>
                                                 <option value="Verse" <?php echo ($tts_voice === 'Verse') ? 'selected' : ''; ?>>Verse</option>
                                             </select>
-                                            <p class="field-help">Select the voice that will read TTS messages in your channel.</p>
+                                            <p class="field-help"><?= t('modules_tts_voice_help') ?></p>
                                         </div>
                                         <div class="sp-form-group">
                                             <label class="sp-label">
                                                 <i class="fas fa-globe"></i>
-                                                Language
+                                                <?= t('modules_tts_language_label') ?>
                                             </label>
                                             <select class="sp-select" name="tts_language" required>
-                                                <option value="en" <?php echo ($tts_language === 'en') ? 'selected' : ''; ?>>English</option>
+                                                <option value="en" <?php echo ($tts_language === 'en') ? 'selected' : ''; ?>><?= t('modules_tts_language_english') ?></option>
                                             </select>
-                                            <p class="field-help">Select the language for TTS messages.</p>
+                                            <p class="field-help"><?= t('modules_tts_language_help') ?></p>
                                         </div>
                                     </div>
                                     <div style="margin-top:1rem;">
                                         <button type="submit" class="sp-btn sp-btn-success">
                                             <i class="fas fa-save"></i>
-                                            <span>Save TTS Settings</span>
+                                            <span><?= t('modules_save_tts_settings') ?></span>
                                         </button>
                                     </div>
                                 </div>
@@ -1776,8 +1760,8 @@ ob_start();
                             <div style="display:flex; align-items:flex-start; gap:0.75rem;">
                                 <i class="fas fa-info-circle" style="margin-top:0.15rem; flex-shrink:0;"></i>
                                 <div>
-                                    <strong>What is this feature?</strong>
-                                    <p style="margin:0.25rem 0 0;">This feature is intended for channels that have had a <strong>custom module built specifically for their channel</strong> by BotOfTheSpecter and wish to use a separate bot account to send messages for those modules. If you have not had a custom module built for your channel, you do not need to configure anything here. <em>This is entirely optional.</em></p>
+                                    <strong><?= t('modules_module_bot_what_title') ?></strong>
+                                    <p style="margin:0.25rem 0 0;"><?= t('modules_module_bot_what_desc') ?></p>
                                 </div>
                             </div>
                         </div>
@@ -1785,9 +1769,9 @@ ob_start();
                             <div>
                                 <h2 style="font-size:1.3rem; font-weight:700; color:var(--text-primary); margin:0 0 0.25rem;">
                                     <i class="fas fa-robot" style="color:var(--amber);"></i>
-                                    Custom Module Bots
+                                    <?= t('modules_custom_module_bots_title') ?>
                                 </h2>
-                                <p style="color:var(--text-muted); margin:0;">Link one or more custom bot accounts to your channel. Each bot can be used to send messages for different custom modules.</p>
+                                <p style="color:var(--text-muted); margin:0;"><?= t('modules_custom_module_bots_description') ?></p>
                             </div>
                         </div>
                         <!-- Add new bot form -->
@@ -1795,32 +1779,32 @@ ob_start();
                             <div class="sp-card-body">
                                 <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 1rem;">
                                     <i class="fas fa-plus-circle" style="color:var(--green);"></i>
-                                    Add a Custom Module Bot
+                                    <?= t('modules_add_custom_module_bot') ?>
                                 </h3>
                                 <form method="post" id="custom-module-bot-form">
                                     <input type="hidden" name="action" value="add_module_bot">
                                     <div style="display:grid; grid-template-columns:5fr 7fr; gap:1.5rem; margin-bottom:1rem;">
                                         <div class="sp-form-group">
-                                            <label class="sp-label">Bot Username</label>
-                                            <input class="sp-input" type="text" name="bot_username" id="module-bot-username" placeholder="Enter bot Twitch username (without @)" autocomplete="off">
+                                            <label class="sp-label"><?= t('modules_bot_username_label') ?></label>
+                                            <input class="sp-input" type="text" name="bot_username" id="module-bot-username" placeholder="<?= htmlspecialchars(t('modules_bot_username_placeholder')) ?>" autocomplete="off">
                                             <span id="module-bot-lookup-status" style="display:none;"></span>
-                                            <p class="field-help">The Twitch username of the bot account (without @).</p>
+                                            <p class="field-help"><?= t('modules_bot_username_help') ?></p>
                                         </div>
                                         <div class="sp-form-group">
-                                            <label class="sp-label">Bot ID <span style="color:var(--text-muted); font-weight:normal;">(auto-resolved)</span></label>
+                                            <label class="sp-label"><?= t('modules_bot_id_label') ?> <span style="color:var(--text-muted); font-weight:normal;"><?= t('modules_bot_id_auto_resolved') ?></span></label>
                                             <div style="display:flex; gap:0.5rem; margin-bottom:0.3rem;">
-                                                <input class="sp-input" style="flex:1;" type="text" name="bot_channel_id" id="module-bot-id" readonly placeholder="Click &quot;Resolve ID&quot; to look up">
+                                                <input class="sp-input" style="flex:1;" type="text" name="bot_channel_id" id="module-bot-id" readonly placeholder="<?= htmlspecialchars(t('modules_bot_id_placeholder')) ?>">
                                                 <button type="button" class="sp-btn sp-btn-info" id="resolve-module-bot-btn">
                                                     <i class="fas fa-search"></i>
-                                                    <span>Resolve ID</span>
+                                                    <span><?= t('modules_resolve_id_btn') ?></span>
                                                 </button>
                                             </div>
-                                            <p class="field-help">Resolved automatically from the username above.</p>
+                                            <p class="field-help"><?= t('modules_bot_id_help') ?></p>
                                         </div>
                                     </div>
                                     <button type="submit" class="sp-btn sp-btn-success">
                                         <i class="fas fa-plus"></i>
-                                        <span>Add Bot</span>
+                                        <span><?= t('modules_add_bot_btn') ?></span>
                                     </button>
                                 </form>
                             </div>
@@ -1828,31 +1812,29 @@ ob_start();
                         <!-- Verification instructions -->
                         <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
                             <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Verification required:</strong> After adding a bot, it must be verified before it can send messages.
-                            Open <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener" style="color:var(--accent);"><strong>mybot.specterbot.systems/custombot.php</strong></a>
-                            in an <strong>incognito/private window</strong> and sign in with the bot account to complete verification.
+                            <?= t('modules_verification_required_note') ?>
                         </div>
                         <!-- Linked bots list -->
                         <div class="sp-card">
                             <div class="sp-card-body">
                                 <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 1rem;">
                                     <i class="fas fa-list" style="color:var(--blue);"></i>
-                                    Linked Bots
+                                    <?= t('modules_linked_bots') ?>
                                 </h3>
                                 <?php if (empty($moduleBots)): ?>
                                     <div class="sp-alert sp-alert-info">
                                         <i class="fas fa-info-circle"></i>
-                                        No custom module bots linked yet. Use the form above to add one.
+                                        <?= t('modules_no_module_bots_linked') ?>
                                     </div>
                                 <?php else: ?>
                                     <div class="sp-table-wrap">
                                         <table class="sp-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Bot Username</th>
-                                                    <th>Bot ID</th>
-                                                    <th>Status</th>
-                                                    <th style="text-align:right;">Actions</th>
+                                                    <th><?= t('modules_table_bot_username') ?></th>
+                                                    <th><?= t('modules_table_bot_id') ?></th>
+                                                    <th><?= t('modules_table_status') ?></th>
+                                                    <th style="text-align:right;"><?= t('modules_table_actions') ?></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1865,9 +1847,9 @@ ob_start();
                                                     <td><code><?php echo htmlspecialchars($mb['bot_channel_id']); ?></code></td>
                                                     <td>
                                                         <?php if (intval($mb['is_verified']) === 1): ?>
-                                                            <span class="sp-badge sp-badge-green"><i class="fas fa-check-circle"></i> Verified</span>
+                                                            <span class="sp-badge sp-badge-green"><i class="fas fa-check-circle"></i> <?= t('modules_status_verified') ?></span>
                                                         <?php else: ?>
-                                                            <span class="sp-badge sp-badge-amber"><i class="fas fa-clock"></i> Pending Verification</span>
+                                                            <span class="sp-badge sp-badge-amber"><i class="fas fa-clock"></i> <?= t('modules_status_pending_verification') ?></span>
                                                         <?php endif; ?>
                                                     </td>
                                                     <td style="text-align:right;">
@@ -1876,7 +1858,7 @@ ob_start();
                                                             <input type="hidden" name="record_id" value="<?php echo intval($mb['id']); ?>">
                                                             <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
                                                                 <i class="fas fa-trash-alt"></i>
-                                                                <span>Remove</span>
+                                                                <span><?php echo t('protection_remove'); ?></span>
                                                             </button>
                                                         </form>
                                                     </td>

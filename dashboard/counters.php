@@ -740,16 +740,16 @@ ob_start();
 <?php endif; ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <h2 class="sp-card-title"><i class="fas fa-stopwatch"></i> <?php echo t('navbar_counters'); ?> & Management</h2>
+    <h2 class="sp-card-title"><i class="fas fa-stopwatch"></i> <?php echo t('navbar_counters'); ?> & <?php echo t('counters_management'); ?></h2>
   </div>
   <div class="sp-card-body">
     <!-- Tab Navigation -->
     <ul class="sp-tabs-nav">
       <li class="is-active" data-tab="view">
-        <a onclick="switchMode('view')"><i class="fas fa-eye"></i> View Data</a>
+        <a onclick="switchMode('view')"><i class="fas fa-eye"></i> <?php echo t('counters_view_data'); ?></a>
       </li>
       <li data-tab="edit">
-        <a onclick="switchMode('edit')"><i class="fas fa-edit"></i> Edit Data</a>
+        <a onclick="switchMode('edit')"><i class="fas fa-edit"></i> <?php echo t('counters_edit_data'); ?></a>
       </li>
     </ul>
     <!-- View Mode -->
@@ -768,7 +768,7 @@ ob_start();
         <button class="sp-btn sp-btn-info" data-type="rewardUsage" onclick="loadData('rewardUsage')"><?php echo t('counters_reward_usage'); ?></button>
         <button class="sp-btn sp-btn-info" data-type="watchTime" onclick="loadData('watchTime')"><?php echo t('counters_watch_time'); ?></button>
         <button class="sp-btn sp-btn-info" data-type="quotes" onclick="loadData('quotes')"><?php echo t('counters_quotes'); ?></button>
-        <button class="sp-btn sp-btn-info" data-type="manyOptions" onclick="loadData('manyOptions')">Random Pick Lists</button>
+        <button class="sp-btn sp-btn-info" data-type="manyOptions" onclick="loadData('manyOptions')"><?php echo t('counters_random_pick_lists'); ?></button>
       </div>
       <div class="sp-table-wrap">
         <h3 id="table-title" style="font-size:1.1rem; font-weight:700; text-align:center; margin-bottom:0.75rem; color:var(--text-primary);"></h3>
@@ -1328,10 +1328,10 @@ function loadData(type) {
     case 'manyOptions':
       data = <?php echo json_encode($manyOptionsData); ?>;
       countColumnVisible = true;
-      title = 'Random Pick Lists';
-      infoColumn = 'Command';
-      dataColumn = 'Items';
-      additionalColumnName = 'Total';
+      title = <?php echo json_encode(t('counters_random_pick_lists')); ?>;
+      infoColumn = <?php echo json_encode(t('counters_command_column')); ?>;
+      dataColumn = <?php echo json_encode(t('counters_items_column')); ?>;
+      additionalColumnName = <?php echo json_encode(t('counters_total_column')); ?>;
       break;
   }
   // Update active button state using data-type attribute
@@ -1388,7 +1388,7 @@ function loadData(type) {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
       );
-      let renderedOptions = "<span class='sp-text-muted'>No options saved</span>";
+      let renderedOptions = "<span class='sp-text-muted'><?php echo t('counters_no_options_saved'); ?></span>";
       if (escapedItems.length > 0) {
         if (escapedItems.length <= 5) {
           renderedOptions = escapedItems.join('<br>');
@@ -1399,8 +1399,8 @@ function loadData(type) {
             `<details ontoggle="toggleManyOptionsSummary(this)">` +
               `<summary style="cursor:pointer;">` +
                 `${preview}, ... ` +
-                `<span class="many-options-summary-closed">(view all ${escapedItems.length})</span>` +
-                `<span class="many-options-summary-open" style="display:none;">(hide list ${escapedItems.length})</span>` +
+                `<span class="many-options-summary-closed">(<?php echo t('counters_view_all'); ?> ${escapedItems.length})</span>` +
+                `<span class="many-options-summary-open" style="display:none;">(<?php echo t('counters_hide_list'); ?> ${escapedItems.length})</span>` +
               `</summary>` +
               `<div style="margin-top: 0.5rem;">${allItemsHtml}</div>` +
             `</details>`;
@@ -1550,7 +1550,7 @@ function wireRemoveForm(formId, selectId, type) {
 // User count functions
 function updateUserCountUsers(command) {
   const userSelect = document.getElementById('usercount-user');
-  userSelect.innerHTML = '<option value="">Select User</option>';
+  userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
   if (command && userCountUsersByCommand[command]) {
     userCountUsersByCommand[command].forEach(user => {
       const option = document.createElement('option');
@@ -1567,7 +1567,7 @@ function updateUserCountUsers(command) {
 
 function updateUserCountUsersRemove(command) {
   const userSelect = document.getElementById('usercount-user-remove');
-  userSelect.innerHTML = '<option value="">Select User</option>';
+  userSelect.innerHTML = '<option value=""><?php echo t('edit_counters_select_user'); ?></option>';
   if (command && userCountUsersByCommand[command]) {
     userCountUsersByCommand[command].forEach(user => {
       const option = document.createElement('option');

@@ -317,7 +317,7 @@ ob_start();
         </a>
         <div class="sp-betabot-toggle">
             <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
-            <label for="betaBotToggle">Using Beta Bot? <strong>Enables 500 character limit.</strong></label>
+            <label for="betaBotToggle"><?= t('custom_commands_beta_bot_toggle') ?></label>
         </div>
     </div>
 </div>
@@ -372,7 +372,7 @@ ob_start();
                     <small id="responseCharCount" class="sp-help">0/255 <?php echo t('custom_commands_characters'); ?></small>
                     <button id="addManyOptionsBtn" class="sp-btn sp-btn-secondary sp-btn-sm" style="display:none; margin-top:0.5rem;" type="button" onclick="handleManyOptionsPrompt('response', 'command', true)">
                         <i class="fas fa-list"></i>
-                        <span>Manage options for your command (Beta 5.8)</span>
+                        <span><?= t('custom_commands_manage_options_btn') ?></span>
                     </button>
                 </div>
                 <div class="sp-form-group">
@@ -383,7 +383,7 @@ ob_start();
                     </div>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="permission">Permission Level</label>
+                    <label class="sp-label" for="permission"><?= t('custom_commands_permission_level') ?></label>
                     <div class="sp-input-wrap">
                         <i class="fas fa-users sp-input-icon"></i>
                         <select id="permission" name="permission" class="sp-select" required>
@@ -438,7 +438,7 @@ ob_start();
                         <small id="editResponseCharCount" class="sp-help">0/255 <?php echo t('custom_commands_characters'); ?></small>
                         <button id="editManyOptionsBtn" class="sp-btn sp-btn-secondary sp-btn-sm" style="display:none; margin-top:0.5rem;" type="button" onclick="handleManyOptionsPrompt('command_response', 'new_command_name', true)">
                             <i class="fas fa-list"></i>
-                            <span>Manage options for your command (Beta 5.8)</span>
+                            <span><?= t('custom_commands_manage_options_btn') ?></span>
                         </button>
                     </div>
                     <div class="sp-form-group">
@@ -449,7 +449,7 @@ ob_start();
                         </div>
                     </div>
                     <div class="sp-form-group">
-                        <label class="sp-label" for="permission_response">Permission Level</label>
+                        <label class="sp-label" for="permission_response"><?= t('custom_commands_permission_level') ?></label>
                         <div class="sp-input-wrap">
                             <i class="fas fa-users sp-input-icon"></i>
                             <select id="permission_response" name="permission_response" class="sp-select" required>

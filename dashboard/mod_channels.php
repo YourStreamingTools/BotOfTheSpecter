@@ -61,31 +61,31 @@ $showSearch = count($modChannels) > 9;
 ob_start();
 ?>
 <div style="margin-bottom:1.5rem;">
-    <h1 style="font-size:1.9rem; font-weight:800; color:var(--text-primary); margin:0 0 0.25rem;">Mod Channels</h1>
-    <p style="color:var(--text-secondary); margin:0;">Channels you can moderate for</p>
+    <h1 style="font-size:1.9rem; font-weight:800; color:var(--text-primary); margin:0 0 0.25rem;"><?= t('mod_channels_heading') ?></h1>
+    <p style="color:var(--text-secondary); margin:0;"><?= t('mod_channels_subtitle') ?></p>
 </div>
 <?php if (isset($_GET['act_as']) && $_GET['act_as'] === 'stopped'): ?>
     <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
-        Moderator Act As mode has been stopped.
+        <?= t('mod_channels_act_as_stopped') ?>
     </div>
 <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'denied'): ?>
     <div class="sp-alert sp-alert-danger" style="margin-bottom:1rem;">
-        You do not have permission to Act As that channel.
+        <?= t('mod_channels_act_as_denied') ?>
     </div>
 <?php elseif (isset($_GET['act_as']) && $_GET['act_as'] === 'not_found'): ?>
     <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
-        The selected channel could not be found.
+        <?= t('mod_channels_act_as_not_found') ?>
     </div>
 <?php endif; ?>
 <?php if ($showSearch): ?>
     <div class="sp-form-group">
-        <label class="sp-label" for="mod-channel-search">Search channels</label>
-        <input id="mod-channel-search" class="sp-input" type="text" placeholder="Type streamer name or username" autocomplete="off">
+        <label class="sp-label" for="mod-channel-search"><?= t('mod_channels_search_label') ?></label>
+        <input id="mod-channel-search" class="sp-input" type="text" placeholder="<?= htmlspecialchars(t('mod_channels_search_placeholder')) ?>" autocomplete="off">
     </div>
 <?php endif; ?>
 <?php if (empty($modChannels)): ?>
     <div class="sp-alert sp-alert-info">
-        <i class="fas fa-info-circle"></i> No channels to mod, if you believe this is incorrect please ask your broadcaster to add you to the allow list.
+        <i class="fas fa-info-circle"></i> <?= t('mod_channels_none') ?>
     </div>
 <?php else: ?>
     <div class="mod-channels-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">
@@ -101,7 +101,7 @@ ob_start();
                     </div>
                     <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="sp-btn sp-btn-primary" style="width:100%; justify-content:center;">
                         <i class="fas fa-user-secret"></i>
-                        <span>Act As This Channel</span>
+                        <span><?= t('mod_channels_act_as_button') ?></span>
                     </a>
                 </div>
             </div>

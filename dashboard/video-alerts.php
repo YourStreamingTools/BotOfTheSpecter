@@ -278,7 +278,7 @@ ob_start();
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
                         <span>
                             <span class="icon mr-2"><i class="fas fa-spinner fa-pulse"></i></span>
-                            <strong id="uploadStatusText">Preparing upload...</strong>
+                            <strong id="uploadStatusText"><?php echo t('video_alerts_preparing_upload'); ?></strong>
                         </span>
                         <span id="uploadProgressPercent" style="font-weight:600;">0%</span>
                     </div>

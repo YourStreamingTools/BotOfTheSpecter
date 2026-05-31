@@ -355,42 +355,42 @@ ob_start();
         <div style="display:flex;align-items:center;flex:1;min-width:0;flex-wrap:wrap;gap:0.5rem;">
             <p class="sp-card-title" style="flex-shrink:0;">
                 <i class="fas fa-bolt" style="color:var(--accent-hover);margin-right:0.4em;"></i>
-                StreamElements Integration
+                <?= t('streamelements_integration_title') ?>
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;margin-left:0.75rem;">
                 <?php if ($isLinked): ?>
                     <?php if ($inactive !== null): ?>
-                        <span class="sp-badge <?php echo $inactive ? 'sp-badge-red' : 'sp-badge-green'; ?>" title="Account Status">
+                        <span class="sp-badge <?php echo $inactive ? 'sp-badge-red' : 'sp-badge-green'; ?>" title="<?= htmlspecialchars(t('streamelements_badge_account_status')) ?>">
                             <i class="fa-regular fa-user"></i>
-                            <?php echo $inactive ? 'Inactive' : 'Active'; ?>
+                            <?php echo $inactive ? t('streamelements_status_inactive') : t('streamelements_status_active'); ?>
                         </span>
                     <?php endif; ?>
                     <?php if ($createdAtFormatted): ?>
-                        <span class="sp-badge sp-badge-blue" title="Account Created">
+                        <span class="sp-badge sp-badge-blue" title="<?= htmlspecialchars(t('streamelements_badge_account_created')) ?>">
                             <i class="fa-regular fa-calendar"></i>
                             <?php echo $createdAtFormatted; ?>
                         </span>
                     <?php endif; ?>
                     <?php if ($isPartner !== null): ?>
-                        <span class="sp-badge <?php echo $isPartner ? 'sp-badge-accent' : 'sp-badge-grey'; ?>" title="StreamElements Partner">
+                        <span class="sp-badge <?php echo $isPartner ? 'sp-badge-accent' : 'sp-badge-grey'; ?>" title="<?= htmlspecialchars(t('streamelements_badge_partner')) ?>">
                             <i class="fa-solid fa-star"></i>
-                            SE Partner
+                            <?= t('streamelements_badge_se_partner') ?>
                         </span>
                     <?php endif; ?>
                     <?php if ($suspended !== null): ?>
-                        <span class="sp-badge <?php echo $suspended ? 'sp-badge-red' : 'sp-badge-green'; ?>" title="Suspended">
+                        <span class="sp-badge <?php echo $suspended ? 'sp-badge-red' : 'sp-badge-green'; ?>" title="<?= htmlspecialchars(t('streamelements_badge_suspended')) ?>">
                             <i class="fa-solid fa-ban"></i>
-                            <?php echo $suspended ? 'Suspended' : 'Active'; ?>
+                            <?php echo $suspended ? t('streamelements_status_suspended') : t('streamelements_status_active'); ?>
                         </span>
                     <?php endif; ?>
                     <span class="sp-badge sp-badge-green">
                         <i class="fas fa-check-circle"></i>
-                        Connected
+                        <?= t('streamelements_status_connected') ?>
                     </span>
                 <?php else: ?>
                     <span class="sp-badge sp-badge-red">
                         <i class="fas fa-times-circle"></i>
-                        Not Connected
+                        <?= t('streamelements_status_not_connected') ?>
                     </span>
                 <?php endif; ?>
             </div>
@@ -413,12 +413,12 @@ ob_start();
             <!-- Account status text -->
             <div style="text-align:center;padding:1rem 2rem 2rem;">
                 <p style="color:var(--text-secondary);max-width:600px;margin:0 auto 1rem;">
-                    Your StreamElements account is successfully linked to your profile.
+                    <?= t('streamelements_linked_success_message') ?>
                 </p>
                 <?php if ($expires_str): ?>
                     <div class="sp-alert sp-alert-info" style="max-width:600px;margin:0 auto;">
                         <i class="fas fa-clock"></i>
-                        <strong>Token Status:</strong> Your active token will auto-renew in about <strong><?php echo htmlspecialchars($expires_str) ?></strong>.
+                        <?= t('streamelements_token_status_autorenew', ['expires' => '<strong>' . htmlspecialchars($expires_str) . '</strong>']) ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -430,21 +430,21 @@ ob_start();
                             <header class="sp-card-header">
                                 <p class="sp-card-title">
                                     <i class="fas fa-key" style="color:var(--amber);margin-right:0.4em;"></i>
-                                    API Token
+                                    <?= t('streamelements_api_token_title') ?>
                                 </p>
                             </header>
                             <div class="sp-card-body">
                                 <div class="sp-form-group">
-                                    <label class="sp-label">StreamElements API Token</label>
+                                    <label class="sp-label"><?= t('streamelements_api_token_label') ?></label>
                                     <div style="display:flex;">
                                         <input class="sp-input" type="text" id="apiTokenDisplay" value="<?php echo str_repeat('•', strlen($apiToken)); ?>" readonly style="border-radius:var(--radius) 0 0 var(--radius);font-family:monospace;letter-spacing:1.5px;">
-                                        <button id="showApiTokenBtn" class="sp-btn sp-btn-warning" style="border-radius:0 var(--radius) var(--radius) 0;border-left:none;" title="Show API Token">
+                                        <button id="showApiTokenBtn" class="sp-btn sp-btn-warning" style="border-radius:0 var(--radius) var(--radius) 0;border-left:none;" title="<?= htmlspecialchars(t('streamelements_show_api_token')) ?>">
                                             <i id="apiTokenEye" class="fa-solid fa-eye"></i>
                                         </button>
                                     </div>
                                     <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">
                                         <i class="fas fa-exclamation-triangle" style="color:var(--amber);margin-right:0.25em;"></i>
-                                        Keep this token secure and never share it publicly.
+                                        <?= t('streamelements_api_token_warning') ?>
                                     </p>
                                 </div>
                             </div>
@@ -455,21 +455,21 @@ ob_start();
                             <header class="sp-card-header">
                                 <p class="sp-card-title">
                                     <i class="fas fa-shield-alt" style="color:var(--blue);margin-right:0.4em;"></i>
-                                    JWT Token
+                                    <?= t('streamelements_jwt_token_title') ?>
                                 </p>
                             </header>
                             <div class="sp-card-body">
                                 <div class="sp-form-group">
-                                    <label class="sp-label">StreamElements JWT Token</label>
+                                    <label class="sp-label"><?= t('streamelements_jwt_token_label') ?></label>
                                     <div style="display:flex;">
                                         <input class="sp-input" type="text" id="jwtTokenDisplay" value="<?php echo str_repeat('•', strlen($stored_jwt_token)); ?>" readonly style="border-radius:var(--radius) 0 0 var(--radius);font-family:monospace;letter-spacing:1.5px;">
-                                        <button id="showJwtTokenBtn" class="sp-btn sp-btn-info" style="border-radius:0 var(--radius) var(--radius) 0;border-left:none;" title="Show JWT Token">
+                                        <button id="showJwtTokenBtn" class="sp-btn sp-btn-info" style="border-radius:0 var(--radius) var(--radius) 0;border-left:none;" title="<?= htmlspecialchars(t('streamelements_show_jwt_token')) ?>">
                                             <i id="jwtTokenEye" class="fa-solid fa-eye"></i>
                                         </button>
                                     </div>
                                     <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">
                                         <i class="fas fa-exclamation-triangle" style="color:var(--amber);margin-right:0.25em;"></i>
-                                        This JWT token is used for WebSocket connections and real-time features.
+                                        <?= t('streamelements_jwt_token_warning') ?>
                                     </p>
                                 </div>
                             </div>
@@ -483,7 +483,7 @@ ob_start();
                     <header class="sp-card-header">
                         <p class="sp-card-title">
                             <i class="fas fa-dollar-sign" style="color:var(--green);margin-right:0.4em;"></i>
-                            Recent Tips (<?php echo count($recentTips); ?>)
+                            <?= t('streamelements_recent_tips_title') ?> (<?php echo count($recentTips); ?>)
                         </p>
                     </header>
                     <div class="sp-card-body" style="padding:0;">
@@ -491,17 +491,17 @@ ob_start();
                             <table class="sp-table">
                                 <thead>
                                     <tr>
-                                        <th>Tipper</th>
-                                        <th>Amount</th>
-                                        <th>Message</th>
-                                        <th>Provider</th>
-                                        <th>Date</th>
+                                        <th><?= t('streamelements_table_tipper') ?></th>
+                                        <th><?= t('streamelements_table_amount') ?></th>
+                                        <th><?= t('streamelements_table_message') ?></th>
+                                        <th><?= t('streamelements_table_provider') ?></th>
+                                        <th><?= t('streamelements_table_date') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($recentTips as $tip): ?>
                                         <tr>
-                                            <td><?php echo htmlspecialchars($tip['donation']['user']['username'] ?? 'Anonymous'); ?></td>
+                                            <td><?php echo htmlspecialchars($tip['donation']['user']['username'] ?? t('streamelements_tipper_anonymous')); ?></td>
                                             <td>
                                                 <span class="sp-badge sp-badge-green">
                                                     <?php
@@ -530,7 +530,7 @@ ob_start();
                                             </td>
                                             <td>
                                                 <span class="sp-badge sp-badge-blue">
-                                                    <?php echo htmlspecialchars(ucfirst($tip['provider'] ?? 'Unknown')); ?>
+                                                    <?php echo htmlspecialchars(ucfirst($tip['provider'] ?? t('streamelements_provider_unknown'))); ?>
                                                 </span>
                                             </td>
                                             <td>
@@ -543,7 +543,7 @@ ob_start();
                                                         echo htmlspecialchars($tip['createdAt']);
                                                     }
                                                 } else {
-                                                    echo 'Unknown';
+                                                    echo t('streamelements_date_unknown');
                                                 }
                                                 ?>
                                             </td>
@@ -562,26 +562,26 @@ ob_start();
                         <header class="sp-card-header">
                             <p class="sp-card-title">
                                 <i class="fas fa-info-circle" style="color:var(--blue);margin-right:0.4em;"></i>
-                                Tips Status
+                                <?= t('streamelements_tips_status_title') ?>
                             </p>
                         </header>
                         <div class="sp-card-body">
                             <div class="sp-alert sp-alert-info">
-                                <p><strong>No recent tips found.</strong></p>
+                                <p><strong><?= t('streamelements_no_recent_tips') ?></strong></p>
                                 <?php if (isset($_SESSION['streamelements_channel_id'])): ?>
-                                    <p><strong>Channel ID:</strong> <?php echo htmlspecialchars($_SESSION['streamelements_channel_id']); ?></p>
-                                    <p>Channel ID is available and we're checking for tips.</p>
+                                    <p><strong><?= t('streamelements_channel_id_label') ?></strong> <?php echo htmlspecialchars($_SESSION['streamelements_channel_id']); ?></p>
+                                    <p><?= t('streamelements_channel_id_checking') ?></p>
                                     <?php if (isset($tips_code)): ?>
-                                        <p><strong>Tips API Response Code:</strong> <?php echo $tips_code; ?></p>
+                                        <p><strong><?= t('streamelements_tips_api_response_code') ?></strong> <?php echo $tips_code; ?></p>
                                         <?php if ($tips_code !== 200): ?>
-                                            <p style="color:var(--red);">Tips API call failed (HTTP <?php echo $tips_code; ?>)</p>
+                                            <p style="color:var(--red);"><?= t('streamelements_tips_api_failed', ['code' => $tips_code]) ?></p>
                                         <?php else: ?>
-                                            <p>Tips API call successful, but no tips found.</p>
+                                            <p><?= t('streamelements_tips_api_success_empty') ?></p>
                                         <?php endif; ?>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <p style="color:var(--amber);">Channel ID not available - this might be why tips aren't loading.</p>
-                                    <p>The current user API call may have failed or returned no channels.</p>
+                                    <p style="color:var(--amber);"><?= t('streamelements_channel_id_unavailable') ?></p>
+                                    <p><?= t('streamelements_current_user_call_failed') ?></p>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -591,29 +591,29 @@ ob_start();
         <?php else: ?>
             <!-- Not linked display -->
             <div style="text-align:center;padding:1.5rem 0;">
-                <p style="color:var(--text-secondary);margin-bottom:1.5rem;">Connect your StreamElements account to enable tip tracking and integration features.</p>
+                <p style="color:var(--text-secondary);margin-bottom:1.5rem;"><?= t('streamelements_connect_prompt') ?></p>
                 <div class="sp-card" style="max-width:600px;margin:0 auto 1.5rem;text-align:left;">
                     <div class="sp-card-body">
                         <p style="font-weight:700;margin-bottom:0.75rem;">
                             <i class="fas fa-bolt" style="color:var(--blue);margin-right:0.4em;"></i>
-                            Available Features:
+                            <?= t('streamelements_available_features') ?>
                         </p>
                         <ul style="list-style:disc;padding-left:1.25rem;color:var(--text-secondary);">
-                            <li style="margin-bottom:0.4rem;">Access to your recent tips and donation data</li>
-                            <li style="margin-bottom:0.4rem;">Integration with bot commands for tip information</li>
-                            <li>Enhanced stream engagement through tip-based features</li>
+                            <li style="margin-bottom:0.4rem;"><?= t('streamelements_feature_tips_data') ?></li>
+                            <li style="margin-bottom:0.4rem;"><?= t('streamelements_feature_bot_commands') ?></li>
+                            <li><?= t('streamelements_feature_engagement') ?></li>
                         </ul>
                     </div>
                 </div>
                 <?php if ($authURL): ?>
                     <a href="<?php echo $authURL; ?>" class="sp-btn sp-btn-info" style="padding:0.75rem 1.5rem;font-size:1rem;">
                         <i class="fas fa-bolt"></i>
-                        <span>Link StreamElements Account</span>
+                        <span><?= t('streamelements_link_account_button') ?></span>
                     </a>
                 <?php elseif ($isActAsUser): ?>
                     <div class="sp-alert sp-alert-warning" style="max-width:700px;margin:0 auto;">
                         <i class="fas fa-info-circle"></i>
-                        Act As mode is active. Linking StreamElements is disabled for acting users.
+                        <?= t('streamelements_act_as_disabled') ?>
                     </div>
                 <?php endif; ?>
             </div>

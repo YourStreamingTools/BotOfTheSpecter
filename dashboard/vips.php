@@ -189,7 +189,7 @@ ob_start();
     <div style="display:flex;align-items:center;gap:0.75rem;">
       <button class="sp-btn sp-btn-primary" id="manage-vip-btn">
         <span class="icon"><i class="fas fa-user-cog"></i></span>
-        <span>Manage VIPs</span>
+        <span><?php echo t('vips_manage_btn'); ?></span>
       </button>
       <div style="position:relative;">
         <input class="sp-input" type="text" id="vip-search" placeholder="<?php echo t('vips_search_placeholder'); ?>" style="width:300px;padding-left:2.25rem;">
@@ -207,7 +207,7 @@ ob_start();
               <span class="icon is-large sp-text-muted" style="margin-bottom:0.75rem;">
                 <i class="fas fa-star fa-3x"></i>
               </span>
-              <p class="sp-text-muted" style="font-size:1.1rem;">No VIPs found</p>
+              <p class="sp-text-muted" style="font-size:1.1rem;"><?php echo t('vips_none_found'); ?></p>
             </div>
           <?php else: ?>
             <div class="followers-grid">
@@ -255,7 +255,7 @@ ob_start();
       <form method="POST">
         <div class="sp-form-group">
           <label class="sp-label" for="vip-username"><?php echo t('vips_username_label'); ?></label>
-          <input class="sp-input" type="text" id="vip-username" name="vip-username" required placeholder="Enter username">
+          <input class="sp-input" type="text" id="vip-username" name="vip-username" required placeholder="<?php echo htmlspecialchars(t('vips_username_placeholder')); ?>">
         </div>
         <div style="display:flex;gap:0.75rem;margin-top:1rem;">
           <button class="sp-btn sp-btn-success" type="submit" name="action" value="add">

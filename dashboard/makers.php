@@ -7,7 +7,7 @@ include_once __DIR__ . '/lang/i18n.php';
 require_once '/var/www/lib/require_auth.php';
 
 // Page Title
-$pageTitle = 'Makers & Crafting Overlay';
+$pageTitle = t('makers_page_title');
 
 // Include files for database and user data
 require_once "/var/www/config/db_connect.php";
@@ -287,8 +287,13 @@ if (!empty($projects)) {
 }
 
 $mediaBase = 'https://media.botofthespecter.com/' . rawurlencode($username) . '/';
-$overlayUrl = 'https://overlay.botofthespecter.com/maker.php?code=' . urlencode($makerApiKey);
+$overlayUrlBase = 'https://overlay.botofthespecter.com/maker.php?code=';
+$overlayUrl = $overlayUrlBase . urlencode($makerApiKey);
+// Masked version for default (visible) display so the API key is never shown on screen.
+$overlayKeyEncoded = urlencode($makerApiKey);
+$overlayUrlMasked = $overlayUrlBase . str_repeat('•', max(12, min(strlen($overlayKeyEncoded), 32)));
 $fontOptions = ['Arial', 'Verdana', 'Georgia', 'Tahoma', 'Trebuchet MS', 'Times New Roman', 'Courier New', 'Inter'];
+$statusLabels = ['current' => t('makers_status_current'), 'upcoming' => t('makers_status_upcoming'), 'finished' => t('makers_status_finished')];
 
 // ---------------------------------------------------------------------------
 // Page content
@@ -298,36 +303,46 @@ ob_start();
 <div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
     <span style="font-size:1.75rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-palette"></i></span>
     <div>
-        <p style="font-weight:700; margin-bottom:0.4rem;">Makers &amp; Crafting Overlay</p>
-        <p style="margin-bottom:0.4rem;">Show your viewers what you're making. Add this browser source to OBS, then manage projects here or live from chat with <code>!craft</code>.</p>
-        <div class="info-box" style="font-family:monospace; margin-bottom:0;"><?= htmlspecialchars($overlayUrl) ?></div>
+        <p style="font-weight:700; margin-bottom:0.4rem;"><?= t('makers_page_title') ?></p>
+        <p style="margin-bottom:0.4rem;"><?= t('makers_intro') ?></p>
+        <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_overlay_url_label') ?></label>
+        <div id="makerOverlayUrlBox" data-full-url="<?= htmlspecialchars($overlayUrl) ?>" data-masked-url="<?= htmlspecialchars($overlayUrlMasked) ?>" data-revealed="false" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.4rem;">
+            <code id="makerOverlayUrlText" class="info-box" style="font-family:monospace; margin-bottom:0; flex:1 1 auto; overflow:auto; white-space:nowrap;"><?= htmlspecialchars($overlayUrlMasked) ?></code>
+            <button type="button" id="makerCopyUrlBtn" class="sp-btn sp-btn-secondary" title="<?= htmlspecialchars(t('makers_copy_url')) ?>" style="flex:0 0 auto; width:2.5rem; height:2.5rem; padding:0;">
+                <i class="fas fa-copy" id="makerCopyUrlIcon"></i>
+            </button>
+            <button type="button" id="makerRevealUrlBtn" class="sp-btn sp-btn-secondary" title="<?= htmlspecialchars(t('makers_reveal_show')) ?>" data-show-label="<?= htmlspecialchars(t('makers_reveal_show')) ?>" data-hide-label="<?= htmlspecialchars(t('makers_reveal_hide')) ?>" style="flex:0 0 auto; width:2.5rem; height:2.5rem; padding:0;">
+                <i class="fas fa-eye" id="makerRevealUrlIcon"></i>
+            </button>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-muted, #888); margin:0;"><i class="fas fa-shield-alt" style="margin-right:0.4rem;"></i><?= t('makers_key_warning') ?></p>
     </div>
 </div>
 
 <!-- Overlay settings -->
 <div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-sliders-h"></i> Overlay Settings</div></div>
+    <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-sliders-h"></i> <?= t('makers_settings_title') ?></div></div>
     <div class="sp-card-body">
         <form id="makerSettingsForm">
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Display mode</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_display_mode') ?></label>
                     <select name="display_mode" class="sp-input">
-                        <?php foreach (['current' => 'Current project', 'finished' => 'Finished projects', 'upcoming' => 'Upcoming ideas'] as $val => $lbl): ?>
+                        <?php foreach (['current' => t('makers_mode_current'), 'finished' => t('makers_mode_finished'), 'upcoming' => t('makers_mode_upcoming')] as $val => $lbl): ?>
                             <option value="<?= $val ?>" <?= ($settings['display_mode'] === $val) ? 'selected' : '' ?>><?= $lbl ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Position</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_position') ?></label>
                     <select name="position" class="sp-input">
-                        <?php foreach (['top-left' => 'Top left', 'top-right' => 'Top right', 'bottom-left' => 'Bottom left', 'bottom-right' => 'Bottom right'] as $val => $lbl): ?>
+                        <?php foreach (['top-left' => t('makers_pos_top_left'), 'top-right' => t('makers_pos_top_right'), 'bottom-left' => t('makers_pos_bottom_left'), 'bottom-right' => t('makers_pos_bottom_right')] as $val => $lbl): ?>
                             <option value="<?= $val ?>" <?= ($settings['position'] === $val) ? 'selected' : '' ?>><?= $lbl ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Font</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_font') ?></label>
                     <select name="font_family" class="sp-input">
                         <?php foreach ($fontOptions as $f): ?>
                             <option value="<?= htmlspecialchars($f) ?>" <?= ($settings['font_family'] === $f) ? 'selected' : '' ?>><?= htmlspecialchars($f) ?></option>
@@ -335,30 +350,30 @@ ob_start();
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Image change (sec)</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_image_change_sec') ?></label>
                     <input type="number" name="carousel_seconds" class="sp-input" min="2" max="60" value="<?= intval($settings['carousel_seconds']) ?>">
                 </div>
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Project rotate (sec)</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_project_rotate_sec') ?></label>
                     <input type="number" name="project_rotate_seconds" class="sp-input" min="3" max="120" value="<?= intval($settings['project_rotate_seconds']) ?>">
                 </div>
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Accent colour</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_accent_colour') ?></label>
                     <input type="color" name="accent_color" value="<?= htmlspecialchars($settings['accent_color']) ?>" style="width:100%; height:38px;">
                 </div>
                 <div>
-                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Text colour</label>
+                    <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_text_colour') ?></label>
                     <input type="color" name="text_color" value="<?= htmlspecialchars($settings['text_color']) ?>" style="width:100%; height:38px;">
                 </div>
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:1.25rem; margin-top:1rem;">
-                <label><input type="checkbox" name="visible" value="1" <?= intval($settings['visible']) ? 'checked' : '' ?>> Overlay visible</label>
-                <label><input type="checkbox" name="show_title" value="1" <?= intval($settings['show_title']) ? 'checked' : '' ?>> Show title</label>
-                <label><input type="checkbox" name="show_description" value="1" <?= intval($settings['show_description']) ? 'checked' : '' ?>> Show description</label>
+                <label><input type="checkbox" name="visible" value="1" <?= intval($settings['visible']) ? 'checked' : '' ?>> <?= t('makers_overlay_visible') ?></label>
+                <label><input type="checkbox" name="show_title" value="1" <?= intval($settings['show_title']) ? 'checked' : '' ?>> <?= t('makers_show_title') ?></label>
+                <label><input type="checkbox" name="show_description" value="1" <?= intval($settings['show_description']) ? 'checked' : '' ?>> <?= t('makers_show_description') ?></label>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
                 <span id="makerSettingsStatus" style="align-self:center; font-size:0.85rem;"></span>
-                <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-save"></i> Save settings</button>
+                <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-save"></i> <?= t('makers_save_settings') ?></button>
             </div>
         </form>
     </div>
@@ -366,32 +381,32 @@ ob_start();
 
 <!-- New project -->
 <div class="sp-card" style="margin-bottom:1.5rem;">
-    <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-plus-circle"></i> Add Project</div></div>
+    <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-plus-circle"></i> <?= t('makers_add_project') ?></div></div>
     <div class="sp-card-body">
         <form id="makerNewProjectForm" style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:flex-end;">
             <div style="flex:1 1 240px;">
-                <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Title</label>
-                <input type="text" name="title" class="sp-input" maxlength="255" placeholder="e.g. Hand-knit winter scarf" required>
+                <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_title') ?></label>
+                <input type="text" name="title" class="sp-input" maxlength="255" placeholder="<?= htmlspecialchars(t('makers_title_placeholder')) ?>" required>
             </div>
             <div>
-                <label style="display:block; font-weight:600; margin-bottom:0.25rem;">Status</label>
+                <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('makers_status') ?></label>
                 <select name="status" class="sp-input">
-                    <option value="current">Current</option>
-                    <option value="upcoming">Upcoming</option>
-                    <option value="finished">Finished</option>
+                    <option value="current"><?= t('makers_status_current') ?></option>
+                    <option value="upcoming"><?= t('makers_status_upcoming') ?></option>
+                    <option value="finished"><?= t('makers_status_finished') ?></option>
                 </select>
             </div>
-            <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-plus"></i> Add</button>
+            <button type="submit" class="sp-btn sp-btn-primary"><i class="fas fa-plus"></i> <?= t('makers_add') ?></button>
         </form>
     </div>
 </div>
 
 <!-- Project library -->
 <div class="sp-card">
-    <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-layer-group"></i> Project Library</div></div>
+    <div class="sp-card-header"><div class="sp-card-title"><i class="fas fa-layer-group"></i> <?= t('makers_library_title') ?></div></div>
     <div class="sp-card-body">
         <?php if (empty($projects)): ?>
-            <p style="color:var(--text-secondary);">No projects yet. Add one above, or use <code>!craft new &lt;title&gt;</code> in chat.</p>
+            <p style="color:var(--text-secondary);"><?= t('makers_empty') ?></p>
         <?php else: ?>
             <?php foreach ($projects as $p):
                 $pid = (int)$p['id'];
@@ -402,14 +417,14 @@ ob_start();
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
                         <div>
                             <span style="font-weight:700;">#<?= $pid ?> <?= htmlspecialchars($p['title']) ?></span>
-                            <span class="sp-badge" style="margin-left:0.5rem; text-transform:capitalize;"><?= htmlspecialchars($p['status']) ?></span>
-                            <?php if ($isFeatured): ?><span class="sp-badge" style="margin-left:0.25rem; background:var(--accent, #9146FF); color:#fff;">Featured</span><?php endif; ?>
+                            <span class="sp-badge" style="margin-left:0.5rem; text-transform:capitalize;"><?= htmlspecialchars($statusLabels[$p['status']] ?? $p['status']) ?></span>
+                            <?php if ($isFeatured): ?><span class="sp-badge" style="margin-left:0.25rem; background:var(--accent, #9146FF); color:#fff;"><?= t('makers_featured') ?></span><?php endif; ?>
                         </div>
                         <div style="display:flex; gap:0.4rem;">
                             <?php if (!$isFeatured): ?>
-                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-set-current" data-id="<?= $pid ?>" title="Feature as current"><i class="fas fa-star"></i></button>
+                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-set-current" data-id="<?= $pid ?>" title="<?= htmlspecialchars(t('makers_feature_tooltip')) ?>"><i class="fas fa-star"></i></button>
                             <?php endif; ?>
-                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-edit-toggle" data-id="<?= $pid ?>"><i class="fas fa-edit"></i> Edit</button>
+                            <button type="button" class="sp-btn sp-btn-sm sp-btn-secondary maker-edit-toggle" data-id="<?= $pid ?>"><i class="fas fa-edit"></i> <?= t('makers_edit') ?></button>
                             <button type="button" class="sp-btn sp-btn-sm sp-btn-danger maker-delete" data-id="<?= $pid ?>"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
@@ -418,45 +433,45 @@ ob_start();
                     <form class="maker-edit-form" data-id="<?= $pid ?>" style="display:none; margin-top:0.75rem;">
                         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:0.75rem;">
                             <div>
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;">Title</label>
+                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_title') ?></label>
                                 <input type="text" name="title" class="sp-input" maxlength="255" value="<?= htmlspecialchars($p['title']) ?>">
                             </div>
                             <div>
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;">Status</label>
+                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_status') ?></label>
                                 <select name="status" class="sp-input">
                                     <?php foreach (['current', 'upcoming', 'finished'] as $st): ?>
-                                        <option value="<?= $st ?>" <?= ($p['status'] === $st) ? 'selected' : '' ?>><?= ucfirst($st) ?></option>
+                                        <option value="<?= $st ?>" <?= ($p['status'] === $st) ? 'selected' : '' ?>><?= $statusLabels[$st] ?? ucfirst($st) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                             <div style="grid-column:1/-1;">
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;">Description / context</label>
+                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_description_context') ?></label>
                                 <textarea name="description" class="sp-input" rows="2" maxlength="2000"><?= htmlspecialchars($p['description'] ?? '') ?></textarea>
                             </div>
                             <div style="grid-column:1/-1;">
-                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;">Link (optional)</label>
+                                <label style="display:block; font-weight:600; margin-bottom:0.2rem;"><?= t('makers_link_optional') ?></label>
                                 <input type="text" name="link_url" class="sp-input" maxlength="500" value="<?= htmlspecialchars($p['link_url'] ?? '') ?>" placeholder="https://...">
                             </div>
                         </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
-                            <button type="submit" class="sp-btn sp-btn-sm sp-btn-primary"><i class="fas fa-save"></i> Save</button>
+                            <button type="submit" class="sp-btn sp-btn-sm sp-btn-primary"><i class="fas fa-save"></i> <?= t('makers_save') ?></button>
                         </div>
                     </form>
 
                     <!-- Images -->
                     <div style="margin-top:0.75rem;">
-                        <div style="font-weight:600; margin-bottom:0.4rem;">Images (<?= count($p['images']) ?>)</div>
+                        <div style="font-weight:600; margin-bottom:0.4rem;"><?= t('makers_images') ?> (<?= count($p['images']) ?>)</div>
                         <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
                             <?php foreach ($p['images'] as $img): ?>
                                 <div style="position:relative; width:90px; height:90px; border-radius:8px; overflow:hidden; border:1px solid var(--border, rgba(255,255,255,0.12));">
                                     <img src="<?= htmlspecialchars($mediaBase . rawurlencode($img['media_file'])) ?>" alt="" style="width:100%; height:100%; object-fit:cover;">
-                                    <button type="button" class="maker-delete-image" data-image="<?= (int)$img['id'] ?>" title="Remove" style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:4px; cursor:pointer; padding:2px 6px;">&times;</button>
+                                    <button type="button" class="maker-delete-image" data-image="<?= (int)$img['id'] ?>" title="<?= htmlspecialchars(t('makers_remove')) ?>" style="position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:4px; cursor:pointer; padding:2px 6px;">&times;</button>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                         <form class="maker-upload-form" data-id="<?= $pid ?>" enctype="multipart/form-data" style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">
                             <input type="file" name="imageFiles[]" accept="image/png,image/jpeg,image/gif" multiple class="sp-input" style="flex:1 1 200px;">
-                            <button type="submit" class="sp-btn sp-btn-sm sp-btn-secondary"><i class="fas fa-upload"></i> Upload images</button>
+                            <button type="submit" class="sp-btn sp-btn-sm sp-btn-secondary"><i class="fas fa-upload"></i> <?= t('makers_upload_images') ?></button>
                         </form>
                     </div>
                 </div>
@@ -559,6 +574,76 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     });
+
+    // Overlay URL: masked display with copy + reveal (keeps the API key off-screen by default)
+    var overlayUrlBox = document.getElementById('makerOverlayUrlBox');
+    if (overlayUrlBox) {
+        var overlayUrlText = document.getElementById('makerOverlayUrlText');
+        var copyUrlBtn = document.getElementById('makerCopyUrlBtn');
+        var copyUrlIcon = document.getElementById('makerCopyUrlIcon');
+        var revealUrlBtn = document.getElementById('makerRevealUrlBtn');
+        var revealUrlIcon = document.getElementById('makerRevealUrlIcon');
+        var fullUrl = overlayUrlBox.dataset.fullUrl || '';
+        var maskedUrl = overlayUrlBox.dataset.maskedUrl || '';
+
+        if (revealUrlBtn) {
+            revealUrlBtn.addEventListener('click', function () {
+                var revealed = overlayUrlBox.dataset.revealed === 'true';
+                if (revealed) {
+                    overlayUrlText.textContent = maskedUrl;
+                    overlayUrlBox.dataset.revealed = 'false';
+                    revealUrlIcon.classList.remove('fa-eye-slash');
+                    revealUrlIcon.classList.add('fa-eye');
+                    revealUrlBtn.title = revealUrlBtn.dataset.showLabel || '';
+                } else {
+                    overlayUrlText.textContent = fullUrl;
+                    overlayUrlBox.dataset.revealed = 'true';
+                    revealUrlIcon.classList.remove('fa-eye');
+                    revealUrlIcon.classList.add('fa-eye-slash');
+                    revealUrlBtn.title = revealUrlBtn.dataset.hideLabel || '';
+                }
+            });
+        }
+
+        if (copyUrlBtn) {
+            copyUrlBtn.addEventListener('click', function () {
+                function showCopied() {
+                    copyUrlIcon.classList.remove('fa-copy');
+                    copyUrlIcon.classList.add('fa-check');
+                    copyUrlBtn.classList.add('sp-btn-success');
+                    var prevTitle = copyUrlBtn.title;
+                    copyUrlBtn.title = <?= json_encode(t('makers_url_copied')) ?>;
+                    setTimeout(function () {
+                        copyUrlIcon.classList.remove('fa-check');
+                        copyUrlIcon.classList.add('fa-copy');
+                        copyUrlBtn.classList.remove('sp-btn-success');
+                        copyUrlBtn.title = prevTitle;
+                    }, 2000);
+                }
+                function fallbackCopy() {
+                    var ta = document.createElement('textarea');
+                    ta.value = fullUrl;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-999999px';
+                    ta.style.top = '-999999px';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try { document.execCommand('copy'); showCopied(); }
+                    catch (err) { console.error('Fallback copy failed: ', err); }
+                    document.body.removeChild(ta);
+                }
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(fullUrl).then(showCopied).catch(function (err) {
+                        console.error('Failed to copy: ', err);
+                        fallbackCopy();
+                    });
+                } else {
+                    fallbackCopy();
+                }
+            });
+        }
+    }
 });
 </script>
 <?php

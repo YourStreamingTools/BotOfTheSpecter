@@ -321,7 +321,7 @@ ob_start();
     </div>
     <div class="sp-card-body">
         <div class="sp-alert sp-alert-info" id="sync-result" style="display: none;">
-            <strong>Sync Result:</strong><br>
+            <strong><?php echo t('channel_rewards_sync_result'); ?></strong><br>
             <pre id="sync-output"
                 style="white-space: pre-wrap; max-height: 220px; overflow:auto; font-family: monospace; margin:0;"></pre>
         </div>
@@ -362,15 +362,11 @@ ob_start();
             <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
                 <p style="font-weight:700; margin-bottom:0.25rem;">
                     <span class="icon"><i class="fas fa-exclamation-circle"></i></span>
-                    Important Change: Fortune, Lotto, and TTS Variables
+                    <?php echo t('channel_rewards_important_change_title'); ?>
                 </p>
                 <p>
-                    The <span style="font-weight:700;">(fortune)</span>, <span
-                        style="font-weight:700;">(lotto)</span>, and <span
-                        style="font-weight:700;">(tts)</span> are now text variables that can be used anywhere
-                    in your custom message instead of reward name-based triggers. This allows you to use any reward
-                    name you want without conflicts with other rewards.
-                </p>
+                    <?php echo t('channel_rewards_important_change_desc'); ?>
+                </p><!-- inline tokens bolded via strong -->
             </div>
             <div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;">
                 <p style="font-weight:700; margin-bottom:0.25rem;">
@@ -388,21 +384,16 @@ ob_start();
                     <li><span style="font-weight:700;">(userstreak)</span>:
                         <?php echo t('channel_rewards_var_userstreak'); ?>
                     </li>
-                    <li><span style="font-weight:700;">(track)</span>: Tracks the internal usage count
-                        of the reward.</li>
-                    <li><span style="font-weight:700;">(fortune)</span>: Replaces with a random fortune
-                        message.</li>
-                    <li><span style="font-weight:700;">(lotto)</span>: Replaces with randomly generated
-                        lotto numbers.</li>
-                    <li><span style="font-weight:700;">(tts)</span>: Sends the user input to
-                        text-to-speech (removes from message).</li>
-                    <li><span style="font-weight:700;">(tts.message)</span>: Sends the final complete
-                        message to both chat and text-to-speech.</li>
+                    <li><span style="font-weight:700;">(track)</span>: <?php echo t('channel_rewards_var_track'); ?></li>
+                    <li><span style="font-weight:700;">(fortune)</span>: <?php echo t('channel_rewards_var_fortune'); ?></li>
+                    <li><span style="font-weight:700;">(lotto)</span>: <?php echo t('channel_rewards_var_lotto'); ?></li>
+                    <li><span style="font-weight:700;">(tts)</span>: <?php echo t('channel_rewards_var_tts'); ?></li>
+                    <li><span style="font-weight:700;">(tts.message)</span>: <?php echo t('channel_rewards_var_tts_message'); ?></li>
                     <li><span style="font-weight:700;">(customapi.URL)</span>: <?php echo t('channel_rewards_var_customapi'); ?></li>
                 </ul>
                 <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
                     <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
-                    <label for="betaBotToggle">Using Beta Bot? <strong>Enables 500 character limit.</strong></label>
+                    <label for="betaBotToggle"><?php echo t('channel_rewards_beta_bot_label'); ?></label>
                 </div>
             </div>
             <!-- Tabs -->
@@ -432,7 +423,7 @@ ob_start();
                     <table class="sp-table" id="commandsTable">
                         <thead>
                             <tr>
-                                <th style="width: 80px;">Image</th>
+                                <th style="width: 80px;"><?php echo t('channel_rewards_image'); ?></th>
                                 <th><?php echo t('channel_rewards_reward_name'); ?></th>
                                 <th><?php echo t('channel_rewards_custom_message'); ?></th>
                                 <th style="width: 150px; text-align:center;">
@@ -513,8 +504,8 @@ ob_start();
                                     $customMessage = $isSynced ? $dbRewardsMap[$rId]['custom_message'] : '';
                                     // Visuals
                                     $syncIcon = $isSynced
-                                        ? '<span style="color:var(--green);" title="Synced"><i class="fas fa-check-circle"></i></span>'
-                                        : '<span style="color:var(--grey);" title="Not Synced"><i class="far fa-circle"></i></span>';
+                                        ? '<span style="color:var(--green);" title="' . htmlspecialchars(t('channel_rewards_synced')) . '"><i class="fas fa-check-circle"></i></span>'
+                                        : '<span style="color:var(--grey);" title="' . htmlspecialchars(t('channel_rewards_not_synced')) . '"><i class="far fa-circle"></i></span>';
                                     ?>
                                     <tr <?php echo !$isSynced ? 'style="opacity:0.6;"' : ''; ?>>
                                         <td style="text-align:center; vertical-align:middle;">
@@ -531,7 +522,7 @@ ob_start();
                                                 $imageUrl = $reward['default_image']['url_2x'];
                                             }
                                             if (!empty($imageUrl)): ?>
-                                                <img src="<?php echo htmlspecialchars($imageUrl ?? '', ENT_QUOTES, 'UTF-8'); ?>" alt="Reward Icon"
+                                                <img src="<?php echo htmlspecialchars($imageUrl ?? '', ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars(t('channel_rewards_reward_icon_alt')); ?>"
                                                     style="width: 56px; height: 56px; border-radius: 4px;">
                                             <?php else: ?>
                                                 <span style="color:var(--grey);">
@@ -554,7 +545,7 @@ ob_start();
                                                     </div>
                                                 </div>
                                             <?php else: ?>
-                                                <span style="font-style:italic; color:var(--text-muted);">Not Synced</span>
+                                                <span style="font-style:italic; color:var(--text-muted);"><?php echo t('channel_rewards_not_synced'); ?></span>
                                             <?php endif; ?>
                                         </td>
                                         <td style="text-align:center; vertical-align:middle;">
@@ -564,18 +555,18 @@ ob_start();
                                             <?php
                                             $managedBy = $dbRewardsMap[$rId]['managed_by'] ?? 'twitch';
                                             if ($isSynced && $managedBy === 'specter'): ?>
-                                                <span style="color:var(--green);" title="Managed by Specter">
+                                                <span style="color:var(--green);" title="<?php echo htmlspecialchars(t('channel_rewards_managed_by_specter')); ?>">
                                                     <i class="fas fa-check-circle fa-lg"></i>
                                                 </span>
                                             <?php elseif ($isSynced): ?>
                                                 <button class="sp-btn sp-btn-warning sp-btn-sm manage-btn"
                                                     data-reward-id="<?php echo $rId; ?>"
-                                                    title="Convert to Specter-managed reward">
+                                                    title="<?php echo htmlspecialchars(t('channel_rewards_convert_managed')); ?>">
                                                     <i class="fas fa-cog"></i>
                                                 </button>
                                             <?php else: ?>
                                                 <button class="sp-btn sp-btn-sm" disabled
-                                                    title="Sync to enable managing" style="opacity:0.45;">
+                                                    title="<?php echo htmlspecialchars(t('channel_rewards_sync_to_manage')); ?>" style="opacity:0.45;">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             <?php endif; ?>
@@ -590,7 +581,7 @@ ob_start();
                                                     <?php if ($managedBy === 'specter'): ?>
                                                     <button class="sp-btn sp-btn-secondary sp-btn-sm edit-reward-btn"
                                                         data-reward-id="<?php echo htmlspecialchars($rId, ENT_QUOTES, 'UTF-8'); ?>"
-                                                        title="Edit reward on Twitch"
+                                                        title="<?php echo htmlspecialchars(t('channel_rewards_edit_on_twitch')); ?>"
                                                         style="margin-left:0.25rem;"><i class="fas fa-cog"></i></button>
                                                     <?php endif; ?>
                                                     <div class="save-cancel" id="save-cancel-<?php echo $rId; ?>"
@@ -604,7 +595,7 @@ ob_start();
                                                     </div>
                                                 </div>
                                             <?php else: ?>
-                                                <button class="sp-btn sp-btn-sm" disabled title="Sync to enable editing" style="opacity:0.45;">
+                                                <button class="sp-btn sp-btn-sm" disabled title="<?php echo htmlspecialchars(t('channel_rewards_sync_to_edit')); ?>" style="opacity:0.45;">
                                                     <i class="fas fa-pencil-alt"></i>
                                                 </button>
                                             <?php endif; ?>
@@ -641,10 +632,7 @@ ob_start();
                 </p>
                 <p style="margin-top:0.5rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
-                    <em>Note: Redemption history is only available for rewards managed by the
-                        Specter system. You can convert any reward to be managed by our system using the
-                        Manage
-                        button in the Rewards tab.</em>
+                    <em><?php echo t('channel_rewards_redemption_note'); ?></em>
                 </p>
             </div>
             <div class="sp-table-wrap">
@@ -667,7 +655,7 @@ ob_start();
                                 <?php echo t('channel_rewards_status'); ?>
                             </th>
                             <th style="text-align:center;">
-                                Actions
+                                <?php echo t('channel_rewards_actions'); ?>
                             </th>
                             <th style="text-align:center;">
                                 <?php echo t('channel_rewards_time'); ?>
@@ -677,7 +665,7 @@ ob_start();
                     <tbody id="redemptions-table-body">
                         <tr>
                             <td colspan="6" style="text-align:center;"><i class="fas fa-spinner fa-spin"></i>
-                                Loading...</td>
+                                <?php echo t('channel_rewards_loading'); ?></td>
                         </tr>
                     </tbody>
                 </table>
@@ -695,7 +683,7 @@ ob_start();
                         <div class="sp-form-group">
                             <label class="sp-label"><?php echo t('channel_rewards_reward_name'); ?> *</label>
                             <input class="sp-input" type="text" name="title"
-                                required placeholder="e.g. Hydrate!">
+                                required placeholder="<?php echo htmlspecialchars(t('channel_rewards_title_placeholder')); ?>">
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label"><?php echo t('channel_rewards_reward_cost'); ?> *</label>
@@ -706,7 +694,7 @@ ob_start();
                     <div class="sp-form-group">
                         <label class="sp-label"><?php echo t('channel_rewards_prompt'); ?></label>
                         <textarea class="sp-input" name="prompt" rows="2"
-                            placeholder="Describe the reward..." style="height:auto; min-height:4rem;"></textarea>
+                            placeholder="<?php echo htmlspecialchars(t('channel_rewards_prompt_placeholder')); ?>" style="height:auto; min-height:4rem;"></textarea>
                     </div>
                     <div class="sp-form-group">
                         <label class="sp-label"><?php echo t('channel_rewards_bg_color'); ?></label>
@@ -725,7 +713,7 @@ ob_start();
                             </label>
                             <div class="sp-form-group" id="field-max-stream" style="display:none; margin-top:0.5rem;">
                                 <input class="sp-input" type="number"
-                                    name="max_per_stream" min="1" placeholder="Max">
+                                    name="max_per_stream" min="1" placeholder="<?php echo htmlspecialchars(t('channel_rewards_max_placeholder')); ?>">
                             </div>
                         </div>
                         <div class="sp-form-group">
@@ -736,7 +724,7 @@ ob_start();
                             </label>
                             <div class="sp-form-group" id="field-max-user" style="display:none; margin-top:0.5rem;">
                                 <input class="sp-input" type="number"
-                                    name="max_per_user_per_stream" min="1" placeholder="Max">
+                                    name="max_per_user_per_stream" min="1" placeholder="<?php echo htmlspecialchars(t('channel_rewards_max_placeholder')); ?>">
                             </div>
                         </div>
                         <div class="sp-form-group">
@@ -746,7 +734,7 @@ ob_start();
                             </label>
                             <div class="sp-form-group" id="field-cooldown" style="display:none; margin-top:0.5rem;">
                                 <input class="sp-input" type="number"
-                                    name="global_cooldown_seconds" min="1" placeholder="Seconds">
+                                    name="global_cooldown_seconds" min="1" placeholder="<?php echo htmlspecialchars(t('channel_rewards_seconds_placeholder')); ?>">
                             </div>
                         </div>
                     </div>
@@ -763,14 +751,12 @@ ob_start();
                         </label>
                     </div>
                     <hr style="border-color:var(--border); margin:1rem 0;">
-                    <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">Images</h4>
+                    <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;"><?php echo t('channel_rewards_images_header'); ?></h4>
                     <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
                         <span class="icon"><i class="fas fa-info-circle"></i></span>
-                        <strong>Note:</strong> Twitch does not allow uploading images during reward creation via
-                        API.
-                        Please create the reward first, then go to your <a
+                        <strong><?php echo t('channel_rewards_note_label'); ?></strong> <?php echo t('channel_rewards_images_note_pre'); ?> <a
                             href="https://dashboard.twitch.tv/viewer-rewards/channel-points/rewards"
-                            target="_blank">Twitch Dashboard</a> to upload custom icons.
+                            target="_blank"><?php echo t('channel_rewards_twitch_dashboard'); ?></a> <?php echo t('channel_rewards_images_note_post'); ?>
                     </div>
                     <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
                         <button class="sp-btn sp-btn-primary" id="create_reward_submit" <?php echo $showNoChannelPoints ? 'disabled title="' . t('channel_rewards_create_disabled') . '"' : ''; ?>>
@@ -788,75 +774,75 @@ ob_start();
     <div class="modal-background" onclick="closeEditRewardModal()"></div>
     <div class="modal-card">
         <div class="modal-card-head">
-            <p class="modal-card-title"><i class="fas fa-cog" style="margin-right:0.5rem;"></i> Edit Reward on Twitch</p>
+            <p class="modal-card-title"><i class="fas fa-cog" style="margin-right:0.5rem;"></i> <?php echo t('channel_rewards_modal_title'); ?></p>
             <button class="modal-close" onclick="closeEditRewardModal()"></button>
         </div>
         <div class="modal-card-body">
             <input type="hidden" id="edit-reward-id">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
                 <div class="sp-form-group">
-                    <label class="sp-label">Title *</label>
-                    <input class="sp-input" type="text" id="edit-reward-title" maxlength="45" required placeholder="Reward title">
+                    <label class="sp-label"><?php echo t('channel_rewards_modal_title_label'); ?> *</label>
+                    <input class="sp-input" type="text" id="edit-reward-title" maxlength="45" required placeholder="<?php echo htmlspecialchars(t('channel_rewards_modal_title_placeholder')); ?>">
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label">Cost *</label>
+                    <label class="sp-label"><?php echo t('channel_rewards_modal_cost_label'); ?> *</label>
                     <input class="sp-input" type="number" id="edit-reward-cost" min="1" required>
                 </div>
             </div>
             <div class="sp-form-group">
-                <label class="sp-label">Prompt <span style="font-weight:400; text-transform:none; color:var(--text-muted);">(shown when redeeming, max 200 chars)</span></label>
-                <textarea class="sp-input" id="edit-reward-prompt" maxlength="200" placeholder="Describe this reward..." style="min-height:4rem; resize:vertical;"></textarea>
+                <label class="sp-label"><?php echo t('channel_rewards_modal_prompt_label'); ?> <span style="font-weight:400; text-transform:none; color:var(--text-muted);"><?php echo t('channel_rewards_modal_prompt_hint'); ?></span></label>
+                <textarea class="sp-input" id="edit-reward-prompt" maxlength="200" placeholder="<?php echo htmlspecialchars(t('channel_rewards_modal_prompt_placeholder')); ?>" style="min-height:4rem; resize:vertical;"></textarea>
             </div>
             <div class="sp-form-group">
-                <label class="sp-label">Background Color</label>
+                <label class="sp-label"><?php echo t('channel_rewards_modal_bg_color_label'); ?></label>
                 <input class="sp-input" type="color" id="edit-reward-bg-color" style="height:40px; padding:2px; width:80px;">
             </div>
             <hr style="border:none; border-top:1px solid var(--border); margin:1rem 0;">
             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; margin-bottom:0.75rem;">
                 <div class="sp-form-group">
                     <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
-                        <input type="checkbox" id="edit-toggle-max-stream"> Max per stream
+                        <input type="checkbox" id="edit-toggle-max-stream"> <?php echo t('channel_rewards_max_per_stream'); ?>
                     </label>
                     <div id="edit-field-max-stream" style="display:none; margin-top:0.5rem;">
-                        <input class="sp-input" type="number" id="edit-max-per-stream" min="1" placeholder="Max">
+                        <input class="sp-input" type="number" id="edit-max-per-stream" min="1" placeholder="<?php echo htmlspecialchars(t('channel_rewards_max_placeholder')); ?>">
                     </div>
                 </div>
                 <div class="sp-form-group">
                     <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
-                        <input type="checkbox" id="edit-toggle-max-user"> Max per user/stream
+                        <input type="checkbox" id="edit-toggle-max-user"> <?php echo t('channel_rewards_max_per_user'); ?>
                     </label>
                     <div id="edit-field-max-user" style="display:none; margin-top:0.5rem;">
-                        <input class="sp-input" type="number" id="edit-max-per-user-stream" min="1" placeholder="Max">
+                        <input class="sp-input" type="number" id="edit-max-per-user-stream" min="1" placeholder="<?php echo htmlspecialchars(t('channel_rewards_max_placeholder')); ?>">
                     </div>
                 </div>
                 <div class="sp-form-group">
                     <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
-                        <input type="checkbox" id="edit-toggle-cooldown"> Cooldown
+                        <input type="checkbox" id="edit-toggle-cooldown"> <?php echo t('channel_rewards_cooldown'); ?>
                     </label>
                     <div id="edit-field-cooldown" style="display:none; margin-top:0.5rem;">
-                        <input class="sp-input" type="number" id="edit-cooldown-seconds" min="1" placeholder="Seconds">
+                        <input class="sp-input" type="number" id="edit-cooldown-seconds" min="1" placeholder="<?php echo htmlspecialchars(t('channel_rewards_seconds_placeholder')); ?>">
                     </div>
                 </div>
             </div>
             <div class="sp-form-group">
                 <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
-                    <input type="checkbox" id="edit-user-input-required"> Require user input
+                    <input type="checkbox" id="edit-user-input-required"> <?php echo t('channel_rewards_req_user_input'); ?>
                 </label>
             </div>
             <div class="sp-form-group">
                 <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
-                    <input type="checkbox" id="edit-skip-queue"> Skip request queue (auto-fulfill)
+                    <input type="checkbox" id="edit-skip-queue"> <?php echo t('channel_rewards_skip_queue_autofulfill'); ?>
                 </label>
             </div>
             <div class="sp-form-group">
                 <label style="cursor:pointer; color:var(--text-secondary); font-size:0.9rem;">
-                    <input type="checkbox" id="edit-is-paused"> Pause reward
+                    <input type="checkbox" id="edit-is-paused"> <?php echo t('channel_rewards_pause_reward'); ?>
                 </label>
             </div>
         </div>
         <div class="modal-card-foot">
-            <button class="sp-btn sp-btn-secondary" onclick="closeEditRewardModal()">Cancel</button>
-            <button class="sp-btn sp-btn-primary" id="edit-reward-submit">Save Changes</button>
+            <button class="sp-btn sp-btn-secondary" onclick="closeEditRewardModal()"><?php echo t('channel_rewards_cancel'); ?></button>
+            <button class="sp-btn sp-btn-primary" id="edit-reward-submit"><?php echo t('channel_rewards_save_changes'); ?></button>
         </div>
     </div>
 </div>
