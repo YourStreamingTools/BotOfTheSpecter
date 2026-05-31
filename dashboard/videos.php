@@ -308,43 +308,43 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 					<span class="sp-badge sp-badge-blue"><?php echo htmlspecialchars($videoType, ENT_QUOTES, 'UTF-8'); ?></span>
 					<span class="sp-badge sp-badge-accent"><?php echo htmlspecialchars($videoDuration, ENT_QUOTES, 'UTF-8'); ?></span>
 					<?php if ($isClipsMode): ?>
-						<span class="sp-badge sp-badge-green"><?php echo $clipFeatured ? 'featured' : 'not featured'; ?></span>
+						<span class="sp-badge sp-badge-green"><?php echo htmlspecialchars($clipFeatured ? t('videos_featured') : t('videos_not_featured'), ENT_QUOTES, 'UTF-8'); ?></span>
 					<?php endif; ?>
 				</div>
 				<?php if ($isClipsMode): ?>
-					<p class="media-card-meta"><strong>Creator:</strong> <?php echo htmlspecialchars($clipCreator !== '' ? $clipCreator : 'Unknown', ENT_QUOTES, 'UTF-8'); ?></p>
-					<p class="media-card-meta"><strong>Broadcaster:</strong> <?php echo htmlspecialchars($clipBroadcaster !== '' ? $clipBroadcaster : 'Unknown', ENT_QUOTES, 'UTF-8'); ?></p>
-					<p class="media-card-meta"><strong>VOD Offset:</strong> <?php echo $clipVodOffset !== null ? number_format($clipVodOffset) . 's' : 'N/A'; ?></p>
+					<p class="media-card-meta"><strong><?php echo htmlspecialchars(t('videos_creator_label'), ENT_QUOTES, 'UTF-8'); ?></strong> <?php echo htmlspecialchars($clipCreator !== '' ? $clipCreator : t('videos_unknown'), ENT_QUOTES, 'UTF-8'); ?></p>
+					<p class="media-card-meta"><strong><?php echo htmlspecialchars(t('videos_broadcaster_label'), ENT_QUOTES, 'UTF-8'); ?></strong> <?php echo htmlspecialchars($clipBroadcaster !== '' ? $clipBroadcaster : t('videos_unknown'), ENT_QUOTES, 'UTF-8'); ?></p>
+					<p class="media-card-meta"><strong><?php echo htmlspecialchars(t('videos_vod_offset_label'), ENT_QUOTES, 'UTF-8'); ?></strong> <?php echo $clipVodOffset !== null ? number_format($clipVodOffset) . 's' : htmlspecialchars(t('videos_na'), ENT_QUOTES, 'UTF-8'); ?></p>
 				<?php endif; ?>
-				<p class="media-card-meta"><strong>Views:</strong> <?php echo number_format($videoViews); ?></p>
-				<p class="media-card-meta" style="margin-bottom:1rem;"><strong><?php echo $isClipsMode ? 'Created' : 'Published'; ?>:</strong> <?php echo htmlspecialchars($videoDate, ENT_QUOTES, 'UTF-8'); ?></p>
+				<p class="media-card-meta"><strong><?php echo htmlspecialchars(t('videos_views_label'), ENT_QUOTES, 'UTF-8'); ?></strong> <?php echo number_format($videoViews); ?></p>
+				<p class="media-card-meta" style="margin-bottom:1rem;"><strong><?php echo htmlspecialchars($isClipsMode ? t('videos_created_label') : t('videos_published_label'), ENT_QUOTES, 'UTF-8'); ?></strong> <?php echo htmlspecialchars($videoDate, ENT_QUOTES, 'UTF-8'); ?></p>
 				<div class="sp-btn-group" style="margin-top:auto; flex-wrap:wrap;">
 					<?php if ($videoUrl !== ''): ?>
 						<a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($videoUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">
-							<i class="fas fa-external-link-alt mr-1"></i>Open
+							<i class="fas fa-external-link-alt mr-1"></i><?php echo htmlspecialchars(t('videos_open'), ENT_QUOTES, 'UTF-8'); ?>
 						</a>
 					<?php else: ?>
-						<button class="sp-btn sp-btn-sm" disabled>No URL</button>
+						<button class="sp-btn sp-btn-sm" disabled><?php echo htmlspecialchars(t('videos_no_url'), ENT_QUOTES, 'UTF-8'); ?></button>
 					<?php endif; ?>
 					<?php if (!$isClipsMode && $videoId !== ''): ?>
 						<button type="button" class="sp-btn sp-btn-danger sp-btn-sm delete-video-btn" data-video-id="<?php echo htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8'); ?>">
-							<i class="fas fa-trash mr-1"></i>Delete
+							<i class="fas fa-trash mr-1"></i><?php echo htmlspecialchars(t('videos_delete'), ENT_QUOTES, 'UTF-8'); ?>
 						</button>
 					<?php endif; ?>
 					<?php if ($isClipsMode): ?>
 						<?php if ($clipLandscapeDownload !== ''): ?>
 							<a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($clipLandscapeDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
-								<i class="fas fa-download mr-1"></i>Landscape
+								<i class="fas fa-download mr-1"></i><?php echo htmlspecialchars(t('videos_landscape'), ENT_QUOTES, 'UTF-8'); ?>
 							</a>
 						<?php endif; ?>
 						<?php if ($clipPortraitDownload !== ''): ?>
 							<a class="sp-btn sp-btn-primary sp-btn-sm" href="<?php echo htmlspecialchars($clipPortraitDownload, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" download>
-								<i class="fas fa-download mr-1"></i>Portrait
+								<i class="fas fa-download mr-1"></i><?php echo htmlspecialchars(t('videos_portrait'), ENT_QUOTES, 'UTF-8'); ?>
 							</a>
 						<?php endif; ?>
 						<?php if ($clipLandscapeDownload === '' && $clipPortraitDownload === ''): ?>
 							<button class="sp-btn sp-btn-sm" disabled>
-								<i class="fas fa-download mr-1"></i>Download unavailable
+								<i class="fas fa-download mr-1"></i><?php echo htmlspecialchars(t('videos_download_unavailable'), ENT_QUOTES, 'UTF-8'); ?>
 							</button>
 						<?php endif; ?>
 					<?php endif; ?>

@@ -103,21 +103,21 @@ if ($sessionCount >= 3) {
             <div class="session-group">
                 <div class="session-header">
                     <div>
-                        <strong>Session Name:</strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
+                        <strong><?= t('notifications_content_label_session_name') ?></strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
                         <br>
-                        <strong>Session ID:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
+                        <strong><?= t('notifications_content_label_session_id') ?></strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
                     </div>
-                    <div class="sub-count"><?php echo count($subs); ?> subscriptions</div>
+                    <div class="sub-count"><?php echo count($subs); ?> <?= t('notifications_content_subscriptions_word') ?></div>
                 </div>
                 <table class="data-table sp-table">
                     <thead>
                         <tr>
-                            <th>Type</th>
-                            <th>Version</th>
-                            <th>Condition</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Action</th>
+                            <th><?= t('notifications_content_th_type') ?></th>
+                            <th><?= t('notifications_content_th_version') ?></th>
+                            <th><?= t('notifications_content_th_condition') ?></th>
+                            <th><?= t('notifications_content_th_status') ?></th>
+                            <th><?= t('notifications_content_th_created') ?></th>
+                            <th><?= t('notifications_content_th_action') ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -130,7 +130,7 @@ if ($sessionCount >= 3) {
                                     $conditions = [];
                                     foreach ($sub['condition'] as $key => $value) {
                                         if ($value === $data['userId']) {
-                                            $conditions[] = "$key: <strong style='color: #00ff00;'>YOU</strong>";
+                                            $conditions[] = "$key: <strong style='color: #00ff00;'>" . t('notifications_content_condition_you') . "</strong>";
                                         } else {
                                             $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
                                         }
@@ -153,7 +153,7 @@ if ($sessionCount >= 3) {
                                 </td>
                                 <td>
                                     <button onclick="deleteSingleSubscription('<?php echo htmlspecialchars($sub['id'], ENT_QUOTES); ?>')" class="delete-btn">
-                                        <i class="fas fa-trash"></i> Delete
+                                        <i class="fas fa-trash"></i> <?= t('notifications_content_btn_delete') ?>
                                     </button>
                                 </td>
                             </tr>
@@ -168,11 +168,10 @@ if ($sessionCount >= 3) {
 <?php if (count($data['sessionGroupsDisabled']) > 0): ?>
     <div class="sp-card" style="border-left:3px solid var(--red);"><div class="sp-card-body">
         <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
-            <i class="fas fa-exclamation-triangle"></i> Disabled / Stale WebSocket Sessions
+            <i class="fas fa-exclamation-triangle"></i> <?= t('notifications_content_heading_disabled_sessions') ?>
         </h2>
         <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3);">
-            <strong><i class="fas fa-info-circle"></i> Note:</strong> These subscriptions are no longer active and can be safely deleted. 
-            They do not count toward your connection or subscription limits.
+            <?= t('notifications_content_infobox_disabled_sessions') ?>
         </div>
         <?php 
         $sessionNumber = 0;
@@ -215,7 +214,7 @@ if ($sessionCount >= 3) {
                                     $conditions = [];
                                     foreach ($sub['condition'] as $key => $value) {
                                         if ($value === $data['userId']) {
-                                            $conditions[] = "$key: <strong style='color: #00ff00;'>YOU</strong>";
+                                            $conditions[] = "$key: <strong style='color: #00ff00;'>" . t('notifications_content_condition_you') . "</strong>";
                                         } else {
                                             $conditions[] = "$key: " . htmlspecialchars(substr($value, 0, 12));
                                         }
@@ -238,7 +237,7 @@ if ($sessionCount >= 3) {
                                 </td>
                                 <td>
                                     <button onclick="deleteSingleSubscription('<?php echo htmlspecialchars($sub['id'], ENT_QUOTES); ?>')" class="delete-btn">
-                                        <i class="fas fa-trash"></i> Delete
+                                        <i class="fas fa-trash"></i> <?= t('notifications_content_btn_delete') ?>
                                     </button>
                                 </td>
                             </tr>

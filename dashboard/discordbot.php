@@ -169,10 +169,10 @@ $linkingMessageType = "";
 
 // Handle user denial (error=access_denied in query string)
 if ($isActAsUser && (isset($_GET['auth_data']) || isset($_GET['code']))) {
-  $linkingMessage = "Linking Discord is disabled while using Act As mode.";
+  $linkingMessage = t('discordbot_msg_actas_disabled');
   $linkingMessageType = "is-warning";
 } elseif (isset($_GET['error']) && $_GET['error'] === 'access_denied') {
-  $linkingMessage = "Authorization was denied. Please allow access to link your Discord account.";
+  $linkingMessage = t('discordbot_msg_auth_denied');
   $linkingMessageType = "is-danger";
 }
 
