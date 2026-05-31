@@ -704,6 +704,130 @@
     margin: 0 4px;
 }
 
+/* Screen-position picker (3x3 grid) */
+.alerts-position-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 4px;
+    width: 96px;
+    height: 96px;
+}
+.alerts-position-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+}
+.alerts-position-btn:hover {
+    border-color: var(--border-hover);
+}
+.alerts-position-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all var(--transition);
+}
+.alerts-position-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-light);
+}
+.alerts-position-btn.active .alerts-position-dot {
+    background: var(--accent);
+}
+
+/* Sample previews for the legacy-themed categories (mirrors overlay/index.css) */
+.alerts-preview-legacy {
+    max-width: 90%;
+    max-height: 90%;
+}
+.alerts-preview-weather {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    min-width: 160px;
+}
+.alerts-preview-weather .apw-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+}
+.alerts-preview-weather .apw-temp {
+    font-size: 20px;
+    font-weight: 600;
+}
+.alerts-preview-weather .apw-details {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.alerts-preview-weather .apw-icon {
+    font-size: 22px;
+}
+.alerts-preview-deaths {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border-radius: 10px;
+    padding: 12px 18px;
+    text-align: center;
+    min-width: 140px;
+}
+.alerts-preview-deaths .apd-title {
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.alerts-preview-deaths .apd-emote {
+    width: 24px;
+    height: 24px;
+    background-image: url('https://cdn.botofthespecter.com/emotes/RIP.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    display: inline-block;
+}
+.alerts-preview-deaths .apd-game {
+    font-size: 14px;
+    opacity: 0.9;
+}
+.alerts-preview-deaths .apd-count {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+.alerts-preview-walkon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 14px 18px;
+    border-radius: 12px;
+}
+.alerts-preview-walkon .apwk-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7c5cbf, #9070d8);
+}
+.alerts-preview-walkon .apwk-name {
+    font-size: 18px;
+    font-weight: 600;
+}
+
 /* Variable hint chips under the message template */
 .variable-hints {
     margin-top: 6px;

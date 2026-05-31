@@ -431,6 +431,7 @@ try {
                 twitch_user_id VARCHAR(50) NOT NULL,
                 twitch_user_name VARCHAR(100) NOT NULL,
                 media_file VARCHAR(255) NOT NULL,
+                mode VARCHAR(20) NOT NULL DEFAULT 'sound',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (twitch_user_id),
@@ -487,6 +488,7 @@ try {
                 celebration_effect VARCHAR(50) DEFAULT 'fireworks',
                 celebration_intensity VARCHAR(20) DEFAULT 'light',
                 celebration_area VARCHAR(50) DEFAULT 'full',
+                screen_position VARCHAR(20) DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_category_variant (alert_category, variant_index)

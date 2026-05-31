@@ -124,7 +124,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             text_color = ?, accent_color = ?, text_drop_shadow = ?, tts_enabled = ?,
             alert_image = ?, image_scale = ?, image_volume = ?,
             alert_sound = ?, sound_volume = ?,
-            celebration_enabled = ?, celebration_effect = ?, celebration_intensity = ?, celebration_area = ?
+            celebration_enabled = ?, celebration_effect = ?, celebration_intensity = ?, celebration_area = ?,
+            screen_position = ?
             WHERE id = ?");
         $variant_name = $_POST['variant_name'] ?? '';
         $enabled = intval($_POST['enabled'] ?? 1);
@@ -160,7 +161,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         $celebration_effect = $_POST['celebration_effect'] ?? 'fireworks';
         $celebration_intensity = $_POST['celebration_intensity'] ?? 'light';
         $celebration_area = $_POST['celebration_area'] ?? 'full';
-        $stmt->bind_param('sisississsiiiissssissssississiisssi',
+        $screen_position = $_POST['screen_position'] ?? null;
+        // Type string realigned to the real column types: 'd' for the two DECIMAL
+        // animation durations (previously 'i', which truncated fractional seconds),
+        // and 'screen_position' appended before the WHERE id.
+        $stmt->bind_param('sisissddssiiiiisssissssiisiisiissssi',
             $variant_name, $enabled, $alert_condition,
             $duration, $animation_in, $animation_out,
             $animation_in_duration, $animation_out_duration,
@@ -172,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
             $alert_image, $image_scale, $image_volume,
             $alert_sound, $sound_volume,
             $celebration_enabled, $celebration_effect, $celebration_intensity, $celebration_area,
+            $screen_position,
             $id
         );
         if ($stmt->execute()) {
@@ -326,6 +332,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         echo json_encode(['success' => true, 'message' => 'Media removed from variant.']);
         exit;
     }
+    if ($action === 'set_alert_position') {
+        $id = intval($_POST['id'] ?? 0);
+        $position = $_POST['position'] ?? '';
+        $allowedPositions = ['left-top','center-top','right-top','left-middle','center-center','right-middle','left-bottom','center-bottom','right-bottom'];
+        if ($id <= 0 || !in_array($position, $allowedPositions, true)) {
+            echo json_encode(['success' => false, 'message' => 'Invalid position.']);
+            exit;
+        }
+        $stmt = $db->prepare("UPDATE twitch_alerts SET screen_position = ? WHERE id = ?");
+        $stmt->bind_param('si', $position, $id);
+        $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success' => true]);
+        exit;
+    }
     echo json_encode(['success' => false, 'message' => 'Unknown action.']);
     exit;
 }
@@ -407,6 +428,27 @@ $animationsOut = ['Fade out' => 'fadeOut', 'Slide left' => 'slideOutLeft', 'Slid
 // Font options
 $fonts = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald', 'Raleway', 'Poppins', 'Nunito', 'Ubuntu', 'Bebas Neue', 'Bangers', 'Permanent Marker', 'Press Start 2P', 'Creepster'];
 $fontWeights = ['Light' => '300', 'Regular' => '400', 'Medium' => '500', 'Semi-Bold' => '600', 'Bold' => '700', 'Extra-Bold' => '800'];
+
+// Screen-position grid (3x3). A NULL screen_position falls back to the per-category
+// default resolved in JS (weather=left-top, deaths=left-bottom, everything else=center-center).
+$screenPositions = [
+    'left-top'      => 'alerts_pos_left_top',
+    'center-top'    => 'alerts_pos_center_top',
+    'right-top'     => 'alerts_pos_right_top',
+    'left-middle'   => 'alerts_pos_left_middle',
+    'center-center' => 'alerts_pos_center_center',
+    'right-middle'  => 'alerts_pos_right_middle',
+    'left-bottom'   => 'alerts_pos_left_bottom',
+    'center-bottom' => 'alerts_pos_center_bottom',
+    'right-bottom'  => 'alerts_pos_right_bottom',
+];
+function alerts_render_position_grid($gridId, $positions) {
+    echo '<div class="alerts-position-grid" id="' . htmlspecialchars($gridId) . '">';
+    foreach ($positions as $posVal => $posKey) {
+        echo '<button type="button" class="alerts-position-btn" data-position="' . htmlspecialchars($posVal) . '" title="' . htmlspecialchars(t($posKey)) . '"><span class="alerts-position-dot"></span></button>';
+    }
+    echo '</div>';
+}
 
 // Media base URL for preview thumbnails inside this configurator
 $mediaBase = "https://media.botofthespecter.com/$username/";
@@ -540,6 +582,8 @@ ob_start();
                         <div class="preview-text" id="preview-text"></div>
                     </div>
                 </div>
+                <!-- Sample preview for the legacy-themed categories (weather, deaths) -->
+                <div class="alerts-preview-legacy" id="preview-legacy" style="display:none;"></div>
             </div>
             <div class="alerts-preview-options">
                 <span class="alerts-preview-options-label"><?= t('alerts_preview_canvas') ?></span>
@@ -574,7 +618,8 @@ ob_start();
                         <span><?= t('alerts_section_general') ?></span>
                     </header>
                     <div class="alerts-settings-section-body">
-                        <p class="alerts-help-text"><?= t('alerts_simple_note') ?></p>
+                        <p class="alerts-help-text" id="simple-note-positioned"><?= t('alerts_simple_note') ?></p>
+                        <p class="alerts-help-text" id="simple-note-walkon" style="display:none;"><?= t('alerts_walkon_note') ?></p>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
                                 <label><?= t('alerts_enabled') ?></label>
@@ -583,6 +628,10 @@ ob_start();
                                     <span class="alerts-toggle-slider"></span>
                                 </label>
                             </div>
+                        </div>
+                        <div class="alerts-form-group" id="simple-position-group">
+                            <label><?= t('alerts_screen_position') ?></label>
+                            <?php alerts_render_position_grid('position-grid-simple', $screenPositions); ?>
                         </div>
                     </div>
                 </section>
@@ -671,6 +720,10 @@ ob_start();
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
+                        <div class="alerts-form-group">
+                            <label><?= t('alerts_screen_position') ?></label>
+                            <?php alerts_render_position_grid('position-grid-form', $screenPositions); ?>
+                        </div>
                         <div class="alerts-form-group">
                             <label><?= t('alerts_image_position') ?></label>
                             <div class="layout-presets">
@@ -993,6 +1046,43 @@ $(document).ready(function() {
     // Enable/disable-only categories — selecting one shows just an on/off switch;
     // the alert renders through its existing overlay theme in overlay/index.php.
     const simpleCategories = ['weather', 'deaths', 'walkons'];
+    // Screen position: a NULL value in the DB means "use the category default".
+    const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
+    function defaultPositionFor(cat) { return positionDefaults[cat] || 'center-center'; }
+    // Map a 9-grid position onto the preview canvas's flex alignment.
+    function applyPreviewPosition(pos) {
+        var p = String(pos || 'center-center').split('-');
+        var h = p[0], v = p[1];
+        var justify = h === 'left' ? 'flex-start' : (h === 'right' ? 'flex-end' : 'center');
+        var align = v === 'top' ? 'flex-start' : (v === 'bottom' ? 'flex-end' : 'center');
+        $('#preview-area').css({ 'justify-content': justify, 'align-items': align });
+    }
+    // Sample preview for the legacy-themed categories (weather, deaths).
+    function renderLegacyPreview(category, pos) {
+        $('#preview-box').hide();
+        $('#preview-placeholder').hide();
+        var html = '';
+        if (category === 'weather') {
+            html = '<div class="alerts-preview-weather">'
+                 + '<div class="apw-header"><span class="apw-loc">Sydney</span><span class="apw-temp">22°C</span></div>'
+                 + '<div class="apw-details"><i class="fas fa-cloud-sun apw-icon"></i><span class="apw-status">Partly cloudy</span><span class="apw-wind">10 kph</span><span class="apw-humidity">60%</span></div>'
+                 + '</div>';
+        } else if (category === 'deaths') {
+            html = '<div class="alerts-preview-deaths">'
+                 + '<div class="apd-title"><span class="apd-emote"></span><span>Current Deaths</span></div>'
+                 + '<div class="apd-game">Elden Ring</div>'
+                 + '<div class="apd-count">42</div>'
+                 + '</div>';
+        } else if (category === 'walkons') {
+            // Represents the "sound + picture & name" mode; sound-only/video are set per viewer.
+            html = '<div class="alerts-preview-walkon">'
+                 + '<div class="apwk-avatar"></div>'
+                 + '<div class="apwk-name">DisplayName</div>'
+                 + '</div>';
+        }
+        $('#preview-legacy').html(html).show();
+        applyPreviewPosition(pos);
+    }
     function updateAddButtonFor(category) {
         var $cat = $('.alerts-category[data-category="' + category + '"]');
         if (!$cat.length) return;
@@ -1155,6 +1245,7 @@ $(document).ready(function() {
         $('#settings-placeholder').hide();
         $('#settings-form').show();
         $('#preview-placeholder').hide();
+        $('#preview-legacy').hide();
         $('#preview-box').show();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', false);
         // General
@@ -1170,6 +1261,9 @@ $(document).ready(function() {
         // Layout
         $('.layout-preset-btn').removeClass('active');
         $('.layout-preset-btn[data-layout="' + a.layout_preset + '"]').addClass('active');
+        var formPos = a.screen_position || defaultPositionFor(a.alert_category);
+        $('#position-grid-form .alerts-position-btn').removeClass('active');
+        $('#position-grid-form .alerts-position-btn[data-position="' + formPos + '"]').addClass('active');
         $('#set-bg-color').val(a.bg_color);
         $('#set-bg-color-text').val(a.bg_color);
         $('#set-bg-opacity').val(a.bg_opacity);
@@ -1209,16 +1303,25 @@ $(document).ready(function() {
         loadingVariant = false;
         clearDirty();
     }
-    // Enable/disable-only categories: show just the on/off switch and a note.
+    // Enable/disable-only categories: on/off switch, optional screen position, and
+    // (for weather/deaths) a sample preview in their own theme. Walk-ons is audio-only.
     function loadSimpleVariant(a) {
         loadingVariant = true;
         $('#settings-form').hide();
         $('#settings-placeholder').hide();
         $('#simple-settings').show();
-        $('#preview-box').hide();
-        $('#preview-placeholder').show();
         $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
         $('#set-simple-enabled').prop('checked', a.enabled == 1);
+        var pos = a.screen_position || defaultPositionFor(a.alert_category);
+        $('#position-grid-simple .alerts-position-btn').removeClass('active');
+        $('#position-grid-simple .alerts-position-btn[data-position="' + pos + '"]').addClass('active');
+        // All three (weather, deaths, walk-ons) now have a screen position + sample
+        // preview; only the help note differs for walk-ons (mode is per-viewer).
+        $('#simple-position-group').show();
+        var isWalkon = a.alert_category === 'walkons';
+        $('#simple-note-positioned').toggle(!isWalkon);
+        $('#simple-note-walkon').toggle(isWalkon);
+        renderLegacyPreview(a.alert_category, pos);
         loadingVariant = false;
         clearDirty();
     }
@@ -1229,6 +1332,19 @@ $(document).ready(function() {
         if (alertsData[currentAlertId]) alertsData[currentAlertId].enabled = enabled;
         $('.alerts-variant-enabled-toggle[data-id="' + currentAlertId + '"]').prop('checked', this.checked);
         $.post('', { action: 'toggle_alert', id: currentAlertId, enabled: enabled }, null, 'json');
+    });
+    // Position picker in the simple panel also fires immediately.
+    $(document).on('click', '#position-grid-simple .alerts-position-btn', function() {
+        if (!currentAlertId) return;
+        var pos = $(this).data('position');
+        $('#position-grid-simple .alerts-position-btn').removeClass('active');
+        $(this).addClass('active');
+        var a = alertsData[currentAlertId];
+        if (a) {
+            a.screen_position = pos;
+            if (a.alert_category !== 'walkons') renderLegacyPreview(a.alert_category, pos);
+        }
+        $.post('', { action: 'set_alert_position', id: currentAlertId, position: pos }, null, 'json');
     });
     function updateMediaPreview(type, filename) {
         if (type === 'image') {
@@ -1333,6 +1449,8 @@ $(document).ready(function() {
             'text-shadow': textShadow ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'
         });
         $('.preview-accent').css('color', accentColor);
+        var previewPos = $('#position-grid-form .alerts-position-btn.active').data('position') || 'center-center';
+        applyPreviewPosition(previewPos);
         loadGoogleFont(fontFamily);
     }
     var loadedFonts = {};
@@ -1351,6 +1469,12 @@ $(document).ready(function() {
     });
     $(document).on('click', '.layout-preset-btn', function() {
         $('.layout-preset-btn').removeClass('active');
+        $(this).addClass('active');
+        updatePreview();
+        markDirty();
+    });
+    $(document).on('click', '#position-grid-form .alerts-position-btn', function() {
+        $('#position-grid-form .alerts-position-btn').removeClass('active');
         $(this).addClass('active');
         updatePreview();
         markDirty();
@@ -1477,7 +1601,8 @@ $(document).ready(function() {
             celebration_enabled: $('#set-celebration-enabled').is(':checked') ? 1 : 0,
             celebration_effect: $('#set-celebration-effect').val(),
             celebration_intensity: $('#set-celebration-intensity').val(),
-            celebration_area: 'full'
+            celebration_area: 'full',
+            screen_position: $('#position-grid-form .alerts-position-btn.active').data('position') || 'center-center'
         };
     }
     $(document).on('click', '.alerts-new-variant-btn', function(e) {

@@ -221,6 +221,40 @@ html, body {
     animation: slideIn 1s forwards, infinite alternate;
 }
 
+/* ===== Walk-on Overlay (folded into the unified overlay) ===== */
+.walkon-overlay-page {
+    position: fixed;
+    display: none;
+    z-index: 1000;
+}
+.walkon-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #FFFFFF;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+.walkon-card-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+.walkon-card-name {
+    font-size: 22px;
+    font-weight: 600;
+}
+.walkon-video {
+    max-width: 480px;
+    max-height: 360px;
+    border-radius: 8px;
+}
+
 /* ===== Discord Overlay ===== */
 
 .discord-overlay-page {

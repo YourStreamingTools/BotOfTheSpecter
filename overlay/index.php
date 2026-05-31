@@ -165,6 +165,7 @@ if ($username) {
             }
             function renderAlert(config, eventData) {
                 const container = document.getElementById('alertContainer');
+                applyScreenPosition(container, config.screen_position, config.alert_category);
                 const weightMap = {'Light':'300','Regular':'400','Medium':'500','Semi-Bold':'600','Bold':'700','Extra-Bold':'800'};
                 const cssWeight = weightMap[config.font_weight] || '600';
                 // Load font
@@ -492,10 +493,34 @@ if ($username) {
                 if (!variants || variants.length === 0) return false;
                 return variants.some(v => v.enabled == 1);
             }
+            const positionDefaults = { weather: 'left-top', deaths: 'left-bottom' };
+            function defaultPositionFor(cat) { return positionDefaults[cat] || 'center-center'; }
+            function getEnabledVariant(category) {
+                const variants = alertConfigs[category];
+                if (!variants) return null;
+                return variants.find(v => v.enabled == 1) || null;
+            }
+            // Place a container at one of the 9 screen positions (overrides its base CSS).
+            function applyScreenPosition(el, pos, category) {
+                if (!el) return;
+                const parts = String(pos || defaultPositionFor(category)).split('-');
+                const h = parts[0], v = parts[1];
+                const M = '24px';
+                if (h === 'left') { el.style.left = M; el.style.right = 'auto'; }
+                else if (h === 'right') { el.style.right = M; el.style.left = 'auto'; }
+                else { el.style.left = '50%'; el.style.right = 'auto'; }
+                if (v === 'top') { el.style.top = M; el.style.bottom = 'auto'; }
+                else if (v === 'bottom') { el.style.bottom = M; el.style.top = 'auto'; }
+                else { el.style.top = '50%'; el.style.bottom = 'auto'; }
+                const tx = (h === 'center') ? '-50%' : '0';
+                const ty = (v === 'middle' || v === 'center') ? '-50%' : '0';
+                el.style.transform = (tx === '0' && ty === '0') ? 'none' : `translate(${tx}, ${ty})`;
+            }
             // Deaths — ported from overlay/deaths.php
             function renderDeaths(data) {
                 const deathOverlay = document.getElementById('deathOverlay');
                 if (!deathOverlay) return;
+                applyScreenPosition(deathOverlay, (getEnabledVariant('deaths') || {}).screen_position, 'deaths');
                 deathOverlay.innerHTML = `
                     <div class="deaths-overlay-page-content">
                         <div class="deaths-overlay-page-title">
@@ -539,6 +564,7 @@ if ($username) {
                 }
                 const weatherOverlay = document.getElementById('weatherOverlay');
                 if (!weatherOverlay) return;
+                applyScreenPosition(weatherOverlay, (getEnabledVariant('weather') || {}).screen_position, 'weather');
                 weatherOverlay.innerHTML = `
                     <div class="weather-overlay-page-content">
                         <div class="weather-overlay-page-header">
@@ -582,15 +608,56 @@ if ($username) {
                 walkonAudio.addEventListener('error', () => { walkonAudio = null; playNextWalkon(); });
                 walkonAudio.play().catch(e => console.error('Walk-on audio error:', e));
             }
-            function handleWalkon(data) {
-                let audioFile;
+            function walkonMediaUrl(data) {
                 if (data.media_file) {
-                    audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
-                } else {
-                    const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
-                    audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
+                    return {
+                        url: `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`,
+                        ext: (data.media_file.split('.').pop() || '').toLowerCase()
+                    };
                 }
-                enqueueWalkon(audioFile);
+                const e = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
+                return {
+                    url: `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${e}`,
+                    ext: e.replace('.', '').toLowerCase()
+                };
+            }
+            function showWalkonVideo(url) {
+                const el = document.getElementById('walkonOverlay');
+                if (!el) return;
+                applyScreenPosition(el, (getEnabledVariant('walkons') || {}).screen_position, 'walkons');
+                el.innerHTML = `<video class="walkon-video" src="${url}" autoplay></video>`;
+                el.style.display = 'block';
+                const vid = el.querySelector('video');
+                const done = () => { el.style.display = 'none'; el.innerHTML = ''; };
+                if (vid) { vid.addEventListener('ended', done); vid.addEventListener('error', done); }
+                else done();
+            }
+            function showWalkonCard(avatarUrl, name) {
+                const el = document.getElementById('walkonOverlay');
+                if (!el) return;
+                applyScreenPosition(el, (getEnabledVariant('walkons') || {}).screen_position, 'walkons');
+                const avatar = avatarUrl
+                    ? `<img class="walkon-card-avatar" src="${avatarUrl}" alt="">`
+                    : `<div class="walkon-card-avatar"></div>`;
+                el.innerHTML = `<div class="walkon-card">${avatar}<div class="walkon-card-name">${escapeHtml(name || '')}</div></div>`;
+                el.style.display = 'block';
+                setTimeout(() => { el.style.display = 'none'; el.innerHTML = ''; }, 6000);
+            }
+            // Three walk-on modes (mode comes from the walkons table via the bot):
+            //   sound          -> play audio only
+            //   sound_overlay  -> play audio + show the viewer's picture & name
+            //   video          -> play the assigned video (visual + its own audio)
+            function handleWalkon(data) {
+                const media = walkonMediaUrl(data);
+                const mode = data.mode || (media.ext === 'mp4' ? 'video' : 'sound');
+                if (mode === 'video' || media.ext === 'mp4') {
+                    showWalkonVideo(media.url);
+                } else if (mode === 'sound_overlay') {
+                    showWalkonCard(data.avatar_url, data.display_name || data.user);
+                    enqueueWalkon(media.url);
+                } else {
+                    enqueueWalkon(media.url);
+                }
             }
             function connectWebSocket() {
                 socket = io('wss://websocket.botofthespecter.com', {
@@ -858,5 +925,6 @@ if ($username) {
     <!-- Legacy overlays folded in (weather, deaths). Walk-ons is audio-only. -->
     <div id="deathOverlay" class="deaths-overlay-page"></div>
     <div id="weatherOverlay" class="weather-overlay-page hide"></div>
+    <div id="walkonOverlay" class="walkon-overlay-page"></div>
 </body>
 </html>
