@@ -162,7 +162,7 @@ ob_start();
   <div class="cc-modal">
     <div class="cc-modal-head">
       <span class="cc-modal-title"><?php echo t('bot_points_settings_title'); ?></span>
-      <button class="cc-modal-close" aria-label="close" id="closeModal">&times;</button>
+      <button class="cc-modal-close" aria-label="<?php echo htmlspecialchars(t('bot_points_close')); ?>" id="closeModal">&times;</button>
     </div>
     <div class="cc-modal-body">
       <form method="POST" action="">

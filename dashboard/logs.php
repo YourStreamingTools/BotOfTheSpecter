@@ -295,13 +295,13 @@ ob_start();
           <option value="websocket" <?php echo $logType === 'websocket' ? 'selected' : ''; ?>><?php echo t('logs_type_websocket'); ?></option>
           <option value="system" <?php echo $logType === 'system' ? 'selected' : ''; ?>><?php echo t('logs_type_system'); ?></option>
           <option value="integrations" <?php echo $logType === 'integrations' ? 'selected' : ''; ?>><?php echo t('logs_type_integrations'); ?></option>
-          <option value="crash" <?php echo $logType === 'crash' ? 'selected' : ''; ?>>Crash Log</option>
+          <option value="crash" <?php echo $logType === 'crash' ? 'selected' : ''; ?>><?php echo t('logs_type_crash'); ?></option>
         </select>
       </div>
       <div class="sp-form-group" id="rotation-selector" style="display:none;">
-        <label class="sp-label">Log Rotation:</label>
+        <label class="sp-label"><?php echo t('logs_rotation_label'); ?></label>
         <select class="sp-select" id="logs-rotation-select" style="width:100%;">
-          <option value="0">Current</option>
+          <option value="0"><?php echo t('logs_rotation_current'); ?></option>
         </select>
       </div>
       <div id="logs-options" style="color:var(--text-secondary); font-size:0.875rem;">
@@ -316,7 +316,7 @@ ob_start();
         <button class="sp-btn sp-btn-info" id="toggle-auto-refresh"><?php echo t('logs_auto_refresh'); ?>: OFF</button>
         <button class="sp-btn sp-btn-success" id="download-log">
           <i class="fas fa-download"></i>
-          <span>Download</span>
+          <span><?php echo t('logs_download_btn'); ?></span>
         </button>
       </div>
       </div>
