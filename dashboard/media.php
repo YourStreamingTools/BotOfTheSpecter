@@ -115,12 +115,13 @@ if ($r = $db->query("SELECT sound_mapping, twitch_alert_id FROM twitch_sound_ale
     $r->free();
 }
 
-$walkonsByFile = [];  // file => [{user_id, user_name}, ...]
-if ($r = $db->query("SELECT twitch_user_id, twitch_user_name, media_file FROM walkons")) {
+$walkonsByFile = [];  // file => [{user_id, user_name, mode}, ...]
+if ($r = $db->query("SELECT twitch_user_id, twitch_user_name, media_file, mode FROM walkons")) {
     while ($row = $r->fetch_assoc()) {
         $walkonsByFile[$row['media_file']][] = [
             'user_id'   => $row['twitch_user_id'],
             'user_name' => $row['twitch_user_name'],
+            'mode'      => $row['mode'] ?? 'sound',
         ];
     }
     $r->free();
@@ -193,11 +194,11 @@ function ajax_respond_mappings($file, $db, $isAjax) {
         while ($r = $res->fetch_assoc()) $resp['mappings']['events'][] = $r['twitch_alert_id'];
         $stmt->close();
     }
-    if ($stmt = $db->prepare("SELECT twitch_user_id, twitch_user_name FROM walkons WHERE media_file = ?")) {
+    if ($stmt = $db->prepare("SELECT twitch_user_id, twitch_user_name, mode FROM walkons WHERE media_file = ?")) {
         $stmt->bind_param('s', $file); $stmt->execute();
         $res = $stmt->get_result();
         while ($r = $res->fetch_assoc()) {
-            $resp['mappings']['walkons'][] = ['user_id' => $r['twitch_user_id'], 'user_name' => $r['twitch_user_name']];
+            $resp['mappings']['walkons'][] = ['user_id' => $r['twitch_user_id'], 'user_name' => $r['twitch_user_name'], 'mode' => $r['mode'] ?? 'sound'];
         }
         $stmt->close();
     }
@@ -269,10 +270,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $file     = $_POST['media_file']       ?? '';
         $userId   = $_POST['twitch_user_id']   ?? '';
         $userName = $_POST['twitch_user_name'] ?? '';
+        $walkonMode = $_POST['mode'] ?? 'sound';
+        if (!in_array($walkonMode, ['sound', 'sound_overlay', 'video'], true)) $walkonMode = 'sound';
         if ($action === 'add' && $file !== '' && $userId !== '' && $userName !== '') {
-            $stmt = $db->prepare("INSERT INTO walkons (twitch_user_id, twitch_user_name, media_file) VALUES (?, ?, ?)
-                                  ON DUPLICATE KEY UPDATE media_file = VALUES(media_file), twitch_user_name = VALUES(twitch_user_name)");
-            $stmt->bind_param('sss', $userId, $userName, $file);
+            $stmt = $db->prepare("INSERT INTO walkons (twitch_user_id, twitch_user_name, media_file, mode) VALUES (?, ?, ?, ?)
+                                  ON DUPLICATE KEY UPDATE media_file = VALUES(media_file), twitch_user_name = VALUES(twitch_user_name), mode = VALUES(mode)");
+            $stmt->bind_param('ssss', $userId, $userName, $file, $walkonMode);
             $stmt->execute(); $stmt->close();
             $status .= "Walkon added.<br>";
             ajax_respond_mappings($file, $db, $isAjax);
@@ -753,14 +756,24 @@ $(document).ready(function () {
             }
             html += renderSection('Twitch Events', eventChips, addEvent, false);
         }
-        // Walkons (audio only)
-        if (type !== 'video') {
+        // Walkons — audio: sound only or sound + picture & name; video: video alert
+        if (type === 'audio' || type === 'video') {
             var walkonChips = walkons.map(function (w) {
-                return { label: '@' + w.user_name, removeData: { kind: 'walkon', 'user-id': w.user_id } };
+                var m = w.mode || 'sound';
+                var tag = m === 'sound_overlay' ? ' · pic+name' : (m === 'video' ? ' · video' : '');
+                return { label: '@' + w.user_name + tag, removeData: { kind: 'walkon', 'user-id': w.user_id } };
             });
+            var modeSelect = '';
+            if (type === 'audio') {
+                modeSelect = '<select class="sp-select walkon-mode-select">'
+                    + '<option value="sound">Sound only</option>'
+                    + '<option value="sound_overlay">Sound + picture &amp; name</option>'
+                    + '</select>';
+            }
             var addWalkon = ''
                 + '<div class="walkon-add-wrap">'
                 + '  <input type="text" class="sp-input walkon-add-input" placeholder="Twitch username…" autocomplete="off" list="walkon-seen-users">'
+                +    modeSelect
                 + '  <button type="button" class="sp-btn sp-btn-primary sp-btn-sm walkon-add-confirm">+ Add user</button>'
                 + '  <span class="walkon-add-status"></span>'
                 + '</div>';
@@ -895,9 +908,13 @@ $(document).ready(function () {
     });
     $(document).on('click', '.walkon-add-confirm', function () {
         if (!activeFile) return;
-        var input  = $(this).closest('.walkon-add-wrap').find('.walkon-add-input');
-        var status = $(this).closest('.walkon-add-wrap').find('.walkon-add-status');
-        var raw    = (input.val() || '').trim().replace(/^@/, '').toLowerCase();
+        var wrap    = $(this).closest('.walkon-add-wrap');
+        var input   = wrap.find('.walkon-add-input');
+        var status  = wrap.find('.walkon-add-status');
+        var modeSel = wrap.find('.walkon-mode-select');
+        // Audio files carry a mode select; video files are always 'video'.
+        var mode    = modeSel.length ? modeSel.val() : (fileType(activeFile) === 'video' ? 'video' : 'sound');
+        var raw     = (input.val() || '').trim().replace(/^@/, '').toLowerCase();
         if (!raw) return;
         status.text('Looking up @' + raw + '…');
         // Helix resolves both seen_users and unknown logins to a Twitch user_id.
@@ -912,7 +929,8 @@ $(document).ready(function () {
                 action: 'add',
                 media_file: activeFile,
                 twitch_user_id: resp.user_id,
-                twitch_user_name: resp.user_name
+                twitch_user_name: resp.user_name,
+                mode: mode
             }, function () { input.val(''); status.text(''); });
         }, 'json').fail(function () { status.text('Lookup failed'); });
     });

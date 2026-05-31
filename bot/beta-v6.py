@@ -9374,6 +9374,27 @@ async def get_display_name(user_id):
             else:
                 return None
 
+# Fetch both the display name and avatar (profile image) for a user id in one Helix call.
+# Used by the WALKON "sound + overlay" mode to show the joining viewer's picture and name.
+async def get_user_display_and_avatar(user_id):
+    global CLIENT_ID, CHANNEL_AUTH
+    url = f"https://api.twitch.tv/helix/users?id={user_id}"
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {CHANNEL_AUTH}"
+    }
+    try:
+        async with httpClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('data'):
+                        u = data['data'][0]
+                        return u.get('display_name'), u.get('profile_image_url')
+    except Exception:
+        pass
+    return None, None
+
 # Function to check if the user running the task is a mod to the channel or the channel broadcaster.
 async def command_permissions(setting, user):
     global bot_owner, CHANNEL_NAME, CLIENT_ID, CHANNEL_AUTH, CHANNEL_ID
@@ -12197,24 +12218,34 @@ async def websocket_notice(
                         # Unified library: look up the walkon by twitch_user_id in the
                         # walkons table. Overlay constructs the URL from media_file.
                         walkon_media_file = None
+                        walkon_mode = 'sound'
                         if user_id:
                             try:
                                 async with await mysql_handler.get_connection() as walkon_conn:
                                     async with walkon_conn.cursor(DictCursor) as walkon_cur:
                                         await walkon_cur.execute(
-                                            "SELECT media_file FROM walkons WHERE twitch_user_id = %s LIMIT 1",
+                                            "SELECT media_file, mode FROM walkons WHERE twitch_user_id = %s LIMIT 1",
                                             (str(user_id),)
                                         )
                                         walkon_row = await walkon_cur.fetchone()
                                         if walkon_row and walkon_row.get('media_file'):
                                             walkon_media_file = walkon_row['media_file']
+                                            walkon_mode = walkon_row.get('mode') or 'sound'
                             except Exception as e:
                                 websocket_logger.error(f"WALKON lookup failed for user_id {user_id}: {e}")
                         if walkon_media_file:
                             params['channel'] = CHANNEL_NAME
                             params['user'] = user
                             params['media_file'] = walkon_media_file
-                            websocket_logger.info(f"WALKON triggered for {user} (id={user_id}): file={walkon_media_file}")
+                            params['mode'] = walkon_mode
+                            # "sound + overlay" mode shows the viewer's picture and name,
+                            # so enrich the payload with their Twitch profile.
+                            if walkon_mode == 'sound_overlay' and user_id:
+                                wk_name, wk_avatar = await get_user_display_and_avatar(user_id)
+                                params['display_name'] = wk_name or user
+                                if wk_avatar:
+                                    params['avatar_url'] = wk_avatar
+                            websocket_logger.info(f"WALKON triggered for {user} (id={user_id}): file={walkon_media_file}, mode={walkon_mode}")
                         else:
                             websocket_logger.info(f"WALKON triggered for {user} (id={user_id}), but no walkons row matched")
                     else:
