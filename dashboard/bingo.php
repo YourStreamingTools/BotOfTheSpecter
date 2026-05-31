@@ -79,25 +79,25 @@ ob_start();
             <div class="sp-card-header">
                 <div class="sp-card-title">
                     <i class="fas fa-wrench"></i>
-                    Twitch Extension Configuration
+                    <?= t('bingo_extension_config_title') ?>
                 </div>
             </div>
             <div class="sp-card-body">
-                <p style="color:var(--text-secondary); margin-bottom:1rem;">Enter your Stream Bounty API Key below. This key will be used to integrate with the bingo games.</p>
+                <p style="color:var(--text-secondary); margin-bottom:1rem;"><?= t('bingo_extension_config_desc') ?></p>
                 <form method="post" action="">
                     <div class="sp-form-group">
-                        <label class="sp-label" for="api-key-field">API Key</label>
+                        <label class="sp-label" for="api-key-field"><?= t('bingo_label_api_key') ?></label>
                         <div style="position:relative;">
                             <input class="sp-input" type="password" name="api_key" id="api-key-field"
                                 value="<?php echo htmlspecialchars($current_api_key); ?>"
-                                placeholder="Enter your API Key" required style="padding-right:2.75rem;">
+                                placeholder="<?php echo htmlspecialchars(t('bingo_placeholder_api_key')); ?>" required style="padding-right:2.75rem;">
                             <span id="api-key-visibility-icon" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); color:var(--text-muted); cursor:pointer; line-height:1;">
                                 <i class="fas fa-eye"></i>
                             </span>
                         </div>
-                        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.35rem;">Click the eye icon to show/hide the API key</p>
+                        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.35rem;"><?= t('bingo_api_key_visibility_hint') ?></p>
                     </div>
-                    <button class="sp-btn sp-btn-primary" type="submit">Save API Key</button>
+                    <button class="sp-btn sp-btn-primary" type="submit"><?= t('bingo_btn_save_api_key') ?></button>
                 </form>
             </div>
         </div>
@@ -106,19 +106,19 @@ ob_start();
             <div class="sp-card-header">
                 <div class="sp-card-title">
                     <i class="fas fa-question-circle"></i>
-                    How to Get Your Stream Bounty API Key
+                    <?= t('bingo_how_to_title') ?>
                 </div>
             </div>
             <div class="sp-card-body">
                 <ol style="color:var(--text-secondary); padding-left:1.25rem; margin:0;">
-                    <li><strong>Go to your Twitch Stream Dashboard:</strong> Visit <a href="https://dashboard.twitch.tv/" target="_blank">https://dashboard.twitch.tv/</a></li>
-                    <li><strong>Navigate to Extensions:</strong> Click on "Extensions" in the left-hand menu panel</li>
-                    <li><strong>Access My Extensions:</strong> On the Extensions page, click the "My Extensions" tab</li>
-                    <li>Find the activated Stream Bounty extension</li>
-                    <li><strong>Access Extension Settings:</strong> Click the settings cog wheel on the Stream Bounty extension</li>
-                    <li><strong>Navigate to Bot Integration:</strong> When the configuration page opens, scroll down to the bottom of the left-hand menu panel and click "Bot Integration"</li>
-                    <li><strong>Copy the API Key:</strong> Click the copy icon for the "API Key Management" section</li>
-                    <li><strong>Paste and Save:</strong> Paste the API key in the field above and click the "Save API Key" button</li>
+                    <li><?= t('bingo_how_to_step1') ?></li>
+                    <li><?= t('bingo_how_to_step2') ?></li>
+                    <li><?= t('bingo_how_to_step3') ?></li>
+                    <li><?= t('bingo_how_to_step4') ?></li>
+                    <li><?= t('bingo_how_to_step5') ?></li>
+                    <li><?= t('bingo_how_to_step6') ?></li>
+                    <li><?= t('bingo_how_to_step7') ?></li>
+                    <li><?= t('bingo_how_to_step8') ?></li>
                 </ol>
             </div>
         </div>
@@ -137,7 +137,7 @@ ob_start();
             <div class="sp-card-header">
                 <div class="sp-card-title">
                     <i class="fas fa-history"></i>
-                    Bingo Games History
+                    <?= t('bingo_history_title') ?>
                 </div>
             </div>
             <div class="sp-card-body">
@@ -145,25 +145,25 @@ ob_start();
                     <table class="sp-table">
                         <thead>
                             <tr>
-                                <th>Game ID</th>
-                                <th>Start Time</th>
-                                <th>End Time</th>
-                                <th>Events</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <th><?= t('bingo_th_game_id') ?></th>
+                                <th><?= t('bingo_th_start_time') ?></th>
+                                <th><?= t('bingo_th_end_time') ?></th>
+                                <th><?= t('bingo_th_events') ?></th>
+                                <th><?= t('bingo_th_status') ?></th>
+                                <th><?= t('bingo_th_actions') ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($games)): ?>
                                 <tr>
-                                    <td colspan="6" style="text-align:center; color:var(--text-muted);">No bingo games found</td>
+                                    <td colspan="6" style="text-align:center; color:var(--text-muted);"><?= t('bingo_no_games') ?></td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($games as $game): ?>
                                     <tr>
                                         <td><?php echo htmlspecialchars($game['game_id']); ?></td>
                                         <td><?php echo htmlspecialchars($game['start_time']); ?></td>
-                                        <td><?php echo $game['end_time'] ? htmlspecialchars($game['end_time']) : 'Ongoing'; ?></td>
+                                        <td><?php echo $game['end_time'] ? htmlspecialchars($game['end_time']) : htmlspecialchars(t('bingo_status_ongoing')); ?></td>
                                         <td><?php echo htmlspecialchars($game['events_count']); ?></td>
                                         <td>
                                             <span class="sp-badge <?php echo $game['status'] === 'active' ? 'sp-badge-green' : 'sp-badge-blue'; ?>">

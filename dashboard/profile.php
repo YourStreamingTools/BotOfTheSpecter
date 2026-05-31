@@ -1064,9 +1064,9 @@ ob_start();
                         <input class="sp-input" type="password" name="app_password_confirm" id="app-password-confirm" autocomplete="new-password" placeholder="<?php echo htmlspecialchars(t('profile_confirm_app_password')); ?>" required minlength="6">
                     </div>
                     <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
-                        <button type="submit" class="sp-btn sp-btn-primary"><?php echo $appPasswordSet ? 'Update Password' : 'Set Password'; ?></button>
+                        <button type="submit" class="sp-btn sp-btn-primary"><?php echo $appPasswordSet ? t('profile_update_password') : t('profile_set_password'); ?></button>
                         <?php if ($appPasswordSet): ?>
-                        <button type="button" class="sp-btn sp-btn-danger" id="clear-app-password-btn">Remove Password</button>
+                        <button type="button" class="sp-btn sp-btn-danger" id="clear-app-password-btn"><?php echo t('profile_remove_password'); ?></button>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -1081,10 +1081,10 @@ ob_start();
     <div id="custom-bot">
         <div class="sp-card">
             <div class="sp-card-header">
-                <h2 class="sp-card-title">Custom Bot <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">Beta 5.8</span></h2>
+                <h2 class="sp-card-title"><?php echo t('profile_custom_bot_title'); ?> <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">Beta 5.8</span></h2>
             </div>
             <div class="sp-card-body">
-                <p style="margin-bottom:1rem;">Set a custom bot for your channel by entering the bot's Twitch username. We'll resolve the Twitch user ID for you.</p>
+                <p style="margin-bottom:1rem;"><?php echo t('profile_custom_bot_intro'); ?></p>
                 <?php
                 // Load existing custom bot for this channel if present (include verification state)
                 $existingBot = null;
@@ -1102,34 +1102,34 @@ ob_start();
                     <input type="hidden" name="action" value="save_custom_bot">
                     <div style="margin-bottom:0.5rem;">
                         <?php if (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) !== 1): ?>
-                            <span class="sp-badge sp-badge-red">NOT VERIFIED</span>
+                            <span class="sp-badge sp-badge-red"><?php echo t('profile_custom_bot_not_verified'); ?></span>
                             <div style="margin-left:0.5rem;margin-top:0.5rem;font-size:0.9rem;color:var(--text-secondary);">
-                                <p><strong>To verify this bot:</strong></p>
+                                <p><?php echo t('profile_custom_bot_verify_heading'); ?></p>
                                 <ol style="margin-left:1.5rem;margin-top:0.5rem;">
-                                    <li>Open this link in an <strong>incognito/private window</strong>: <a href="https://mybot.specterbot.systems/custombot.php" target="_blank" rel="noopener">mybot.specterbot.systems/custombot.php</a></li>
-                                    <li>Sign in using the <strong>bot account</strong> credentials</li>
-                                    <li>Complete the verification process</li>
+                                    <li><?php echo t('profile_custom_bot_verify_step1'); ?></li>
+                                    <li><?php echo t('profile_custom_bot_verify_step2'); ?></li>
+                                    <li><?php echo t('profile_custom_bot_verify_step3'); ?></li>
                                 </ol>
-                                <p style="margin-top:0.5rem;"><em>Note: Using an incognito/private window ensures you don't accidentally sign in with your main account.</em></p>
+                                <p style="margin-top:0.5rem;"><?php echo t('profile_custom_bot_verify_note'); ?></p>
                             </div>
                         <?php elseif (isset($existingBot['is_verified']) && intval($existingBot['is_verified']) === 1): ?>
-                            <span class="sp-badge sp-badge-green">Verified</span>
+                            <span class="sp-badge sp-badge-green"><?php echo t('profile_custom_bot_verified'); ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="sp-form-group" style="position:relative;">
-                        <label class="sp-label">Bot Name</label>
+                        <label class="sp-label"><?php echo t('profile_custom_bot_name_label'); ?></label>
                         <input class="sp-input" type="text" name="bot_username" id="bot-username" value="<?php echo htmlspecialchars($existingBot['bot_username'] ?? '', ENT_QUOTES); ?>" required style="padding-right:2.5rem;">
                         <span id="bot-lookup-status" style="display:none;position:absolute;right:0.75rem;top:calc(50% + 0.75rem);transform:translateY(-50%);"></span>
-                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;">Enter the Twitch username of the bot (without @).</p>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('profile_custom_bot_name_help'); ?></p>
                     </div>
                     <div class="sp-form-group">
-                        <label class="sp-label">Bot ID</label>
+                        <label class="sp-label"><?php echo t('profile_custom_bot_id_label'); ?></label>
                         <input class="sp-input" type="text" name="bot_channel_id" id="bot-id" value="<?php echo htmlspecialchars($existingBot['bot_channel_id'] ?? '', ENT_QUOTES); ?>" readonly>
-                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;">This is the resolved Twitch user ID for the bot.</p>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('profile_custom_bot_id_help'); ?></p>
                     </div>
                     <div style="display:flex;gap:0.5rem;margin-top:1rem;">
-                        <button type="submit" class="sp-btn sp-btn-primary">Save</button>
-                        <button type="button" class="sp-btn sp-btn-secondary" id="resolve-bot-btn">Resolve ID</button>
+                        <button type="submit" class="sp-btn sp-btn-primary"><?php echo t('profile_custom_bot_save'); ?></button>
+                        <button type="button" class="sp-btn sp-btn-secondary" id="resolve-bot-btn"><?php echo t('profile_custom_bot_resolve_id'); ?></button>
                     </div>
                 </form>
             </div>
