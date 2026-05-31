@@ -727,93 +727,93 @@ foreach ($segmentsByDay as $dayKey => $dayData) {
 ob_start();
 ?>
 <div class="sp-page-header">
-    <h1><i class="fas fa-calendar-days"></i> Twitch Schedule</h1>
-    <p>Your official Twitch schedule.</p>
+    <h1><i class="fas fa-calendar-days"></i> <?= t('schedule_page_heading') ?></h1>
+    <p><?= t('schedule_page_subtitle') ?></p>
 </div>
 <?php if ($error): ?>
     <div class="sp-alert sp-alert-danger">
         <i class="fas fa-exclamation-triangle"></i>
-        <strong>Notice:</strong> <?php echo htmlspecialchars($error); ?>
+        <strong><?= t('schedule_notice_label') ?></strong> <?php echo htmlspecialchars($error); ?>
     </div>
 <?php endif; ?>
 <?php if (!empty($success)): ?>
     <div class="sp-alert sp-alert-success">
         <i class="fas fa-check-circle"></i>
-        <strong>Success:</strong> <?php echo htmlspecialchars($success); ?>
+        <strong><?= t('schedule_success_label') ?></strong> <?php echo htmlspecialchars($success); ?>
     </div>
 <?php endif; ?>
 <!-- Vacation / Schedule settings + Add segment -->
 <div class="sp-card">
     <div class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-calendar-alt"></i> Schedule Settings</span>
+        <span class="sp-card-title"><i class="fas fa-calendar-alt"></i> <?= t('schedule_settings_title') ?></span>
     </div>
     <div class="sp-card-body">
         <form method="post">
             <div class="sp-form-group">
-                <label class="sp-label">Vacation / Off dates</label>
+                <label class="sp-label"><?= t('schedule_vacation_label') ?></label>
                 <div class="sp-field-row">
                     <input class="sp-input" type="datetime-local" name="vacation_start" value="<?php echo isset($schedule['vacation']['start_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['start_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
                     <input class="sp-input" type="datetime-local" name="vacation_end" value="<?php echo isset($schedule['vacation']['end_time']) ? date('Y-m-d\TH:i', (new DateTime($schedule['vacation']['end_time'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($timezone))->getTimestamp()) : ''; ?>" />
-                    <button class="sp-btn sp-btn-primary" type="submit" name="action" value="save">Start Vacation</button>
+                    <button class="sp-btn sp-btn-primary" type="submit" name="action" value="save"><?= t('schedule_start_vacation_btn') ?></button>
                     <?php if (!empty($schedule['vacation'])): ?>
-                    <button class="sp-btn sp-btn-danger" type="submit" name="action" value="clear">Cancel Vacation</button>
+                    <button class="sp-btn sp-btn-danger" type="submit" name="action" value="clear"><?= t('schedule_cancel_vacation_btn') ?></button>
                     <?php endif; ?>
                 </div>
-                <span class="sp-help">Times are shown in your profile timezone (<?php echo htmlspecialchars($timezone); ?>). If this is wrong, update your timezone in your profile settings.</span>
+                <span class="sp-help"><?= t('schedule_timezone_help_prefix') ?> (<?php echo htmlspecialchars($timezone); ?>). <?= t('schedule_timezone_help_suffix') ?></span>
             </div>
         </form>
         <hr style="border:0; border-top:1px solid var(--border); margin:1.25rem 0;">
         <form method="post" id="createSegmentForm">
             <div class="sp-form-group">
-                <label class="sp-label">Add schedule segment</label>
+                <label class="sp-label"><?= t('schedule_add_segment_label') ?></label>
                 <div class="sp-field-row">
-                    <input class="sp-input" type="datetime-local" name="segment_start" id="create_segment_start" placeholder="Start (local)" required />
-                    <input class="sp-input" type="datetime-local" name="segment_end" id="create_segment_end" placeholder="End (local)" required />
+                    <input class="sp-input" type="datetime-local" name="segment_start" id="create_segment_start" placeholder="<?= htmlspecialchars(t('schedule_start_local_placeholder')) ?>" required />
+                    <input class="sp-input" type="datetime-local" name="segment_end" id="create_segment_end" placeholder="<?= htmlspecialchars(t('schedule_end_local_placeholder')) ?>" required />
                     <input type="hidden" name="segment_duration" id="create_segment_duration" value="" />
-                    <span class="sp-badge sp-badge-grey" id="create_segment_duration_preview">Duration: -</span>
+                    <span class="sp-badge sp-badge-grey" id="create_segment_duration_preview"><?= t('schedule_duration_empty') ?></span>
                 </div>
             </div>
             <div class="sp-form-group">
                 <div class="sp-field-row">
                     <div style="position:relative; flex:0 0 260px;">
-                        <input class="sp-input" type="text" id="segment_category_search" placeholder="Search category (name or id) - type to search" autocomplete="off" />
+                        <input class="sp-input" type="text" id="segment_category_search" placeholder="<?= htmlspecialchars(t('schedule_category_search_placeholder')) ?>" autocomplete="off" />
                         <input type="hidden" name="segment_category_id" id="segment_category_id" />
                         <div id="segment_category_suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
                     </div>
-                    <input class="sp-input" type="text" name="segment_title" maxlength="140" placeholder="Title (optional)" style="flex:0 0 220px;" />
-                    <label style="color:var(--text-secondary); display:flex; align-items:center; gap:0.35rem; cursor:pointer; white-space:nowrap;"><input type="checkbox" name="segment_recurring" value="1"> Recurring</label>
-                    <button class="sp-btn sp-btn-primary" type="submit" name="action" value="create_segment" id="create_segment_btn">Create</button>
+                    <input class="sp-input" type="text" name="segment_title" maxlength="140" placeholder="<?= htmlspecialchars(t('schedule_title_optional_placeholder')) ?>" style="flex:0 0 220px;" />
+                    <label style="color:var(--text-secondary); display:flex; align-items:center; gap:0.35rem; cursor:pointer; white-space:nowrap;"><input type="checkbox" name="segment_recurring" value="1"> <?= t('schedule_recurring_label') ?></label>
+                    <button class="sp-btn sp-btn-primary" type="submit" name="action" value="create_segment" id="create_segment_btn"><?= t('schedule_create_btn') ?></button>
                 </div>
             </div>
-            <span class="sp-help" id="create_segment_duration_help">Duration must be between 30 minutes and 23 hours (1380 minutes). Non-recurring segments may be restricted to partners/affiliates.</span>
+            <span class="sp-help" id="create_segment_duration_help"><?= t('schedule_create_duration_help') ?></span>
         </form>
     </div>
 </div>
 <?php if (empty($segmentsByDay)): ?>
     <div class="sp-card" style="text-align:center; padding:2.5rem 1.25rem;">
-        <p style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;">No scheduled segments</p>
-        <p class="sp-text-muted">You don't have any scheduled stream segments on Twitch. Use the Twitch Creator Dashboard to add schedule entries.</p>
+        <p style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><?= t('schedule_empty_title') ?></p>
+        <p class="sp-text-muted"><?= t('schedule_empty_body') ?></p>
     </div>
 <?php else: ?>
     <div class="sp-card schedule-summary-box">
         <div class="sp-card-body">
-            <p class="sp-card-title" style="margin-bottom:0.75rem;">Stream Summary</p>
+            <p class="sp-card-title" style="margin-bottom:0.75rem;"><?= t('schedule_summary_title') ?></p>
             <div class="schedule-summary-grid">
                 <div class="schedule-summary-item">
-                    <span>Streams</span>
+                    <span><?= t('schedule_summary_streams') ?></span>
                     <strong id="scheduleSummaryStreams"><?php echo (int)$nextSevenSummary['total']; ?></strong>
                 </div>
                 <div class="schedule-summary-item">
-                    <span>Recurring</span>
+                    <span><?= t('schedule_summary_recurring') ?></span>
                     <strong class="sp-text-info" id="scheduleSummaryRecurring"><?php echo (int)$nextSevenSummary['recurring']; ?></strong>
                 </div>
                 <div class="schedule-summary-item">
-                    <span>Canceled</span>
+                    <span><?= t('schedule_summary_canceled') ?></span>
                     <strong class="sp-text-danger" id="scheduleSummaryCanceled"><?php echo (int)$nextSevenSummary['canceled']; ?></strong>
                 </div>
                 <div class="schedule-summary-item">
-                    <span>Vacation</span>
-                    <strong class="<?php echo !empty($nextSevenSummary['vacation']) ? 'sp-text-warning' : 'sp-text-success'; ?>"><?php echo !empty($nextSevenSummary['vacation']) ? 'Active' : 'Off'; ?></strong>
+                    <span><?= t('schedule_summary_vacation') ?></span>
+                    <strong class="<?php echo !empty($nextSevenSummary['vacation']) ? 'sp-text-warning' : 'sp-text-success'; ?>"><?php echo !empty($nextSevenSummary['vacation']) ? t('schedule_status_active') : t('schedule_status_off'); ?></strong>
                 </div>
             </div>
         </div>
@@ -861,25 +861,25 @@ ob_start();
                         <?php endif; ?>
                         <div class="sp-card schedule-segment-card<?php echo $canceled ? ' schedule-segment-card-canceled' : ''; ?>">
                             <div class="sp-card-header">
-                                <span class="sp-card-title"><?php echo htmlspecialchars($seg['title'] ?: 'Untitled'); ?></span>
+                                <span class="sp-card-title"><?php echo htmlspecialchars($seg['title'] ?: t('schedule_untitled')); ?></span>
                                 <span class="schedule-card-tags" aria-hidden="true">
                                     <?php if ($isRecurring): ?>
-                                        <span class="sp-badge sp-badge-blue">Recurring</span>
+                                        <span class="sp-badge sp-badge-blue"><?= t('schedule_recurring_badge') ?></span>
                                     <?php endif; ?>
                                     <?php if ($canceled): ?>
-                                        <span class="sp-badge sp-badge-red" data-role="canceled-tag">Canceled</span>
+                                        <span class="sp-badge sp-badge-red" data-role="canceled-tag"><?= t('schedule_canceled_badge') ?></span>
                                     <?php endif; ?>
                                 </span>
                             </div>
                             <div class="sp-card-body">
-                                <p class="mb-1"><strong>Start Date:</strong> <?php echo htmlspecialchars($startDateText); ?></p>
-                                <p class="mb-1"><strong>Start Time:</strong> <?php echo htmlspecialchars($startTimeText); ?></p>
-                                <p class="mb-1"><strong>End Time:</strong> <?php echo htmlspecialchars($endTimeText); ?></p>
+                                <p class="mb-1"><strong><?= t('schedule_field_start_date') ?></strong> <?php echo htmlspecialchars($startDateText); ?></p>
+                                <p class="mb-1"><strong><?= t('schedule_field_start_time') ?></strong> <?php echo htmlspecialchars($startTimeText); ?></p>
+                                <p class="mb-1"><strong><?= t('schedule_field_end_time') ?></strong> <?php echo htmlspecialchars($endTimeText); ?></p>
                                 <?php if ($endDateText !== ''): ?>
-                                    <p class="mb-1"><strong>End Date:</strong> <?php echo htmlspecialchars($endDateText); ?></p>
+                                    <p class="mb-1"><strong><?= t('schedule_field_end_date') ?></strong> <?php echo htmlspecialchars($endDateText); ?></p>
                                 <?php endif; ?>
-                                <p class="mb-1"><strong>Duration</strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
-                                <p class="mb-2"><strong>Category</strong><br><?php echo $category ? htmlspecialchars($category) : '<em>Not specified</em>'; ?></p>
+                                <p class="mb-1"><strong><?= t('schedule_field_duration') ?></strong><br><?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></p>
+                                <p class="mb-2"><strong><?= t('schedule_field_category') ?></strong><br><?php echo $category ? htmlspecialchars($category) : t('schedule_not_specified'); ?></p>
                             </div>
                             <div class="sp-card-body" style="border-top:1px solid var(--border); padding-top:1rem;">
                                 <form method="post" class="segment-edit-form" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">
@@ -892,26 +892,26 @@ ob_start();
                                         </div>
                                     </div>
                                     <div class="schedule-duration-display sp-form-group">
-                                        <span class="sp-badge sp-badge-grey segment-duration-preview">Duration: <?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></span>
+                                        <span class="sp-badge sp-badge-grey segment-duration-preview"><?= t('schedule_duration_prefix') ?> <?php echo htmlspecialchars(fmt_duration_human($durationMins)); ?></span>
                                     </div>
                                     <div class="sp-form-group" style="position:relative;">
-                                        <input class="sp-input segment-category-search" type="text" placeholder="Search category..." value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
+                                        <input class="sp-input segment-category-search" type="text" placeholder="<?= htmlspecialchars(t('schedule_category_search_short_placeholder')) ?>" value="<?php echo htmlspecialchars($seg['category']['name'] ?? ''); ?>" data-current-id="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" autocomplete="off" />
                                         <input type="hidden" name="segment_category_id" class="segment-category-id" value="<?php echo htmlspecialchars($seg['category']['id'] ?? ''); ?>" />
                                         <div class="dropdown suggestions" style="display:none; position:absolute; z-index:50; width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); margin-top:0.25rem; max-height:200px; overflow:auto;"></div>
                                     </div>
                                     <div class="sp-form-group">
-                                        <input class="sp-input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="Title" />
+                                        <input class="sp-input" type="text" name="segment_title" maxlength="140" value="<?php echo htmlspecialchars($seg['title'] ?? ''); ?>" placeholder="<?= htmlspecialchars(t('schedule_title_placeholder')) ?>" />
                                     </div>
                                     <div class="sp-btn-group">
-                                        <button class="sp-btn sp-btn-primary segment-update-btn" type="submit" name="action" value="update_segment">Update</button>
+                                        <button class="sp-btn sp-btn-primary segment-update-btn" type="submit" name="action" value="update_segment"><?= t('schedule_update_btn') ?></button>
                                         <button class="sp-btn <?php echo $canceled ? 'sp-btn-warning' : 'sp-btn-danger'; ?>" type="submit" name="action" value="cancel_segment">
-                                            <?php echo $canceled ? 'Uncancel' : 'Cancel Stream'; ?>
+                                            <?php echo $canceled ? t('schedule_uncancel_btn') : t('schedule_cancel_stream_btn'); ?>
                                         </button>
                                         <input type="hidden" name="cancel_state" value="<?php echo $canceled ? '0' : '1'; ?>" />
-                                        <button class="sp-btn sp-btn-danger" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>">Delete</button>
+                                        <button class="sp-btn sp-btn-danger" type="submit" name="action" value="delete_segment" data-is-recurring="<?php echo $isRecurring ? '1' : '0'; ?>"><?= t('schedule_delete_btn') ?></button>
                                     </div>
-                                    <span class="sp-help segment-duration-help">Duration must be between 30 minutes and 23 hours (1380 minutes).</span>
-                                    <span class="sp-help">"Cancel Stream" only cancels this segment. For multiple streams in a row, use "Vacation / Off dates" above.</span>
+                                    <span class="sp-help segment-duration-help"><?= t('schedule_segment_duration_help') ?></span>
+                                    <span class="sp-help"><?= t('schedule_cancel_stream_help') ?></span>
                                 </form>
                             </div>
                         </div>
@@ -929,8 +929,8 @@ ob_start();
         <?php if (!empty($schedule['vacation'])): ?>
             <div class="sp-card" style="margin-top:1rem;">
                 <div class="sp-card-body">
-                    <p class="sp-card-title" style="margin-bottom:0.5rem;">Vacation / Off dates</p>
-                    <p class="sp-text-muted">From <?php echo fmt_dt($schedule['vacation']['start_time'] ?? null, $timezone); ?> to <?php echo fmt_dt($schedule['vacation']['end_time'] ?? null, $timezone); ?></p>
+                    <p class="sp-card-title" style="margin-bottom:0.5rem;"><?= t('schedule_vacation_label') ?></p>
+                    <p class="sp-text-muted"><?= t('schedule_vacation_from') ?> <?php echo fmt_dt($schedule['vacation']['start_time'] ?? null, $timezone); ?> <?= t('schedule_vacation_to') ?> <?php echo fmt_dt($schedule['vacation']['end_time'] ?? null, $timezone); ?></p>
                 </div>
             </div>
         <?php endif; ?>

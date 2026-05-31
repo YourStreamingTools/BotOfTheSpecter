@@ -59,7 +59,7 @@ if ($own_client == 1 && !empty($user_client_id) && !empty($user_client_secret)) 
 
 // Check if we received a code from Spotify (callback handling)
 if ($isActAsUser && isset($_GET['code'])) {
-    $message = "Linking Spotify is disabled while using Act As mode.";
+    $message = t('spotifylink_msg_actas_link_disabled');
     $messageType = "is-warning";
 } elseif (isset($_GET['code'])) {
     $auth_code = $_GET['code'];
@@ -82,7 +82,7 @@ if ($isActAsUser && isset($_GET['code'])) {
     ];
     $response = file_get_contents($token_url, false, stream_context_create($options));
     if ($response === FALSE) {
-        die("Failed to contact Spotify. Please check your API credentials and network connection.");
+        die(t('spotifylink_msg_contact_failed'));
     }
     $tokens = json_decode($response, true);
     if (isset($tokens['access_token'], $tokens['refresh_token'])) {
@@ -104,10 +104,10 @@ if ($isActAsUser && isset($_GET['code'])) {
             $insertStmt->bind_param("iss", $user_id, $access_token, $refresh_token);
             $insertStmt->execute();
         }
-        $message = "Your Spotify account has been successfully linked!";
+        $message = t('spotifylink_msg_link_success');
         $messageType = "is-success";
     } else {
-        $message = "Failed to retrieve tokens from Spotify. Please try again.";
+        $message = t('spotifylink_msg_token_failed');
         $messageType = "is-danger";
     }
 }
@@ -115,7 +115,7 @@ if ($isActAsUser && isset($_GET['code'])) {
 // Handle POST requests for own client settings
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isActAsUser && (isset($_POST['use_own_client']) || isset($_POST['save_credentials']))) {
-        $message = "Spotify linking settings cannot be changed while using Act As mode.";
+        $message = t('spotifylink_msg_actas_settings_disabled');
         $messageType = "is-warning";
     } elseif (isset($_POST['use_own_client'])) {
         // Enable own client and reset auth
@@ -170,7 +170,7 @@ if ($spotifyResult->num_rows > 0) {
         if (isset($spotifyUserInfo['id'])) {
             $connectionStatus = 'connected';
         } else {
-            $message = "Please follow the linking instructions above this error panel. (Error: User is not authorized.)";
+            $message = t('spotifylink_msg_not_authorized');
             $messageType = "is-danger";
             // Allow reconnect if using own client OR if they already had a linked slot (has_access = 1)
             if ($own_client == 1 || $hasAccess == 1) {
@@ -181,7 +181,7 @@ if ($spotifyResult->num_rows > 0) {
         }
     } else {
         // Pending approval
-        $message = "Your Spotify link is pending approval.";
+        $message = t('spotifylink_msg_pending_approval');
         $messageType = "is-warning";
         $connectionStatus = 'pending';
     }
@@ -222,20 +222,19 @@ ob_start();
         <?php elseif ($connectionStatus === 'pending'): ?>
             <span class="sp-badge sp-badge-amber">
                 <i class="fas fa-clock"></i>
-                Pending Link
+                <?php echo t('spotifylink_badge_pending'); ?>
             </span>
         <?php else: ?>
             <span class="sp-badge sp-badge-red">
                 <i class="fas fa-times-circle"></i>
-                Not Connected
+                <?php echo t('spotifylink_badge_not_connected'); ?>
             </span>
         <?php endif; ?>
     </div>
     <div class="sp-card-body">
         <div class="sp-alert sp-alert-warning" style="margin-bottom: 1.5rem;">
             <i class="fas fa-exclamation-triangle"></i>
-            <strong>Important: Spotify Integration Changes (Effective March 9, 2026)</strong><br>
-            We apologise for the inconvenience. Due to Spotify's updated Developer Policy, our platform Spotify client is no longer able to accept new users — Development Mode apps are now capped at 5 authorized users. If you were previously linked via our platform account and need to reconnect, your slot is still reserved. For new users, you will need to create your own Spotify app to use Spotify integration — it takes only a few minutes and will be solely used for your channel. Note: your Spotify developer account must have Spotify Premium to use Development Mode.
+            <?php echo t('spotifylink_policy_notice'); ?>
         </div>
         <?php if ($message): ?>
             <?php
@@ -261,33 +260,33 @@ ob_start();
             <div class="sp-card-header">
                 <div class="sp-card-title">
                     <i class="fas fa-cogs" style="color: var(--blue);"></i>
-                    Use Your Own Spotify Client
+                    <?php echo t('spotifylink_own_client_title'); ?>
                 </div>
             </div>
             <div class="sp-card-body">
-                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Create your own Spotify app and enter the credentials below. This app will be used solely for your channel's integration with BotOfTheSpecter.</p>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;"><?php echo t('spotifylink_own_client_desc'); ?></p>
                 <a href="https://help.botofthespecter.com/spotify_setup.php" target="_blank" class="sp-btn sp-btn-info sp-btn-sm" style="margin-bottom: 1rem;">
                     <i class="fas fa-external-link-alt"></i>
-                    Get Setup Instructions
+                    <?php echo t('spotifylink_setup_instructions'); ?>
                 </a>
                 <form method="post">
                     <div class="sp-form-group">
                         <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
                             <input type="checkbox" name="use_own_client" <?php echo $own_client == 1 ? 'checked' : ''; ?> onchange="this.form.submit()">
-                            Enable Own Client
+                            <?php echo t('spotifylink_enable_own_client'); ?>
                         </label>
                     </div>
                     <?php if ($own_client == 1): ?>
                         <div class="sp-form-group">
-                            <label class="sp-label">Client ID</label>
-                            <input class="sp-input" type="text" name="client_id" value="<?php echo htmlspecialchars($user_client_id); ?>" placeholder="Your Spotify Client ID">
+                            <label class="sp-label"><?php echo t('spotifylink_client_id_label'); ?></label>
+                            <input class="sp-input" type="text" name="client_id" value="<?php echo htmlspecialchars($user_client_id); ?>" placeholder="<?php echo htmlspecialchars(t('spotifylink_client_id_placeholder')); ?>">
                         </div>
                         <div class="sp-form-group">
-                            <label class="sp-label">Client Secret</label>
-                            <input class="sp-input" type="password" name="client_secret" value="<?php echo htmlspecialchars($user_client_secret); ?>" placeholder="Your Spotify Client Secret">
+                            <label class="sp-label"><?php echo t('spotifylink_client_secret_label'); ?></label>
+                            <input class="sp-input" type="password" name="client_secret" value="<?php echo htmlspecialchars($user_client_secret); ?>" placeholder="<?php echo htmlspecialchars(t('spotifylink_client_secret_placeholder')); ?>">
                         </div>
                         <div class="sp-form-group">
-                            <button class="sp-btn sp-btn-success" type="submit" name="save_credentials">Save Credentials</button>
+                            <button class="sp-btn sp-btn-success" type="submit" name="save_credentials"><?php echo t('spotifylink_save_credentials'); ?></button>
                         </div>
                     <?php endif; ?>
                 </form>
@@ -298,7 +297,7 @@ ob_start();
                 <div class="sp-card-header">
                     <div class="sp-card-title">
                         <i class="fab fa-spotify" style="color: var(--green);"></i>
-                        Connected Account Information
+                        <?php echo t('spotifylink_connected_account_info'); ?>
                     </div>
                 </div>
                 <div class="sp-card-body">
@@ -314,7 +313,7 @@ ob_start();
                         <div class="sp-card-header">
                             <div class="sp-card-title">
                                 <i class="fas fa-music" style="color: var(--green);"></i>
-                                Available Features
+                                <?php echo t('spotifylink_available_features'); ?>
                             </div>
                         </div>
                         <div class="sp-card-body">
@@ -351,7 +350,7 @@ ob_start();
                 <div class="sp-card-header">
                     <div class="sp-card-title">
                         <i class="fas fa-chart-bar" style="color: var(--blue);"></i>
-                        Song Request Analytics
+                        <?php echo t('spotifylink_analytics_title'); ?>
                     </div>
                     <span style="background: var(--blue); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.05em;">Beta 5.8</span>
                 </div>
@@ -359,11 +358,11 @@ ob_start();
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
                         <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
                             <div style="font-size: 2rem; font-weight: 700; color: var(--green);"><?php echo number_format($srTotal); ?></div>
-                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">Total Requests</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_total_requests'); ?></div>
                         </div>
                         <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
                             <div style="font-size: 2rem; font-weight: 700; color: var(--blue);"><?php echo count($srTopSongs); ?></div>
-                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">Unique Songs</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_unique_songs'); ?></div>
                         </div>
                     </div>
                     <?php if (!empty($srTopSongs)): ?>
@@ -371,7 +370,7 @@ ob_start();
                         <div class="sp-card-header">
                             <div class="sp-card-title" style="font-size: 0.95rem;">
                                 <i class="fas fa-trophy" style="color: var(--yellow, #f5c542);"></i>
-                                Top Requested Songs
+                                <?php echo t('spotifylink_top_requested_songs'); ?>
                             </div>
                         </div>
                         <div class="sp-card-body" style="padding: 0;">
@@ -379,9 +378,9 @@ ob_start();
                                 <thead>
                                     <tr style="border-bottom: 1px solid var(--border);">
                                         <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">#</th>
-                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Song</th>
-                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Artist</th>
-                                        <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;">Requests</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_song'); ?></th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_artist'); ?></th>
+                                        <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requests'); ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -403,17 +402,17 @@ ob_start();
                         <div class="sp-card-header">
                             <div class="sp-card-title" style="font-size: 0.95rem;">
                                 <i class="fas fa-history" style="color: var(--text-secondary);"></i>
-                                Recent Requests
+                                <?php echo t('spotifylink_recent_requests'); ?>
                             </div>
                         </div>
                         <div class="sp-card-body" style="padding: 0;">
                             <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                                 <thead>
                                     <tr style="border-bottom: 1px solid var(--border);">
-                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Song</th>
-                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Artist</th>
-                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">Requested By</th>
-                                        <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;">Time</th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_song'); ?></th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_artist'); ?></th>
+                                        <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requested_by'); ?></th>
+                                        <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_time'); ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -433,7 +432,7 @@ ob_start();
                     <?php if (empty($srTopSongs) && empty($srRecentRequests)): ?>
                     <div class="sp-alert sp-alert-info">
                         <i class="fas fa-info-circle"></i>
-                        No song requests have been recorded yet. Analytics will appear here once viewers start using <code style="background: var(--bg-input); color: var(--text-primary); padding: 2px 6px; border-radius: var(--radius-sm);">!songrequest</code>.
+                        <?php echo t('spotifylink_analytics_empty'); ?>
                     </div>
                     <?php endif; ?>
                 </div>
@@ -446,7 +445,7 @@ ob_start();
                         <div class="sp-card-header">
                             <div class="sp-card-title">
                                 <i class="fas fa-music" style="color: var(--green);"></i>
-                                Available Features
+                                <?php echo t('spotifylink_available_features'); ?>
                             </div>
                         </div>
                         <div class="sp-card-body">
@@ -473,13 +472,12 @@ ob_start();
                 <?php elseif ($isActAsUser): ?>
                     <div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">
                         <i class="fas fa-exclamation-circle"></i>
-                        Act As mode is active. Linking Spotify is disabled for acting users.
+                        <?php echo t('spotifylink_actas_disabled'); ?>
                     </div>
                 <?php elseif (!$authURL && $connectionStatus === 'not-connected' && $own_client == 0): ?>
                     <div class="sp-alert sp-alert-danger" style="max-width: 700px; margin: 0 auto;">
                         <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Platform Spotify account is at capacity (<?php echo $linkedAccountsCount; ?>/<?php echo $maxAccounts; ?> slots used).</strong>
-                        Due to Spotify's updated Developer Policy (effective March 9, 2026), Development Mode Client IDs are limited to <?php echo $maxAccounts; ?> authorized users. No new accounts can be linked via the BotOfTheSpecter platform client. To use Spotify integration, please enable <strong>Use Your Own Spotify Client</strong> above and enter your own Spotify app credentials.
+                        <?php echo str_replace([':count', ':max'], [$linkedAccountsCount, $maxAccounts], t('spotifylink_capacity_full')); ?>
                     </div>
                 <?php endif; ?>
             </div>

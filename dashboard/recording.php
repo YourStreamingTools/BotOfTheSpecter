@@ -188,19 +188,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_recording_settin
         if ($saveStmt->execute()) {
             $saveStatus = [
                 'success' => true,
-                'message' => 'Recording setting updated successfully.'
+                'message' => t('recording_status_setting_updated')
             ];
         } else {
             $saveStatus = [
                 'success' => false,
-                'message' => 'Unable to save recording setting.'
+                'message' => t('recording_status_setting_save_failed')
             ];
         }
         $saveStmt->close();
     } else {
         $saveStatus = [
             'success' => false,
-            'message' => 'Unable to prepare recording setting update.'
+            'message' => t('recording_status_setting_prepare_failed')
         ];
     }
 }
@@ -228,8 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_forward_settings
         $forwardSettings[$svc] = ['stream_key' => $streamKey, 'enabled' => $fwdEnabled];
     }
     $saveStatus = $fwdSaveOk
-        ? ['success' => true,  'message' => 'Stream forwarding settings saved successfully.']
-        : ['success' => false, 'message' => 'One or more forwarding settings could not be saved.'];
+        ? ['success' => true,  'message' => t('recording_status_forward_saved')]
+        : ['success' => false, 'message' => t('recording_status_forward_save_failed')];
 }
 
 $recorderHost = $recorder_ssh_host ?? '';
@@ -246,33 +246,33 @@ if (isset($_GET['ajax'])) {
 // Wrap SSH connection logic in try-catch for AJAX error handling
 try {
 if ($RECORDING_DISABLED) {
-    $remoteFileError = 'Channel recording is currently disabled — see the notice above.';
+    $remoteFileError = t('recording_error_disabled');
     if (isset($_GET['download']) && $_GET['download'] === '1') {
         http_response_code(503);
         echo 'Channel recording is currently disabled.';
         exit;
     }
 } elseif (!function_exists('ssh2_connect')) {
-    $remoteFileError = 'SSH2 extension is not installed on the server.';
+    $remoteFileError = t('recording_error_ssh2_missing');
 } elseif (empty($recorderHost) || empty($recorderSshUser) || empty($recorderSshPassword)) {
-    $remoteFileError = 'Recorder server connection details are missing.';
+    $remoteFileError = t('recording_error_connection_details_missing');
 } else {
     $connection = @ssh2_connect($recorderHost, 22);
     if (!$connection) {
-        $remoteFileError = 'Could not connect to recorder server. Try refreshing the page or check back later.';
+        $remoteFileError = t('recording_error_could_not_connect');
     } elseif (!@ssh2_auth_password($connection, $recorderSshUser, $recorderSshPassword)) {
-        $remoteFileError = 'Authentication failed while connecting to recorder server.';
+        $remoteFileError = t('recording_error_auth_failed');
     } else {
         $sftp = @ssh2_sftp($connection);
         if (!$sftp) {
-            $remoteFileError = 'Could not initialize SFTP for recorder server.';
+            $remoteFileError = t('recording_error_sftp_init_failed');
         } else {
             $requiredDirectories = [
                 $userStorageDir,
             ];
             foreach ($requiredDirectories as $requiredDirectory) {
                 if (!ensureRemoteDirectory($sftp, $requiredDirectory)) {
-                    $remoteFileError = 'Could not create one or more recorder directories for this user.';
+                    $remoteFileError = t('recording_error_dir_create_failed');
                     break;
                 }
             }
@@ -343,7 +343,7 @@ if ($RECORDING_DISABLED) {
                     }
                 }
                 if (empty($remoteFileSections)) {
-                    $remoteFileError = 'No files found in recorder directories for this user yet.';
+                    $remoteFileError = t('recording_error_no_files');
                 }
             }
         }
@@ -378,62 +378,62 @@ ob_start();
     <header class="sp-card-header">
         <p class="sp-card-title">
             <span class="icon mr-2"><i class="fas fa-video"></i></span>
-            Recording
+            <?= t('recording_card_title') ?>
         </p>
     </header>
     <div class="sp-card-body">
         <div class="sp-alert sp-alert-warning" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.5rem; border-left:4px solid var(--amber);">
             <span style="font-size:1.5rem; color:var(--amber); flex-shrink:0;"><i class="fas fa-exclamation-triangle"></i></span>
             <div>
-                <p style="font-weight:700; margin-bottom:0.4rem;">Channel recording is currently disabled</p>
-                <p style="margin-bottom:0;">We've found a bug in our recording software, so this feature has been temporarily switched off. <strong>Stream forwarding runs on the same software</strong>, so it's likely affected as well until the fix lands. This is on the list, but has been deprioritised while we work through other more pressing system issues. The file listing and download buttons are paused while the recorder is offline.</p>
+                <p style="font-weight:700; margin-bottom:0.4rem;"><?= t('recording_notice_disabled_heading') ?></p>
+                <p style="margin-bottom:0;"><?= t('recording_notice_disabled_body') ?></p>
             </div>
         </div>
         <div class="content mb-5">
             <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
                 <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
-                Recording Overview
+                <?= t('recording_overview_heading') ?>
             </h2>
             <ul>
-                <li>Enable auto-recording to capture your Twitch stream while you are live.</li>
-                <li>Your recordings are handled automatically based on your channel setting below.</li>
+                <li><?= t('recording_overview_item_enable') ?></li>
+                <li><?= t('recording_overview_item_automatic') ?></li>
             </ul>
-            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Auto Record from Twitch</h3>
-            <p>When enabled, your Twitch stream is recorded automatically while you are live.</p>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;"><?= t('recording_auto_record_heading') ?></h3>
+            <p><?= t('recording_auto_record_desc') ?></p>
             <ul>
-                <li>Everything sent to Twitch during your live stream is included in the recording.</li>
+                <li><?= t('recording_auto_record_item') ?></li>
             </ul>
-            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Storage Info</h3>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;"><?= t('recording_storage_info_heading') ?></h3>
             <ul>
                 <li><?= t('streaming_storage_info_retention') ?></li>
                 <li><?= t('streaming_storage_info_deletion') ?></li>
                 <li><?= t('streaming_auto_record_vod_speed') ?></li>
             </ul>
-            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;">Audio Info</h3>
+            <h3 style="font-size:0.95rem;font-weight:700;margin:1.25rem 0 0.5rem;"><?= t('recording_audio_info_heading') ?></h3>
             <ul>
-                <li>Audio Track 1 (live audio) is recorded.</li>
-                <li>If you use a separate audio stream for Twitch VODs and Clips, it is not captured here.</li>
-                <li>Support for downloading VOD audio through Twitch is planned for a future update.</li>
+                <li><?= t('recording_audio_info_item_track1') ?></li>
+                <li><?= t('recording_audio_info_item_separate') ?></li>
+                <li><?= t('recording_audio_info_item_planned') ?></li>
             </ul>
             <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
             <form method="post" action="">
                 <div class="sp-form-group" style="display:flex;align-items:center;gap:1rem;">
                     <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin:0;">
                         <input type="checkbox" name="auto_record" <?= $autoRecordEnabled ? 'checked' : '' ?>>
-                        Enable channel recording
+                        <?= t('recording_enable_channel_recording') ?>
                     </label>
                     <button type="submit" name="save_recording_settings" class="sp-btn sp-btn-primary sp-btn-sm">
                         <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save</span>
+                        <span><?= t('recording_btn_save') ?></span>
                     </button>
                 </div>
             </form>
             <div style="display:flex;align-items:center;justify-content:space-between;margin:1.25rem 0 0.5rem;">
-                <h3 style="font-size:0.95rem;font-weight:700;margin:0;">Files on Recorder Server</h3>
+                <h3 style="font-size:0.95rem;font-weight:700;margin:0;"><?= t('recording_files_on_server_heading') ?></h3>
                 <?php if (!$RECORDING_DISABLED): ?>
                 <button type="button" id="refresh-remote-files-btn" class="sp-btn sp-btn-secondary sp-btn-sm">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
-                    <span>Refresh</span>
+                    <span><?= t('recording_btn_refresh') ?></span>
                 </button>
                 <?php endif; ?>
             </div>
@@ -448,11 +448,11 @@ ob_start();
                             <table class="sp-table">
                                 <thead>
                                     <tr>
-                                        <th>File</th>
-                                        <th>Type</th>
-                                        <th>Size</th>
-                                        <th>Modified</th>
-                                        <th>Action</th>
+                                        <th><?= t('recording_th_file') ?></th>
+                                        <th><?= t('recording_th_type') ?></th>
+                                        <th><?= t('recording_th_size') ?></th>
+                                        <th><?= t('recording_th_modified') ?></th>
+                                        <th><?= t('recording_th_action') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -461,11 +461,11 @@ ob_start();
                                             <td><code><?= htmlspecialchars($file['name']) ?></code></td>
                                             <td>
                                                 <?php if ($file['is_directory']): ?>
-                                                    Directory
+                                                    <?= t('recording_type_directory') ?>
                                                 <?php elseif (!empty($file['is_partial'])): ?>
-                                                    Recording (In Progress)
+                                                    <?= t('recording_type_in_progress') ?>
                                                 <?php else: ?>
-                                                    File
+                                                    <?= t('recording_type_file') ?>
                                                 <?php endif; ?>
                                             </td>
                                             <td><?= $file['is_directory'] ? '-' : htmlspecialchars(formatBytes($file['size'])) ?></td>
@@ -476,7 +476,7 @@ ob_start();
                                                 <?php if (!$file['is_directory'] && empty($file['is_partial']) && strtolower((string)pathinfo($file['name'], PATHINFO_EXTENSION)) === 'mp4'): ?>
                                                     <a class="sp-btn sp-btn-primary sp-btn-sm download-link" data-download-link="1" href="recording.php?download=1&amp;file=<?= rawurlencode($file['name']) ?>">
                                                         <span class="icon"><i class="fas fa-download"></i></span>
-                                                        <span class="download-label">Download</span>
+                                                        <span class="download-label"><?= t('recording_btn_download') ?></span>
                                                     </a>
                                                 <?php else: ?>
                                                     -
@@ -497,22 +497,22 @@ ob_start();
     <header class="sp-card-header">
         <p class="sp-card-title">
             <span class="icon mr-2"><i class="fas fa-broadcast-tower"></i></span>
-            Stream Forwarding
+            <?= t('recording_forward_card_title') ?>
         </p>
     </header>
     <div class="sp-card-body">
         <div class="content mb-5">
             <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">
                 <span class="icon mr-2"><i class="fas fa-info-circle"></i></span>
-                About Stream Forwarding
+                <?= t('recording_forward_about_heading') ?>
             </h2>
-            <p>Stream forwarding re-streams your Twitch broadcast live to one or more external platforms at the same time as it is being recorded. This works independently from the recording setting above — you can forward without recording, or do both simultaneously.</p>
+            <p><?= t('recording_forward_about_desc') ?></p>
             <ul>
-                <li>Enter the stream key from each platform you want to forward to.</li>
-                <li>Enable the toggle for each service you want active.</li>
-                <li>More platforms are coming soon.</li>
+                <li><?= t('recording_forward_item_key') ?></li>
+                <li><?= t('recording_forward_item_toggle') ?></li>
+                <li><?= t('recording_forward_item_coming_soon') ?></li>
             </ul>
-            <p><strong>Note:</strong> Stream keys are sensitive — treat them like passwords and do not share them.</p>
+            <p><?= t('recording_forward_note') ?></p>
             <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0;">
             <form method="post" action="">
                 <?php foreach ($allowedForwardServices as $svc): ?>
@@ -538,7 +538,7 @@ ob_start();
                                     id="forward_<?= $svc ?>_key_input"
                                     name="forward_<?= $svc ?>_key"
                                     value="<?= $svcKey ?>"
-                                    placeholder="Stream key"
+                                    placeholder="<?= htmlspecialchars(t('recording_forward_stream_key_placeholder')) ?>"
                                     autocomplete="off"
                                     style="width:100%;padding-right:2.5rem;"
                                     class="sp-input"
@@ -547,13 +547,13 @@ ob_start();
                                     type="button"
                                     onclick="(function(btn){var inp=document.getElementById('forward_<?= $svc ?>_key_input');inp.type=inp.type==='password'?'text':'password';btn.querySelector('i').className=inp.type==='password'?'fas fa-eye':'fas fa-eye-slash';})(this)"
                                     style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:0;"
-                                    title="Toggle stream key visibility"
-                                    aria-label="Toggle stream key visibility"
+                                    title="<?= htmlspecialchars(t('recording_forward_toggle_visibility')) ?>"
+                                    aria-label="<?= htmlspecialchars(t('recording_forward_toggle_visibility')) ?>"
                                 ><i class="fas fa-eye"></i></button>
                             </div>
                             <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;white-space:nowrap;margin:0;">
                                 <input type="checkbox" name="forward_<?= $svc ?>_enabled" <?= $svcEnabled ? 'checked' : '' ?>>
-                                Enable forwarding
+                                <?= t('recording_forward_enable_label') ?>
                             </label>
                         </div>
                     </div>
@@ -561,7 +561,7 @@ ob_start();
                 <div style="margin-top:0.75rem;">
                     <button type="submit" name="save_forward_settings" class="sp-btn sp-btn-primary sp-btn-sm">
                         <span class="icon"><i class="fas fa-save"></i></span>
-                        <span>Save Forwarding Settings</span>
+                        <span><?= t('recording_btn_save_forwarding') ?></span>
                     </button>
                 </div>
             </form>

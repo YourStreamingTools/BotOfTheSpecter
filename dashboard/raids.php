@@ -76,25 +76,25 @@ ob_start();
   <header class="sp-card-header">
     <div class="sp-card-title">
       <span class="icon mr-2"><i class="fas fa-bullhorn"></i></span>
-      Raids
+      <?= t('raids_heading') ?>
     </div>
   </header>
   <div class="sp-card-body">
     <div class="raids-layout">
       <div>
-        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;">Recent Raids - Received</h3>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.85rem;"><?= t('raids_recent_received_title') ?></h3>
         <?php if (empty($recentReceivedRaids)): ?>
           <div style="text-align:center;padding:3rem 0;">
-            <p class="sp-text-muted" style="font-size:1.1rem;">No received raid data available yet.</p>
+            <p class="sp-text-muted" style="font-size:1.1rem;"><?= t('raids_no_received_data') ?></p>
           </div>
         <?php else: ?>
           <div class="sp-table-wrap">
             <table class="sp-table">
               <thead>
                 <tr>
-                  <th>Raider</th>
-                  <th>Viewers</th>
-                  <th>Date / Time</th>
+                  <th><?= t('raids_col_raider') ?></th>
+                  <th><?= t('raids_col_viewers') ?></th>
+                  <th><?= t('raids_col_datetime') ?></th>
                 </tr>
               </thead>
               <tbody>
@@ -112,21 +112,21 @@ ob_start();
       </div>
       <div>
         <div class="raids-section-head">
-          <h3>Latest Raid - Sent</h3>
+          <h3><?= t('raids_latest_sent_title') ?></h3>
           <button class="sp-btn sp-btn-info sp-btn-sm" id="showLastFiveSentRaidsBtn" <?php echo empty($recentSentRaids) ? 'disabled' : ''; ?>>
-            Show Last 5
+            <?= t('raids_show_last_5') ?>
           </button>
         </div>
         <?php if (empty($latestSentRaid)): ?>
-          <p class="sp-text-muted">No sent raid data available yet.</p>
+          <p class="sp-text-muted"><?= t('raids_no_sent_data') ?></p>
         <?php else: ?>
           <div class="sp-table-wrap">
             <table class="sp-table">
               <thead>
                 <tr>
-                  <th>Target</th>
-                  <th>Viewers</th>
-                  <th>Date / Time</th>
+                  <th><?= t('raids_col_target') ?></th>
+                  <th><?= t('raids_col_viewers') ?></th>
+                  <th><?= t('raids_col_datetime') ?></th>
                 </tr>
               </thead>
               <tbody>
@@ -142,20 +142,20 @@ ob_start();
         <div class="sp-modal-backdrop" id="lastFiveSentRaidsModal">
           <div class="sp-modal" style="max-width:min(900px,95vw);">
             <header class="sp-modal-head">
-              <p class="sp-modal-title">Last 5 Sent Raids</p>
-              <button class="sp-modal-close" aria-label="close" id="closeLastFiveSentRaidsModal">&times;</button>
+              <p class="sp-modal-title"><?= t('raids_modal_title') ?></p>
+              <button class="sp-modal-close" aria-label="<?= htmlspecialchars(t('raids_close')) ?>" id="closeLastFiveSentRaidsModal">&times;</button>
             </header>
             <section class="sp-modal-body">
               <?php if (empty($recentSentRaids)): ?>
-                <p class="sp-text-muted">No sent raid data available yet.</p>
+                <p class="sp-text-muted"><?= t('raids_no_sent_data') ?></p>
               <?php else: ?>
                 <div class="sp-table-wrap">
                   <table class="sp-table">
                     <thead>
                       <tr>
-                        <th>Target</th>
-                        <th>Viewers</th>
-                        <th>Date / Time</th>
+                        <th><?= t('raids_col_target') ?></th>
+                        <th><?= t('raids_col_viewers') ?></th>
+                        <th><?= t('raids_col_datetime') ?></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -174,19 +174,19 @@ ob_start();
           </div>
         </div>
         <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0;">
-        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;">Top Raiders</h3>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;"><?= t('raids_top_raiders_title') ?></h3>
         <?php if (empty($topRaiders)): ?>
-          <p class="sp-text-muted">No data yet.</p>
+          <p class="sp-text-muted"><?= t('raids_no_data_yet') ?></p>
         <?php else: ?>
           <ul style="padding-left:1.25rem;margin:0;">
             <?php foreach ($topRaiders as $t): ?>
-              <li style="margin-bottom:0.5rem;"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> - <?php echo htmlspecialchars($t['raids']); ?> raids, Avg: <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> viewers</li>
+              <li style="margin-bottom:0.5rem;"><strong><?php echo htmlspecialchars($t['raider_name']); ?></strong> - <?php echo htmlspecialchars($t['raids']); ?> <?= t('raids_raids_label') ?>, <?= t('raids_avg_label') ?> <?php echo htmlspecialchars($formatViewerAverage($t['avg_viewers'])); ?> <?= t('raids_viewers_label') ?></li>
             <?php endforeach; ?>
           </ul>
         <?php endif; ?>
         <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0;">
-        <h4 style="font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:0.4rem;">Overall Average Viewers</h4>
-        <p style="font-size:1.1rem;"><?php echo $avgViewers !== null ? htmlspecialchars($avgViewers) . ' viewers' : 'N/A'; ?></p>
+        <h4 style="font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:0.4rem;"><?= t('raids_overall_avg_title') ?></h4>
+        <p style="font-size:1.1rem;"><?php echo $avgViewers !== null ? htmlspecialchars($avgViewers) . ' ' . t('raids_viewers_label') : t('raids_na'); ?></p>
       </div>
     </div>
   </div>

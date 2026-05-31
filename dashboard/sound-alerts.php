@@ -78,9 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
             $updateMapping = $db->prepare("UPDATE sound_alerts SET reward_id = ? WHERE sound_mapping = ?");
             $updateMapping->bind_param('ss', $rewardId, $soundFile);
             if (!$updateMapping->execute()) {
-                $status .= "Failed to update mapping for file '" . $soundFile . "'. Database error: " . $updateMapping->error . "<br>"; 
+                $status .= t('sound_alerts_status_update_failed', ['file' => $soundFile, 'error' => $updateMapping->error]) . "<br>";
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been updated successfully.<br>";
+                $status .= t('sound_alerts_status_update_success', ['file' => $soundFile]) . "<br>";
             }
             $updateMapping->close();
         } else {
@@ -88,9 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
             $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = ?");
             $deleteMapping->bind_param('s', $soundFile);
             if (!$deleteMapping->execute()) {
-                $status .= "Failed to remove mapping for file '" . $soundFile . "'. Database error: " . $deleteMapping->error . "<br>"; 
+                $status .= t('sound_alerts_status_remove_failed', ['file' => $soundFile, 'error' => $deleteMapping->error]) . "<br>";
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been removed.<br>";
+                $status .= t('sound_alerts_status_remove_success', ['file' => $soundFile]) . "<br>";
             }
             $deleteMapping->close();
         }
@@ -100,9 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sound_file'], $_POST[
             $insertMapping = $db->prepare("INSERT INTO sound_alerts (sound_mapping, reward_id) VALUES (?, ?)");
             $insertMapping->bind_param('ss', $soundFile, $rewardId);
             if (!$insertMapping->execute()) {
-                $status .= "Failed to create mapping for file '" . $soundFile . "'. Database error: " . $insertMapping->error . "<br>"; 
+                $status .= t('sound_alerts_status_create_failed', ['file' => $soundFile, 'error' => $insertMapping->error]) . "<br>";
             } else {
-                $status .= "Mapping for file '" . $soundFile . "' has been created successfully.<br>";
+                $status .= t('sound_alerts_status_create_success', ['file' => $soundFile]) . "<br>";
             }
             $insertMapping->close();
         } 
@@ -123,20 +123,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES["filesToUpload"])) {
     foreach ($_FILES["filesToUpload"]["tmp_name"] as $key => $tmp_name) {
         $fileSize = $_FILES["filesToUpload"]["size"][$key];
         if ($current_storage_used + $fileSize > $max_storage_size) {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Storage limit exceeded.<br>";
+            $status .= t('sound_alerts_status_upload_storage_exceeded', ['file' => htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
             continue;
         }
         $targetFile = $soundalert_path . '/' . basename($_FILES["filesToUpload"]["name"][$key]);
         $fileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
         if ($fileType != "mp3") {
-            $status .= "Failed to upload " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ". Only MP3 files are allowed.<br>";
+            $status .= t('sound_alerts_status_upload_mp3_only', ['file' => htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
             continue;
         }
         if (move_uploaded_file($tmp_name, $targetFile)) {
             $current_storage_used += $fileSize;
-            $status .= "The file " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . " has been uploaded.<br>";
+            $status .= t('sound_alerts_status_upload_success', ['file' => htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
         } else {
-            $status .= "Sorry, there was an error uploading " . htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key])) . ".<br>";
+            $status .= t('sound_alerts_status_upload_error', ['file' => htmlspecialchars(basename($_FILES["filesToUpload"]["name"][$key]))]) . "<br>";
         }
     }
     $storage_percentage = ($current_storage_used / $max_storage_size) * 100; // Update percentage after upload
@@ -151,20 +151,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_files'])) {
         $full_path = $soundalert_path . '/' . $filename;
         // First delete the physical file
         if (is_file($full_path) && unlink($full_path)) {
-            $status .= "The file " . htmlspecialchars($filename) . " has been deleted.<br>";
+            $status .= t('sound_alerts_status_delete_success', ['file' => htmlspecialchars($filename)]) . "<br>";
             // Now delete any mapping for this file from the database
             $deleteMapping = $db->prepare("DELETE FROM sound_alerts WHERE sound_mapping = ?");
             $deleteMapping->bind_param('s', $filename);
             if ($deleteMapping->execute()) {
                 if ($deleteMapping->affected_rows > 0) {
-                    $status .= "The mapping for " . htmlspecialchars($filename) . " has also been removed.<br>";
+                    $status .= t('sound_alerts_status_delete_mapping_removed', ['file' => htmlspecialchars($filename)]) . "<br>";
                 }
             } else {
-                $status .= "Warning: Could not remove mapping for " . htmlspecialchars($filename) . ".<br>";
+                $status .= t('sound_alerts_status_delete_mapping_warning', ['file' => htmlspecialchars($filename)]) . "<br>";
             }
             $deleteMapping->close();
         } else {
-            $status .= "Failed to delete " . htmlspecialchars($filename) . ".<br>";
+            $status .= t('sound_alerts_status_delete_failed', ['file' => htmlspecialchars($filename)]) . "<br>";
         }
     }
     $db->commit(); // Commit all database changes
@@ -228,7 +228,7 @@ ob_start();
                 <div id="uploadStatusContainer" style="display:none;margin-bottom:1rem;">
                     <div class="sp-alert sp-alert-info">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                            <strong id="uploadStatusText">Preparing upload...</strong>
+                            <strong id="uploadStatusText"><?php echo t('sound_alerts_preparing_upload'); ?></strong>
                             <span id="uploadProgressPercent" style="font-weight:600;">0%</span>
                         </div>
                         <progress class="progress" id="uploadProgress" value="0" max="100" style="width:100%;">0%</progress>

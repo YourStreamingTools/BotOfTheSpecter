@@ -290,8 +290,8 @@ ob_start();
     <div class="is-flex is-align-items-center">
         <span class="icon mr-3"><i class="fas fa-exclamation-circle"></i></span>
         <div>
-            <p class="has-text-weight-bold">Persistent Storage Service - Terminated</p>
-            <p class="mt-2">The persistent storage service has been terminated and is no longer available. The core code has been preserved in case this project resumes at a later stage in the future. For assistance, please contact support.</p>
+            <p class="has-text-weight-bold"><?php echo t('persistent_storage_terminated_title'); ?></p>
+            <p class="mt-2"><?php echo t('persistent_storage_terminated_desc'); ?></p>
         </div>
     </div>
 </div>
