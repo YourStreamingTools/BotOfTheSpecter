@@ -343,8 +343,8 @@ ob_start();
             </div>
         </div>
         <div class="cc-modal-foot">
-            <button class="sp-btn sp-btn-primary" id="saveOptionsBtn" onclick="saveCommandOptions()">Save Changes</button>
-            <button class="sp-btn sp-btn-secondary" onclick="closeCommandModal()">Cancel</button>
+            <button class="sp-btn sp-btn-primary" id="saveOptionsBtn" onclick="saveCommandOptions()"><?php echo t('builtin_commands_save_changes'); ?></button>
+            <button class="sp-btn sp-btn-secondary" onclick="closeCommandModal()"><?php echo t('builtin_commands_cancel'); ?></button>
         </div>
     </div>
 </div>

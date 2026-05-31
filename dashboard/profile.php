@@ -661,8 +661,8 @@ ob_start();
                             </form>
                         </div>
                         <div>
-                            <button id="export-data-profile-btn" class="sp-btn sp-btn-warning" type="button" data-user-id="<?php echo $userId; ?>" data-user-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>" data-user-username="<?php echo htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES); ?>" onclick="exportProfileData()">Export My Data</button>
-                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;">Request a copy of your personal data. Exports are queued and emailed when ready.</p>
+                            <button id="export-data-profile-btn" class="sp-btn sp-btn-warning" type="button" data-user-id="<?php echo $userId; ?>" data-user-email="<?php echo htmlspecialchars($user['email'] ?? '', ENT_QUOTES); ?>" data-user-username="<?php echo htmlspecialchars($_SESSION['username'] ?? '', ENT_QUOTES); ?>" onclick="exportProfileData()"><?php echo t('profile_export_my_data'); ?></button>
+                            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.25rem;"><?php echo t('profile_export_help'); ?></p>
                         </div>
                     </div>
                 </div>
@@ -1039,8 +1039,8 @@ ob_start();
                 <div style="display:flex;align-items:center;gap:0.75rem;">
                     <i class="fas fa-mobile-alt fa-2x" style="color:var(--accent);"></i>
                     <div>
-                        <h3 class="sp-card-title" style="margin:0;">App Password</h3>
-                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;">Set a password to protect access to the BotOfTheSpecter mobile app.</p>
+                        <h3 class="sp-card-title" style="margin:0;"><?php echo t('profile_app_password_title'); ?></h3>
+                        <p style="font-size:0.85rem;color:var(--text-muted);margin:0;"><?php echo t('profile_app_password_help'); ?></p>
                     </div>
                 </div>
             </div>
@@ -1048,9 +1048,9 @@ ob_start();
                 <?php $appPasswordSet = !empty($user['app_password']); ?>
                 <div style="margin-bottom:1rem;">
                     <?php if ($appPasswordSet): ?>
-                        <span class="sp-badge sp-badge-green"><i class="fas fa-lock" style="margin-right:0.25rem;"></i>Password set</span>
+                        <span class="sp-badge sp-badge-green"><i class="fas fa-lock" style="margin-right:0.25rem;"></i><?php echo t('profile_app_password_set'); ?></span>
                     <?php else: ?>
-                        <span class="sp-badge sp-badge-amber"><i class="fas fa-lock-open" style="margin-right:0.25rem;"></i>No password set</span>
+                        <span class="sp-badge sp-badge-amber"><i class="fas fa-lock-open" style="margin-right:0.25rem;"></i><?php echo t('profile_app_password_not_set'); ?></span>
                     <?php endif; ?>
                 </div>
                 <form method="post" action="" id="app-password-form">
