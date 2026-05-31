@@ -1624,8 +1624,8 @@ function renewChatToken(clientId, clientSecret) {
     fetch('', { method: 'POST', body: formData })
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.access_token) {
-                const newToken = data.access_token;
+            if (data.success && data.new_token) {
+                const newToken = data.new_token;
                 const expiresIn = data.expires_in || 0;
                 chatToken = newToken; // update for future validation
                 const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
