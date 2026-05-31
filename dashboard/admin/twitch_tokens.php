@@ -246,11 +246,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
                 exit;
             }
             $expiresIn = intval($result['expires_in'] ?? 0);
+            $syncWarning = null;
             if ($syncChatExpiry) {
                 $syncPersistResult = persistWebsiteChatToken($conn, $token, $expiresIn);
                 if (empty($syncPersistResult['success'])) {
-                    echo json_encode(['success' => false, 'error' => $syncPersistResult['error'] ?? 'Failed to persist chat token expiry']);
-                    exit;
+                    $syncWarning = $syncPersistResult['error'] ?? 'Failed to persist chat token expiry';
                 }
             }
             if ($autoRenewIf24h && $expiresIn > 0 && $expiresIn <= 86400) {
@@ -272,10 +272,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['validate_token'])) {
                     }
                 }
             }
-            echo json_encode([
-                'success' => true,
-                'validation' => $result
-            ]);
+            $resp = ['success' => true, 'validation' => $result];
+            if ($syncWarning !== null) {
+                $resp['sync_warning'] = $syncWarning;
+            }
+            echo json_encode($resp);
         } else {
             $error = json_decode($response, true);
             $errorMsg = isset($error['message']) ? $error['message'] : 'Failed to validate token (HTTP ' . $httpCode . ').';
