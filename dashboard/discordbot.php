@@ -180,7 +180,7 @@ if ($isActAsUser && (isset($_GET['auth_data']) || isset($_GET['code']))) {
 if (isset($_GET['auth_data']) && !$isActAsUser) {
   $decoded = json_decode(base64_decode($_GET['auth_data']), true);
   if (!is_array($decoded) || empty($decoded['success'])) {
-    $linkingMessage = "Authentication failed or was cancelled.";
+    $linkingMessage = t('discordbot_msg_auth_failed');
     $linkingMessageType = "is-danger";
   } elseif (isset($decoded['service']) && $decoded['service'] === 'discord') {
     $access_token = $decoded['access_token'] ?? null;
@@ -199,17 +199,17 @@ if (isset($_GET['auth_data']) && !$isActAsUser) {
         $stmt->bind_param("iss", $user_id, $discord_id, $access_token);
       }
       if ($stmt->execute()) {
-        $linkingMessage = "Discord account successfully linked via StreamersConnect!";
+        $linkingMessage = t('discordbot_msg_linked_streamersconnect');
         $linkingMessageType = "is-success";
         header("Location: discordbot.php");
         exit();
       } else {
-        $linkingMessage = "Linked, but failed to save Discord information.";
+        $linkingMessage = t('discordbot_msg_linked_save_failed');
         $linkingMessageType = "is-warning";
       }
       $stmt->close();
     } else {
-      $linkingMessage = "Error: Invalid auth data received from StreamersConnect.";
+      $linkingMessage = t('discordbot_msg_invalid_authdata');
       $linkingMessageType = "is-danger";
     }
   }
@@ -219,7 +219,7 @@ if (isset($_GET['auth_data']) && !$isActAsUser) {
 if (isset($_GET['code']) && !$is_linked && !$isActAsUser) {
   // Validate state parameter for security
   if (!isset($_GET['state']) || !isset($_SESSION['discord_oauth_state']) || $_GET['state'] !== $_SESSION['discord_oauth_state']) {
-    $linkingMessage = "Invalid state parameter. Please try again.";
+    $linkingMessage = t('discordbot_msg_invalid_state');
     $linkingMessageType = "is-danger";
   } else {
     unset($_SESSION['discord_oauth_state']);
@@ -273,23 +273,23 @@ if (isset($_GET['code']) && !$is_linked && !$isActAsUser) {
           $insertStmt->bind_param("iss", $user_id, $discord_id, $access_token);
         }
         if ($insertStmt->execute()) {
-          $linkingMessage = "Discord account successfully linked!";
+          $linkingMessage = t('discordbot_msg_linked_success');
           $linkingMessageType = "is-success";
           $is_linked = true;
           // Redirect to refresh page and show linked status
           header("Location: discordbot.php");
           exit();
         } else {
-          $linkingMessage = "Linked, but failed to save Discord information.";
+          $linkingMessage = t('discordbot_msg_linked_save_failed');
           $linkingMessageType = "is-warning";
         }
         $insertStmt->close();
       } else {
-        $linkingMessage = "Error: Failed to retrieve user information from Discord API.";
+        $linkingMessage = t('discordbot_msg_user_info_failed');
         $linkingMessageType = "is-danger";
       }
     } else {
-      $linkingMessage = "Error: Failed to retrieve access token from Discord API.";
+      $linkingMessage = t('discordbot_msg_token_failed');
       $linkingMessageType = "is-danger";
       if (isset($params['error'])) {
         $linkingMessage .= " Error: " . htmlspecialchars($params['error']);
@@ -395,7 +395,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $updateStmt->bind_param("ss", $fs_channel, $freestuff_guild_id);
           $ok = $updateStmt->execute();
           if ($ok) {
-            $buildStatus .= "Free Games settings updated successfully.<br>";
+            $buildStatus .= t('discordbot_msg_freegames_updated');
             $existingFreestuffChannelID = $fs_channel;
             $existingFreestuffEnabled = 1;
           } else {
@@ -407,7 +407,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $insertStmt = $discord_conn->prepare("INSERT INTO freestuff_settings (guild_id, channel_id, enabled) VALUES (?, ?, 1)");
           $insertStmt->bind_param("ss", $freestuff_guild_id, $fs_channel);
           if ($insertStmt->execute()) {
-            $buildStatus .= "Free Games settings saved successfully.<br>";
+            $buildStatus .= t('discordbot_msg_freegames_saved');
             $existingFreestuffChannelID = $fs_channel;
             $existingFreestuffEnabled = 1;
           } else {
@@ -477,7 +477,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt = $conn->prepare("UPDATE discord_users SET guild_id = ? WHERE user_id = ?");
         $stmt->bind_param("si", $guild_id, $user_id);
         if ($stmt->execute()) {
-          $buildStatus = "Discord Server configuration saved successfully";
+          $buildStatus = t('discordbot_msg_server_config_saved');
         } else {
           $errorMsg = "Error saving Discord Server configuration: " . $stmt->error;
         }
@@ -495,7 +495,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt = $conn->prepare("UPDATE discord_users SET live_channel_id = ?, guild_id = ? WHERE user_id = ?");
         $stmt->bind_param("ssi", $live_channel_id, $guild_id, $user_id);
         if ($stmt->execute()) {
-          $buildStatus .= "Live Channel ID and Guild ID updated successfully<br>";
+          $buildStatus .= t('discordbot_msg_live_channel_updated');
         } else {
           $errorMsg .= "Error updating Live Channel ID and Guild ID: " . $stmt->error . "<br>";
         }
@@ -508,7 +508,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $stmt = $conn->prepare("UPDATE discord_users SET online_text = ?, offline_text = ? WHERE user_id = ?");
           $stmt->bind_param("ssi", $onlineText, $offlineText, $user_id);
           if ($stmt->execute()) {
-            $buildStatus .= "Online and Offline Text has been updated successfully<br>";
+            $buildStatus .= t('discordbot_msg_text_updated');
           } else {
             $errorMsg .= "Error updating Online and Offline Text: " . $stmt->error . "<br>";
           }
@@ -516,7 +516,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt = $conn->prepare("UPDATE discord_users SET stream_alert_channel_id = ?, stream_alert_everyone = ?, stream_alert_custom_role = ? WHERE user_id = ?");
         $stmt->bind_param("iisi", $streamChannelID, $streamAlertEveryone, $streamAlertCustomRole, $user_id);
         if ($stmt->execute()) {
-          $buildStatus .= "Stream Alert Channel and mention settings updated successfully<br>";
+          $buildStatus .= t('discordbot_msg_stream_alert_updated');
         } else {
           $errorMsg .= "Error updating Stream Alert Channel or mention settings: " . $stmt->error . "<br>";
         }
@@ -529,7 +529,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt = $conn->prepare("UPDATE discord_users SET moderation_channel_id = ?, alert_channel_id = ? WHERE user_id = ?");
         $stmt->bind_param("iii", $moderationChannelID, $alertChannelID, $user_id);
         if ($stmt->execute()) {
-          $buildStatus .= "Moderation and Alert channels updated successfully<br>";
+          $buildStatus .= t('discordbot_msg_mod_alert_updated');
         } else {
           $errorMsg .= "Error updating Moderation/Alert channels: " . $stmt->error . "<br>";
         }
@@ -541,7 +541,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt = $conn->prepare("UPDATE discord_users SET member_streams_id = ? WHERE user_id = ?");
         $stmt->bind_param("ii", $memberStreamsID, $user_id);
         if ($stmt->execute()) {
-          $buildStatus .= "Twitch Stream Monitoring channel updated successfully<br>";
+          $buildStatus .= t('discordbot_msg_monitoring_updated');
         } else {
           $errorMsg .= "Error updating Twitch Stream Monitoring channel: " . $stmt->error . "<br>";
         }
@@ -564,7 +564,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $deleteStmt = $conn->prepare("DELETE FROM discord_users WHERE user_id = ?");
         $deleteStmt->bind_param("i", $user_id);
         if ($deleteStmt->execute()) {
-          $buildStatus = "Discord account successfully disconnected and tokens revoked";
+          $buildStatus = t('discordbot_msg_disconnected');
           $is_linked = false; // Update the linked status
         } else {
           $errorMsg = "Error disconnecting Discord account: " . $deleteStmt->error;
@@ -574,9 +574,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Add Twitch streamer monitoring (URL is auto-generated)
         $monitor_username = trim(str_replace(' ', '', $_POST['monitor_username']));
         if (empty($monitor_username)) {
-          $errorMsg = "Twitch Username cannot be empty.";
+          $errorMsg = t('discordbot_msg_username_empty');
         } elseif (strtolower($monitor_username) === strtolower($username)) {
-          $errorMsg = "You cannot track your own channel.";
+          $errorMsg = t('discordbot_msg_cannot_track_self');
         } else {
           $monitor_url = "https://www.twitch.tv/" . $monitor_username;
           // Check if the streamer already exists
@@ -585,13 +585,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $checkStmt->execute();
           $checkResult = $checkStmt->get_result();
           if ($checkResult->num_rows > 0) {
-            $buildStatus .= "Streamer already exists in the database.<br>";
+            $buildStatus .= t('discordbot_msg_streamer_exists');
           } else {
             // Insert new streamer
             $insertStmt = $db->prepare("INSERT INTO member_streams (username, stream_url) VALUES (?, ?)");
             $insertStmt->bind_param("ss", $monitor_username, $monitor_url);
             if ($insertStmt->execute()) {
-              $buildStatus .= "Streamer added successfully.<br>";
+              $buildStatus .= t('discordbot_msg_streamer_added');
             } else {
               $errorMsg .= "Error adding streamer: " . $insertStmt->error . "<br>";
             }
@@ -603,7 +603,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Remove Twitch streamer monitoring
         $remove_username = trim($_POST['remove_streamer']);
         if (empty($remove_username)) {
-          $errorMsg = "Twitch Username cannot be empty.";
+          $errorMsg = t('discordbot_msg_username_empty');
         } else {
           // Check if the streamer exists
           $checkStmt = $db->prepare("SELECT * FROM member_streams WHERE username = ?");
@@ -611,13 +611,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
           $checkStmt->execute();
           $checkResult = $checkStmt->get_result();
           if ($checkResult->num_rows === 0) {
-            $errorMsg .= "Streamer not found in the database.<br>";
+            $errorMsg .= t('discordbot_msg_streamer_not_found');
           } else {
             // Delete the streamer
             $deleteStmt = $db->prepare("DELETE FROM member_streams WHERE username = ?");
             $deleteStmt->bind_param("s", $remove_username);
             if ($deleteStmt->execute()) {
-              $buildStatus .= "Streamer removed successfully.<br>";
+              $buildStatus .= t('discordbot_msg_streamer_removed');
             } else {
               $errorMsg .= "Error removing streamer: " . $deleteStmt->error . "<br>";
             }
@@ -866,7 +866,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
   } catch (mysqli_sql_exception $e) {
     if (strpos($e->getMessage(), 'Data too long for column') !== false) {
-      $errorMsg = "The text entered is too long. Please reduce the length and try again.";
+      $errorMsg = t('discordbot_msg_text_too_long');
     } else {
       $errorMsg = "An error occurred: " . $e->getMessage();
     }
@@ -1773,8 +1773,8 @@ ob_start();
         <i class="fab fa-discord" style="font-size: 2rem; color: white;"></i>
       </div>
       <div style="min-width:0;">
-        <p style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2; color:white; font-size:1.75rem;">Discord Integration</p>
-        <p style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0; color:white; font-size:1.05rem;">Connect your Discord server with BotOfTheSpecter</p>
+        <p style="margin-bottom: 0.5rem; font-weight: 700; word-wrap: break-word; line-height: 1.2; color:white; font-size:1.75rem;"><?= t('discordbot_hero_title') ?></p>
+        <p style="opacity: 0.9; word-wrap: break-word; line-height: 1.3; margin-bottom: 0; color:white; font-size:1.05rem;"><?= t('discordbot_hero_subtitle') ?></p>
       </div>
     </div>
     <div>
@@ -1783,19 +1783,19 @@ ob_start();
           <div style="display:inline-flex;margin-bottom:0.5rem;">
             <span class="sp-badge sp-badge-green" style="border-radius: 50px; font-weight: 600;">
               <span class="icon"><i class="fas fa-check-circle"></i></span>
-              <span>Connected</span>
+              <span><?= t('discordbot_badge_connected') ?></span>
             </span>
           </div>
           <?php if ($expires_str): ?>
             <p style="font-size:0.8rem; opacity: 0.8; word-wrap: break-word; line-height: 1.3; color:white;">
-              Active for <?php echo htmlspecialchars($expires_str); ?>
+              <?= t('discordbot_active_for') ?> <?php echo htmlspecialchars($expires_str); ?>
             </p>
           <?php endif; ?>
         </div>
       <?php else: ?>
         <span class="sp-badge sp-badge-amber" style="border-radius: 50px; font-weight: 600;">
           <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-          <span>Not Connected</span>
+          <span><?= t('discordbot_badge_not_connected') ?></span>
         </span>
       <?php endif; ?>
     </div>
@@ -1831,16 +1831,14 @@ ob_start();
                   </span>
                 </div>
                 <h3 style="font-size:1.75rem;font-weight:700;margin-bottom:0.75rem;">
-                  <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'New Permissions Required' : 'Reconnection Required'; ?>
+                  <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? t('discordbot_reconnect_title_perms') : t('discordbot_reconnect_title'); ?>
                 </h3>
                 <p style="font-size:1.15rem;color:var(--text-muted);margin-bottom:0.5rem;"
                   style="max-width: 600px; margin: 0 auto; line-height: 1.6;">
                   <?php if (isset($discordData['reauth']) && $discordData['reauth'] == 1): ?>
-                    We've added new features that require additional Discord permissions. Please re-authorize your account to
-                    access guild management features and server selection.
+                    <?= t('discordbot_reconnect_desc_perms') ?>
                   <?php else: ?>
-                    Your Discord account was linked using our previous system. To access all the latest features and improved
-                    security, please reconnect your account with our updated integration.
+                    <?= t('discordbot_reconnect_desc') ?>
                   <?php endif; ?>
                 </p>
                 <?php if ($isActAsUser): ?>
@@ -1848,16 +1846,16 @@ ob_start();
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3); opacity: 0.7;">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                     <span>
-                      <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
+                      <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? t('discordbot_reconnect_btn_perms') : t('discordbot_reconnect_btn'); ?>
                     </span>
                   </button>
-                  <p class="help">Act As mode is active. Discord linking is disabled for acting users.</p>
+                  <p class="help"><?= t('discordbot_actas_help') ?></p>
                 <?php else: ?>
                   <button class="sp-btn sp-btn-warning" style="padding:1rem 2rem;font-size:1rem;" onclick="linkDiscord()"
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(255,152,0,0.3);">
                     <span class="icon"><i class="fas fa-sync-alt"></i></span>
                     <span>
-                      <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? 'Grant New Permissions' : 'Reconnect Discord Account'; ?>
+                      <?php echo (isset($discordData['reauth']) && $discordData['reauth'] == 1) ? t('discordbot_reconnect_btn_perms') : t('discordbot_reconnect_btn'); ?>
                     </span>
                   </button>
                 <?php endif; ?>
@@ -1886,7 +1884,7 @@ ob_start();
                     <span class="icon"><i class="fab fa-discord"></i></span>
                     <span><?php echo t('discordbot_link_btn'); ?></span>
                   </button>
-                  <p class="help">Act As mode is active. Discord linking is disabled for acting users.</p>
+                  <p class="help"><?= t('discordbot_actas_help') ?></p>
                 <?php else: ?>
                   <button class="sp-btn sp-btn-primary" style="padding:1rem 2rem;font-size:1rem;" onclick="linkDiscord()"
                     style="border-radius: 50px; font-weight: 600; padding: 1rem 2rem; box-shadow: 0 4px 16px rgba(88,101,242,0.3);">
@@ -1923,12 +1921,12 @@ ob_start();
                   <button class="sp-btn sp-btn-primary" onclick="inviteBot()"
                     style="border-radius: 25px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-plus-circle"></i></span>
-                    <span>Invite Bot</span>
+                    <span><?= t('discordbot_invite_bot') ?></span>
                   </button>
                   <button class="sp-btn sp-btn-danger" onclick="disconnectDiscord()"
                     style="border-radius: 25px; font-weight: 600;">
                     <span class="icon"><i class="fas fa-unlink"></i></span>
-                    <span>Disconnect</span>
+                    <span><?= t('discordbot_disconnect') ?></span>
                   </button>
                 </div>
               </div>
@@ -1938,10 +1936,10 @@ ob_start();
                   <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">
                     <div style="flex-shrink:0;">
                       <span class="icon"><i class="fas fa-clock"></i></span>
-                      <strong style="margin-left: 0.5rem;">Token Status:</strong>
+                      <strong style="margin-left: 0.5rem;"><?= t('discordbot_token_status') ?></strong>
                     </div>
                     <div>
-                      <span style="word-wrap: break-word;">Valid for
+                      <span style="word-wrap: break-word;"><?= t('discordbot_valid_for') ?>
                         <?php echo htmlspecialchars($expires_str); ?></span>
                     </div>
                   </div>
@@ -1952,25 +1950,23 @@ ob_start();
                 <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
                   <p class="sp-card-title" style="font-weight: 600;">
                     <span class="icon"><i class="fas fa-server"></i></span>
-                    Discord Server Configuration
+                    <?= t('discordbot_server_config_title') ?>
                   </p>
                   <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
                     <span class="sp-badge sp-badge-blue">
                       <span class="icon"><i class="fas fa-cog"></i></span>
-                      <span>Required</span>
+                      <span><?= t('discordbot_badge_required') ?></span>
                     </span>
                   </div>
                 </div>
                 <div class="sp-card-body">
                   <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
                     <span class="icon"><i class="fas fa-info-circle"></i></span>
-                    <strong>Required for All Discord Bot Features:</strong> Please select your Discord Server to enable
-                    all Discord Bot features including Server Management and Event Channels.
+                    <?= t('discordbot_server_config_alert') ?>
                   </div>
                   <form action="" method="post">
                     <div class="sp-form-group">
-                      <label class="sp-label" for="guild_id_config" style="font-weight: 500;">Discord
-                        Server</label>
+                      <label class="sp-label" for="guild_id_config" style="font-weight: 500;"><?= t('discordbot_label_discord_server') ?></label>
                       <div class="sp-input-wrap">
                         <?php if ($useManualIds): ?>
                           <!-- Manual ID Input Mode -->
@@ -1980,14 +1976,12 @@ ob_start();
                                } ?>
                            >
                           <span class="sp-input-icon"><i class="fab fa-discord"></i></span>
-                          <p class="sp-help">Manual ID mode enabled. Right-click your Discord server name ?
-                            Copy Server ID (Developer Mode required)</p>
+                          <p class="sp-help"><?= t('discordbot_manual_id_help') ?></p>
                         <?php elseif (!empty($userAdminGuilds) && is_array($userAdminGuilds)): ?>
                           <!-- Dropdown Mode -->
                           <select class="sp-select" id="guild_id_config" name="guild_id"
                               style="background-color: #4a4a4a; border-color: #5a5a5a; color: white; border-radius: 6px; width: 100%;">
-                              <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>>Select a Discord
-                                Server...</option>
+                              <option value="" <?php echo empty($existingGuildId) ? 'selected' : ''; ?>><?= t('discordbot_select_server_option') ?></option>
                               <?php foreach ($userAdminGuilds as $guild): ?>
                                 <?php
                                 $isSelected = ($existingGuildId === $guild['id']) ? 'selected' : '';
@@ -2003,15 +1997,15 @@ ob_start();
                         <?php else: ?>
                           <!-- Fallback/Loading Mode -->
                           <input class="sp-input" type="text" id="guild_id_config" name="guild_id"
-                            value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="Loading servers..."
+                            value="<?php echo htmlspecialchars($existingGuildId); ?>" placeholder="<?php echo htmlspecialchars(t('discordbot_loading_servers')); ?>"
                             disabled
                            >
                           <span class="sp-input-icon"><i class="fab fa-discord"></i></span>
                           <p class="sp-help sp-help-warning">
                             <?php if (!$is_linked || $needs_relink): ?>
-                              Please link your Discord account to view available servers.
+                              <?= t('discordbot_link_to_view_servers') ?>
                             <?php else: ?>
-                              No servers found where you have Owner permissions, or servers are still loading.
+                              <?= t('discordbot_no_owner_servers') ?>
                             <?php endif; ?>
                           </p>
                         <?php endif; ?>
@@ -2022,13 +2016,13 @@ ob_start();
                         <button class="sp-btn sp-btn-primary" style="width:100%" type="submit"
                           style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || (!$useManualIds && empty($userAdminGuilds))) ? ' disabled' : ''; ?>>
                           <span class="icon"><i class="fas fa-save"></i></span>
-                          <span>Save Server Configuration</span>
+                          <span><?= t('discordbot_save_server_config') ?></span>
                         </button>
                       </div>
                       <?php if (!$is_linked || $needs_relink): ?>
-                        <p class="sp-help sp-help-warning" style="text-align:center;">Account not linked or needs relinking</p>
+                        <p class="sp-help sp-help-warning" style="text-align:center;"><?= t('discordbot_help_not_linked') ?></p>
                       <?php elseif (!$useManualIds && empty($userAdminGuilds)): ?>
-                        <p class="sp-help sp-help-warning" style="text-align:center;">No servers available with admin permissions
+                        <p class="sp-help sp-help-warning" style="text-align:center;"><?= t('discordbot_help_no_admin_servers') ?>
                         </p>
                       <?php endif; ?>
                     </div>
@@ -2040,25 +2034,25 @@ ob_start();
                 <div class="sp-alert sp-alert-info"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-keyboard"></i></span>
-                  <strong>Manual Mode:</strong> Paste channel IDs here (one ID per field).
+                  <?= t('discordbot_alert_manual_mode') ?>
                 </div>
               <?php elseif (!empty($guildChannels)): ?>
                 <div class="sp-alert sp-alert-success"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-list"></i></span>
-                  <strong>Pick From Server:</strong> Choose channels from the dropdowns below.
+                  <?= t('discordbot_alert_pick_from_server') ?>
                 </div>
               <?php elseif (!empty($existingGuildId)): ?>
                 <div class="sp-alert sp-alert-warning"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                  <strong>Can't load channels:</strong> Reconnect Discord or check the bot's server permissions.
+                  <?= t('discordbot_alert_cant_load_channels') ?>
                 </div>
               <?php else: ?>
                 <div class="sp-alert sp-alert-warning"
                   style="border-radius: 8px; margin-top: 0.75rem; margin-bottom: 1rem;">
                   <span class="icon"><i class="fas fa-server"></i></span>
-                  <strong>No server selected:</strong> Pick a Discord server above to enable channel dropdowns.
+                  <?= t('discordbot_alert_no_server_selected') ?>
                 </div>
               <?php endif; ?>
             </div>
@@ -2104,14 +2098,14 @@ ob_start();
       <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
         <p class="sp-card-title" style="font-weight: 600;">
           <span class="icon"><i class="fab fa-discord"></i></span>
-          Discord Server Management
+          <?= t('discordbot_management_title') ?>
         </p>
         <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
           <span class="sp-badge sp-badge-green">
             <!--<span class="icon"><i class="fas fa-flask"></i></span>
             <span>PARTIAL COMPLETED</span>-->
             <span class="icon"><i class="fas fa-check-circle"></i></span>
-            <span>COMPLETED</span>
+            <span><?= t('discordbot_badge_completed') ?></span>
           </span>
         </div>
       </div>
@@ -2119,145 +2113,143 @@ ob_start();
         <?php if (!$is_linked || $needs_relink): ?>
           <div class="sp-alert sp-alert-warning" style="border-radius: 8px; margin-bottom: 1rem;">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-            <strong>Account Not Linked:</strong> Please link your Discord account to access server management features.
+            <?= t('discordbot_alert_account_not_linked') ?>
           </div>
         <?php elseif (!$hasGuildId): ?>
           <div class="sp-alert sp-alert-warning" style="border-radius: 8px; margin-bottom: 1rem;">
             <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-            <strong>Guild ID Required:</strong> Please configure your Discord Server ID above to enable server management
-            features.
+            <?= t('discordbot_alert_guild_id_required') ?>
           </div>
         <?php else: ?>
           <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
             <span class="icon"><i class="fas fa-info-circle"></i></span>
-            <strong>Control your Discord server with welcome messages, automatic roles, message tracking, and
-              more.</strong>
+            <?= t('discordbot_alert_management_intro') ?>
           </div>
         <?php endif; ?>
         <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
           <div class="sp-form-group">
-            <label class="sp-label" style="font-weight: 500;">Server Management Features</label>
+            <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_management_features') ?></label>
             <div class="server-management-toggles" style="margin-bottom: 0.75rem;">
               <div class="toggle-item">
-                <label for="welcomeMessage" class="toggle-title">Welcome Message</label>
+                <label for="welcomeMessage" class="toggle-title"><?= t('discordbot_toggle_welcome_message') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="welcomeMessage" type="checkbox" name="welcomeMessage" <?php echo (!empty($serverManagementSettings['welcomeMessage']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="welcomeMessage">Disabled</div>
+                  <div class="toggle-status" data-for="welcomeMessage"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="autoRole" class="toggle-title">Auto Role on Join</label>
+                <label for="autoRole" class="toggle-title"><?= t('discordbot_toggle_auto_role') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="autoRole" type="checkbox" name="autoRole" <?php echo (!empty($serverManagementSettings['autoRole']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="autoRole">Disabled</div>
+                  <div class="toggle-status" data-for="autoRole"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="roleHistory" class="toggle-title">Role History</label>
+                <label for="roleHistory" class="toggle-title"><?= t('discordbot_toggle_role_history') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="roleHistory" type="checkbox" name="roleHistory" <?php echo (!empty($serverManagementSettings['roleHistory']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="roleHistory">Disabled</div>
+                  <div class="toggle-status" data-for="roleHistory"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="messageTracking" class="toggle-title">Message Tracking</label>
+                <label for="messageTracking" class="toggle-title"><?= t('discordbot_toggle_message_tracking') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="messageTracking" type="checkbox" name="messageTracking" <?php echo (!empty($serverManagementSettings['messageTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="messageTracking">Disabled</div>
+                  <div class="toggle-status" data-for="messageTracking"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="roleTracking" class="toggle-title">Role Tracking</label>
+                <label for="roleTracking" class="toggle-title"><?= t('discordbot_toggle_role_tracking') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="roleTracking" type="checkbox" name="roleTracking" <?php echo (!empty($serverManagementSettings['roleTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="roleTracking">Disabled</div>
+                  <div class="toggle-status" data-for="roleTracking"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="serverRoleManagement" class="toggle-title">Server Role Management</label>
+                <label for="serverRoleManagement" class="toggle-title"><?= t('discordbot_toggle_server_role_mgmt') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="serverRoleManagement" type="checkbox"
                       name="serverRoleManagement" <?php echo (!empty($serverManagementSettings['serverRoleManagement']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="serverRoleManagement">Disabled</div>
+                  <div class="toggle-status" data-for="serverRoleManagement"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="userTracking" class="toggle-title">User Tracking</label>
+                <label for="userTracking" class="toggle-title"><?= t('discordbot_toggle_user_tracking') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="userTracking" type="checkbox" name="userTracking" <?php echo (!empty($serverManagementSettings['userTracking']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="userTracking">Disabled</div>
+                  <div class="toggle-status" data-for="userTracking"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="reactionRoles" class="toggle-title">Reaction Roles</label>
+                <label for="reactionRoles" class="toggle-title"><?= t('discordbot_toggle_reaction_roles') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="reactionRoles" type="checkbox" name="reactionRoles" <?php echo (!empty($serverManagementSettings['reactionRoles']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="reactionRoles">Disabled</div>
+                  <div class="toggle-status" data-for="reactionRoles"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="rulesConfiguration" class="toggle-title">Rules Configuration</label>
+                <label for="rulesConfiguration" class="toggle-title"><?= t('discordbot_toggle_rules_config') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="rulesConfiguration" type="checkbox" name="rulesConfiguration"
                       <?php echo (!empty($serverManagementSettings['rulesConfiguration']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="rulesConfiguration">Disabled</div>
+                  <div class="toggle-status" data-for="rulesConfiguration"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="streamSchedule" class="toggle-title">Stream Schedule</label>
+                <label for="streamSchedule" class="toggle-title"><?= t('discordbot_toggle_stream_schedule') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="streamSchedule" type="checkbox" name="streamSchedule" <?php echo (!empty($serverManagementSettings['streamSchedule']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="streamSchedule">Disabled</div>
+                  <div class="toggle-status" data-for="streamSchedule"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="embedBuilder" class="toggle-title">Embed Builder</label>
+                <label for="embedBuilder" class="toggle-title"><?= t('discordbot_toggle_embed_builder') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="embedBuilder" type="checkbox" name="embedBuilder" <?php echo (!empty($serverManagementSettings['embedBuilder']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="embedBuilder">Disabled</div>
+                  <div class="toggle-status" data-for="embedBuilder"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
               <div class="toggle-item">
-                <label for="freeGames" class="toggle-title">Free Games</label>
+                <label for="freeGames" class="toggle-title"><?= t('discordbot_toggle_free_games') ?></label>
                 <div style="margin-top:0.5rem;">
                   <label class="switch">
                     <input id="freeGames" type="checkbox" name="freeGames" <?php echo (!empty($serverManagementSettings['freeGames']) ? ' checked' : ''); ?><?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="check"></span>
                   </label>
-                  <div class="toggle-status" data-for="freeGames">Disabled</div>
+                  <div class="toggle-status" data-for="freeGames"><?= t('discordbot_toggle_status_disabled') ?></div>
                 </div>
               </div>
             </div>
@@ -2274,19 +2266,18 @@ ob_start();
           <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="sp-card-title" style="font-weight: 600;">
               <span class="icon"><i class="fab fa-discord"></i></span>
-              Twitch Online Alert
+              <?= t('discordbot_card_online_alert_title') ?>
             </p>
             <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
               <span class="sp-badge sp-badge-green">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
+                <span><?= t('discordbot_badge_completed') ?></span>
               </span>
             </div>
           </div>
           <div class="sp-card-body" style="flex-grow: 1; display: flex; flex-direction: column;">
             <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p><strong>Stream Online Alerts:</strong> Configure Discord channels for stream
-                online alerts and voice status updates when you go live on Twitch.</p>
+              <?= t('discordbot_online_alert_intro') ?>
             </div>
             <!-- Stream Online / Live Status Form -->
             <form action="" method="post"
@@ -2295,9 +2286,9 @@ ob_start();
               <div class="sp-form-group">
                 <label class="sp-label" for="stream_channel_id" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-broadcast-tower"></i></span>
-                  Stream Online Alerts Channel <span style="color:var(--danger);">*</span>
+                  <?= t('discordbot_label_stream_alerts_channel') ?> <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help">For stream online notifications of your channel</p>
+                <p class="help"><?= t('discordbot_help_stream_alerts_channel') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateChannelInput('stream_channel_id', 'stream_channel_id', $existingStreamAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
@@ -2305,21 +2296,21 @@ ob_start();
               <div class="sp-form-group" id="stream_everyone_field" style="display: none;">
                 <label class="sp-label" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-at"></i></span>
-                  @everyone Mention for Stream Alerts
+                  <?= t('discordbot_label_everyone_mention') ?>
                 </label>
-                <p class="help">Mention @everyone when posting stream online alerts</p>
+                <p class="help"><?= t('discordbot_help_everyone_mention') ?></p>
                 <div>
                   <input type="checkbox" id="stream_alert_everyone" name="stream_alert_everyone"
                     class="switch" value="1" <?php echo $existingStreamAlertEveryone ? ' checked' : ''; ?>>
-                  <label for="stream_alert_everyone">Enable @everyone mention</label>
+                  <label for="stream_alert_everyone"><?= t('discordbot_label_enable_everyone') ?></label>
                 </div>
               </div>
               <div class="sp-form-group" id="stream_custom_role_field" style="display: none;">
                 <label class="sp-label" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-user-tag"></i></span>
-                  Custom Role Mention for Stream Alerts
+                  <?= t('discordbot_label_custom_role_mention') ?>
                 </label>
-                <p class="help">Select a custom role to mention instead of @everyone</p>
+                <p class="help"><?= t('discordbot_help_custom_role_mention') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateRoleInput(
                     'stream_alert_custom_role',
@@ -2336,9 +2327,9 @@ ob_start();
               <div class="sp-form-group">
                 <label class="sp-label" for="live_channel_id" style="font-weight: 500;">
                   <span class="icon"><i class="fa-solid fa-volume-high"></i></span>
-                  Live Status Channel <span style="color:var(--danger);">*</span>
+                  <?= t('discordbot_label_live_status_channel') ?> <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help">The voice channel to update with live status</p>
+                <p class="help"><?= t('discordbot_help_live_status_channel') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateVoiceChannelInput('live_channel_id', 'live_channel_id', $existingLiveChannelId, 'e.g. 123456789123456789', $useManualIds, $guildVoiceChannels, 'fas fa-volume-up', true); ?>
                 </div>
@@ -2346,10 +2337,9 @@ ob_start();
               <div class="sp-form-group">
                 <label class="sp-label" for="online_text" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-circle"></i></span>
-                  Online Text
+                  <?= t('discordbot_label_online_text') ?>
                 </label>
-                <p class="help">Text to update the status voice channel when your channel is
-                  online</p>
+                <p class="help"><?= t('discordbot_help_online_text') ?></p>
                 <div class="sp-input-wrap">
                   <input class="sp-input" type="text" id="online_text" name="online_text"
                     value="<?php echo htmlspecialchars($existingOnlineText); ?>" <?php if (empty($existingOnlineText)) {
@@ -2359,16 +2349,15 @@ ob_start();
                   <span class="sp-input-icon"><i class="fa-solid fa-comment"></i></span>
                 </div>
                 <p class="sp-help">
-                  <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 characters
+                  <span id="online_text_counter"><?php echo strlen($existingOnlineText); ?></span>/20 <?= t('discordbot_characters') ?>
                 </p>
               </div>
               <div class="sp-form-group">
                 <label class="sp-label" for="offline_text" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-circle"></i></span>
-                  Offline Text
+                  <?= t('discordbot_label_offline_text') ?>
                 </label>
-                <p class="help">Text to update the status voice channel when your channel is
-                  offline</p>
+                <p class="help"><?= t('discordbot_help_offline_text') ?></p>
                 <div class="sp-input-wrap">
                   <input class="sp-input" type="text" id="offline_text" name="offline_text"
                     value="<?php echo htmlspecialchars($existingOfflineText); ?>" <?php if (empty($existingOfflineText)) {
@@ -2378,19 +2367,19 @@ ob_start();
                   <span class="sp-input-icon"><i class="fa-solid fa-comment"></i></span>
                 </div>
                 <p class="sp-help">
-                  <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 characters
+                  <span id="offline_text_counter"><?php echo strlen($existingOfflineText); ?></span>/20 <?= t('discordbot_characters') ?>
                 </p>
               </div>
               <div style="flex-grow: 1;"></div>
               <?php if ($useManualIds): ?>
                 <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
                   <div>
-                    <p><strong>How to get Channel IDs:</strong></p>
+                    <p><?= t('discordbot_howto_channel_ids_title') ?></p>
                     <ol style="margin-bottom:0.5rem;">
-                      <li>Enable Developer Mode in Discord (User Settings ? Advanced ? Developer Mode)</li>
-                      <li>Right-click on the desired channel</li>
-                      <li>Select "Copy Channel ID"</li>
-                      <li>Paste the ID into the appropriate field above</li>
+                      <li><?= t('discordbot_howto_channel_ids_1') ?></li>
+                      <li><?= t('discordbot_howto_channel_ids_2') ?></li>
+                      <li><?= t('discordbot_howto_channel_ids_3') ?></li>
+                      <li><?= t('discordbot_howto_channel_ids_4') ?></li>
                     </ol>
                   </div>
                 </div>
@@ -2400,16 +2389,16 @@ ob_start();
                   <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_stream_online"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-cog"></i></span>
-                    <span>Save Stream & Live Status</span>
+                    <span><?= t('discordbot_btn_save_stream_live') ?></span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
-                  <p class="sp-help sp-help-warning" style="text-align:center;">Account not linked or needs relinking</p>
+                  <p class="sp-help sp-help-warning" style="text-align:center;"><?= t('discordbot_help_not_linked') ?></p>
                 <?php elseif (!$hasGuildId): ?>
-                  <p class="sp-help sp-help-warning" style="text-align:center;">Guild ID not setup</p>
+                  <p class="sp-help sp-help-warning" style="text-align:center;"><?= t('discordbot_help_guild_not_setup') ?></p>
                 <?php else: ?>
                   <p class="sp-help" style="text-align:center;">
-                    These settings control stream online alerts and the voice channel status text.
+                    <?= t('discordbot_help_stream_live_footer') ?>
                   </p>
                 <?php endif; ?>
               </div>
@@ -2424,23 +2413,22 @@ ob_start();
           <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="sp-card-title" style="font-weight: 600;">
               <span class="icon"><i class="fa-brands fa-twitch"></i></span>
-              Twitch Stream Monitoring
+              <?= t('discordbot_card_monitoring_title') ?>
             </p>
             <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
               <span class="sp-badge sp-badge-green">
                 <span class="icon"><i class="fas fa-check-circle"></i></span>
-                <span>COMPLETED</span>
+                <span><?= t('discordbot_badge_completed') ?></span>
               </span>
             </div>
           </div>
           <div class="sp-card-body" style="flex-grow: 1; display: flex; flex-direction: column;">
             <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p><strong>Stream Monitoring:</strong> Add Twitch streamers to monitor and receive
-                notifications in your Discord server when they go live.</p>
+              <?= t('discordbot_monitoring_intro') ?>
             </div>
             <form action="" method="post" style="flex-grow: 1; display: flex; flex-direction: column;">
               <div class="sp-form-group">
-                <label class="sp-label" for="option" style="font-weight: 500;">Twitch Username</label>
+                <label class="sp-label" for="option" style="font-weight: 500;"><?= t('discordbot_label_twitch_username') ?></label>
                 <div class="sp-input-wrap">
                   <input class="sp-input" type="text" id="monitor_username" name="monitor_username"
                     placeholder="e.g. botofthespecter"
@@ -2453,27 +2441,26 @@ ob_start();
                   <button class="sp-btn sp-btn-primary" style="width:100%" type="submit"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-save"></i></span>
-                    <span>Add Streamer</span>
+                    <span><?= t('discordbot_btn_add_streamer') ?></span>
                   </button>
                 </div>
                 <?php if (!$is_linked || $needs_relink): ?>
-                  <p class="sp-help sp-help-warning" style="text-align:center;">Account not linked or needs relinking</p>
+                  <p class="sp-help sp-help-warning" style="text-align:center;"><?= t('discordbot_help_not_linked') ?></p>
                 <?php endif; ?>
               </div>
             </form>
             <div style="margin-top:0.75rem;">
               <button class="sp-btn sp-btn-info" style="width:100%;" onclick="document.getElementById('savedStreamersModal').classList.remove('hidden');">
                 <span class="icon"><i class="fa-solid fa-people-group"></i></span>
-                <span>View Tracked Streamers</span>
+                <span><?= t('discordbot_btn_view_streamers') ?></span>
               </button>
             </div>
             <!-- Twitch Stream Monitoring Channel Selector -->
             <form action="" method="post" style="margin-top: 0.75rem;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="sp-form-group">
-                <label class="sp-label" for="twitch_stream_monitor_id" style="font-weight: 500;">Twitch
-                  Stream Monitoring Channel</label>
-                <p class="help">Channel to post when tracked Twitch users go live</p>
+                <label class="sp-label" for="twitch_stream_monitor_id" style="font-weight: 500;"><?= t('discordbot_label_monitoring_channel') ?></label>
+                <p class="help"><?= t('discordbot_help_monitoring_channel') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateChannelInput('twitch_stream_monitor_id', 'twitch_stream_monitor_id', $existingTwitchStreamMonitoringID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
@@ -2483,7 +2470,7 @@ ob_start();
                   <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_stream_monitoring"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-wifi"></i></span>
-                    <span>Save Monitoring Channel</span>
+                    <span><?= t('discordbot_btn_save_monitoring_channel') ?></span>
                   </button>
                 </div>
               </div>
@@ -2496,29 +2483,27 @@ ob_start();
           <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
             <p class="sp-card-title" style="font-weight: 600;">
               <span class="icon"><i class="fas fa-clipboard-list"></i></span>
-              Twitch Event/Action Audit Log
+              <?= t('discordbot_card_audit_title') ?>
             </p>
             <div style="display:flex;align-items:center;gap:0.5rem;padding:0.75rem;">
               <span class="sp-badge sp-badge-blue">
                 <span class="icon"><i class="fas fa-list"></i></span>
-                <span>AUDIT</span>
+                <span><?= t('discordbot_badge_audit') ?></span>
               </span>
             </div>
           </div>
           <div class="sp-card-body" style="display: flex; flex-direction: column;">
             <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-              <p><strong>Audit Logging:</strong> Track all Twitch moderation actions and events
-                with automatic Discord channel logging for full transparency and record-keeping.</p>
+              <?= t('discordbot_audit_intro') ?>
             </div>
             <form action="" method="post" style="display: flex; flex-direction: column; width: 100%;">
               <input type="hidden" name="guild_id" value="<?php echo htmlspecialchars($existingGuildId); ?>">
               <div class="sp-form-group">
                 <label class="sp-label" for="mod_channel_id" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-shield-alt"></i></span>
-                  Twitch Moderation Actions Channel <span style="color:var(--danger);">*</span>
+                  <?= t('discordbot_label_mod_actions_channel') ?> <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help">Any moderation actions will be logged to this channel, e.g.
-                  bans, timeouts, message deletions</p>
+                <p class="help"><?= t('discordbot_help_mod_actions_channel') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateChannelInput('mod_channel_id', 'mod_channel_id', $existingModerationChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
@@ -2526,10 +2511,9 @@ ob_start();
               <div class="sp-form-group">
                 <label class="sp-label" for="alert_channel_id" style="font-weight: 500;">
                   <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                  Twitch Event Alerts Channel <span style="color:var(--danger);">*</span>
+                  <?= t('discordbot_label_event_alerts_channel') ?> <span style="color:var(--danger);">*</span>
                 </label>
-                <p class="help">Get a discord notification when a Twitch event occurs, e.g.
-                  Followers, Subscriptions, Bits</p>
+                <p class="help"><?= t('discordbot_help_event_alerts_channel') ?></p>
                 <div class="sp-input-wrap">
                   <?php echo generateChannelInput('alert_channel_id', 'alert_channel_id', $existingAlertChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                 </div>
@@ -2539,7 +2523,7 @@ ob_start();
                   <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_alert_channels"
                     style="border-radius: 6px; font-weight: 600;" <?php echo (!$is_linked || $needs_relink || !$hasGuildId) ? ' disabled' : ''; ?>>
                     <span class="icon"><i class="fas fa-bell"></i></span>
-                    <span>Save Audit Log Channels</span>
+                    <span><?= t('discordbot_btn_save_audit_channels') ?></span>
                   </button>
                 </div>
               </div>
@@ -2558,82 +2542,79 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-door-open"></i></span>
-                Welcome Message Configuration
+                <?= t('discordbot_card_welcome_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('welcomeMessage')" style="margin-right: 10px;"
-                  title="Clear all welcome message data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_welcome_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Welcome Messages:</strong> Greet new members with personalized welcome
-                  messages when they join your Discord server.</p>
+                <?= t('discordbot_welcome_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Welcome Channel <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_welcome_channel') ?> <span style="color:var(--danger);">*</span></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('welcome_channel_id', 'welcome_channel_id', $existingWelcomeChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where welcome messages will be sent</p>
+                  <p class="sp-help"><?= t('discordbot_help_welcome_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="use_default_welcome_message" name="use_default_welcome_message"
                         style="margin-right: 8px;" <?php echo $existingWelcomeUseDefault ? ' checked' : ''; ?>>
-                      Use default welcome message
+                      <?= t('discordbot_label_use_default_welcome') ?>
                     </label>
                   </div>
-                  <p class="sp-help">Enable this to use the bot's default welcome message instead of a
-                    custom one</p>
+                  <p class="sp-help"><?= t('discordbot_help_use_default_welcome') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="enable_embed_message" name="enable_embed_message"
                         style="margin-right: 8px;" <?php echo $existingWelcomeEmbed ? ' checked' : ''; ?>>
-                      Enable Embed Message
+                      <?= t('discordbot_label_enable_embed') ?>
                     </label>
                   </div>
-                  <p class="sp-help">Send the welcome message as a rich embed with formatting and colors
-                  </p>
+                  <p class="sp-help"><?= t('discordbot_help_enable_embed') ?></p>
                 </div>
                 <div class="sp-form-group" id="welcome_colour_field"
                   style="<?php echo $existingWelcomeEmbed ? '' : 'display: none;'; ?>">
                   <label class="sp-label" style="font-weight: 500;">
                     <span class="icon"><i class="fas fa-palette"></i></span>
-                    Embed Colour
+                    <?= t('discordbot_label_embed_colour') ?>
                   </label>
                   <div>
                     <input class="sp-input" type="color" id="welcome_colour" name="welcome_colour"
                       value="<?php echo htmlspecialchars($existingWelcomeColour ?: '#00d1b2'); ?>"
                       style="height: 40px; cursor: pointer;">
                   </div>
-                  <p class="sp-help">Choose the colour for the embed border and accent</p>
+                  <p class="sp-help"><?= t('discordbot_help_embed_colour') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Custom Welcome Message</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_custom_welcome') ?></label>
                   <div>
                     <textarea class="sp-textarea" id="welcome_message" name="welcome_message" rows="3"
-                      placeholder="Welcome (user) to our server, we're so glad you joined us!"
+                      placeholder="<?php echo htmlspecialchars(t('discordbot_ph_custom_welcome')); ?>"
                       <?php echo $existingWelcomeUseDefault ? ' disabled' : ''; ?>><?php echo htmlspecialchars($existingWelcomeMessage); ?></textarea>
                   </div>
-                  <p class="sp-help">Use (user) to insert the member's username</p>
+                  <p class="sp-help"><?= t('discordbot_help_custom_welcome') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveWelcomeMessage()"
                       name="save_welcome_message" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Welcome Message Configuration</span>
+                      <span><?= t('discordbot_btn_save_welcome') ?></span>
                     </button>
                   </div>
                 </div>
@@ -2648,27 +2629,26 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-user-plus"></i></span>
-                Auto Role Assignment Configuration
+                <?= t('discordbot_card_autorole_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('autoRole')" style="margin-right: 10px;"
-                  title="Clear all auto role data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_autorole_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Auto Role Assignment:</strong> Automatically assign a role to new members
-                  when they join your Discord server.</p>
+                <?= t('discordbot_autorole_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Auto Role</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_auto_role') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateRoleInput(
                       'auto_role_id',
@@ -2681,14 +2661,14 @@ ob_start();
                       false
                     ); ?>
                   </div>
-                  <p class="sp-help">Role to automatically assign to new members</p>
+                  <p class="sp-help"><?= t('discordbot_help_auto_role') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveAutoRole()"
                       name="save_auto_role" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Auto Role Settings</span>
+                      <span><?= t('discordbot_btn_save_auto_role') ?></span>
                     </button>
                   </div>
                 </div>
@@ -2703,53 +2683,50 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-history"></i></span>
-                Role History Configuration
+                <?= t('discordbot_card_rolehistory_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('roleHistory')" style="margin-right: 10px;"
-                  title="Clear all role history data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_rolehistory_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Role History:</strong> Automatically restore roles to members when they
-                  rejoin your server, with configurable retention period for role records.</p>
+                <?= t('discordbot_rolehistory_intro') ?>
               </div>
               <form id="roleHistoryForm" method="POST">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Enable Role Restoration</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_enable_role_restore') ?></label>
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="restore_roles" name="restore_roles" <?php echo ($existingRoleHistoryEnabled == 1 ? 'checked' : ''); ?> style="margin-right: 8px;">
-                      Restore all previous roles when member rejoins
+                      <?= t('discordbot_label_restore_all_roles') ?>
                     </label>
                   </div>
-                  <p class="sp-help">When enabled, users will automatically receive their previous roles
-                    when they rejoin</p>
+                  <p class="sp-help"><?= t('discordbot_help_role_restore') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">History Retention Period (Days)</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_retention_days') ?></label>
                   <div class="sp-input-wrap">
                     <input class="sp-input" type="number" id="history_retention_days" name="history_retention_days"
                       value="<?php echo $existingRoleHistoryRetention ?? 30; ?>" min="1" max="365"
                      >
                     <span class="sp-input-icon"><i class="fas fa-calendar"></i></span>
                   </div>
-                  <p class="sp-help">How long to keep role history data after a member leaves (1-365
-                    days)</p>
+                  <p class="sp-help"><?= t('discordbot_help_retention_days') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_role_history"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Role History Settings</span>
+                      <span><?= t('discordbot_btn_save_role_history') ?></span>
                     </button>
                   </div>
                 </div>
@@ -2764,42 +2741,41 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-eye"></i></span>
-                Message Tracking Configuration
+                <?= t('discordbot_card_msgtracking_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('messageTracking')" style="margin-right: 10px;"
-                  title="Clear all message tracking data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_msgtracking_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Message Tracking:</strong> Track and log edited and deleted messages in
-                  your Discord server for moderation and transparency purposes.</p>
+                <?= t('discordbot_msgtracking_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Message Log Channel ID</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_msg_log_channel') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('message_tracking_log_channel_id', 'message_tracking_log_channel_id', $existingMessageTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where message edit/delete logs will be sent</p>
+                  <p class="sp-help"><?= t('discordbot_help_msg_log_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Tracking Options</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_tracking_options') ?></label>
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_message_edits" style="margin-right: 8px;" <?php echo $existingMessageTrackingEdits ? 'checked' : ''; ?>>
-                      Track message edits
+                      <?= t('discordbot_label_track_msg_edits') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_message_deletes" style="margin-right: 8px;" <?php echo $existingMessageTrackingDeletes ? 'checked' : ''; ?>>
-                      Track message deletions
+                      <?= t('discordbot_label_track_msg_deletes') ?>
                     </label>
                   </div>
                 </div>
@@ -2808,7 +2784,7 @@ ob_start();
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_message_tracking"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Message Tracking Settings</span>
+                      <span><?= t('discordbot_btn_save_msg_tracking') ?></span>
                     </button>
                   </div>
                 </div>
@@ -2823,42 +2799,41 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-users-cog"></i></span>
-                Role Tracking Configuration
+                <?= t('discordbot_card_roletracking_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('roleTracking')" style="margin-right: 10px;"
-                  title="Clear all role tracking data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_roletracking_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Role Tracking:</strong> Monitor and log role assignments and removals for
-                  audit and transparency purposes in your Discord server.</p>
+                <?= t('discordbot_roletracking_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Role Log Channel</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_role_log_channel') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('role_tracking_log_channel_id', 'role_tracking_log_channel_id', $existingRoleTrackingLogChannel, 'Select log channel', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where role change logs will be sent</p>
+                  <p class="sp-help"><?= t('discordbot_help_role_log_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Tracking Options</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_tracking_options') ?></label>
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_role_additions" style="margin-right: 8px;" <?php echo $existingRoleTrackingAdditions ? 'checked' : ''; ?>>
-                      Track role additions
+                      <?= t('discordbot_label_track_role_additions') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_role_removals" style="margin-right: 8px;" <?php echo $existingRoleTrackingRemovals ? 'checked' : ''; ?>>
-                      Track role removals
+                      <?= t('discordbot_label_track_role_removals') ?>
                     </label>
                   </div>
                 </div>
@@ -2867,7 +2842,7 @@ ob_start();
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_role_tracking"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Role Tracking Settings</span>
+                      <span><?= t('discordbot_btn_save_role_tracking') ?></span>
                     </button>
                   </div>
                 </div>
@@ -2882,46 +2857,45 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon" style="color:var(--info);"><i class="fas fa-cogs"></i></span>
-                Server Role Management Configuration
+                <?= t('discordbot_card_srm_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('serverRoleManagement')" style="margin-right: 10px;"
-                  title="Clear all server role management data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_srm_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Server Role Management:</strong> Track role creation, deletion, and edits
-                  within your Discord server for full server management audit logs.</p>
+                <?= t('discordbot_srm_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Server Management Log Channel ID</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_srm_log_channel') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('server_mgmt_log_channel_id', 'server_mgmt_log_channel_id', $existingServerRoleManagementLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where server role management logs will be sent</p>
+                  <p class="sp-help"><?= t('discordbot_help_srm_log_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Management Options</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_management_options') ?></label>
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_role_creation" style="margin-right: 8px;" <?php echo $existingRoleCreationTracking ? 'checked' : ''; ?>>
-                      Track role creation
+                      <?= t('discordbot_label_track_role_creation') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_role_deletion" style="margin-right: 8px;" <?php echo $existingRoleDeletionTracking ? 'checked' : ''; ?>>
-                      Track role deletion
+                      <?= t('discordbot_label_track_role_deletion') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_role_edits" style="margin-right: 8px;" <?php echo $existingRoleEditTracking ? 'checked' : ''; ?>>
-                      Track role edits
+                      <?= t('discordbot_label_track_role_edits') ?>
                     </label>
                   </div>
                 </div>
@@ -2930,7 +2904,7 @@ ob_start();
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_server_role_management"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Server Role Management Settings</span>
+                      <span><?= t('discordbot_btn_save_srm') ?></span>
                     </button>
                   </div>
                 </div>
@@ -2945,58 +2919,57 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-user-edit"></i></span>
-                User Tracking Configuration
+                <?= t('discordbot_card_usertracking_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFeature('userTracking')" style="margin-right: 10px;"
-                  title="Clear all user tracking data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_usertracking_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>User Tracking:</strong> Track and log user activity including joins,
-                  leaves, nickname changes, avatar updates, and status changes in your Discord server.</p>
+                <?= t('discordbot_usertracking_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">User Tracking Log Channel ID</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_user_log_channel') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('user_tracking_log_channel_id', 'user_tracking_log_channel_id', $existingUserTrackingLogChannel, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where user tracking logs will be sent</p>
+                  <p class="sp-help"><?= t('discordbot_help_user_log_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Tracking Options</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_tracking_options') ?></label>
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_joins" style="margin-right: 8px;" <?php echo $existingUserJoinTracking ? 'checked' : ''; ?>>
-                      Track user joins
+                      <?= t('discordbot_label_track_user_joins') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_leaves" style="margin-right: 8px;" <?php echo $existingUserLeaveTracking ? 'checked' : ''; ?>>
-                      Track user leaves
+                      <?= t('discordbot_label_track_user_leaves') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_nickname" style="margin-right: 8px;" <?php echo $existingUserNicknameTracking ? 'checked' : ''; ?>>
-                      Track nickname changes
+                      <?= t('discordbot_label_track_user_nickname') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_username" style="margin-right: 8px;" <?php echo $existingUserUsernameTracking ? 'checked' : ''; ?>>
-                      Track username changes
+                      <?= t('discordbot_label_track_user_username') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;display: block;">
                       <input type="checkbox" name="track_user_avatar" style="margin-right: 8px;" <?php echo $existingUserAvatarTracking ? 'checked' : ''; ?>>
-                      Track avatar changes
+                      <?= t('discordbot_label_track_user_avatar') ?>
                     </label>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" name="track_user_status" style="margin-right: 8px;" <?php echo $existingUserStatusTracking ? 'checked' : ''; ?>>
-                      Track status changes
+                      <?= t('discordbot_label_track_user_status') ?>
                     </label>
                   </div>
                 </div>
@@ -3005,7 +2978,7 @@ ob_start();
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_user_tracking"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save User Tracking Settings</span>
+                      <span><?= t('discordbot_btn_save_user_tracking') ?></span>
                     </button>
                   </div>
                 </div>
@@ -3020,69 +2993,65 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon" style="color:#9b59b6;"><i class="fas fa-hand-paper"></i></span>
-                Reaction Roles Configuration
+                <?= t('discordbot_card_reactionroles_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearReactionRoles()" style="margin-right: 10px;"
-                  title="Clear all reaction roles data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_reactionroles_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Reaction Roles:</strong> Configure self-assignable roles via reactions in
-                  your Discord server.</p>
+                <?= t('discordbot_reactionroles_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Reaction Roles Channel ID</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_reactionroles_channel') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('reaction_roles_channel_id', 'reaction_roles_channel_id', $existingReactionRolesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where reaction roles messages will be posted</p>
+                  <p class="sp-help"><?= t('discordbot_help_reactionroles_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Reaction Roles Message</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_reactionroles_message') ?></label>
                   <div>
                     <textarea class="sp-textarea" id="reaction_roles_message" name="reaction_roles_message" rows="3"
-                      placeholder="To join any of the following roles, use the icons below. Click on the boxes below to get the roles!"
+                      placeholder="<?php echo htmlspecialchars(t('discordbot_ph_reactionroles_message')); ?>"
                      ><?php echo htmlspecialchars($existingReactionRolesMessage ?? ''); ?></textarea>
                   </div>
-                  <p class="sp-help">Message to display above the reaction roles. Leave empty for no
-                    message.</p>
+                  <p class="sp-help"><?= t('discordbot_help_reactionroles_message') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Reaction Role Mappings</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_reactionroles_mappings') ?></label>
                   <div>
                     <textarea class="sp-textarea" id="reaction_roles_mappings" name="reaction_roles_mappings" rows="4"
                       placeholder=":thumbsup: Thumbs Up @Role1 [green]&#10;:heart: Love @Role2 [red]&#10;:star: VIP @Role3 [blue]&#10;Member Role @Role4 [gray]"
                      ><?php echo htmlspecialchars($existingReactionRolesMappings ?? ''); ?></textarea>
                   </div>
-                  <p class="sp-help">Format: :emoji: Description @RoleName [color] (one per line)<br>
-                    Colors: blue/primary, gray/secondary, green/success, red/danger (optional, defaults to blue)</p>
+                  <p class="sp-help"><?= t('discordbot_help_reactionroles_mappings') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="allow_multiple_reactions" name="allow_multiple_reactions"
                         style="margin-right: 8px;" <?php echo $existingAllowMultipleReactions ? ' checked' : ''; ?>>
-                      Allow users to select multiple roles
+                      <?= t('discordbot_label_allow_multiple') ?>
                     </label>
                   </div>
-                  <p class="sp-help">If unchecked, users can only have one role from this reaction role
-                    set</p>
+                  <p class="sp-help"><?= t('discordbot_help_allow_multiple') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveReactionRoles()"
                       name="save_reaction_roles" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Reaction Roles Settings</span>
+                      <span><?= t('discordbot_btn_save_reactionroles') ?></span>
                     </button>
                   </div>
                 </div>
@@ -3092,11 +3061,10 @@ ob_start();
                       id="send_reaction_roles_message" name="send_reaction_roles_message"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                      <span>Send Message to Channel</span>
+                      <span><?= t('discordbot_btn_send_message') ?></span>
                     </button>
                   </div>
-                  <p class="sp-help" style="text-align:center;">Posts or updates the reaction roles message
-                    in Discord and applies the emoji mappings</p>
+                  <p class="sp-help" style="text-align:center;"><?= t('discordbot_help_send_reactionroles') ?></p>
                 </div>
               </form>
             </div>
@@ -3109,88 +3077,84 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-gavel"></i></span>
-                Rules Configuration
+                <?= t('discordbot_card_rules_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearRules()" style="margin-right: 10px;"
-                  title="Clear all rules data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_rules_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Server Rules:</strong> Post an embed with your server rules to keep your
-                  community informed and set clear expectations for all members.</p>
+                <?= t('discordbot_rules_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Rules Channel <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_rules_channel') ?> <span style="color:var(--danger);">*</span></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('rules_channel_id', 'rules_channel_id', $existingRulesChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where the rules message will be posted</p>
+                  <p class="sp-help"><?= t('discordbot_help_rules_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Rules Title <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_rules_title') ?> <span style="color:var(--danger);">*</span></label>
                   <div>
                     <input class="sp-input" type="text" id="rules_title" name="rules_title"
-                      value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="e.g. Server Rules"
-                     
+                      value="<?php echo htmlspecialchars($existingRulesTitle ?? ''); ?>" placeholder="<?php echo htmlspecialchars(t('discordbot_ph_rules_title')); ?>"
+
                       required>
                   </div>
-                  <p class="sp-help">Title for the rules embed (appears at the top)</p>
+                  <p class="sp-help"><?= t('discordbot_help_rules_title') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Rules Content <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_rules_content') ?> <span style="color:var(--danger);">*</span></label>
                   <div>
                     <textarea class="sp-textarea" id="rules_content" name="rules_content" rows="8"
                       placeholder="Enter your server rules (one per line or formatted as you prefer)&#10;&#10;Example:&#10;1. Be respectful to all members&#10;2. No spamming or advertising&#10;3. Keep content appropriate&#10;4. Follow Discord's Terms of Service"
                      
                       required><?php echo htmlspecialchars($existingRulesContent ?? ''); ?></textarea>
                   </div>
-                  <p class="sp-help">Enter your server rules. You can use numbered lists, bullet points,
-                    or any format you prefer. Discord markdown is supported.</p>
+                  <p class="sp-help"><?= t('discordbot_help_rules_content') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Embed Color</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_embed_color') ?></label>
                   <div>
                     <input class="sp-input" type="color" id="rules_color" name="rules_color"
                       value="<?php echo htmlspecialchars($existingRulesColor ?: '#5865f2'); ?>"
                       style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
                   </div>
-                  <p class="sp-help">Choose a color for the rules embed border (default is Discord blue)
-                  </p>
+                  <p class="sp-help"><?= t('discordbot_help_rules_color') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
                       <input type="checkbox" id="rules_assign_role_on_accept" name="rules_assign_role_on_accept"
                         style="margin-right: 8px;" <?php echo !empty($existingRulesAcceptRoleID) ? ' checked' : ''; ?>>
-                      Assign role on rule acceptance
+                      <?= t('discordbot_label_assign_role_accept') ?>
                     </label>
                   </div>
-                  <p class="sp-help">When enabled, users who react with ? to the rules will be assigned
-                    the selected role</p>
+                  <p class="sp-help"><?= t('discordbot_help_assign_role_accept') ?></p>
                 </div>
                 <div class="sp-form-group" id="rules_accept_role_field"
                   style="<?php echo empty($existingRulesAcceptRoleID) ? 'display: none;' : ''; ?>">
-                  <label class="sp-label" style="font-weight: 500;">Rules Acceptance Role</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_rules_accept_role') ?></label>
                   <div class="sp-input-wrap">
                     <?php echo generateRoleInput('rules_accept_role_id', 'rules_accept_role_id', $existingRulesAcceptRoleID ?? '', 'e.g. 123456789123456789', $useManualIds, $guildRoles); ?>
                   </div>
-                  <p class="sp-help">Role to assign when users react with ? to accept the rules</p>
+                  <p class="sp-help"><?= t('discordbot_help_rules_accept_role') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveRules()" name="save_rules"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Rules Configuration</span>
+                      <span><?= t('discordbot_btn_save_rules') ?></span>
                     </button>
                   </div>
                 </div>
@@ -3199,11 +3163,10 @@ ob_start();
                     <button class="sp-btn sp-btn-success" style="width:100%" type="button" onclick="sendRulesMessage()"
                       id="send_rules_message" name="send_rules_message" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                      <span>Send Rules to Channel</span>
+                      <span><?= t('discordbot_btn_send_rules') ?></span>
                     </button>
                   </div>
-                  <p class="sp-help" style="text-align:center;">Posts or updates the rules embed in the
-                    selected Discord channel with the latest configuration</p>
+                  <p class="sp-help" style="text-align:center;"><?= t('discordbot_help_send_rules') ?></p>
                 </div>
               </form>
             </div>
@@ -3216,83 +3179,78 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-calendar-alt"></i></span>
-                Stream Schedule Configuration
+                <?= t('discordbot_card_schedule_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearStreamSchedule()" style="margin-right: 10px;"
-                  title="Clear all schedule data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_schedule_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Stream Schedule:</strong> Post an embed with your streaming schedule to
-                  keep your community informed about when you stream.</p>
+                <?= t('discordbot_schedule_intro') ?>
               </div>
               <form action="" method="post">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Schedule Channel <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_schedule_channel') ?> <span style="color:var(--danger);">*</span></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('stream_schedule_channel_id', 'stream_schedule_channel_id', $existingStreamScheduleChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where the stream schedule message will be posted</p>
+                  <p class="sp-help"><?= t('discordbot_help_schedule_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Schedule Title <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_schedule_title') ?> <span style="color:var(--danger);">*</span></label>
                   <div>
                     <input class="sp-input" type="text" id="stream_schedule_title" name="stream_schedule_title"
                       value="<?php echo htmlspecialchars($existingStreamScheduleTitle ?? ''); ?>"
-                      placeholder="e.g. Weekly Stream Schedule"
-                     
+                      placeholder="<?php echo htmlspecialchars(t('discordbot_ph_schedule_title')); ?>"
+
                       required>
                   </div>
-                  <p class="sp-help">Title for the stream schedule embed (appears at the top)</p>
+                  <p class="sp-help"><?= t('discordbot_help_schedule_title') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Stream Schedule Content <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_schedule_content') ?> <span style="color:var(--danger);">*</span></label>
                   <div>
                     <textarea class="sp-textarea" id="stream_schedule_content" name="stream_schedule_content" rows="10"
                       placeholder="Enter your stream schedule (one per line or formatted as you prefer)&#10;&#10;Example:&#10;?? Monday: 7:00 PM - 10:00 PM EST - Variety Gaming&#10;?? Wednesday: 8:00 PM - 11:00 PM EST - Just Chatting&#10;?? Friday: 7:00 PM - 12:00 AM EST - Game Night&#10;?? Saturday: 3:00 PM - 7:00 PM EST - Community Games&#10;&#10;Or use Discord markdown:&#10;**Monday** - 7:00 PM EST&#10;**Wednesday** - 8:00 PM EST"
                      
                       required><?php echo htmlspecialchars($existingStreamScheduleContent ?? ''); ?></textarea>
                   </div>
-                  <p class="sp-help">Enter your stream schedule. You can use emojis, bullet points, or
-                    any format you prefer. Discord markdown is supported. <a
-                      href="https://help.botofthespecter.com/markdown.php" target="_blank" style="color: #3273dc;">View
-                      markdown guide</a></p>
+                  <p class="sp-help"><?= t('discordbot_help_schedule_content') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Timezone <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_timezone') ?> <span style="color:var(--danger);">*</span></label>
                   <div>
                     <input class="sp-input" type="text" id="stream_schedule_timezone" name="stream_schedule_timezone"
                       value="<?php echo htmlspecialchars($existingStreamScheduleTimezone ?? ''); ?>"
-                      placeholder="e.g. EST, PST, UTC, etc."
-                     
+                      placeholder="<?php echo htmlspecialchars(t('discordbot_ph_timezone')); ?>"
+
                       required>
                   </div>
-                  <p class="sp-help">Specify your timezone for clarity (will be shown in the footer)</p>
+                  <p class="sp-help"><?= t('discordbot_help_timezone') ?></p>
                 </div>
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Embed Color</label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_embed_color') ?></label>
                   <div>
                     <input class="sp-input" type="color" id="stream_schedule_color" name="stream_schedule_color"
                       value="<?php echo htmlspecialchars($existingStreamScheduleColor ?: '#9146ff'); ?>"
                       style="background-color: #4a4a4a; border-color: #5a5a5a; height: 50px; border-radius: 6px;">
                   </div>
-                  <p class="sp-help">Choose a color for the schedule embed border (default is Twitch
-                    purple)</p>
+                  <p class="sp-help"><?= t('discordbot_help_schedule_color') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="button" onclick="saveStreamSchedule(event)"
                       name="save_stream_schedule" style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Schedule Configuration</span>
+                      <span><?= t('discordbot_btn_save_schedule') ?></span>
                     </button>
                   </div>
                 </div>
@@ -3302,11 +3260,10 @@ ob_start();
                       id="send_stream_schedule_message" name="send_stream_schedule_message"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-paper-plane"></i></span>
-                      <span>Send Schedule to Channel</span>
+                      <span><?= t('discordbot_btn_send_schedule') ?></span>
                     </button>
                   </div>
-                  <p class="sp-help" style="text-align:center;">Posts or updates the stream schedule embed in
-                    the selected Discord channel with the latest configuration</p>
+                  <p class="sp-help" style="text-align:center;"><?= t('discordbot_help_send_schedule') ?></p>
                 </div>
               </form>
             </div>
@@ -3320,38 +3277,37 @@ ob_start();
             <div class="sp-card-header" style="border-bottom: 1px solid #363636; border-radius: 12px 12px 0 0;">
               <p class="sp-card-title" style="font-weight: 600;">
                 <span class="icon"><i class="fas fa-gift"></i></span>
-                Free Games Configuration
+                <?= t('discordbot_card_freegames_title') ?>
               </p>
               <div class="card-header-icon">
                 <button class="sp-btn sp-btn-ghost" onclick="clearFreeGames()" style="margin-right: 10px;"
-                  title="Clear all free games data and disable this feature">
+                  title="<?php echo htmlspecialchars(t('discordbot_clear_freegames_title')); ?>">
                   <span class="icon"><i class="fas fa-trash"></i></span>
                 </button>
                 <span class="sp-badge sp-badge-green">
                   <span class="icon"><i class="fas fa-check-circle"></i></span>
-                  <span>COMPLETED</span>
+                  <span><?= t('discordbot_badge_completed') ?></span>
                 </span>
               </div>
             </div>
             <div class="sp-card-body">
               <div class="sp-alert sp-alert-info" style="border-radius: 8px; margin-bottom: 1rem;">
-                <p><strong>Free Games:</strong> Get notified in your Discord server when free games
-                  are available from various platforms.</p>
+                <?= t('discordbot_freegames_intro') ?>
               </div>
               <form action="" method="post" onsubmit="handleFreestuffSubmit(event)">
                 <div class="sp-form-group">
-                  <label class="sp-label" style="font-weight: 500;">Discord Channel <span style="color:var(--danger);">*</span></label>
+                  <label class="sp-label" style="font-weight: 500;"><?= t('discordbot_label_freegames_channel') ?> <span style="color:var(--danger);">*</span></label>
                   <div class="sp-input-wrap">
                     <?php echo generateChannelInput('freestuff_channel_id', 'freestuff_channel_id', $existingFreestuffChannelID, 'e.g. 123456789123456789', $useManualIds, $guildChannels); ?>
                   </div>
-                  <p class="sp-help">Channel where free game announcements will be posted</p>
+                  <p class="sp-help"><?= t('discordbot_help_freegames_channel') ?></p>
                 </div>
                 <div class="sp-form-group">
                   <div>
                     <button class="sp-btn sp-btn-primary" style="width:100%" type="submit" name="save_freestuff_settings" id="save_freestuff_btn"
                       style="border-radius: 6px; font-weight: 600;">
                       <span class="icon"><i class="fas fa-save"></i></span>
-                      <span>Save Free Games Settings</span>
+                      <span><?= t('discordbot_btn_save_freegames') ?></span>
                     </button>
                   </div>
                 </div>
@@ -3365,16 +3321,16 @@ ob_start();
             <div class="sp-card-header">
               <div class="sp-card-title">
                 <i class="fas fa-comment-dots"></i>
-                Custom Embed Builder
+                <?= t('discordbot_card_embedbuilder_title') ?>
               </div>
             </div>
             <div class="sp-card-body">
-              <p style="color:var(--text-muted); margin-bottom:1.25rem;">Create, manage, and send custom Discord embeds to any channel in your server</p>
+              <p style="color:var(--text-muted); margin-bottom:1.25rem;"><?= t('discordbot_embedbuilder_intro') ?></p>
               <!-- Existing Embeds List -->
               <div style="border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:1.25rem; overflow:hidden;">
                 <div style="padding:0.9rem 1.25rem; background:var(--bg-surface); border-bottom:1px solid var(--border);">
                   <span style="font-weight:700; font-size:0.9rem; display:flex; align-items:center; gap:0.5rem;">
-                    <i class="fas fa-list"></i> Your Custom Embeds
+                    <i class="fas fa-list"></i> <?= t('discordbot_your_custom_embeds') ?>
                   </span>
                 </div>
                 <div id="embedsList" style="max-height:400px; overflow-y:auto; padding:0.25rem 0.75rem;">
@@ -3384,7 +3340,7 @@ ob_start();
               <!-- Create New Embed Button -->
               <button class="sp-btn sp-btn-primary" style="width:100%;" type="button" onclick="createEmbed()">
                 <span class="icon"><i class="fas fa-plus"></i></span>
-                <span>Create New Embed</span>
+                <span><?= t('discordbot_btn_create_embed') ?></span>
               </button>
             </div>
           </div>
@@ -3397,7 +3353,7 @@ ob_start();
     <div class="db-modal-head" style="background:var(--bg-surface);border-bottom:2px solid var(--accent);">
       <div class="db-modal-title" style="color:var(--text-primary);">
         <i class="fas fa-comment-dots"></i>
-        <span id="embedModalTitle">Create Custom Embed</span>
+        <span id="embedModalTitle"><?= t('discordbot_modal_create_embed') ?></span>
       </div>
       <button class="db-modal-close" aria-label="close" onclick="closeEmbedModal()">&times;</button>
     </div>
@@ -3406,31 +3362,31 @@ ob_start();
         <!-- Left Column: Embed Configuration -->
         <div style="flex:7;min-width:0;">
           <div class="sp-form-group">
-            <label class="sp-label">Embed Name</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_name') ?></label>
             <div>
-              <input class="sp-input" type="text" id="embed_name" placeholder="e.g., Welcome Message, Rules, Announcements"
+              <input class="sp-input" type="text" id="embed_name" placeholder="<?php echo htmlspecialchars(t('discordbot_ph_embed_name')); ?>"
                 oninput="updateEmbedPreview()">
             </div>
-            <p class="sp-help">Internal name to identify this embed (not shown in Discord)</p>
+            <p class="sp-help"><?= t('discordbot_help_embed_name') ?></p>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Embed Title</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_title') ?></label>
             <div>
-              <input class="sp-input" type="text" id="embed_title" placeholder="e.g., Welcome to Our Server!"
+              <input class="sp-input" type="text" id="embed_title" placeholder="<?php echo htmlspecialchars(t('discordbot_ph_embed_title')); ?>"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Description</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_description') ?></label>
             <div>
-              <textarea class="sp-textarea" id="embed_description" rows="4" placeholder="Enter the main embed content..."
+              <textarea class="sp-textarea" id="embed_description" rows="4" placeholder="<?php echo htmlspecialchars(t('discordbot_ph_embed_description')); ?>"
                 oninput="updateEmbedPreview()"></textarea>
             </div>
           </div>
           <div style="display:flex;gap:1rem;flex-wrap:wrap;">
             <div style="flex:1;min-width:180px;">
               <div class="sp-form-group">
-                <label class="sp-label">Embed Color</label>
+                <label class="sp-label"><?= t('discordbot_label_embed_color') ?></label>
                 <div>
                   <input class="sp-input" type="color" id="embed_color" value="#5865f2"
                     oninput="updateEmbedPreview()">
@@ -3439,7 +3395,7 @@ ob_start();
             </div>
             <div style="flex:1;min-width:180px;">
               <div class="sp-form-group">
-                <label class="sp-label">URL (optional)</label>
+                <label class="sp-label"><?= t('discordbot_label_embed_url') ?></label>
                 <div>
                   <input class="sp-input" type="url" id="embed_url" placeholder="https://example.com"
                     oninput="updateEmbedPreview()">
@@ -3448,49 +3404,49 @@ ob_start();
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Thumbnail URL (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_thumbnail') ?></label>
             <div>
               <input class="sp-input" type="url" id="embed_thumbnail" placeholder="https://example.com/image.png"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Image URL (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_image') ?></label>
             <div>
               <input class="sp-input" type="url" id="embed_image" placeholder="https://example.com/image.png"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Footer Text (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_footer_text') ?></label>
             <div>
-              <input class="sp-input" type="text" id="embed_footer_text" placeholder="Footer text"
+              <input class="sp-input" type="text" id="embed_footer_text" placeholder="<?php echo htmlspecialchars(t('discordbot_ph_embed_footer_text')); ?>"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Footer Icon URL (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_footer_icon') ?></label>
             <div>
               <input class="sp-input" type="url" id="embed_footer_icon" placeholder="https://example.com/icon.png"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Author Name (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_author_name') ?></label>
             <div>
-              <input class="sp-input" type="text" id="embed_author_name" placeholder="Author name"
+              <input class="sp-input" type="text" id="embed_author_name" placeholder="<?php echo htmlspecialchars(t('discordbot_ph_embed_author_name')); ?>"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Author URL (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_author_url') ?></label>
             <div>
               <input class="sp-input" type="url" id="embed_author_url" placeholder="https://example.com"
                 oninput="updateEmbedPreview()">
             </div>
           </div>
           <div class="sp-form-group">
-            <label class="sp-label">Author Icon URL (optional)</label>
+            <label class="sp-label"><?= t('discordbot_label_embed_author_icon') ?></label>
             <div>
               <input class="sp-input" type="url" id="embed_author_icon" placeholder="https://example.com/icon.png"
                 oninput="updateEmbedPreview()">
@@ -3499,23 +3455,23 @@ ob_start();
           <div class="sp-form-group">
             <label style="cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;">
               <input type="checkbox" id="embed_timestamp" onchange="updateEmbedPreview()">
-              Include Timestamp
+              <?= t('discordbot_label_include_timestamp') ?>
             </label>
           </div>
           <!-- Fields Section -->
           <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;">
-            <h4 style="font-size:1rem;color:var(--text-muted);margin:0 0 0.75rem 0;">Embed Fields</h4>
+            <h4 style="font-size:1rem;color:var(--text-muted);margin:0 0 0.75rem 0;"><?= t('discordbot_embed_fields') ?></h4>
             <div id="embedFieldsList"></div>
             <button class="sp-btn sp-btn-info sp-btn-sm" type="button" onclick="addEmbedField()">
               <span class="icon"><i class="fas fa-plus"></i></span>
-              <span>Add Field</span>
+              <span><?= t('discordbot_btn_add_field') ?></span>
             </button>
           </div>
         </div>
         <!-- Right Column: Preview -->
         <div style="flex:5;min-width:0;">
           <div style="background:#36393f;border-radius:8px;position:sticky;top:20px;padding:1rem;">
-            <h4 style="font-size:1rem;color:var(--text-muted);margin:0 0 0.75rem 0;">Preview</h4>
+            <h4 style="font-size:1rem;color:var(--text-muted);margin:0 0 0.75rem 0;"><?= t('discordbot_preview') ?></h4>
             <div id="embedPreview" style="background-color:#2f3136;border-radius:4px;padding:16px;">
               <!-- Preview will be rendered here -->
             </div>
@@ -3526,11 +3482,11 @@ ob_start();
     <div class="db-modal-foot">
       <button class="sp-btn sp-btn-success" onclick="saveEmbed()">
         <span class="icon"><i class="fas fa-save"></i></span>
-        <span>Save Embed</span>
+        <span><?= t('discordbot_btn_save_embed') ?></span>
       </button>
       <button class="sp-btn sp-btn-secondary" onclick="closeEmbedModal()">
         <span class="icon"><i class="fas fa-times"></i></span>
-        <span>Cancel</span>
+        <span><?= t('discordbot_btn_cancel') ?></span>
       </button>
     </div>
   </div>
@@ -3540,24 +3496,24 @@ ob_start();
   <div class="db-modal" style="max-width:500px;">
     <div class="db-modal-head" style="background:var(--bg-surface);">
       <div class="db-modal-title" style="color:var(--text-primary);">
-        <i class="fas fa-paper-plane"></i> Send Embed to Channel
+        <i class="fas fa-paper-plane"></i> <?= t('discordbot_modal_send_embed_title') ?>
       </div>
       <button class="db-modal-close" aria-label="close" onclick="closeSendEmbedModal()">&times;</button>
     </div>
     <div class="db-modal-body">
       <div class="sp-form-group">
-        <label class="sp-label">Select Channel</label>
+        <label class="sp-label"><?= t('discordbot_label_select_channel') ?></label>
         <?php echo generateChannelInput('send_embed_channel', 'send_embed_channel', '', 'Select channel to send embed', $useManualIds, $guildChannels, 'fas fa-hashtag', true); ?>
       </div>
     </div>
     <div class="db-modal-foot">
       <button class="sp-btn sp-btn-success" onclick="confirmSendEmbed()">
         <span class="icon"><i class="fas fa-paper-plane"></i></span>
-        <span>Send</span>
+        <span><?= t('discordbot_btn_send') ?></span>
       </button>
       <button class="sp-btn sp-btn-secondary" onclick="closeSendEmbedModal()">
         <span class="icon"><i class="fas fa-times"></i></span>
-        <span>Cancel</span>
+        <span><?= t('discordbot_btn_cancel') ?></span>
       </button>
     </div>
   </div>
@@ -3566,7 +3522,7 @@ ob_start();
   <div class="db-modal" style="max-width:700px;width:90%;">
     <div class="db-modal-head" style="background:var(--bg-surface);">
       <div class="db-modal-title" style="color:var(--text-primary);">
-        <i class="fas fa-people-group"></i> Saved Streamers List
+        <i class="fas fa-people-group"></i> <?= t('discordbot_modal_saved_streamers') ?>
       </div>
       <button class="db-modal-close" aria-label="close" onclick="document.getElementById('savedStreamersModal').classList.add('hidden')">&times;</button>
     </div>
@@ -3575,9 +3531,9 @@ ob_start();
         <table class="sp-table">
           <thead>
             <tr>
-              <th style="text-align:center;">Twitch Username</th>
-              <th style="text-align:center;">Twitch URL</th>
-              <th style="text-align:center;">Actions</th>
+              <th style="text-align:center;"><?= t('discordbot_th_twitch_username') ?></th>
+              <th style="text-align:center;"><?= t('discordbot_th_twitch_url') ?></th>
+              <th style="text-align:center;"><?= t('discordbot_th_actions') ?></th>
             </tr>
           </thead>
           <tbody>

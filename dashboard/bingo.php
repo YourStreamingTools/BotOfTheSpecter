@@ -174,12 +174,12 @@ ob_start();
                                             <button class="sp-btn sp-btn-info sp-btn-sm view-winners-btn"
                                                     data-game-id="<?php echo htmlspecialchars($game['game_id']); ?>">
                                                 <i class="fas fa-trophy"></i>
-                                                View Winners
+                                                <?= t('bingo_btn_view_winners') ?>
                                             </button>
                                             <button class="sp-btn sp-btn-secondary sp-btn-sm view-players-btn"
                                                     data-game-id="<?php echo htmlspecialchars($game['game_id']); ?>">
                                                 <i class="fas fa-users"></i>
-                                                View Players
+                                                <?= t('bingo_btn_view_players') ?>
                                             </button>
                                         </td>
                                     </tr>
@@ -199,15 +199,15 @@ ob_start();
         <div class="db-modal-head" style="background:var(--bg-surface);">
             <div class="db-modal-title" style="color:var(--text-primary);">
                 <i class="fas fa-users"></i>
-                Game Players &ndash; <span id="modal-players-game-id"></span>
+                <?= t('bingo_modal_players_title') ?> &ndash; <span id="modal-players-game-id"></span>
             </div>
-            <button class="db-modal-close" id="players-modal-close" aria-label="close">&times;</button>
+            <button class="db-modal-close" id="players-modal-close" aria-label="<?php echo htmlspecialchars(t('bingo_aria_close')); ?>">&times;</button>
         </div>
         <div class="db-modal-body" id="players-content">
             <!-- Players will be loaded here -->
         </div>
         <div class="db-modal-foot">
-            <button class="sp-btn sp-btn-secondary" id="close-players-modal-btn">Close</button>
+            <button class="sp-btn sp-btn-secondary" id="close-players-modal-btn"><?= t('bingo_btn_close') ?></button>
         </div>
     </div>
 </div>
@@ -218,15 +218,15 @@ ob_start();
         <div class="db-modal-head" style="background:var(--bg-surface);">
             <div class="db-modal-title" style="color:var(--text-primary);">
                 <i class="fas fa-trophy"></i>
-                Game Winners &ndash; <span id="modal-game-id"></span>
+                <?= t('bingo_modal_winners_title') ?> &ndash; <span id="modal-game-id"></span>
             </div>
-            <button class="db-modal-close" aria-label="close">&times;</button>
+            <button class="db-modal-close" aria-label="<?php echo htmlspecialchars(t('bingo_aria_close')); ?>">&times;</button>
         </div>
         <div class="db-modal-body" id="winners-content">
             <!-- Winners will be loaded here -->
         </div>
         <div class="db-modal-foot">
-            <button class="sp-btn sp-btn-secondary" id="close-modal-btn">Close</button>
+            <button class="sp-btn sp-btn-secondary" id="close-modal-btn"><?= t('bingo_btn_close') ?></button>
         </div>
     </div>
 </div>
