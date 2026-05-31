@@ -40,14 +40,14 @@ if ($sessionCount >= 3) {
 ?>
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-label">Total Subscriptions</div>
+        <div class="stat-label"><?= t('notifications_content_stat_total_subscriptions') ?></div>
         <div class="stat-value"><?php echo $data['totalCount']; ?></div>
-        <div class="stat-secondary">across all transports</div>
+        <div class="stat-secondary"><?= t('notifications_content_stat_across_all_transports') ?></div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Active WebSocket Subscriptions</div>
+        <div class="stat-label"><?= t('notifications_content_stat_active_websocket_subs') ?></div>
         <div class="stat-value"><?php echo $subCount; ?></div>
-        <div class="stat-secondary">limit: 300 per connection</div>
+        <div class="stat-secondary"><?= t('notifications_content_stat_limit_300_per_connection') ?></div>
         <?php 
         $connectionNumber = 0;
         foreach ($connectionCounts as $sessionId => $count): 
@@ -60,12 +60,12 @@ if ($sessionCount >= 3) {
             }
         ?>
             <div class="stat-secondary" style="color: <?php echo $textColor; ?>; margin-top: 4px;">
-                Connection <?php echo $connectionNumber; ?>: <?php echo $count; ?> subscriptions
+                <?= t('notifications_content_connection_label') ?> <?php echo $connectionNumber; ?>: <?php echo $count; ?> <?= t('notifications_content_subscriptions_word') ?>
             </div>
         <?php endforeach; ?>
         <?php if (count($data['websocketSubsDisabled']) > 0): ?>
             <div class="stat-secondary" style="color: #e74c3c; margin-top: 4px;">
-                <?php echo count($data['websocketSubsDisabled']); ?> disabled/stale
+                <?php echo count($data['websocketSubsDisabled']); ?> <?= t('notifications_content_disabled_stale_word') ?>
             </div>
         <?php endif; ?>
     </div>

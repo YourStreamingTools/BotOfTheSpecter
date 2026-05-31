@@ -257,7 +257,7 @@ ob_start();
                         <th style="text-align:center;"><?php echo t('builtin_commands_table_usage_level'); ?></th>
                         <th style="text-align:center;"><?php echo t('builtin_commands_table_status'); ?></th>
                         <th style="text-align:center;"><?php echo t('builtin_commands_table_action'); ?></th>
-                        <th style="text-align:center;">Options</th>
+                        <th style="text-align:center;"><?php echo t('builtin_commands_table_options'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -330,13 +330,13 @@ ob_start();
 <div class="cc-modal-backdrop" id="commandModal">
     <div class="cc-modal" style="max-width: 600px;">
         <div class="cc-modal-head">
-            <span class="cc-modal-title">Command Options: <span id="modalCommandName"></span></span>
+            <span class="cc-modal-title"><?php echo t('builtin_commands_modal_title'); ?> <span id="modalCommandName"></span></span>
             <button class="sp-btn sp-btn-ghost sp-btn-sm" onclick="closeCommandModal()">×</button>
         </div>
         <div class="cc-modal-body" style="max-height: 70vh; overflow-y: auto;">
             <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
                 <i class="fas fa-info-circle"></i>
-                <strong>Cooldown Options:</strong> These settings are available in version 5.5 and above. Configure how often commands can be used.
+                <?php echo t('builtin_commands_cooldown_info'); ?>
             </div>
             <div id="modalContent">
                 <!-- Content will be dynamically loaded here -->

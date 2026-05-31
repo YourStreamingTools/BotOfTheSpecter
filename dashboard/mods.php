@@ -174,7 +174,7 @@ do {
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($httpCode !== 200) {
         if ($httpCode === 401) {
-            echo "<div style='color:red;font-weight:bold;'>Your Twitch authentication token is invalid or expired. Please <a href='logout.php'>log in again</a> to refresh your session.</div>";
+            echo "<div style='color:red;font-weight:bold;'>" . t('mods_token_invalid') . "</div>";
         }
         exit;
     }
@@ -383,7 +383,7 @@ ob_start();
                                             <?php echo $profileImg; ?>
                                             <?php echo htmlspecialchars($modDisplayName); ?>
                                             <?php if ($isStaleAccess): ?>
-                                                <span class="sp-badge sp-badge-amber ml-2">No longer mod</span>
+                                                <span class="sp-badge sp-badge-amber ml-2"><?php echo t('mods_no_longer_mod'); ?></span>
                                             <?php endif; ?>
                                         </span>
                                     </td>

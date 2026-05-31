@@ -30,9 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['api_key'])) {
         $stmt->bind_param("s", $api_key);
         $stmt->execute();
         $stmt->close();
-        $message = "API Key saved successfully!";
+        $message = t('bingo_msg_api_key_saved');
+        $message_success = true;
     } else {
-        $message = "Please enter a valid API Key.";
+        $message = t('bingo_msg_api_key_invalid');
+        $message_success = false;
     }
 }
 
@@ -61,7 +63,7 @@ ob_start();
     <div class="sp-card-body">
         <div id="bingo-alerts">
         <?php if (isset($message)): ?>
-            <div class="sp-alert <?php echo strpos($message, 'successfully') !== false ? 'sp-alert-success' : 'sp-alert-danger'; ?>">
+            <div class="sp-alert <?php echo (isset($message_success) && $message_success) ? 'sp-alert-success' : 'sp-alert-danger'; ?>">
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
