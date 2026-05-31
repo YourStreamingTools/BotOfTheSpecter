@@ -65,27 +65,27 @@ ob_start();
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <div class="sp-card-title"><i class="fas fa-check-double"></i> Mark Tasks as Completed</div>
+    <div class="sp-card-title"><i class="fas fa-check-double"></i> <?= t('todo_completed_card_title') ?></div>
   </div>
   <div class="sp-card-body">
     <?php if ($num_rows < 1): ?>
       <div class="sp-alert sp-alert-info" style="display:flex; align-items:center; gap:0.75rem;">
         <i class="fas fa-tasks fa-2x" style="color:var(--blue); flex-shrink:0;"></i>
         <div>
-          <strong>Your to-do list is empty!</strong>
-          <p style="margin-bottom:0;">Start adding tasks to get organized.</p>
+          <strong><?= t('todo_completed_empty_heading') ?></strong>
+          <p style="margin-bottom:0;"><?= t('todo_completed_empty_text') ?></p>
         </div>
       </div>
     <?php else: ?>
       <div style="display:flex; align-items:flex-end; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
         <div style="flex:1; min-width:200px;">
-          <label for="searchInput" class="sp-label">Search Tasks</label>
-          <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search objectives">
+          <label for="searchInput" class="sp-label"><?= t('todo_completed_search_label') ?></label>
+          <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="<?= htmlspecialchars(t('todo_completed_search_placeholder')) ?>">
         </div>
         <div style="min-width:200px;">
-          <label for="categoryFilter" class="sp-label">Filter by Category</label>
+          <label for="categoryFilter" class="sp-label"><?= t('todo_completed_filter_label') ?></label>
           <select id="categoryFilter" class="sp-select">
-            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>><?= t('todo_completed_filter_all') ?></option>
             <?php foreach ($categories as $category): ?>
               <option value="<?php echo $category['id']; ?>" <?php if ($categoryFilter == $category['id']) echo 'selected'; ?>>
                 <?php echo htmlspecialchars($category['category']); ?>
@@ -94,7 +94,7 @@ ob_start();
           </select>
         </div>
       </div>
-      <p style="margin-bottom:1rem; color:var(--text-secondary);">Number of total tasks in the category: <?php echo $num_rows; ?></p>
+      <p style="margin-bottom:1rem; color:var(--text-secondary);"><?= t('todo_completed_total_count') ?> <?php echo $num_rows; ?></p>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
         <?php foreach ($incompleteTasks as $row): ?>
           <div class="sp-card" style="margin-bottom:0;">
@@ -103,14 +103,14 @@ ob_start();
                 <p style="font-weight:600; margin-bottom:0.3rem;"><?php echo htmlspecialchars($row['objective']); ?></p>
                 <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0; display:flex; align-items:center; gap:0.3rem;">
                   <i class="fas fa-folder"></i>
-                  <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                  <?php echo htmlspecialchars($row['category_name'] ?? t('todo_completed_uncategorized')); ?>
                 </p>
               </div>
               <div>
                 <form method="post" action="completed.php" style="margin-bottom:0;" class="mark-completed-form">
                   <input type="hidden" name="task_id" value="<?php echo $row['id']; ?>">
                   <button type="button" class="sp-btn sp-btn-success sp-btn-sm mark-completed-btn" style="width:100%;">
-                    <i class="fas fa-check"></i> Mark as completed
+                    <i class="fas fa-check"></i> <?= t('todo_completed_mark_button') ?>
                   </button>
                 </form>
               </div>

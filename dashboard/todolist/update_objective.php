@@ -60,20 +60,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <div class="sp-card-title"><i class="fas fa-edit"></i> Update Task Objective</div>
+    <div class="sp-card-title"><i class="fas fa-edit"></i> <?= t('todo_update_objective_card_title') ?></div>
   </div>
   <div class="sp-card-body">
     <?php if ($num_rows < 1): ?>
       <div class="sp-alert sp-alert-info" style="display:flex; align-items:center; gap:0.75rem;">
         <i class="fas fa-tasks fa-2x" style="color:var(--blue); flex-shrink:0;"></i>
         <div>
-          <strong>Your to-do list is empty!</strong>
-          <p style="margin-bottom:0;">You can't update any tasks because there aren't any yet.</p>
+          <strong><?= t('todo_update_objective_empty_heading') ?></strong>
+          <p style="margin-bottom:0;"><?= t('todo_update_objective_empty_text') ?></p>
         </div>
       </div>
     <?php else: ?>
       <form method="POST">
-        <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">Edit your task objectives and categories below and click "Update All" to save changes:</h2>
+        <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;"><?= t('todo_update_objective_instructions') ?></h2>
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;">
           <?php foreach ($rows as $row): ?>
             <div class="sp-card" style="margin-bottom:0;">
@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                   <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0; display:flex; align-items:center; gap:0.3rem;">
                     <i class="fas fa-folder"></i>
                     <?php
-                      $catName = 'Uncategorized';
+                      $catName = t('todo_update_objective_uncategorized');
                       foreach ($categories as $cat) {
                         if ($cat['id'] == $row['category']) { $catName = $cat['category']; break; }
                       }
@@ -92,11 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                   </p>
                 </div>
                 <div class="sp-form-group" style="margin-bottom:0;">
-                  <label class="sp-label" for="objective_<?php echo $row['id']; ?>">Objective</label>
+                  <label class="sp-label" for="objective_<?php echo $row['id']; ?>"><?= t('todo_update_objective_label_objective') ?></label>
                   <input type="text" name="objective[<?php echo $row['id']; ?>]" id="objective_<?php echo $row['id']; ?>" class="sp-input" value="<?php echo htmlspecialchars($row['objective']); ?>">
                 </div>
                 <div class="sp-form-group" style="margin-bottom:0;">
-                  <label class="sp-label" for="category_<?php echo $row['id']; ?>">Category</label>
+                  <label class="sp-label" for="category_<?php echo $row['id']; ?>"><?= t('todo_update_objective_label_category') ?></label>
                   <select name="category[<?php echo $row['id']; ?>]" id="category_<?php echo $row['id']; ?>" class="sp-select">
                     <?php foreach ($categories as $cat): ?>
                       <option value="<?= $cat['id'] ?>" <?php if ($cat['id'] == $row['category']) echo 'selected'; ?>>
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div style="margin-top:auto;">
                   <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; color:var(--text-secondary);">
                     <input type="checkbox" name="private[<?php echo $row['id']; ?>]" value="1" <?php if (!empty($row['private']) && $row['private'] == 1) echo 'checked'; ?>>
-                    <i class="fas fa-eye-slash"></i> Private (hide from OBS overlay)
+                    <i class="fas fa-eye-slash"></i> <?= t('todo_update_objective_private_label') ?>
                   </label>
                 </div>
               </div>
@@ -116,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           <?php endforeach; ?>
         </div>
         <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
-          <button type="submit" name="submit" class="sp-btn sp-btn-primary">Update All</button>
-          <a href="index.php" class="sp-btn sp-btn-secondary">Cancel</a>
+          <button type="submit" name="submit" class="sp-btn sp-btn-primary"><?= t('todo_update_objective_btn_update_all') ?></button>
+          <a href="index.php" class="sp-btn sp-btn-secondary"><?= t('todo_update_objective_btn_cancel') ?></a>
         </div>
       </form>
     <?php endif; ?>

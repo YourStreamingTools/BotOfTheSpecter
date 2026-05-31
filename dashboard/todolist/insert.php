@@ -38,18 +38,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $private = isset($_POST['private']) ? 1 : 0;
   // Basic validation
   if (empty($objective)) {
-    $message = "Please enter a task.";
-    $messageType = "is-danger"; 
+    $message = t('todo_insert_msg_enter_task');
+    $messageType = "is-danger";
   } else {
     // Prepare and execute query
     $stmt = $db->prepare("INSERT INTO todos (objective, category, created_at, updated_at, completed, private) VALUES (?, ?, NOW(), NOW(), 'No', ?)");
     $stmt->bind_param("sii", $objective, $category, $private);
     if ($stmt->execute()) {
-      $message = "Task added successfully!";
-      $messageType = "is-success"; 
+      $message = t('todo_insert_msg_added_success');
+      $messageType = "is-success";
     } else {
-      $message = "Error adding task. Please try again.";
-      $messageType = "is-danger"; 
+      $message = t('todo_insert_msg_add_error');
+      $messageType = "is-danger";
     }
   }
 } 
@@ -58,7 +58,7 @@ ob_start();
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <div class="sp-card-title"><i class="fas fa-plus"></i> Add a New Task</div>
+    <div class="sp-card-title"><i class="fas fa-plus"></i> <?= t('todo_insert_card_title') ?></div>
   </div>
   <div class="sp-card-body">
     <?php if ($message): ?>
@@ -75,11 +75,11 @@ ob_start();
     <?php endif; ?>
     <form method="post">
       <div class="sp-form-group">
-        <label class="sp-label" for="objective"><i class="fas fa-tasks" style="margin-right:0.3rem;"></i> Task</label>
-        <textarea id="objective" name="objective" class="sp-textarea" placeholder="Describe your task..."><?php echo htmlspecialchars($objective); ?></textarea>
+        <label class="sp-label" for="objective"><i class="fas fa-tasks" style="margin-right:0.3rem;"></i> <?= t('todo_insert_label_task') ?></label>
+        <textarea id="objective" name="objective" class="sp-textarea" placeholder="<?= htmlspecialchars(t('todo_insert_placeholder_task')) ?>"><?php echo htmlspecialchars($objective); ?></textarea>
       </div>
       <div class="sp-form-group">
-        <label class="sp-label" for="category">Category</label>
+        <label class="sp-label" for="category"><?= t('todo_insert_label_category') ?></label>
         <select id="category" name="category" class="sp-select">
           <?php
           $stmt = $db->query("SELECT * FROM categories");
@@ -93,12 +93,12 @@ ob_start();
       <div class="sp-form-group" style="margin-top:1rem;">
         <label class="sp-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
           <input type="checkbox" name="private" id="private" value="1">
-          <i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i> Private (hide from OBS overlay)
+          <i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i> <?= t('todo_insert_label_private') ?>
         </label>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
-        <button type="submit" class="sp-btn sp-btn-primary">Add</button>
-        <a href="index.php" class="sp-btn sp-btn-secondary">Cancel</a>
+        <button type="submit" class="sp-btn sp-btn-primary"><?= t('todo_insert_btn_add') ?></button>
+        <a href="index.php" class="sp-btn sp-btn-secondary"><?= t('todo_insert_btn_cancel') ?></a>
       </div>
     </form>
   </div>

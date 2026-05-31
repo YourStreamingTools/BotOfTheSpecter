@@ -130,9 +130,9 @@ if ($username !== 'botofthespecter') {
   $BotIsMod = true; // Bot is the channel owner, no mod check needed
 }
 if ($BotIsBanned) {
-  $BotModMessage = "<strong>CRITICAL:</strong> The bot account has been BANNED from your channel. The bot cannot start until you unban the bot account AND make it a moderator.<br><strong>Ban Reason:</strong> " . htmlspecialchars($BotBanReason);
+  $BotModMessage = t('bot_banned_message', ['reason' => htmlspecialchars($BotBanReason)]);
 } elseif (!$BotIsMod) {
-  $BotModMessage = "The bot is not a moderator on your channel. Please make the bot a moderator to start it.";
+  $BotModMessage = t('bot_not_moderator_message');
 }
 
 // Display subscription warning for Beta if no access
@@ -297,15 +297,15 @@ ob_start();
 <?php if ($BotIsBanned): ?>
   <div class="sp-alert sp-alert-danger" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
     <div><i class="fas fa-ban"></i> <?php echo $BotModMessage; ?></div>
-    <button id="unban-bot-btn" class="sp-btn sp-btn-secondary" title="Unban Bot">
-      <i class="fas fa-unlock"></i> Unban Bot
+    <button id="unban-bot-btn" class="sp-btn sp-btn-secondary" title="<?= htmlspecialchars(t('bot_unban_bot')) ?>">
+      <i class="fas fa-unlock"></i> <?= t('bot_unban_bot') ?>
     </button>
   </div>
 <?php elseif (!$BotIsMod && !empty($BotModMessage)): ?>
   <div class="sp-alert sp-alert-warning" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
     <div><i class="fas fa-exclamation-triangle"></i> <?php echo $BotModMessage; ?></div>
-    <button id="make-mod-btn" class="sp-btn sp-btn-primary" title="Make Bot Moderator">
-      <i class="fas fa-user-shield"></i> Make Mod
+    <button id="make-mod-btn" class="sp-btn sp-btn-primary" title="<?= htmlspecialchars(t('bot_make_bot_moderator')) ?>">
+      <i class="fas fa-user-shield"></i> <?= t('bot_make_mod') ?>
     </button>
   </div>
 <?php endif; ?>
@@ -346,11 +346,11 @@ ob_start();
         <div class="version-meta">
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_last_updated'); ?></span>
-            <span id="last-updated" style="color:var(--blue);">Loading...</span>
+            <span id="last-updated" style="color:var(--blue);"><?php echo t('bot_loading'); ?></span>
           </p>
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_last_run'); ?></span>
-            <span id="last-run" style="color:var(--blue);">Loading...</span>
+            <span id="last-run" style="color:var(--blue);"><?php echo t('bot_loading'); ?></span>
           </p>
           <p>
             <span style="color:var(--text-muted);"><?php echo t('bot_running_version'); ?></span>
@@ -366,12 +366,12 @@ ob_start();
           </p>
           <?php if ($selectedBot === 'stable'): ?>
           <p>
-            <span style="color:var(--text-muted);">Update Notes:</span>
-            <a href="https://changelog.botofthespecter.com/<?php echo htmlspecialchars($changelogVersion); ?>.html" target="_blank">View Changelog</a>
+            <span style="color:var(--text-muted);"><?php echo t('bot_update_notes'); ?></span>
+            <a href="https://changelog.botofthespecter.com/<?php echo htmlspecialchars($changelogVersion); ?>.html" target="_blank"><?php echo t('bot_view_changelog'); ?></a>
           </p>
           <?php endif; ?>
           <div id="version-update-indicator" style="margin-top:0.5rem; display:none;">
-            <span class="sp-badge sp-badge-amber">Update Available</span>
+            <span class="sp-badge sp-badge-amber"><?php echo t('bot_update_available'); ?></span>
           </div>
         </div>
         <p style="font-size:0.75rem; margin-top:0.75rem; color:var(--text-muted);">
@@ -429,7 +429,7 @@ ob_start();
               <div id="custom-bot-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
                 <input id="custom-bot-toggle" type="checkbox" name="custom-bot-toggle" class="switch">
                 <label for="custom-bot-toggle" style="white-space:nowrap; display:flex; flex-direction:column; line-height:1.2;">
-                  <span>Custom Bot Name</span>
+                  <span><?= t('bot_custom_bot_name') ?></span>
                   <span style="color:var(--text-muted); font-size:0.75rem; margin-top:2px;"><?php echo htmlspecialchars($customBotUsername); ?></span>
                 </label>
               </div>
@@ -437,8 +437,8 @@ ob_start();
               <!-- Use Self Toggle -->
               <div id="use-self-toggle-container" style="display:none; align-items:center; gap:0.5rem;">
                 <input id="use-self-toggle" type="checkbox" name="use-self-toggle" class="switch" <?php echo ($use_self ? 'checked' : ''); ?>>
-                <label for="use-self-toggle" title="Send messages as your connected account when enabled" style="white-space:nowrap; display:flex; align-items:center;">
-                  <span>Use Self</span>
+                <label for="use-self-toggle" title="<?= htmlspecialchars(t('bot_use_self_title')) ?>" style="white-space:nowrap; display:flex; align-items:center;">
+                  <span><?= t('bot_use_self') ?></span>
                 </label>
               </div>
               <select id="bot-selector" class="sp-select" onchange="changeBotSelection(this.value)" style="width:auto;">
@@ -449,7 +449,7 @@ ob_start();
                     <?php echo t('bot_beta_bot'); ?>
                   </option>
                   <option value="v6" <?php if($selectedBot === 'v6') echo 'selected'; ?>>
-                    Version 6
+                    <?php echo t('bot_version_6'); ?>
                   </option>
                 </select>
             </div>
@@ -473,22 +473,22 @@ ob_start();
             <!-- Custom Bot Name -->
             <div id="custom-bot-warning" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
-              <strong>Important:</strong> When using a custom bot name, BotOfTheSpecter must still remain a moderator in your channel. Many bot features require the Specter account to maintain mod permissions to function properly.
+              <?= t('bot_custom_bot_warning') ?>
             </div>
             <!-- Use Self -->
             <div id="use-self-warning" class="sp-alert sp-alert-info" style="display: none;">
               <i class="fas fa-info-circle"></i>
-              <strong>Note:</strong> When Use Self is enabled the bot will send messages using your connected Twitch account. The Specter account must still be a moderator for some features to work.
+              <?= t('bot_use_self_warning') ?>
             </div>
           <?php elseif ($selectedBot === 'v6'): ?>
             <h3 style="font-size:1.15rem; font-weight:700; text-align:center; margin:0 0 0.5rem;">
-              Version 6 Controls (v<?php echo $v6NewVersion; ?>)
+              <?php echo t('bot_v6_controls'); ?> (v<?php echo $v6NewVersion; ?>)
             </h3>
             <p style="font-size:0.875rem; color:var(--text-secondary); text-align:center; margin-bottom:1rem;">
-              Version 6 is a complete rewrite and is currently in early development.
+              <?php echo t('bot_v6_description'); ?>
             </p>
             <div class="sp-alert sp-alert-danger" style="text-align:center;">
-              A complete rewrite has been started for version 6 and is not recommended to be running at this stage. A notice will be put out on Discord when version 6 is ready for testing.
+              <?php echo t('bot_v6_danger_notice'); ?>
             </div>
           <?php endif; ?>
           <?php 
@@ -515,7 +515,7 @@ ob_start();
               ?>
             </span>
             <span style="font-size:1rem; font-weight:600;">
-              <?php echo t('bot_status_label'); ?> <span id="bot-status-text" style="color:var(--blue);">Fetching status...</span>
+              <?php echo t('bot_status_label'); ?> <span id="bot-status-text" style="color:var(--blue);"><?php echo t('bot_fetching_status'); ?></span>
               <?php if ($isTechnical): ?>
               <div id="bot-pid-display" style="color:var(--text-muted); font-size:0.75rem; margin-top:0.25rem; display:none;">
                 PID: <span id="bot-pid-value">--</span>
@@ -534,7 +534,7 @@ ob_start();
           <div id="bot-controls-container" style="display:flex; justify-content:center; margin-bottom:0.5rem;">
             <button class="sp-btn sp-btn-primary" disabled>
               <i class="fas fa-spinner fa-spin"></i>
-              <span>Checking status...</span>
+              <span><?php echo t('bot_checking_status'); ?></span>
             </button>
           </div>
           <?php endif; ?>
@@ -563,13 +563,13 @@ ob_start();
             <div class="network-status-container">
               <div class="network-status-inner" style="font-family:monospace; font-size:0.75rem;">
                 <div style="font-weight:600; margin-bottom:2px; color:var(--text-primary);">
-                  <i class="fas fa-network-wired"></i> Network Status
+                  <i class="fas fa-network-wired"></i> <?php echo t('bot_network_status'); ?>
                 </div>
                 <div style="color:var(--text-muted);">
-                  <span style="color:var(--text-muted);">Avg Latency:</span> <span id="network-avg-latency">--ms</span>
+                  <span style="color:var(--text-muted);"><?php echo t('bot_avg_latency'); ?></span> <span id="network-avg-latency">--ms</span>
                 </div>
                 <div style="color:var(--text-muted);">
-                  <span style="color:var(--text-muted);">Services Up:</span> <span id="services-up-count">--/--</span>
+                  <span style="color:var(--text-muted);"><?php echo t('bot_services_up'); ?></span> <span id="services-up-count">--/--</span>
                 </div>
               </div>
             </div>
@@ -580,7 +580,7 @@ ob_start();
         </div>
         <?php if ($isTechnical): ?>
           <div class="sp-alert sp-alert-info" style="text-align:center; border-radius:0; margin:0; border-left:none; border-right:none;">
-            All latency and service status results below are measured from our Australian datacenter.
+<?php echo t('bot_datacenter_notice'); ?>
           </div>
         <?php endif; ?>
         <div class="sp-card-body" style="padding-top:0;">
@@ -595,8 +595,8 @@ ob_start();
               <p id="api-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="api-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="api-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="api-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="api-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>
@@ -606,8 +606,8 @@ ob_start();
               <p id="db-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="db-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="db-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="db-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="db-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>
@@ -617,31 +617,31 @@ ob_start();
               <p id="notif-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="notif-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="notif-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="notif-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="notif-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>
             <div class="service-box">
               <div class="service-icon"><i id="botsService" class="fas fa-heartbeat fa-2x beating" style="color:var(--green);"></i></div>
-              <h4 class="service-name">BOT Server</h4>
+              <h4 class="service-name"><?php echo t('bot_server_service'); ?></h4>
               <p id="bots-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="bots-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="bots-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="bots-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="bots-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>
             <div class="service-box">
               <div class="service-icon"><i id="discordService" class="fab fa-discord fa-2x beating" style="color:var(--green);"></i></div>
-              <h4 class="service-name">Discord Bot Service</h4>
+              <h4 class="service-name"><?php echo t('bot_discord_bot_service'); ?></h4>
               <p id="discord-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">PID:</span> <span id="discord-service-pid">--</span></div>
-                  <div><span class="service-tech-label">Latency:</span> <span id="discord-service-latency">Not Recorded</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="discord-service-lastcheck">Not Recorded</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_pid_label'); ?></span> <span id="discord-service-pid">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="discord-service-latency"><?php echo t('bot_not_recorded'); ?></span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="discord-service-lastcheck"><?php echo t('bot_not_recorded'); ?></span></div>
                 </div>
               <?php endif; ?>
             </div>
@@ -657,8 +657,8 @@ ob_start();
               <p id="auEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="auEast1-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="auEast1-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="auEast1-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="auEast1-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>
@@ -668,8 +668,8 @@ ob_start();
               <p id="usWest1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="usWest1-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="usWest1-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="usWest1-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="usWest1-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>
@@ -679,8 +679,8 @@ ob_start();
               <p id="usEast1-service-status" class="service-status"><?php echo t('bot_running_normally'); ?></p>
               <?php if ($isTechnical): ?>
                 <div class="service-tech">
-                  <div><span class="service-tech-label">Latency:</span> <span id="usEast1-service-latency">--ms</span></div>
-                  <div><span class="service-tech-label">Last Check:</span> <span id="usEast1-service-lastcheck">--</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_latency_label'); ?></span> <span id="usEast1-service-latency">--ms</span></div>
+                  <div><span class="service-tech-label"><?php echo t('bot_last_check_label'); ?></span> <span id="usEast1-service-lastcheck">--</span></div>
                 </div>
               <?php endif; ?>
             </div>

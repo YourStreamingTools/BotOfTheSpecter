@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_category_id'])
   $remove_id = intval($_POST['remove_category_id']);
   // Prevent deleting default category (id 1)
   if ($remove_id === 1) {
-    $message = 'Cannot remove the default category.';
+    $message = t('todo_categories_msg_cannot_remove_default');
   } else {
     // Check if category exists
     $stmt = $db->prepare("SELECT id FROM categories WHERE id = ?");
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_category_id'])
       header("Location: categories.php");
       exit();
     } else {
-      $message = 'Category not found.';
+      $message = t('todo_categories_msg_not_found');
     }
   }
 }
@@ -78,8 +78,8 @@ ob_start();
 <div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
   <span style="font-size:1.75rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-list-ul"></i></span>
   <div>
-    <p style="font-weight:700; margin-bottom:0.25rem;">Manage Your Categories</p>
-    <p style="margin-bottom:0;">Here's the list of categories you've created. Each category helps you organize your tasks into separate lists.</p>
+    <p style="font-weight:700; margin-bottom:0.25rem;"><?= t('todo_categories_intro_heading') ?></p>
+    <p style="margin-bottom:0;"><?= t('todo_categories_intro_text') ?></p>
   </div>
 </div>
 <?php if (!empty($message)): ?>
@@ -93,7 +93,7 @@ ob_start();
           <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-folder"></i></span>
           <div style="flex:1; min-width:0;">
             <p style="font-weight:700; margin-bottom:0.25rem; word-break:break-word;"><?php echo htmlspecialchars($row['category']); ?></p>
-            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0;">ID: <?php echo htmlspecialchars($row['id']); ?></p>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0;"><?= t('todo_categories_id_label') ?> <?php echo htmlspecialchars($row['id']); ?></p>
           </div>
           <div style="flex-shrink:0;">
             <form method="post" style="margin-bottom:0;" class="remove-category-form">

@@ -59,27 +59,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <div class="sp-card-title"><i class="fas fa-trash"></i> Remove a Task</div>
+    <div class="sp-card-title"><i class="fas fa-trash"></i> <?= t('todo_remove_card_title') ?></div>
   </div>
   <div class="sp-card-body">
     <?php if ($num_rows < 1): ?>
       <div class="sp-alert sp-alert-info" style="display:flex; align-items:center; gap:0.75rem;">
         <i class="fas fa-tasks fa-2x" style="color:var(--blue); flex-shrink:0;"></i>
         <div>
-          <strong>Your to-do list is empty!</strong>
-          <p style="margin-bottom:0;">You can't remove any tasks because there aren't any yet.</p>
+          <strong><?= t('todo_remove_empty_heading') ?></strong>
+          <p style="margin-bottom:0;"><?= t('todo_remove_empty_text') ?></p>
         </div>
       </div>
     <?php else: ?>
       <div style="display:flex; align-items:flex-end; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
         <div style="flex:1; min-width:200px;">
-          <label for="searchInput" class="sp-label">Search Tasks</label>
-          <input type="text" name="search" id="searchInput" placeholder="Search todos" class="sp-input" onkeyup="searchFunction()">
+          <label for="searchInput" class="sp-label"><?= t('todo_remove_search_label') ?></label>
+          <input type="text" name="search" id="searchInput" placeholder="<?= htmlspecialchars(t('todo_remove_search_placeholder')) ?>" class="sp-input" onkeyup="searchFunction()">
         </div>
         <div style="min-width:200px;">
-          <label for="categoryFilter" class="sp-label">Filter by Category</label>
+          <label for="categoryFilter" class="sp-label"><?= t('todo_remove_filter_label') ?></label>
           <select id="categoryFilter" class="sp-select" onchange="applyCategoryFilter()">
-            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+            <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>><?= t('todo_remove_filter_all') ?></option>
             <?php
             $categories_sql = "SELECT * FROM categories";
             $categories_stmt = $db->prepare($categories_sql);
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </select>
         </div>
       </div>
-      <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;">Please pick which task to remove from your list:</h2>
+      <h2 style="font-size:1rem; font-weight:700; margin-bottom:1rem;"><?= t('todo_remove_pick_heading') ?></h2>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
         <?php foreach ($result as $row): ?>
           <div class="sp-card" style="margin-bottom:0;">
@@ -104,17 +104,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p style="font-weight:600; margin-bottom:0.3rem;"><?= htmlspecialchars($row['objective']) ?></p>
                 <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.3rem; display:flex; align-items:center; gap:0.3rem;">
                   <i class="fas fa-folder"></i>
-                  <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                  <?php echo htmlspecialchars($row['category_name'] ?? t('todo_remove_uncategorized')); ?>
                 </p>
                 <?= ($row['completed'] === 'Yes')
-                  ? '<span class="sp-badge sp-badge-green">Completed</span>'
-                  : '<span class="sp-badge sp-badge-amber">Not completed</span>' ?>
+                  ? '<span class="sp-badge sp-badge-green">' . t('todo_remove_badge_completed') . '</span>'
+                  : '<span class="sp-badge sp-badge-amber">' . t('todo_remove_badge_not_completed') . '</span>' ?>
               </div>
               <div>
                 <form method="POST" style="margin-bottom:0;" class="remove-task-form">
                   <input type="hidden" name="todo_id" value="<?= $row['id'] ?>">
                   <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-task-btn" style="width:100%;">
-                    <i class="fas fa-trash"></i> Remove
+                    <i class="fas fa-trash"></i> <?= t('todo_remove_btn_remove') ?>
                   </button>
                 </form>
               </div>

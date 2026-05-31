@@ -138,18 +138,18 @@ try {
 ob_start();
 ?>
 <h1 style="font-size:1.75rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;">
-    <i class="fas fa-bell"></i> EventSub Notifications
+    <i class="fas fa-bell"></i> <?= t('notifications_page_title') ?>
 </h1>
-<p style="color:var(--text-secondary); margin-bottom:1rem;">Monitor and manage your Twitch EventSub subscriptions <span id="auto-refresh-indicator" style="font-size:12px; color:var(--text-muted);">(Auto-refreshing every 10s)</span></p>
+<p style="color:var(--text-secondary); margin-bottom:1rem;"><?= t('notifications_page_subtitle') ?> <span id="auto-refresh-indicator" style="font-size:12px; color:var(--text-muted);"><?= t('notifications_auto_refresh_indicator') ?></span></p>
 <div style="margin-bottom:0.75rem;">
     <button id="refresh-my-ws-btn" class="sp-btn sp-btn-sm" onclick="refreshInternalWebsocket(this)">
-        <i class="fas fa-plug"></i>&nbsp; Refresh Internal Websocket
+        <i class="fas fa-plug"></i>&nbsp; <?= t('notifications_refresh_internal_websocket_btn') ?>
     </button>
 </div>
 <div id="notification-messages">
     <?php if ($error): ?>
         <div class="error-box">
-            <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
+            <strong><?= t('notifications_error_label') ?></strong> <?php echo htmlspecialchars($error); ?>
         </div>
     <?php endif; ?>
 </div>
@@ -158,21 +158,21 @@ ob_start();
 </div>
 <div class="sp-card" id="internal-ws-box" style="margin-top:1rem;">
     <div class="sp-card-body">
-    <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><i class="fas fa-plug"></i> Internal Websocket Connections</h2>
-    <p style="margin-bottom:0.75rem;">This shows websocket clients connected to your API key on the internal BotOfTheSpecter websocket service.</p>
-    <div id="internal-ws-summary" class="info-box">Loading internal websocket status...</div>
+    <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem;"><i class="fas fa-plug"></i> <?= t('notifications_internal_ws_heading') ?></h2>
+    <p style="margin-bottom:0.75rem;"><?= t('notifications_internal_ws_description') ?></p>
+    <div id="internal-ws-summary" class="info-box"><?= t('notifications_internal_ws_loading_status') ?></div>
     <div class="sp-table-wrap" style="margin-top:0.625rem;">
         <table class="data-table sp-table" id="internal-ws-table">
             <thead>
                 <tr>
-                    <th>Client Name</th>
-                    <th>Socket ID</th>
-                    <th>Admin</th>
-                    <th>Actions</th>
+                    <th><?= t('notifications_th_client_name') ?></th>
+                    <th><?= t('notifications_th_socket_id') ?></th>
+                    <th><?= t('notifications_th_admin') ?></th>
+                    <th><?= t('notifications_th_actions') ?></th>
                 </tr>
             </thead>
             <tbody id="internal-ws-tbody">
-                <tr><td colspan="4" style="text-align:center;">Loading...</td></tr>
+                <tr><td colspan="4" style="text-align:center;"><?= t('notifications_loading') ?></td></tr>
             </tbody>
         </table>
     </div>
