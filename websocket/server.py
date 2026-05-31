@@ -16,6 +16,7 @@ from logging.handlers import RotatingFileHandler
 
 # Import our modular components
 from music_handler import MusicHandler
+from media_handler import MediaHandler
 from tts_handler import TTSHandler
 from event_handler import EventHandler
 from security_manager import SecurityManager
@@ -137,6 +138,13 @@ class BotOfTheSpecter_WebsocketServer:
             save_settings=self.settings_manager.save_music_settings,
             load_settings=self.settings_manager.load_music_settings,
         )
+        self.media_handler = MediaHandler(
+            sio=self.sio,
+            logger=self.logger,
+            get_clients=get_clients,
+            execute_query=self.execute_query,
+            get_user_info=self.get_user_api_key_info,
+        )
         # Initialize web application with security middleware
         self.app = web.Application(
             middlewares=[self.security_manager.ip_restriction_middleware],
@@ -215,6 +223,7 @@ class BotOfTheSpecter_WebsocketServer:
             # OBS commands: FROM Specter TO OBS (outgoing commands to control OBS)
             ("OBS_REQUEST", self.obs_handler.handle_obs_request),
             ("MUSIC_COMMAND", self.music_handler.music_command),
+            ("MEDIA_COMMAND", self.media_handler.media_command),
             # Chat overlay relay
             ("CHAT_MESSAGE", self.handle_chat_message),
             # Chat moderation events (from bot, relayed to overlay)

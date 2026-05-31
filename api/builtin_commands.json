@@ -30,7 +30,7 @@
 			"syntax": "!roulette"
 		},
 		"songrequest": {
-			"description": "Adds a song to the Spotify queue. Accepts a song title, artist name, Spotify link, or YouTube link. Requires Spotify to be linked in the dashboard.",
+			"description": "Adds a song to the request queue. Accepts a song title, artist name, Spotify link, or YouTube link. Uses Spotify if linked, otherwise plays via the Media Player (YouTube) overlay.",
 			"aliases": ["sr"],
 			"syntax": [
 				"!songrequest Never Gonna Give You Up",
@@ -40,14 +40,18 @@
 			]
 		},
 		"songqueue": {
-			"description": "Displays the current Spotify song request queue. Requires Spotify to be linked in the dashboard.",
+			"description": "Displays the current song request queue (Spotify if linked, otherwise the Media Player queue).",
 			"aliases": ["sq", "queue"],
 			"syntax": "!songqueue"
 		},
 		"skipsong": {
-			"description": "Skips the currently playing song in the Spotify request queue.",
+			"description": "Skips the currently playing song (Spotify if linked, otherwise the Media Player queue).",
 			"aliases": ["skip"],
 			"syntax": "!skipsong"
+		},
+		"removesong": {
+			"description": "Removes a song from the Media Player request queue by its position. Mod-only.",
+			"syntax": ["!removesong 2"]
 		},
 		"watchtime": {
 			"description": "Shows how long you have been watching the current stream session.",
