@@ -182,26 +182,26 @@ if ($sessionCount >= 3) {
             <div class="session-group">
                 <div class="session-header">
                     <div>
-                        <strong>Session Name:</strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
+                        <strong><?= t('notifications_content_label_session_name') ?></strong> <span class="session-name"><?php echo htmlspecialchars($sessionName); ?></span>
                         <br>
-                        <strong>Session ID:</strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
+                        <strong><?= t('notifications_content_label_session_id') ?></strong> <span class="session-id"><?php echo htmlspecialchars($sessionId); ?></span>
                     </div>
                     <div class="sub-count">
-                        <?php echo count($subs); ?> subscriptions
+                        <?php echo count($subs); ?> <?= t('notifications_content_subscriptions_word') ?>
                         <button class="custom-btn" onclick="deleteAllInSession('<?php echo htmlspecialchars($sessionId, ENT_QUOTES); ?>', <?php echo count($subs); ?>, '<?php echo htmlspecialchars($sessionName, ENT_QUOTES); ?>')" style="margin-left: 10px;">
-                            <i class="fas fa-trash-alt"></i> Delete All in Session
+                            <i class="fas fa-trash-alt"></i> <?= t('notifications_content_btn_delete_all_in_session') ?>
                         </button>
                     </div>
                 </div>
                 <table class="data-table sp-table">
                     <thead>
                         <tr>
-                            <th>Type</th>
-                            <th>Version</th>
-                            <th>Condition</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Action</th>
+                            <th><?= t('notifications_content_th_type') ?></th>
+                            <th><?= t('notifications_content_th_version') ?></th>
+                            <th><?= t('notifications_content_th_condition') ?></th>
+                            <th><?= t('notifications_content_th_status') ?></th>
+                            <th><?= t('notifications_content_th_created') ?></th>
+                            <th><?= t('notifications_content_th_action') ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -252,16 +252,16 @@ if ($sessionCount >= 3) {
 <?php if (count($data['webhookSubs']) > 0): ?>
     <div class="sp-card"><div class="sp-card-body">
         <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
-            <i class="fas fa-link"></i> Webhook Subscriptions
+            <i class="fas fa-link"></i> <?= t('notifications_content_heading_webhook_subscriptions') ?>
         </h2>
         <table class="data-table sp-table">
             <thead>
                 <tr>
-                    <th>Type</th>
-                    <th>Version</th>
-                    <th>Callback URL</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    <th><?= t('notifications_content_th_type') ?></th>
+                    <th><?= t('notifications_content_th_version') ?></th>
+                    <th><?= t('notifications_content_th_callback_url') ?></th>
+                    <th><?= t('notifications_content_th_status') ?></th>
+                    <th><?= t('notifications_content_th_action') ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -281,7 +281,7 @@ if ($sessionCount >= 3) {
                         </td>
                         <td>
                             <button onclick="deleteSingleSubscription('<?php echo htmlspecialchars($sub['id'], ENT_QUOTES); ?>')" class="delete-btn">
-                                <i class="fas fa-trash"></i> Delete
+                                <i class="fas fa-trash"></i> <?= t('notifications_content_btn_delete') ?>
                             </button>
                         </td>
                     </tr>
@@ -295,7 +295,7 @@ if ($sessionCount >= 3) {
     <div class="sp-card" style="text-align:center;"><div class="sp-card-body">
         <p style="color:var(--text-secondary);">
             <i class="fas fa-inbox"></i><br>
-            No EventSub subscriptions found.
+            <?= t('notifications_content_empty_no_subscriptions') ?>
         </p>
     </div></div>
 <?php endif; ?>

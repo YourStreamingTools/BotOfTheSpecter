@@ -5,7 +5,7 @@ include_once __DIR__ . '/lang/i18n.php';
 
 require_once '/var/www/lib/require_auth.php';
 
-$pageTitle = 'Videos';
+$pageTitle = t('videos_page_title');
 
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
@@ -68,7 +68,7 @@ function fetchTwitchPage($endpoint, array $query, $accessToken, $clientID) {
 			'items' => [],
 			'cursor' => '',
 			'http_code' => $httpCode,
-			'error' => 'Unable to connect to Twitch: ' . $result['curl_error'],
+			'error' => t('videos_error_twitch_connect') . ' ' . $result['curl_error'],
 		];
 	}
 	if ($httpCode !== 200) {
@@ -77,7 +77,7 @@ function fetchTwitchPage($endpoint, array $query, $accessToken, $clientID) {
 			'items' => [],
 			'cursor' => '',
 			'http_code' => $httpCode,
-			'error' => 'Twitch API error (HTTP ' . $httpCode . ')' . ($apiMessage !== '' ? ': ' . $apiMessage : '.'),
+			'error' => t('videos_error_twitch_api', ['code' => $httpCode]) . ($apiMessage !== '' ? ': ' . $apiMessage : '.'),
 		];
 	}
 	return [
@@ -146,12 +146,12 @@ function fetchClipDownloadUrls(array $clipIds, $broadcasterId, $editorId, $acces
 		$downloadResult = twitchApiRequest('GET', $downloadUrl, $accessToken, $clientID);
 		$downloadBody = json_decode((string) $downloadResult['body'], true);
 		if ($downloadResult['curl_error']) {
-			$error = 'Clip download lookup failed: ' . $downloadResult['curl_error'];
+			$error = t('videos_error_clip_download_lookup') . ' ' . $downloadResult['curl_error'];
 			break;
 		}
 		if ((int) $downloadResult['http_code'] !== 200) {
 			$apiMessage = is_array($downloadBody) && isset($downloadBody['message']) ? (string) $downloadBody['message'] : '';
-			$error = 'Clip download lookup failed (HTTP ' . (int) $downloadResult['http_code'] . ').' . ($apiMessage !== '' ? ' ' . $apiMessage : '');
+			$error = t('videos_error_clip_download_lookup_http', ['code' => (int) $downloadResult['http_code']]) . ($apiMessage !== '' ? ' ' . $apiMessage : '');
 			break;
 		}
 		$downloadData = isset($downloadBody['data']) && is_array($downloadBody['data']) ? $downloadBody['data'] : [];
@@ -429,23 +429,23 @@ $flashError = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_video') {
 	$deleteVideoId = isset($_POST['video_id']) ? trim((string) $_POST['video_id']) : '';
 	if ($deleteVideoId === '') {
-		$flashError = 'Video ID is required.';
+		$flashError = t('videos_error_video_id_required');
 	} else {
 		$deleteUrl = 'https://api.twitch.tv/helix/videos?' . buildTwitchQuery(['id' => [$deleteVideoId]]);
 		$deleteResult = twitchApiRequest('DELETE', $deleteUrl, $accessToken, $clientID);
 		$deleteBody = json_decode((string) $deleteResult['body'], true);
 		if ($deleteResult['curl_error']) {
-			$flashError = 'Delete failed: ' . $deleteResult['curl_error'];
+			$flashError = t('videos_error_delete_failed') . ' ' . $deleteResult['curl_error'];
 		} elseif ((int) $deleteResult['http_code'] === 200) {
 			$deletedItems = isset($deleteBody['data']) && is_array($deleteBody['data']) ? $deleteBody['data'] : [];
 			if (in_array($deleteVideoId, $deletedItems, true) || empty($deletedItems)) {
-				$flashSuccess = 'Video deleted from Twitch.';
+				$flashSuccess = t('videos_deleted_success');
 			} else {
-				$flashSuccess = 'Delete request completed.';
+				$flashSuccess = t('videos_delete_completed');
 			}
 		} else {
 			$apiMessage = is_array($deleteBody) && isset($deleteBody['message']) ? (string) $deleteBody['message'] : '';
-			$flashError = 'Delete failed (HTTP ' . (int) $deleteResult['http_code'] . ').' . ($apiMessage !== '' ? ' ' . $apiMessage : '');
+			$flashError = t('videos_error_delete_failed_http', ['code' => (int) $deleteResult['http_code']]) . ($apiMessage !== '' ? ' ' . $apiMessage : '');
 		}
 	}
 }
@@ -464,7 +464,7 @@ $videoTypeMap = [
 ];
 
 if ($channelUserId === '') {
-	$flashError = 'No Twitch channel ID is available for this login session.';
+	$flashError = t('videos_error_no_channel_id');
 } else {
 	if ($isClipsMode) {
 		$sortedClipsResult = fetchSortedChannelClips($channelUserId, $accessToken, $clientID, 1000);
@@ -511,12 +511,12 @@ ob_start();
 		<span class="sp-card-title">
 			<span class="icon mr-2"><i class="fas fa-photo-video"></i></span>
 			<?php
-			echo match($tab) {
-				'highlights' => 'Highlighted Videos',
-				'uploads'    => 'Uploaded Videos',
-				'clips'      => 'Clips',
-				default      => 'Archive VODs',
-			};
+			echo htmlspecialchars(match($tab) {
+				'highlights' => t('videos_header_highlights'),
+				'uploads'    => t('videos_header_uploads'),
+				'clips'      => t('videos_header_clips'),
+				default      => t('videos_header_archive'),
+			}, ENT_QUOTES, 'UTF-8');
 			?>
 		</span>
 	</div>
@@ -525,25 +525,25 @@ ob_start();
 			<li class="<?php echo $tab === 'videos' ? 'is-active' : ''; ?>">
 				<a href="<?php echo htmlspecialchars($videosTabLink, ENT_QUOTES, 'UTF-8'); ?>">
 					<span class="icon is-small"><i class="fas fa-photo-video"></i></span>
-					<span>Archive VODs</span>
+					<span><?php echo htmlspecialchars(t('videos_tab_archive'), ENT_QUOTES, 'UTF-8'); ?></span>
 				</a>
 			</li>
 			<li class="<?php echo $tab === 'highlights' ? 'is-active' : ''; ?>">
 				<a href="<?php echo htmlspecialchars($highlightsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
 					<span class="icon is-small"><i class="fas fa-star"></i></span>
-					<span>Highlights</span>
+					<span><?php echo htmlspecialchars(t('videos_tab_highlights'), ENT_QUOTES, 'UTF-8'); ?></span>
 				</a>
 			</li>
 			<li class="<?php echo $tab === 'uploads' ? 'is-active' : ''; ?>">
 				<a href="<?php echo htmlspecialchars($uploadsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
 					<span class="icon is-small"><i class="fas fa-upload"></i></span>
-					<span>Uploads</span>
+					<span><?php echo htmlspecialchars(t('videos_tab_uploads'), ENT_QUOTES, 'UTF-8'); ?></span>
 				</a>
 			</li>
 			<li class="<?php echo $tab === 'clips' ? 'is-active' : ''; ?>">
 				<a href="<?php echo htmlspecialchars($clipsTabLink, ENT_QUOTES, 'UTF-8'); ?>">
 					<span class="icon is-small"><i class="fas fa-film"></i></span>
-					<span>Clips</span>
+					<span><?php echo htmlspecialchars(t('videos_tab_clips'), ENT_QUOTES, 'UTF-8'); ?></span>
 				</a>
 			</li>
 		</ul>
@@ -558,22 +558,22 @@ ob_start();
 		<?php endif; ?>
 		<?php if (empty($videos) && $apiError === '' && $flashError === '' && $channelUserId !== ''): ?>
 			<?php
-			$emptyLabel = match($tab) {
-				'clips'      => 'clips',
-				'highlights' => 'highlights',
-				'uploads'    => 'uploaded videos',
-				default      => 'archive VODs',
+			$emptyMessage = match($tab) {
+				'clips'      => t('videos_empty_clips'),
+				'highlights' => t('videos_empty_highlights'),
+				'uploads'    => t('videos_empty_uploads'),
+				default      => t('videos_empty_archive'),
 			};
 			?>
-			<div class="sp-alert sp-alert-info">No <?php echo $emptyLabel; ?> found for this channel.</div>
+			<div class="sp-alert sp-alert-info"><?php echo htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8'); ?></div>
 		<?php endif; ?>
 		<?php if ($isClipsMode): ?>
 			<div class="sp-card mb-4">
 				<div class="sp-card-body" style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
-					<p class="sp-text-muted" id="clipsLoadStatus">Loaded <?php echo count($videos); ?> clips.</p>
+					<p class="sp-text-muted" id="clipsLoadStatus"><?php echo htmlspecialchars(t('videos_loaded_clips', ['count' => count($videos)]), ENT_QUOTES, 'UTF-8'); ?></p>
 					<div class="sp-btn-group" style="margin-bottom:0;">
-						<button id="clipsLoadMoreBtn" class="sp-btn sp-btn-primary" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load 20 More</button>
-						<button id="clipsLoadAllBtn" class="sp-btn sp-btn-warning" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>>Load All</button>
+						<button id="clipsLoadMoreBtn" class="sp-btn sp-btn-primary" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>><?php echo htmlspecialchars(t('videos_load_20_more'), ENT_QUOTES, 'UTF-8'); ?></button>
+						<button id="clipsLoadAllBtn" class="sp-btn sp-btn-warning" <?php echo !$clipsHasMore ? 'disabled' : ''; ?>><?php echo htmlspecialchars(t('videos_load_all'), ENT_QUOTES, 'UTF-8'); ?></button>
 					</div>
 				</div>
 			</div>

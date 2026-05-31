@@ -75,35 +75,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_category_id'])
 }
 ob_start();
 ?>
-<div class="sp-alert sp-alert-info" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem;">
-  <span style="font-size:1.75rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-list-ul"></i></span>
+<style>
+.todo-cat-intro {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+.todo-cat-intro-icon {
+  font-size: 1.75rem;
+  color: var(--blue);
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.todo-cat-intro p { margin-bottom: 0; }
+.todo-cat-intro p + p { margin-top: 0.25rem; }
+
+.todo-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.todo-cat-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin-bottom: 0;
+  transition: transform var(--transition), border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.todo-cat-card:hover {
+  transform: translateY(-2px);
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.todo-cat-card .sp-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex: 1;
+}
+
+.todo-cat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  color: var(--blue);
+  background: var(--blue-bg);
+  border-radius: var(--radius);
+}
+
+.todo-cat-info {
+  flex: 1;
+  min-width: 0;
+  /* leave room for the absolutely-positioned delete button */
+  padding-right: 2.25rem;
+}
+.todo-cat-name {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.todo-cat-id {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+.todo-cat-remove-form {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  margin-bottom: 0;
+}
+</style>
+<div class="sp-alert sp-alert-info todo-cat-intro">
+  <span class="todo-cat-intro-icon"><i class="fas fa-list-ul"></i></span>
   <div>
-    <p style="font-weight:700; margin-bottom:0.25rem;"><?= t('todo_categories_intro_heading') ?></p>
-    <p style="margin-bottom:0;"><?= t('todo_categories_intro_text') ?></p>
+    <p style="font-weight:700;"><?= t('todo_categories_intro_heading') ?></p>
+    <p><?= t('todo_categories_intro_text') ?></p>
   </div>
 </div>
 <?php if (!empty($message)): ?>
   <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;"><?php echo htmlspecialchars($message); ?></div>
 <?php endif; ?>
-<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:1rem;">
+<div class="todo-cat-grid">
   <?php foreach ($result as $row): ?>
-    <div class="sp-card" style="margin-bottom:0;">
+    <div class="sp-card todo-cat-card">
       <div class="sp-card-body">
-        <div style="display:flex; align-items:center; gap:1rem;">
-          <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-folder"></i></span>
-          <div style="flex:1; min-width:0;">
-            <p style="font-weight:700; margin-bottom:0.25rem; word-break:break-word;"><?php echo htmlspecialchars($row['category']); ?></p>
-            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0;"><?= t('todo_categories_id_label') ?> <?php echo htmlspecialchars($row['id']); ?></p>
-          </div>
-          <div style="flex-shrink:0;">
-            <form method="post" style="margin-bottom:0;" class="remove-category-form">
-              <input type="hidden" name="remove_category_id" value="<?php echo $row['id']; ?>">
-              <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-category-btn">
-                <i class="fas fa-trash"></i>
-              </button>
-            </form>
-          </div>
+        <span class="todo-cat-icon"><i class="fas fa-folder"></i></span>
+        <div class="todo-cat-info">
+          <p class="todo-cat-name"><?php echo htmlspecialchars($row['category']); ?></p>
+          <p class="todo-cat-id"><?= t('todo_categories_id_label') ?> <?php echo htmlspecialchars($row['id']); ?></p>
         </div>
+        <form method="post" class="remove-category-form todo-cat-remove-form">
+          <input type="hidden" name="remove_category_id" value="<?php echo $row['id']; ?>">
+          <button type="button" class="sp-btn sp-btn-danger sp-btn-sm remove-category-btn">
+            <i class="fas fa-trash"></i>
+          </button>
+        </form>
       </div>
     </div>
   <?php endforeach; ?>
