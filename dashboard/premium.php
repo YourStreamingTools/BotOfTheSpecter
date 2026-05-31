@@ -169,7 +169,7 @@ ob_start();
     <!-- Free Plan Card -->
     <div class="sp-card sp-plan-card <?php echo ($currentPlan === 'free') ? 'is-current' : ''; ?>">
         <?php if ($currentPlan === 'free'): ?>
-            <div class="sp-plan-current-ribbon">CURRENT</div>
+            <div class="sp-plan-current-ribbon"><?php echo t('premium_current_ribbon'); ?></div>
         <?php endif; ?>
         <div class="sp-card-body sp-plan-body">
             <div class="sp-plan-icon-area">
@@ -196,16 +196,16 @@ ob_start();
                     <i class="fas fa-check sp-plan-feature-icon"></i>
                     <?php echo t('premium_plan_free_feature_shared_bot'); ?>
                 </li>
-                <li title="Custom Bot Name - Experimental or Coming Soon">
+                <li title="<?php echo htmlspecialchars(t('premium_plan_free_feature_custom_bot_tip')); ?>">
                     <i class="fas fa-flask sp-plan-feature-icon--amber"></i>
-                    Custom Bot Name (Your Custom Bot Name, Experimental/Coming Soon)
+                    <?php echo t('premium_plan_free_feature_custom_bot'); ?>
                 </li>
             </ul>
-            <p class="sp-plan-note"><strong>90-95% of the bot is FREE!</strong></p>
+            <p class="sp-plan-note"><?php echo t('premium_plan_free_note'); ?></p>
             <?php if ($currentPlan === 'free'): ?>
                 <?php if ($betaAccess): ?>
                     <span class="sp-btn sp-btn-info sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">
-                        <i class="fas fa-flask"></i> Beta Access
+                        <i class="fas fa-flask"></i> <?php echo t('premium_beta_access'); ?>
                     </span>
                 <?php else: ?>
                     <span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none;">
@@ -226,7 +226,7 @@ ob_start();
         ?>
         <div class="sp-card sp-plan-card <?php echo $isCurrentPlan ? 'is-current' : ''; ?>">
             <?php if ($isCurrentPlan): ?>
-                <div class="sp-plan-current-ribbon">CURRENT</div>
+                <div class="sp-plan-current-ribbon"><?php echo t('premium_current_ribbon'); ?></div>
             <?php endif; ?>
             <div class="sp-card-body sp-plan-body">
                 <div class="sp-plan-icon-area">
@@ -248,11 +248,11 @@ ob_start();
                     <?php if ($betaAccess): ?>
                         <?php if ($isCurrentPlan): ?>
                             <span class="sp-btn sp-btn-success sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">
-                                <i class="fas fa-check-circle"></i> <?php echo t('premium_current_plan'); ?> + Beta
+                                <i class="fas fa-check-circle"></i> <?php echo t('premium_current_plan'); ?> <?php echo t('premium_plus_beta'); ?>
                             </span>
                         <?php else: ?>
                             <span class="sp-btn sp-btn-info sp-btn-block" style="cursor: default; pointer-events: none; opacity: 0.8;">
-                                <i class="fas fa-flask"></i> Beta Access
+                                <i class="fas fa-flask"></i> <?php echo t('premium_beta_access'); ?>
                             </span>
                         <?php endif; ?>
                     <?php else: ?>
@@ -290,7 +290,7 @@ ob_start();
 <?php if ($betaAccess): ?>
 <div class="sp-plan-beta-wrapper">
     <div class="sp-card sp-plan-card is-current sp-plan-beta-card">
-        <div class="sp-plan-current-ribbon">CURRENT</div>
+        <div class="sp-plan-current-ribbon"><?php echo t('premium_current_ribbon'); ?></div>
         <div class="sp-card-body sp-plan-body">
             <div class="sp-plan-icon-area">
                 <div class="sp-plan-icon-wrap">

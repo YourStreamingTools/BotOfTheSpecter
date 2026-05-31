@@ -405,22 +405,22 @@ ob_start();
 <div class="alerts-page-shell">
     <div class="sp-alert sp-alert-info alerts-media-notice">
         <i class="fas fa-photo-film"></i>
-        <span><strong>Specter Alerts uses the new Unified Media Library.</strong> Upload your files on the <a href="media.php">Media</a> page.</span>
+        <span><?= t('alerts_media_notice') ?></span>
     </div>
     <!-- Top header bar — title, counter, save/discard -->
     <header class="alerts-top-bar">
         <div class="alerts-top-bar-left">
-            <h1 class="alerts-page-title">Alerts</h1>
+            <h1 class="alerts-page-title"><?= t('alerts_page_title') ?></h1>
             <span class="alerts-variant-counter">
-                <strong id="alerts-variant-count"><?php echo $totalVariants; ?></strong> variants
+                <strong id="alerts-variant-count"><?php echo $totalVariants; ?></strong> <?= t('alerts_variants_word') ?>
             </span>
         </div>
         <div class="alerts-top-bar-right">
             <button class="sp-btn sp-btn-ghost" id="alerts-discard-btn" disabled>
-                <i class="fas fa-rotate-left"></i> Discard
+                <i class="fas fa-rotate-left"></i> <?= t('alerts_discard_btn') ?>
             </button>
             <button class="sp-btn sp-btn-primary" id="alerts-save-btn" disabled>
-                <i class="fas fa-save"></i> Save changes
+                <i class="fas fa-save"></i> <?= t('alerts_save_changes_btn') ?>
             </button>
         </div>
     </header>
@@ -429,9 +429,9 @@ ob_start();
         <!-- LEFT: variants sidebar -->
         <aside class="alerts-sidebar">
             <div class="alerts-sidebar-header">
-                <span class="alerts-sidebar-label">Variants</span>
+                <span class="alerts-sidebar-label"><?= t('alerts_sidebar_variants') ?></span>
                 <div class="alerts-sidebar-tools">
-                    <a href="#" class="alerts-edit-multiple" id="alerts-edit-multiple-link">Edit multiple</a>
+                    <a href="#" class="alerts-edit-multiple" id="alerts-edit-multiple-link"><?= t('alerts_edit_multiple') ?></a>
                 </div>
             </div>
             <div class="alerts-categories-scroll">
@@ -446,7 +446,7 @@ ob_start();
                 <section class="alerts-category" data-category="<?php echo htmlspecialchars($category); ?>">
                     <header class="alerts-category-header">
                         <span class="alerts-category-icon"><i class="<?php echo $meta['icon']; ?>"></i></span>
-                        <span class="alerts-category-name"><?php echo htmlspecialchars($meta['label']); ?></span>
+                        <span class="alerts-category-name"><?php echo htmlspecialchars(t('alerts_cat_' . $category)); ?></span>
                         <span class="alerts-category-count"><?php echo count($variants); ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
@@ -456,17 +456,17 @@ ob_start();
                             <label class="alerts-mini-toggle">
                                 <input type="checkbox" class="alerts-randomize-toggle" data-category="<?php echo htmlspecialchars($category); ?>" <?php echo $randomize ? 'checked' : ''; ?>>
                                 <span class="alerts-mini-toggle-slider"></span>
-                                <span class="alerts-mini-toggle-text">Randomize</span>
+                                <span class="alerts-mini-toggle-text"><?= t('alerts_randomize') ?></span>
                             </label>
                             <?php endif; ?>
-                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="Add a new variant"<?php echo $canAddVariant ? '' : ' style="display:none;"'; ?>>
-                                <i class="fas fa-plus"></i> New variant
+                            <button type="button" class="alerts-new-variant-btn" data-category="<?php echo htmlspecialchars($category); ?>" title="<?= htmlspecialchars(t('alerts_new_variant_title')) ?>"<?php echo $canAddVariant ? '' : ' style="display:none;"'; ?>>
+                                <i class="fas fa-plus"></i> <?= t('alerts_new_variant_btn') ?>
                             </button>
                         </div>
                         <ul class="alerts-variant-list">
                             <?php foreach ($variants as $variant): ?>
                             <li class="alerts-variant-item" data-id="<?php echo $variant['id']; ?>">
-                                <span class="alerts-variant-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
+                                <span class="alerts-variant-handle" title="<?= htmlspecialchars(t('alerts_drag_reorder')) ?>"><i class="fas fa-grip-vertical"></i></span>
                                 <span class="alerts-variant-priority"><?php echo $variant['variant_index'] + 1; ?></span>
                                 <div class="alerts-variant-info">
                                     <div class="variant-name"><?php echo htmlspecialchars($variant['variant_name']); ?></div>
@@ -481,7 +481,7 @@ ob_start();
                             </li>
                             <?php endforeach; ?>
                             <?php if (empty($variants)): ?>
-                            <li class="alerts-variant-empty">No variants yet — add one above.</li>
+                            <li class="alerts-variant-empty"><?= t('alerts_no_variants_yet') ?></li>
                             <?php endif; ?>
                         </ul>
                     </div>
@@ -493,15 +493,15 @@ ob_start();
         <div class="alerts-preview-panel">
             <div class="alerts-preview-actions">
                 <button class="sp-btn sp-btn-secondary" id="preview-alert-btn" disabled>
-                    <i class="fas fa-eye"></i> Replay preview
+                    <i class="fas fa-eye"></i> <?= t('alerts_replay_preview') ?>
                 </button>
                 <button class="sp-btn sp-btn-primary" id="test-alert-btn" disabled>
-                    <i class="fas fa-paper-plane"></i> Trigger live test
+                    <i class="fas fa-paper-plane"></i> <?= t('alerts_trigger_live_test') ?>
                 </button>
             </div>
             <div class="alerts-preview-area" id="preview-area">
                 <div class="alerts-no-selection" id="preview-placeholder">
-                    Select a variant from the left to preview it here.
+                    <?= t('alerts_preview_placeholder') ?>
                 </div>
                 <div class="alerts-preview-box" id="preview-box" style="display:none;">
                     <div class="alerts-preview-content" id="preview-content">
@@ -511,75 +511,75 @@ ob_start();
                 </div>
             </div>
             <div class="alerts-preview-options">
-                <span class="alerts-preview-options-label">Preview canvas</span>
+                <span class="alerts-preview-options-label"><?= t('alerts_preview_canvas') ?></span>
                 <label class="alerts-mini-toggle">
                     <input type="checkbox" id="preview-autoplay" checked>
                     <span class="alerts-mini-toggle-slider"></span>
-                    <span class="alerts-mini-toggle-text">Autoplay</span>
+                    <span class="alerts-mini-toggle-text"><?= t('alerts_autoplay') ?></span>
                 </label>
-                <label>Width</label>
+                <label><?= t('alerts_width') ?></label>
                 <input type="number" class="sp-input" id="preview-width" value="800" min="200" max="1920">
-                <label>Height</label>
+                <label><?= t('alerts_height') ?></label>
                 <input type="number" class="sp-input" id="preview-height" value="600" min="200" max="1080">
                 <div class="alerts-bg-swatches">
-                    <button type="button" class="alerts-bg-swatch active" data-bg="transparent" title="Transparent"></button>
-                    <button type="button" class="alerts-bg-swatch" data-bg="dark" title="Dark"></button>
-                    <button type="button" class="alerts-bg-swatch" data-bg="light" title="Light"></button>
-                    <button type="button" class="alerts-bg-swatch" data-bg="red" title="Red"></button>
+                    <button type="button" class="alerts-bg-swatch active" data-bg="transparent" title="<?= htmlspecialchars(t('alerts_bg_transparent')) ?>"></button>
+                    <button type="button" class="alerts-bg-swatch" data-bg="dark" title="<?= htmlspecialchars(t('alerts_bg_dark')) ?>"></button>
+                    <button type="button" class="alerts-bg-swatch" data-bg="light" title="<?= htmlspecialchars(t('alerts_bg_light')) ?>"></button>
+                    <button type="button" class="alerts-bg-swatch" data-bg="red" title="<?= htmlspecialchars(t('alerts_bg_red')) ?>"></button>
                 </div>
             </div>
         </div>
         <!-- RIGHT: settings panel -->
         <div class="alerts-settings-panel" id="settings-panel">
             <div class="alerts-no-selection" id="settings-placeholder">
-                Select a variant from the left to edit its settings.
+                <?= t('alerts_settings_placeholder') ?>
             </div>
             <div id="settings-form" style="display:none;">
                 <!-- General Settings -->
                 <section class="alerts-settings-section open">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-sliders"></i>
-                        <span>General</span>
+                        <span><?= t('alerts_section_general') ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group" id="variant-name-group">
-                            <label>Variant name</label>
+                            <label><?= t('alerts_variant_name') ?></label>
                             <input type="text" class="sp-input" id="set-variant-name">
                         </div>
                         <div class="alerts-form-group" id="variant-reward-group" style="display:none;">
-                            <label>Channel point reward</label>
+                            <label><?= t('alerts_channel_point_reward') ?></label>
                             <select class="sp-select" id="set-reward-id">
-                                <option value="">Select a reward…</option>
+                                <option value=""><?= t('alerts_select_a_reward') ?></option>
                             </select>
-                            <small class="alerts-help-text">The variant name and trigger condition come from the selected reward. Sync more in <a href="channel_rewards.php">Channel Rewards</a>.</small>
+                            <small class="alerts-help-text"><?= t('alerts_reward_help') ?></small>
                         </div>
                         <div class="alerts-form-group" id="variant-bingo-group" style="display:none;">
-                            <label>Bingo event</label>
+                            <label><?= t('alerts_bingo_event') ?></label>
                             <select class="sp-select" id="set-bingo-event">
-                                <option value="">Select a bingo event…</option>
+                                <option value=""><?= t('alerts_select_a_bingo_event') ?></option>
                                 <?php foreach ($bingoSubtypes as $key => $label): ?>
-                                <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars($label); ?></option>
+                                <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars(t('alerts_bingo_subtype_' . strtolower($key))); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <small class="alerts-help-text">Variants fire only when the selected bingo event happens. Each sub-event can have its own visual.</small>
+                            <small class="alerts-help-text"><?= t('alerts_bingo_help') ?></small>
                         </div>
                         <div class="alerts-form-group" id="variant-condition-group">
-                            <label>Condition <span class="alerts-help">(advanced)</span></label>
-                            <input type="text" class="sp-input" id="set-alert-condition" placeholder="e.g. bits >= 100, months = 1, gift_count >= 5">
-                            <small class="alerts-help-text">Only fire this variant when the condition matches. Leave blank to always match.</small>
+                            <label><?= t('alerts_condition_label') ?> <span class="alerts-help"><?= t('alerts_condition_advanced') ?></span></label>
+                            <input type="text" class="sp-input" id="set-alert-condition" placeholder="<?= htmlspecialchars(t('alerts_condition_placeholder')) ?>">
+                            <small class="alerts-help-text"><?= t('alerts_condition_help') ?></small>
                         </div>
                         <div class="alerts-form-group">
-                            <label>On-screen duration (seconds)</label>
+                            <label><?= t('alerts_onscreen_duration') ?></label>
                             <input type="number" class="sp-input" id="set-duration" min="1" max="99" value="8">
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>In animation</label>
+                                <label><?= t('alerts_in_animation') ?></label>
                                 <div class="alerts-inline-pair">
                                     <select class="sp-select" id="set-animation-in">
                                         <?php foreach ($animationsIn as $label => $val): ?>
-                                        <option value="<?php echo $val; ?>"><?php echo $label; ?></option>
+                                        <option value="<?php echo $val; ?>"><?php echo htmlspecialchars(t('alerts_anim_' . strtolower($val))); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                     <input type="number" class="sp-input alerts-inline-pair-mini" id="set-animation-in-duration" min="0.1" max="5" step="0.1" value="1">
@@ -588,11 +588,11 @@ ob_start();
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Out animation</label>
+                                <label><?= t('alerts_out_animation') ?></label>
                                 <div class="alerts-inline-pair">
                                     <select class="sp-select" id="set-animation-out">
                                         <?php foreach ($animationsOut as $label => $val): ?>
-                                        <option value="<?php echo $val; ?>"><?php echo $label; ?></option>
+                                        <option value="<?php echo $val; ?>"><?php echo htmlspecialchars(t('alerts_anim_' . strtolower($val))); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                     <input type="number" class="sp-input alerts-inline-pair-mini" id="set-animation-out-duration" min="0.1" max="5" step="0.1" value="1">
@@ -601,7 +601,7 @@ ob_start();
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label>Enabled</label>
+                                <label><?= t('alerts_enabled') ?></label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-enabled" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -614,56 +614,56 @@ ob_start();
                 <section class="alerts-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-th-large"></i>
-                        <span>Layout</span>
+                        <span><?= t('alerts_section_layout') ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
-                            <label>Image position</label>
+                            <label><?= t('alerts_image_position') ?></label>
                             <div class="layout-presets">
-                                <button type="button" class="layout-preset-btn active" data-layout="above" title="Image above text">
+                                <button type="button" class="layout-preset-btn active" data-layout="above" title="<?= htmlspecialchars(t('alerts_layout_above')) ?>">
                                     <svg viewBox="0 0 48 36"><rect x="16" y="2" width="16" height="12" rx="2" fill="currentColor"/><rect x="8" y="18" width="32" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="24" width="24" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
                                 </button>
-                                <button type="button" class="layout-preset-btn" data-layout="right" title="Text left, image right">
+                                <button type="button" class="layout-preset-btn" data-layout="right" title="<?= htmlspecialchars(t('alerts_layout_right')) ?>">
                                     <svg viewBox="0 0 48 36"><rect x="30" y="6" width="14" height="24" rx="2" fill="currentColor"/><rect x="4" y="10" width="22" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="4" y="17" width="18" height="3" rx="1" fill="currentColor" opacity="0.4"/><rect x="4" y="24" width="20" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
                                 </button>
-                                <button type="button" class="layout-preset-btn" data-layout="left" title="Image left, text right">
+                                <button type="button" class="layout-preset-btn" data-layout="left" title="<?= htmlspecialchars(t('alerts_layout_left')) ?>">
                                     <svg viewBox="0 0 48 36"><rect x="4" y="6" width="14" height="24" rx="2" fill="currentColor"/><rect x="22" y="10" width="22" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="22" y="17" width="18" height="3" rx="1" fill="currentColor" opacity="0.4"/><rect x="22" y="24" width="20" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
                                 </button>
-                                <button type="button" class="layout-preset-btn" data-layout="below" title="Text above, image below">
+                                <button type="button" class="layout-preset-btn" data-layout="below" title="<?= htmlspecialchars(t('alerts_layout_below')) ?>">
                                     <svg viewBox="0 0 48 36"><rect x="8" y="2" width="32" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="8" width="24" height="3" rx="1" fill="currentColor" opacity="0.4"/><rect x="16" y="16" width="16" height="16" rx="2" fill="currentColor"/></svg>
                                 </button>
-                                <button type="button" class="layout-preset-btn" data-layout="behind" title="Image behind text">
+                                <button type="button" class="layout-preset-btn" data-layout="behind" title="<?= htmlspecialchars(t('alerts_layout_behind')) ?>">
                                     <svg viewBox="0 0 48 36"><rect x="2" y="2" width="44" height="32" rx="2" fill="currentColor" opacity="0.5"/><rect x="8" y="12" width="32" height="3" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="18" width="24" height="3" rx="1" fill="currentColor" opacity="0.6"/></svg>
                                 </button>
                             </div>
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Background</label>
+                                <label><?= t('alerts_background') ?></label>
                                 <div class="alerts-color-input">
                                     <input type="color" id="set-bg-color" value="#FFFFFF">
                                     <input type="text" class="sp-input" id="set-bg-color-text" value="#FFFFFF">
                                 </div>
                             </div>
                             <div class="alerts-form-group">
-                                <label>Opacity (%)</label>
+                                <label><?= t('alerts_opacity') ?></label>
                                 <input type="number" class="sp-input" id="set-bg-opacity" min="0" max="100" value="0">
                             </div>
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Padding (px)</label>
+                                <label><?= t('alerts_padding') ?></label>
                                 <input type="number" class="sp-input" id="set-padding" min="0" max="100" value="16">
                             </div>
                             <div class="alerts-form-group">
-                                <label>Gap (px)</label>
+                                <label><?= t('alerts_gap') ?></label>
                                 <input type="number" class="sp-input" id="set-gap" min="0" max="100" value="16">
                             </div>
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label>Rounded corners</label>
+                                <label><?= t('alerts_rounded_corners') ?></label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-rounded-corners" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -672,7 +672,7 @@ ob_start();
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label>Drop shadow</label>
+                                <label><?= t('alerts_drop_shadow') ?></label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-drop-shadow" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -685,20 +685,20 @@ ob_start();
                 <section class="alerts-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-font"></i>
-                        <span>Text &amp; Speech</span>
+                        <span><?= t('alerts_section_text_speech') ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
-                            <label>Message template</label>
-                            <textarea id="set-message-template" placeholder="{username}&#10;just followed!"></textarea>
+                            <label><?= t('alerts_message_template') ?></label>
+                            <textarea id="set-message-template" placeholder="<?= t('alerts_message_template_placeholder') ?>"></textarea>
                             <div class="variable-hints" id="variable-hints">
-                                <span>Variables:</span>
+                                <span><?= t('alerts_variables_label') ?></span>
                                 <span id="variable-hints-list"></span>
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Font</label>
+                            <label><?= t('alerts_font') ?></label>
                             <div class="alerts-inline-pair">
                                 <select class="sp-select" id="set-font-family">
                                     <?php foreach ($fonts as $font): ?>
@@ -707,35 +707,35 @@ ob_start();
                                 </select>
                                 <select class="sp-select alerts-inline-pair-weight" id="set-font-weight">
                                     <?php foreach ($fontWeights as $label => $val): ?>
-                                    <option value="<?php echo $label; ?>"><?php echo $label; ?></option>
+                                    <option value="<?php echo $label; ?>"><?php echo htmlspecialchars(t('alerts_weight_' . $val)); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <input type="number" class="sp-input alerts-inline-pair-mini" id="set-font-size" min="8" max="120" value="24">
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Alignment</label>
+                            <label><?= t('alerts_alignment') ?></label>
                             <div class="text-align-btns">
-                                <button type="button" class="text-align-btn" data-align="left" title="Align left"><i class="fas fa-align-left"></i></button>
-                                <button type="button" class="text-align-btn active" data-align="center" title="Align center"><i class="fas fa-align-center"></i></button>
-                                <button type="button" class="text-align-btn" data-align="right" title="Align right"><i class="fas fa-align-right"></i></button>
-                                <button type="button" class="text-align-btn" data-align="justify" title="Justify"><i class="fas fa-align-justify"></i></button>
+                                <button type="button" class="text-align-btn" data-align="left" title="<?= htmlspecialchars(t('alerts_align_left')) ?>"><i class="fas fa-align-left"></i></button>
+                                <button type="button" class="text-align-btn active" data-align="center" title="<?= htmlspecialchars(t('alerts_align_center')) ?>"><i class="fas fa-align-center"></i></button>
+                                <button type="button" class="text-align-btn" data-align="right" title="<?= htmlspecialchars(t('alerts_align_right')) ?>"><i class="fas fa-align-right"></i></button>
+                                <button type="button" class="text-align-btn" data-align="justify" title="<?= htmlspecialchars(t('alerts_align_justify')) ?>"><i class="fas fa-align-justify"></i></button>
                                 <span class="text-align-divider"></span>
-                                <button type="button" class="text-align-btn valign-btn" data-valign="top" title="Align top"><i class="fas fa-arrow-up"></i></button>
-                                <button type="button" class="text-align-btn valign-btn active" data-valign="center" title="Align middle"><i class="fas fa-arrows-up-down"></i></button>
-                                <button type="button" class="text-align-btn valign-btn" data-valign="bottom" title="Align bottom"><i class="fas fa-arrow-down"></i></button>
+                                <button type="button" class="text-align-btn valign-btn" data-valign="top" title="<?= htmlspecialchars(t('alerts_align_top')) ?>"><i class="fas fa-arrow-up"></i></button>
+                                <button type="button" class="text-align-btn valign-btn active" data-valign="center" title="<?= htmlspecialchars(t('alerts_align_middle')) ?>"><i class="fas fa-arrows-up-down"></i></button>
+                                <button type="button" class="text-align-btn valign-btn" data-valign="bottom" title="<?= htmlspecialchars(t('alerts_align_bottom')) ?>"><i class="fas fa-arrow-down"></i></button>
                             </div>
                         </div>
                         <div class="alerts-form-row">
                             <div class="alerts-form-group">
-                                <label>Text colour</label>
+                                <label><?= t('alerts_text_colour') ?></label>
                                 <div class="alerts-color-input">
                                     <input type="color" id="set-text-color" value="#FFFFFF">
                                     <input type="text" class="sp-input" id="set-text-color-text" value="#FFFFFF">
                                 </div>
                             </div>
                             <div class="alerts-form-group">
-                                <label>Accent colour</label>
+                                <label><?= t('alerts_accent_colour') ?></label>
                                 <div class="alerts-color-input">
                                     <input type="color" id="set-accent-color" value="#7C5CBF">
                                     <input type="text" class="sp-input" id="set-accent-color-text" value="#7C5CBF">
@@ -744,7 +744,7 @@ ob_start();
                         </div>
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
-                                <label>Text drop shadow</label>
+                                <label><?= t('alerts_text_drop_shadow') ?></label>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-text-drop-shadow" checked>
                                     <span class="alerts-toggle-slider"></span>
@@ -754,8 +754,8 @@ ob_start();
                         <div class="alerts-form-group alerts-form-group-divider">
                             <div class="alerts-toggle-wrap">
                                 <div>
-                                    <label class="alerts-mini-section-label">Text-to-speech</label>
-                                    <div class="alerts-help-text">Read the alert text aloud through the TTS overlay.</div>
+                                    <label class="alerts-mini-section-label"><?= t('alerts_tts_label') ?></label>
+                                    <div class="alerts-help-text"><?= t('alerts_tts_help') ?></div>
                                 </div>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-tts-enabled">
@@ -769,63 +769,63 @@ ob_start();
                 <section class="alerts-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-image"></i>
-                        <span>Visuals &amp; sound</span>
+                        <span><?= t('alerts_section_visuals_sound') ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
-                            <label>Alert image</label>
+                            <label><?= t('alerts_alert_image') ?></label>
                             <div class="alerts-media-upload" id="image-upload-zone">
                                 <div class="alerts-media-preview" id="image-preview"></div>
-                                <div class="alerts-media-filename" id="image-filename">No image selected</div>
+                                <div class="alerts-media-filename" id="image-filename"><?= t('alerts_no_image_selected') ?></div>
                                 <div class="alerts-media-actions">
                                     <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="image-library-btn">
-                                        <i class="fas fa-folder-open"></i> Browse library
+                                        <i class="fas fa-folder-open"></i> <?= t('alerts_browse_library') ?>
                                     </button>
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="image-upload-btn">
-                                        <i class="fas fa-upload"></i> Upload
+                                        <i class="fas fa-upload"></i> <?= t('alerts_upload') ?>
                                     </button>
                                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" id="image-remove-btn" style="display:none;">
-                                        <i class="fas fa-times"></i> Remove
+                                        <i class="fas fa-times"></i> <?= t('alerts_remove') ?>
                                     </button>
                                 </div>
                                 <input type="file" id="image-file-input" accept=".webm,.gif,.png,.jpg,.jpeg">
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Image scale</label>
+                            <label><?= t('alerts_image_scale') ?></label>
                             <div class="alerts-range-wrap">
                                 <input type="range" id="set-image-scale" min="0" max="200" value="100">
                                 <span class="alerts-range-value" id="image-scale-val">100%</span>
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Image volume</label>
+                            <label><?= t('alerts_image_volume') ?></label>
                             <div class="alerts-range-wrap">
                                 <input type="range" id="set-image-volume" min="0" max="100" value="0">
                                 <span class="alerts-range-value" id="image-volume-val">0%</span>
                             </div>
                         </div>
                         <div class="alerts-form-group alerts-form-group-divider">
-                            <label>Alert sound</label>
+                            <label><?= t('alerts_alert_sound') ?></label>
                             <div class="alerts-media-upload" id="sound-upload-zone">
-                                <div class="alerts-media-filename" id="sound-filename">No sound selected</div>
+                                <div class="alerts-media-filename" id="sound-filename"><?= t('alerts_no_sound_selected') ?></div>
                                 <div class="alerts-media-actions">
                                     <button type="button" class="sp-btn sp-btn-secondary sp-btn-sm" id="sound-library-btn">
-                                        <i class="fas fa-folder-open"></i> Browse library
+                                        <i class="fas fa-folder-open"></i> <?= t('alerts_browse_library') ?>
                                     </button>
                                     <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="sound-upload-btn">
-                                        <i class="fas fa-upload"></i> Upload
+                                        <i class="fas fa-upload"></i> <?= t('alerts_upload') ?>
                                     </button>
                                     <button type="button" class="sp-btn sp-btn-danger sp-btn-sm" id="sound-remove-btn" style="display:none;">
-                                        <i class="fas fa-times"></i> Remove
+                                        <i class="fas fa-times"></i> <?= t('alerts_remove') ?>
                                     </button>
                                 </div>
                                 <input type="file" id="sound-file-input" accept=".mp3">
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Sound volume</label>
+                            <label><?= t('alerts_sound_volume') ?></label>
                             <div class="alerts-range-wrap">
                                 <i class="fas fa-volume-down alerts-range-icon"></i>
                                 <input type="range" id="set-sound-volume" min="0" max="100" value="50">
@@ -838,15 +838,15 @@ ob_start();
                 <section class="alerts-settings-section">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-wand-magic-sparkles"></i>
-                        <span>Celebration</span>
+                        <span><?= t('alerts_section_celebration') ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
                         <div class="alerts-form-group">
                             <div class="alerts-toggle-wrap">
                                 <div>
-                                    <label class="alerts-mini-section-label">Particle effect</label>
-                                    <div class="alerts-help-text">Layer a full-screen effect over the alert while it plays.</div>
+                                    <label class="alerts-mini-section-label"><?= t('alerts_particle_effect') ?></label>
+                                    <div class="alerts-help-text"><?= t('alerts_particle_help') ?></div>
                                 </div>
                                 <label class="alerts-toggle">
                                     <input type="checkbox" id="set-celebration-enabled">
@@ -855,19 +855,19 @@ ob_start();
                             </div>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Effect</label>
+                            <label><?= t('alerts_effect') ?></label>
                             <select class="sp-select" id="set-celebration-effect">
-                                <option value="fireworks">Fireworks</option>
-                                <option value="confetti">Confetti</option>
-                                <option value="bubbles">Bubbles</option>
+                                <option value="fireworks"><?= t('alerts_effect_fireworks') ?></option>
+                                <option value="confetti"><?= t('alerts_effect_confetti') ?></option>
+                                <option value="bubbles"><?= t('alerts_effect_bubbles') ?></option>
                             </select>
                         </div>
                         <div class="alerts-form-group">
-                            <label>Intensity</label>
+                            <label><?= t('alerts_intensity') ?></label>
                             <select class="sp-select" id="set-celebration-intensity">
-                                <option value="light">Light</option>
-                                <option value="medium">Medium</option>
-                                <option value="heavy">Heavy</option>
+                                <option value="light"><?= t('alerts_intensity_light') ?></option>
+                                <option value="medium"><?= t('alerts_intensity_medium') ?></option>
+                                <option value="heavy"><?= t('alerts_intensity_heavy') ?></option>
                             </select>
                         </div>
                     </div>
@@ -876,13 +876,13 @@ ob_start();
                 <section class="alerts-settings-section alerts-settings-danger">
                     <header class="alerts-settings-section-header">
                         <i class="fas fa-trash"></i>
-                        <span>Delete variant</span>
+                        <span><?= t('alerts_delete_variant') ?></span>
                         <i class="fas fa-chevron-down chevron"></i>
                     </header>
                     <div class="alerts-settings-section-body">
-                        <p class="alerts-help-text">Removing this variant cannot be undone. Any conditions and uploaded media stay in your media library — only this variant's configuration is removed.</p>
+                        <p class="alerts-help-text"><?= t('alerts_delete_variant_help') ?></p>
                         <button type="button" class="sp-btn sp-btn-danger" id="delete-variant-btn">
-                            <i class="fas fa-trash"></i> Delete this variant
+                            <i class="fas fa-trash"></i> <?= t('alerts_delete_this_variant') ?>
                         </button>
                     </div>
                 </section>
@@ -893,13 +893,13 @@ ob_start();
     <footer class="alerts-footer">
         <div class="alerts-footer-left">
             <i class="fas fa-info-circle"></i>
-            Variants fire in the order shown above. Drag the grip handle to reorder, or enable <strong>Randomize</strong> on a category to pick one at random when several match.
+            <?= t('alerts_footer_priority_hint') ?>
         </div>
         <div class="alerts-browser-source">
-            <span class="alerts-browser-source-label">OBS browser source</span>
-            <input type="password" class="sp-input alerts-browser-source-url" id="alerts-browser-source-url" readonly value="<?php echo htmlspecialchars($browserSourceUrl); ?>" title="Click to reveal">
+            <span class="alerts-browser-source-label"><?= t('alerts_obs_browser_source') ?></span>
+            <input type="password" class="sp-input alerts-browser-source-url" id="alerts-browser-source-url" readonly value="<?php echo htmlspecialchars($browserSourceUrl); ?>" title="<?= htmlspecialchars(t('alerts_click_to_reveal')) ?>">
             <button type="button" class="sp-btn sp-btn-primary sp-btn-sm" id="alerts-copy-url-btn">
-                <i class="fas fa-copy"></i> Copy
+                <i class="fas fa-copy"></i> <?= t('alerts_copy') ?>
             </button>
         </div>
     </footer>
@@ -908,15 +908,15 @@ ob_start();
 <div class="sp-modal-backdrop" id="alerts-library-modal" style="display:none;">
     <div class="sp-modal alerts-library-modal-card" role="dialog" aria-modal="true" aria-labelledby="alerts-library-modal-title">
         <header class="sp-modal-head">
-            <span class="sp-modal-title" id="alerts-library-modal-title">Choose from media library</span>
-            <button type="button" class="sp-modal-close" id="alerts-library-modal-close" aria-label="Close">&times;</button>
+            <span class="sp-modal-title" id="alerts-library-modal-title"><?= t('alerts_library_modal_title') ?></span>
+            <button type="button" class="sp-modal-close" id="alerts-library-modal-close" aria-label="<?= htmlspecialchars(t('alerts_close')) ?>">&times;</button>
         </header>
         <div class="sp-modal-body">
-            <p class="alerts-help-text">Files uploaded in <a href="media.php">Media</a> appear here. Click a file to assign it to this variant.</p>
-            <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="Search files…">
+            <p class="alerts-help-text"><?= t('alerts_library_modal_help') ?></p>
+            <input type="search" class="sp-input alerts-library-search" id="alerts-library-search" placeholder="<?= htmlspecialchars(t('alerts_search_files')) ?>">
             <div class="alerts-library-grid" id="alerts-library-grid"></div>
             <div class="alerts-library-empty" id="alerts-library-empty" style="display:none;">
-                No files of this type in your library yet. Upload one above or via <a href="media.php">Media</a>.
+                <?= t('alerts_library_empty') ?>
             </div>
         </div>
     </div>

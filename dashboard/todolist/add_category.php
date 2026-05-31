@@ -36,7 +36,7 @@ $messageType = "";
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   // Validate category
   if (empty(trim($_POST["category"]))) {
-    $category_err = "Please enter a category name.";
+    $category_err = t('todo_add_category_err_empty');
   } else {
     // Prepare a select statement
     $sql = "SELECT id FROM categories WHERE category = ?";
@@ -47,7 +47,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->execute();
     $stmt->store_result(); // To check row count
     if ($stmt->num_rows == 1) {
-      $category_err = "This category name already exists.";
+      $category_err = t('todo_add_category_err_exists');
     } else {
       $category = trim($_POST["category"]);
     }
@@ -61,10 +61,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Attempt to execute the prepared statement
     if ($stmt->execute()) {
       // Redirect to categories page
-      $message = "Category added successfully!";
+      $message = t('todo_add_category_msg_success');
       $messageType = "is-success";
     } else {
-      $message = "Oops! Something went wrong. Please try again later.";
+      $message = t('todo_add_category_msg_error');
       $messageType = "is-danger";
     }
   }
@@ -74,7 +74,7 @@ ob_start();
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <div class="sp-card-title"><i class="fas fa-folder-plus"></i> Add New Category</div>
+    <div class="sp-card-title"><i class="fas fa-folder-plus"></i> <?= t('todo_add_category_card_title') ?></div>
   </div>
   <div class="sp-card-body">
     <?php if ($message): ?>
@@ -92,17 +92,17 @@ ob_start();
       </div>
     <?php endif; ?>
     <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-      <h3 style="font-size:1.05rem; font-weight:700; margin-bottom:1rem;">Type in what your new category will be:</h3>
+      <h3 style="font-size:1.05rem; font-weight:700; margin-bottom:1rem;"><?= t('todo_add_category_heading') ?></h3>
       <div class="sp-form-group <?php echo (!empty($category_err)) ? 'has-error' : ''; ?>">
-        <label class="sp-label" for="category">Category Name</label>
-        <input type="text" name="category" id="category" class="sp-input" value="<?php echo htmlspecialchars($category); ?>" placeholder="e.g. Work, Personal, Shopping">
+        <label class="sp-label" for="category"><?= t('todo_add_category_label_name') ?></label>
+        <input type="text" name="category" id="category" class="sp-input" value="<?php echo htmlspecialchars($category); ?>" placeholder="<?= htmlspecialchars(t('todo_add_category_placeholder_name')) ?>">
         <?php if (!empty($category_err)): ?>
           <p style="color:var(--red); font-size:0.8rem; margin-top:0.25rem;"><?php echo $category_err; ?></p>
         <?php endif; ?>
       </div>
       <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1.5rem;">
-        <input type="submit" class="sp-btn sp-btn-primary" value="Submit">
-        <a href="categories.php" class="sp-btn sp-btn-secondary">Cancel</a>
+        <input type="submit" class="sp-btn sp-btn-primary" value="<?= htmlspecialchars(t('todo_add_category_btn_submit')) ?>">
+        <a href="categories.php" class="sp-btn sp-btn-secondary"><?= t('todo_add_category_btn_cancel') ?></a>
       </div>
     </form>
   </div>

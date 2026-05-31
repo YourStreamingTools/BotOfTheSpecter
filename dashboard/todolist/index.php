@@ -46,18 +46,18 @@ ob_start();
 ?>
 <div class="sp-card">
   <div class="sp-card-header">
-    <div class="sp-card-title"><i class="fas fa-list-check"></i> Your Tasks</div>
+    <div class="sp-card-title"><i class="fas fa-list-check"></i> <?= t('todo_index_your_tasks') ?></div>
   </div>
   <div class="sp-card-body">
     <div style="display:flex; align-items:flex-end; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
       <div style="flex:1; min-width:200px;">
-        <label for="searchInput" class="sp-label">Search Objectives</label>
-        <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="Search...">
+        <label for="searchInput" class="sp-label"><?= t('todo_index_search_objectives') ?></label>
+        <input class="sp-input" type="text" id="searchInput" onkeyup="searchFunction()" placeholder="<?= htmlspecialchars(t('todo_index_search_placeholder')) ?>">
       </div>
       <div style="min-width:200px;">
-        <label for="categoryFilter" class="sp-label">Filter by Category</label>
+        <label for="categoryFilter" class="sp-label"><?= t('todo_index_filter_by_category') ?></label>
         <select id="categoryFilter" class="sp-select" onchange="applyCategoryFilter()">
-          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>>All</option>
+          <option value="all" <?php if ($categoryFilter === 'all') echo 'selected'; ?>><?= htmlspecialchars(t('todo_index_category_all')) ?></option>
           <?php
             $categories_sql = "SELECT * FROM categories";
             $categories_stmt = $db->prepare($categories_sql);
@@ -76,10 +76,10 @@ ob_start();
     <?php if ($num_rows < 1): ?>
       <div class="sp-alert sp-alert-info">
         <i class="fas fa-tasks" style="margin-right:0.5rem;"></i>
-        <strong>Your to-do list is empty!</strong> Start adding tasks to get organized.
+        <?= t('todo_index_empty_message') ?>
       </div>
     <?php else: ?>
-      <p style="margin-bottom:1rem; color:var(--text-secondary);">Number of total tasks in the category: <?php echo $num_rows; ?></p>
+      <p style="margin-bottom:1rem; color:var(--text-secondary);"><?= t('todo_index_total_tasks_label') ?> <?php echo $num_rows; ?></p>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:1rem;" id="taskCardList">
         <?php foreach ($result as $row): ?>
           <div class="sp-card" style="margin-bottom:0;">
@@ -92,21 +92,21 @@ ob_start();
               </p>
               <p style="font-size:0.8rem; margin-bottom:0.4rem; color:var(--text-secondary); display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
                 <i class="fas fa-folder"></i>
-                <?php echo htmlspecialchars($row['category_name'] ?? 'Uncategorized'); ?>
+                <?php echo htmlspecialchars($row['category_name'] ?? t('todo_index_uncategorized')); ?>
                 <?php echo ($row['completed'] === 'Yes')
-                  ? '<span class="sp-badge sp-badge-green">Completed</span>'
-                  : '<span class="sp-badge sp-badge-amber">Not completed</span>'; ?>
+                  ? '<span class="sp-badge sp-badge-green">' . htmlspecialchars(t('todo_index_badge_completed')) . '</span>'
+                  : '<span class="sp-badge sp-badge-amber">' . htmlspecialchars(t('todo_index_badge_not_completed')) . '</span>'; ?>
                 <?php if (!empty($row['private']) && $row['private'] == 1): ?>
-                  <span class="sp-badge sp-badge-red"><i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i>Private</span>
+                  <span class="sp-badge sp-badge-red"><i class="fas fa-eye-slash" style="margin-right:0.2rem;"></i><?= htmlspecialchars(t('todo_index_badge_private')) ?></span>
                 <?php endif; ?>
               </p>
               <p style="font-size:0.8rem; display:flex; align-items:center; gap:0.3rem; color:var(--text-secondary); margin-bottom:0.2rem;">
                 <i class="fas fa-calendar-plus"></i>
-                Created: <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['created_at']); ?>"><?php echo htmlspecialchars($row['created_at']); ?></span>
+                <?= t('todo_index_created_label') ?> <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['created_at']); ?>"><?php echo htmlspecialchars($row['created_at']); ?></span>
               </p>
               <p style="font-size:0.8rem; display:flex; align-items:center; gap:0.3rem; color:var(--text-secondary); margin-bottom:0;">
                 <i class="fas fa-calendar-pen"></i>
-                Updated: <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['updated_at']); ?>"><?php echo htmlspecialchars($row['updated_at']); ?></span>
+                <?= t('todo_index_updated_label') ?> <span class="timestamp" data-timestamp="<?php echo htmlspecialchars($row['updated_at']); ?>"><?php echo htmlspecialchars($row['updated_at']); ?></span>
               </p>
             </div>
           </div>

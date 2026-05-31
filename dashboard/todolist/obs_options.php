@@ -96,58 +96,58 @@ ob_start();
 ?>
 <div class="sp-card">
     <div class="sp-card-header">
-        <div class="sp-card-title"><i class="fas fa-cog"></i> OBS Font &amp; Color Settings</div>
+        <div class="sp-card-title"><i class="fas fa-cog"></i> <?= t('todo_obs_options_card_title') ?></div>
     </div>
     <div class="sp-card-body">
         <button type="button" class="sp-btn sp-btn-primary" style="margin-bottom:1.25rem;" onclick="showOBSInfo()">
-            <i class="fas fa-info-circle"></i> How to put on your stream
+            <i class="fas fa-info-circle"></i> <?= t('todo_obs_options_how_to_btn') ?>
         </button>
         <!-- OBS Info Modal -->
         <div id="obsInfoModal" class="db-modal-backdrop hidden">
             <div class="db-modal">
                 <div class="db-modal-head">
-                    <span class="db-modal-title"><i class="fas fa-info-circle"></i> How to use the ToDo List in OBS</span>
-                    <button class="db-modal-close" aria-label="close" onclick="closeOBSInfoModal()">&times;</button>
+                    <span class="db-modal-title"><i class="fas fa-info-circle"></i> <?= t('todo_obs_options_modal_title') ?></span>
+                    <button class="db-modal-close" aria-label="<?= htmlspecialchars(t('todo_obs_options_modal_close_aria')) ?>" onclick="closeOBSInfoModal()">&times;</button>
                 </div>
                 <div class="db-modal-body">
-                    <p>The ToDo List is fully compatible with any streaming software:<br>OBS, SLOBS, xSplit, Wirecast, etc.</p>
-                    <p>All you have to do is add the following link (with your API key from your profile page) into a browser source and it works:</p>
+                    <p><?= t('todo_obs_options_modal_compat') ?></p>
+                    <p><?= t('todo_obs_options_modal_add_link') ?></p>
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">https://overlay.botofthespecter.com/todolist.php?code=API_KEY_HERE</pre>
-                    <p>If you wish to define a working category, add it like this:</p>
+                    <p><?= t('todo_obs_options_modal_category_intro') ?></p>
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;category=1</pre>
-                    <p style="font-size:0.8rem; margin-bottom:0.75rem;">(where ID 1 is called Default, defined on the <a href='categories.php' style="color:var(--accent-hover);" target="_blank">categories</a> page.)</p>
-                    <p>To add a styled box around your list (useful if your stream overlay makes it hard to read), add <code>&amp;theme=true</code>:</p>
+                    <p style="font-size:0.8rem; margin-bottom:0.75rem;"><?= t('todo_obs_options_modal_category_note') ?></p>
+                    <p><?= t('todo_obs_options_modal_theme_intro') ?></p>
                     <pre style="background:var(--bg-base); color:var(--text-primary); padding:0.75rem; border-radius:var(--radius); margin-bottom:0.5rem; font-size:0.85rem; overflow-x:auto; white-space:pre-wrap;">todolist.php?code=API_KEY_HERE&amp;theme=true</pre>
-                    <p style="font-size:0.8rem; margin-bottom:0;">This wraps the list in a dark semi-transparent box with rounded corners, helping it stand out over any stream overlay. You can combine it with a category too: <code>&amp;category=1&amp;theme=true</code></p>
+                    <p style="font-size:0.8rem; margin-bottom:0;"><?= t('todo_obs_options_modal_theme_note') ?></p>
                 </div>
                 <div class="db-modal-foot">
-                    <button class="sp-btn sp-btn-danger" onclick="closeOBSInfoModal()">Close</button>
+                    <button class="sp-btn sp-btn-danger" onclick="closeOBSInfoModal()"><?= t('todo_obs_options_modal_close_btn') ?></button>
                 </div>
             </div>
         </div>
         <!-- End OBS Info Modal -->
-        <h3 style="font-size:1.05rem; font-weight:700; margin-bottom:1rem;">Font &amp; Color Settings:</h3>
+        <h3 style="font-size:1.05rem; font-weight:700; margin-bottom:1rem;"><?= t('todo_obs_options_settings_heading') ?></h3>
         <div style="margin-bottom:1.25rem;">
             <?php if ($font !== 'Not set' || $color !== 'Not set'): ?>
                 <div style="display:flex; flex-wrap:wrap; gap:1rem 2rem; padding:1rem 0; border-bottom:1px solid var(--border); margin-bottom:1.25rem;">
-                    <div><strong>Font:</strong> <span><?php echo htmlspecialchars($font); ?></span></div>
+                    <div><strong><?= t('todo_obs_options_summary_font') ?></strong> <span><?php echo htmlspecialchars($font); ?></span></div>
                     <div>
-                        <strong>Color:</strong>
+                        <strong><?= t('todo_obs_options_summary_color') ?></strong>
                         <span style="display:inline-block;width:16px;height:16px;background-color:<?php echo htmlspecialchars($color); ?>;margin:0 3px;vertical-align:middle;border-radius:3px;"></span>
                         <span><?php echo htmlspecialchars($color); ?></span>
                     </div>
-                    <div><strong>List Type:</strong> <span><?php echo htmlspecialchars($list); ?></span></div>
-                    <div><strong>Font Size:</strong> <span><?php echo htmlspecialchars($font_size); ?>px</span></div>
-                    <div><strong>Text Shadow:</strong> <span><?php echo $shadow ? 'Enabled' : 'Disabled'; ?></span></div>
-                    <div><strong>Text Bold:</strong> <span><?php echo $bold ? 'Enabled' : 'Disabled'; ?></span></div>
-                    <div><strong>Show Completed:</strong> <span><?php echo $show_completed ? 'Yes' : 'No'; ?></span></div>
+                    <div><strong><?= t('todo_obs_options_summary_list_type') ?></strong> <span><?php echo htmlspecialchars($list); ?></span></div>
+                    <div><strong><?= t('todo_obs_options_summary_font_size') ?></strong> <span><?php echo htmlspecialchars($font_size); ?>px</span></div>
+                    <div><strong><?= t('todo_obs_options_summary_text_shadow') ?></strong> <span><?php echo $shadow ? t('todo_obs_options_enabled') : t('todo_obs_options_disabled'); ?></span></div>
+                    <div><strong><?= t('todo_obs_options_summary_text_bold') ?></strong> <span><?php echo $bold ? t('todo_obs_options_enabled') : t('todo_obs_options_disabled'); ?></span></div>
+                    <div><strong><?= t('todo_obs_options_summary_show_completed') ?></strong> <span><?php echo $show_completed ? t('todo_obs_options_yes') : t('todo_obs_options_no'); ?></span></div>
                 </div>
             <?php else: ?>
                 <div class="sp-alert sp-alert-info" style="display:flex; gap:1rem; align-items:flex-start; margin-bottom:1.25rem;">
                     <span style="font-size:1.5rem; color:var(--blue); flex-shrink:0;"><i class="fas fa-palette"></i></span>
                     <div>
-                        <p style="font-weight:700; margin-bottom:0.25rem;">Customize your lists!</p>
-                        <p style="margin-bottom:0;">No font and color settings have been set. Use the controls below to personalize the look of your lists.</p>
+                        <p style="font-weight:700; margin-bottom:0.25rem;"><?= t('todo_obs_options_empty_title') ?></p>
+                        <p style="margin-bottom:0;"><?= t('todo_obs_options_empty_desc') ?></p>
                     </div>
                 </div>
             <?php endif; ?>
@@ -155,7 +155,7 @@ ob_start();
         <form method="post">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
                 <div class="sp-form-group">
-                    <label class="sp-label" for="font">Font</label>
+                    <label class="sp-label" for="font"><?= t('todo_obs_options_label_font') ?></label>
                     <select name="font" class="sp-select">
                         <option value="Arial"<?php if ($font === 'Arial') echo ' selected'; ?>>Arial</option>
                         <option value="Arial Narrow"<?php if ($font === 'Arial Narrow') echo ' selected'; ?>>Arial Narrow</option>
@@ -164,54 +164,54 @@ ob_start();
                     </select>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="color">Color</label>
+                    <label class="sp-label" for="color"><?= t('todo_obs_options_label_color') ?></label>
                     <select name="color" id="color-select" class="sp-select">
-                        <option value="Black"<?php if ($color === 'Black') echo ' selected'; ?>>Black</option>
-                        <option value="White"<?php if ($color === 'White') echo ' selected'; ?>>White</option>
-                        <option value="Red"<?php if ($color === 'Red') echo ' selected'; ?>>Red</option>
-                        <option value="Blue"<?php if ($color === 'Blue') echo ' selected'; ?>>Blue</option>
-                        <option value="Other"<?php if ($color === 'Other') echo ' selected'; ?>>Other</option>
+                        <option value="Black"<?php if ($color === 'Black') echo ' selected'; ?>><?= t('todo_obs_options_color_black') ?></option>
+                        <option value="White"<?php if ($color === 'White') echo ' selected'; ?>><?= t('todo_obs_options_color_white') ?></option>
+                        <option value="Red"<?php if ($color === 'Red') echo ' selected'; ?>><?= t('todo_obs_options_color_red') ?></option>
+                        <option value="Blue"<?php if ($color === 'Blue') echo ' selected'; ?>><?= t('todo_obs_options_color_blue') ?></option>
+                        <option value="Other"<?php if ($color === 'Other') echo ' selected'; ?>><?= t('todo_obs_options_color_other') ?></option>
                     </select>
                     <div class="sp-form-group" id="custom-color-group" style="margin-top:0.75rem;<?php if ($color !== 'Other') echo ' display:none;'; ?>">
-                        <label class="sp-label" for="custom_color">Custom Color</label>
+                        <label class="sp-label" for="custom_color"><?= t('todo_obs_options_label_custom_color') ?></label>
                         <input type="text" name="custom_color" id="custom-color-input" class="sp-input" value="<?php echo htmlspecialchars($color_raw); ?>">
                     </div>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="list">List Type</label>
+                    <label class="sp-label" for="list"><?= t('todo_obs_options_label_list_type') ?></label>
                     <select name="list" class="sp-select">
-                        <option value="Bullet"<?php if ($list === 'Bullet') echo ' selected'; ?>>Bullet List</option>
-                        <option value="Numbered"<?php if ($list === 'Numbered') echo ' selected'; ?>>Numbered List</option>
+                        <option value="Bullet"<?php if ($list === 'Bullet') echo ' selected'; ?>><?= t('todo_obs_options_list_bullet') ?></option>
+                        <option value="Numbered"<?php if ($list === 'Numbered') echo ' selected'; ?>><?= t('todo_obs_options_list_numbered') ?></option>
                     </select>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="font_size">Font Size</label>
+                    <label class="sp-label" for="font_size"><?= t('todo_obs_options_label_font_size') ?></label>
                     <input type="number" name="font_size" class="sp-input" value="<?php echo htmlspecialchars($font_size); ?>" min="8" max="72">
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="shadow">Text Shadow</label>
+                    <label class="sp-label" for="shadow"><?= t('todo_obs_options_label_text_shadow') ?></label>
                     <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
                         <input type="checkbox" name="shadow" value="1" <?php if ($shadow) echo 'checked'; ?>>
-                        <span>Enable shadow</span>
+                        <span><?= t('todo_obs_options_enable_shadow') ?></span>
                     </label>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="bold">Text Bold</label>
+                    <label class="sp-label" for="bold"><?= t('todo_obs_options_label_text_bold') ?></label>
                     <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
                         <input type="checkbox" name="bold" value="1" <?php if ($bold) echo 'checked'; ?>>
-                        <span>Enable bold</span>
+                        <span><?= t('todo_obs_options_enable_bold') ?></span>
                     </label>
                 </div>
                 <div class="sp-form-group">
-                    <label class="sp-label" for="show_completed">Show Completed Tasks</label>
+                    <label class="sp-label" for="show_completed"><?= t('todo_obs_options_label_show_completed') ?></label>
                     <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
                         <input type="checkbox" name="show_completed" value="1" <?php if ($show_completed) echo 'checked'; ?>>
-                        <span>Show completed tasks</span>
+                        <span><?= t('todo_obs_options_show_completed_checkbox') ?></span>
                     </label>
                 </div>
             </div>
             <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
-                <button type="submit" class="sp-btn sp-btn-primary">Save</button>
+                <button type="submit" class="sp-btn sp-btn-primary"><?= t('todo_obs_options_save_btn') ?></button>
             </div>
         </form>
     </div>

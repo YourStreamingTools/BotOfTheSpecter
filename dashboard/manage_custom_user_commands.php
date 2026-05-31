@@ -189,7 +189,7 @@ ob_start();
             <li><?php echo t('user_commands_delete_commands'); ?></li>
         </ul>
         <p style="margin-bottom:0.5rem;"><strong><?php echo t('custom_commands_note'); ?></strong> <?php echo t('user_commands_note_detail'); ?></p>
-        <p><strong>Access:</strong> User commands can be used by the specified user and all channel moderators.</p>
+        <p><?php echo t('manage_custom_user_commands_access_note'); ?></p>
     </div>
 </div>
 <?php if ($_SERVER["REQUEST_METHOD"] == "POST"): ?>
@@ -229,7 +229,7 @@ ob_start();
                         <input class="sp-input" type="text" name="user_id" id="user_id" required placeholder="<?php echo t('user_commands_user_id_placeholder'); ?>">
                     </div>
                     <small class="sp-help"><?php echo t('user_commands_user_id_help'); ?></small>
-                    <small class="sp-help" style="color:var(--blue);"><i class="fas fa-info-circle"></i> This command will also be available to all channel moderators.</small>
+                    <small class="sp-help" style="color:var(--blue);"><i class="fas fa-info-circle"></i> <?php echo t('manage_custom_user_commands_mod_available_note'); ?></small>
                 </div>
                 <div class="sp-form-group">
                     <label class="sp-label" for="cooldown"><?php echo t('custom_commands_cooldown_label'); ?></label>
@@ -260,7 +260,7 @@ ob_start();
                         <select class="sp-select" name="command_to_edit" id="command_to_edit" onchange="showResponse()" required>
                             <option value=""><?php echo t('user_commands_edit_select_placeholder'); ?></option>
                             <?php foreach ($userCommands as $command): ?>
-                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?> (for <?php echo $command['user_id']; ?>)</option>
+                                <option value="<?php echo $command['command']; ?>">!<?php echo $command['command']; ?> (<?php echo t('manage_custom_user_commands_for_label'); ?> <?php echo $command['user_id']; ?>)</option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -305,7 +305,7 @@ ob_start();
 <div class="sp-card" style="margin-top:1.5rem;">
     <div class="sp-card-header">
         <div class="sp-card-title"><?php echo t('user_commands_list_title'); ?></div>
-        <input class="sp-input" type="text" id="searchInput" placeholder="Search commands or users..." style="max-width:300px;">
+        <input class="sp-input" type="text" id="searchInput" placeholder="<?php echo htmlspecialchars(t('manage_custom_user_commands_search_placeholder')); ?>" style="max-width:300px;">
     </div>
     <div class="sp-card-body">
         <div class="sp-table-wrap">
@@ -346,7 +346,7 @@ ob_start();
                                 <?php endif; ?>
                                 <form method="post" style="display: inline;">
                                     <input type="hidden" name="delete_command" value="<?php echo $command['command']; ?>">
-                                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="Delete Command" onclick="return confirm('Are you sure you want to delete this command?')">
+                                    <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm" title="<?php echo htmlspecialchars(t('manage_custom_user_commands_delete_tooltip')); ?>" onclick="return confirm('Are you sure you want to delete this command?')">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
