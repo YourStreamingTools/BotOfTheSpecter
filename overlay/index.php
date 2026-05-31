@@ -12,6 +12,7 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $username = $user['username'] ?? '';
 $alertConfigs = [];
+$timezone = null;
 if ($username) {
     $db = new PDO("mysql:host=$db_servername;dbname=$username", $db_username, $db_password);
     $stmt = $db->prepare("SELECT * FROM twitch_alerts ORDER BY alert_category, variant_index");
@@ -20,6 +21,10 @@ if ($username) {
     foreach ($rows as $row) {
         $alertConfigs[$row['alert_category']][] = $row;
     }
+    // Weather's clock (ported from overlay/weather.php) needs the streamer's timezone.
+    $tzStmt = $db->query("SELECT timezone FROM profile LIMIT 1");
+    $tzRow = $tzStmt ? $tzStmt->fetch(PDO::FETCH_ASSOC) : null;
+    $timezone = $tzRow['timezone'] ?? null;
 }
 ?>
 <!DOCTYPE html>
@@ -57,6 +62,7 @@ if ($username) {
             }
             const alertConfigs = <?php echo json_encode($alertConfigs); ?>;
             const username = <?php echo json_encode($username); ?>;
+            const weatherTimezone = <?php echo json_encode($timezone); ?>;
             const mediaBase = 'https://media.botofthespecter.com/' + username + '/';
             const alertQueue = [];
             let isShowingAlert = false;
@@ -477,6 +483,115 @@ if ($username) {
                 }
                 return { start, stop };
             })();
+            // ---- Legacy overlays folded into the unified overlay ----
+            // Weather, deaths and walk-ons keep their original look (styles already
+            // live in index.css). They render independently of the alert queue and
+            // only fire when their category has an enabled variant in twitch_alerts.
+            function isCategoryEnabled(category) {
+                const variants = alertConfigs[category];
+                if (!variants || variants.length === 0) return false;
+                return variants.some(v => v.enabled == 1);
+            }
+            // Deaths — ported from overlay/deaths.php
+            function renderDeaths(data) {
+                const deathOverlay = document.getElementById('deathOverlay');
+                if (!deathOverlay) return;
+                deathOverlay.innerHTML = `
+                    <div class="deaths-overlay-page-content">
+                        <div class="deaths-overlay-page-title">
+                            <span class="deaths-overlay-page-emote"></span>
+                            <span>Current Deaths</span>
+                        </div>
+                        <div>${escapeHtml(data.game)}</div>
+                        <div>${escapeHtml(data['death-text'])}</div>
+                    </div>
+                `;
+                deathOverlay.classList.remove('hide');
+                deathOverlay.classList.add('show');
+                deathOverlay.style.display = 'block';
+                setTimeout(() => {
+                    deathOverlay.classList.remove('show');
+                    deathOverlay.classList.add('hide');
+                }, 10000);
+                setTimeout(() => { deathOverlay.style.display = 'none'; }, 11000);
+            }
+            // Weather — ported from overlay/weather.php (incl. the live clock)
+            let weatherTimerId = null;
+            function startWeatherClock(tz) {
+                function updateTime() {
+                    const el = document.getElementById('currentTime');
+                    if (el) {
+                        el.innerHTML = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    }
+                }
+                if (weatherTimerId !== null) clearInterval(weatherTimerId);
+                updateTime();
+                weatherTimerId = setInterval(updateTime, 1000);
+            }
+            function renderWeather(rawWeatherData) {
+                let weather;
+                try {
+                    weather = JSON.parse(rawWeatherData);
+                } catch (_) {
+                    // Legacy payload: api.py used to send str(dict) via urlencode.
+                    try { weather = JSON.parse(String(rawWeatherData).replace(/'/g, '"')); }
+                    catch (e) { console.warn('WEATHER_DATA unparseable:', e); return; }
+                }
+                const weatherOverlay = document.getElementById('weatherOverlay');
+                if (!weatherOverlay) return;
+                weatherOverlay.innerHTML = `
+                    <div class="weather-overlay-page-content">
+                        <div class="weather-overlay-page-header">
+                            ${weatherTimezone ? '<div id="currentTime" class="weather-overlay-page-time"></div>' : ''}
+                            <div class="weather-overlay-page-location">${escapeHtml(weather.location)}</div>
+                            <div class="weather-overlay-page-temperature">${escapeHtml(weather.temperature)}</div>
+                        </div>
+                        <div class="weather-overlay-page-details">
+                            <img src="${escapeHtml(weather.icon)}" alt="${escapeHtml(weather.status)}" class="weather-overlay-page-icon">
+                            <div class="weather-overlay-page-status">${escapeHtml(weather.status)}</div>
+                            <div class="weather-overlay-page-wind">${escapeHtml(weather.wind)}</div>
+                            <div class="weather-overlay-page-humidity">${escapeHtml(weather.humidity)}</div>
+                        </div>
+                    </div>
+                `;
+                weatherOverlay.classList.remove('hide');
+                weatherOverlay.classList.add('show');
+                weatherOverlay.style.display = 'block';
+                if (weatherTimezone) startWeatherClock(weatherTimezone);
+                setTimeout(() => {
+                    weatherOverlay.classList.add('hide');
+                    weatherOverlay.classList.remove('show');
+                }, 10000);
+                setTimeout(() => { weatherOverlay.style.display = 'none'; }, 11000);
+            }
+            // Walk-ons — ported from overlay/walkons.php (audio-only, own queue so it
+            // never collides with alert sounds).
+            let walkonAudio = null;
+            const walkonQueue = [];
+            function enqueueWalkon(url) {
+                if (!url) return;
+                walkonQueue.push(url);
+                if (!walkonAudio) playNextWalkon();
+            }
+            function playNextWalkon() {
+                if (walkonQueue.length === 0) { walkonAudio = null; return; }
+                const url = walkonQueue.shift();
+                walkonAudio = new Audio(`${url}?t=${Date.now()}`);
+                walkonAudio.volume = 0.8;
+                walkonAudio.addEventListener('ended', () => { walkonAudio = null; playNextWalkon(); });
+                walkonAudio.addEventListener('error', () => { walkonAudio = null; playNextWalkon(); });
+                walkonAudio.play().catch(e => console.error('Walk-on audio error:', e));
+            }
+            function handleWalkon(data) {
+                let audioFile;
+                if (data.media_file) {
+                    audioFile = `https://media.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.media_file)}`;
+                } else {
+                    const ext = data.ext && data.ext.startsWith('.') ? data.ext : '.mp3';
+                    audioFile = `https://walkons.botofthespecter.com/${encodeURIComponent(data.channel)}/${encodeURIComponent(data.user)}${ext}`;
+                }
+                enqueueWalkon(audioFile);
+            }
             function connectWebSocket() {
                 socket = io('wss://websocket.botofthespecter.com', {
                     reconnection: false
@@ -699,6 +814,27 @@ if ($username) {
                     });
                 });
 
+                // Discord member joins — rendered as a standard alert variant
+                socket.on('DISCORD_JOIN', (data) => {
+                    console.log('DISCORD_JOIN event received:', data);
+                    queueAlert('discord_join', { username: data.member || '' });
+                });
+
+                // Legacy overlays folded in — each keeps its own theme and only fires
+                // when its category has an enabled variant.
+                socket.on('DEATHS', (data) => {
+                    console.log('DEATHS event received:', data);
+                    if (isCategoryEnabled('deaths')) renderDeaths(data);
+                });
+                socket.on('WEATHER_DATA', (data) => {
+                    console.log('WEATHER_DATA event received:', data);
+                    if (isCategoryEnabled('weather')) renderWeather(data.weather_data);
+                });
+                socket.on('WALKON', (data) => {
+                    console.log('WALKON event received:', data);
+                    if (isCategoryEnabled('walkons')) handleWalkon(data);
+                });
+
                 // Log all events
                 socket.onAny((event, ...args) => {
                     console.log(`[onAny] Event: ${event}`, ...args);
@@ -719,5 +855,8 @@ if ($username) {
 </head>
 <body>
     <div id="alertContainer" class="twitch-alert-container"></div>
+    <!-- Legacy overlays folded in (weather, deaths). Walk-ons is audio-only. -->
+    <div id="deathOverlay" class="deaths-overlay-page"></div>
+    <div id="weatherOverlay" class="weather-overlay-page hide"></div>
 </body>
 </html>
