@@ -36,6 +36,21 @@
                 return;
             }
 
+            // Unlock audio/video context as early as possible (OBS browser source autoplay fix)
+            function unlockAudio() {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const buf = ctx.createBuffer(1, 1, 22050);
+                    const src = ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(ctx.destination);
+                    src.start(0);
+                    ctx.resume().then(() => ctx.close()).catch(() => {});
+                } catch (e) {}
+            }
+            unlockAudio();
+            document.addEventListener('click', unlockAudio, { capture: true });
+
             function enqueueVideo(url) {
                 if (!url) return;
                 videoQueue.push(url);
@@ -61,8 +76,7 @@
                 currentVideo.addEventListener('canplaythrough', () => {
                     console.log('Video can play through without buffering');
                     currentVideo.play().catch(error => {
-                        console.error('Error playing video:', error);
-                        showOverlayError('Click to play video', 'warn');
+                        console.warn('Autoplay blocked; video will retry on next interaction:', error.name);
                     });
                 });
 
