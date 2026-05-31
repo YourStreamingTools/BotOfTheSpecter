@@ -50,11 +50,11 @@ curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 $usersResponse = curl_exec($curl);
 
 if ($usersResponse === false) {
-    $subscribersError = 'Unable to verify channel subscription eligibility right now. Please try again later.';
+    $subscribersError = t('subscribers_error_eligibility');
 } else {
     $usersHttpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     if ($usersHttpCode !== 200) {
-        $subscribersError = 'Unable to verify channel subscription eligibility right now. Please try again later.';
+        $subscribersError = t('subscribers_error_eligibility');
     } else {
         $usersData = json_decode($usersResponse, true);
         $channelDisplayName = $usersData['data'][0]['display_name'] ?? ($usersData['data'][0]['login'] ?? 'This channel');
@@ -78,13 +78,13 @@ if (!$showNoSubscriberAccessMessage && !$subscribersError) {
         // Execute cURL request
         $response = curl_exec($curl);
         if ($response === false) {
-            $subscribersError = 'Unable to fetch subscribers right now. Please try again later.';
+            $subscribersError = t('subscribers_error_fetch');
             curl_close($curl);
             break;
         }
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         if ($httpCode !== 200) {
-            $subscribersError = 'Unable to fetch subscribers right now. Please try again later.';
+            $subscribersError = t('subscribers_error_fetch');
             curl_close($curl);
             break;
         }

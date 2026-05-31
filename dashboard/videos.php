@@ -216,14 +216,14 @@ function countChannelClips($broadcasterId, $accessToken, $clientID, $maxItems = 
 
 function formatVideoDuration($duration) {
 	if (!is_string($duration) || $duration === '') {
-		return 'Unknown';
+		return t('videos_unknown');
 	}
 	return strtoupper($duration);
 }
 
 function formatVideoDate($timestamp) {
 	if (!is_string($timestamp) || $timestamp === '') {
-		return 'Unknown date';
+		return t('videos_unknown_date');
 	}
 	$time = strtotime($timestamp);
 	if ($time === false) {
@@ -234,7 +234,7 @@ function formatVideoDate($timestamp) {
 
 function formatClipDuration($seconds) {
 	if (!is_numeric($seconds)) {
-		return 'Unknown';
+		return t('videos_unknown');
 	}
 	return number_format((float) $seconds, 1) . 's';
 }
@@ -264,7 +264,7 @@ function fetchSortedChannelClips($channelUserId, $accessToken, $clientID, $maxIt
 
 function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = []) {
 	$videoId = isset($video['id']) ? (string) $video['id'] : '';
-	$videoTitle = isset($video['title']) ? (string) $video['title'] : ($isClipsMode ? 'Untitled Clip' : 'Untitled Video');
+	$videoTitle = isset($video['title']) ? (string) $video['title'] : ($isClipsMode ? t('videos_untitled_clip') : t('videos_untitled_video'));
 	$videoDescription = isset($video['description']) ? (string) $video['description'] : '';
 	$thumbnail = isset($video['thumbnail_url']) ? (string) $video['thumbnail_url'] : '';
 	if ($thumbnail !== '') {
