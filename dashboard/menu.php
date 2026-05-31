@@ -54,6 +54,7 @@ function getMenuItems($role = 'default') {
             [ 'label' => t('navbar_media'), 'icon' => 'fas fa-photo-film', 'href' => 'media.php' ],
         ]],
         [ 'label' => t('navbar_vod_music'), 'icon' => 'fas fa-music', 'href' => 'music.php' ],
+        [ 'label' => t('navbar_media_player'), 'icon' => 'fas fa-play-circle', 'href' => 'media_player.php' ],
         [ 'divider' => true ],
         [ 'label' => t('navbar_integrations'), 'icon' => 'fas fa-plug', 'submenu' => [
             [ 'label' => t('navbar_specter_modules'), 'icon' => 'fa fa-puzzle-piece', 'href' => 'modules.php' ],

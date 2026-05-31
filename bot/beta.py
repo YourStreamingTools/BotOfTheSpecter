@@ -18,6 +18,7 @@ from pathlib import Path
 # Third-party imports
 import pytz as set_timezone
 import yt_dlp
+from media_helpers import clean_youtube_title, evaluate_guardrails, format_queue_line
 from websockets import connect as WebSocketConnect
 from websockets import ConnectionClosed as WebSocketConnectionClosed
 from websockets import ConnectionClosedError as WebSocketConnectionClosedError
@@ -153,7 +154,7 @@ builtin_commands = {
 mod_commands = {
     "addcommand", "removecommand", "disablecommand", "enablecommand", "editcommand", "removetypos", "addpoints", "removepoints", "permit", "removequote", "quoteadd",
     "settitle", "setgame", "edittypos", "deathadd", "deathremove", "shoutout", "marker", "checkupdate", "startlotto", "drawlotto",
-    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft"
+    "skipsong", "wsstatus", "dbstatus", "obs", "createraffle", "startraffle", "stopraffle", "drawraffle", "forceoffline", "forceonline", "craft", "removesong"
 }
 builtin_aliases = {
     "cmds", "back", "so", "typocount", "edittypo", "removetypo", "death+", "death-", "mysub", "sr", "lurkleader", "skip",
@@ -5568,6 +5569,19 @@ class TwitchBot(commands.Bot):
                 if not await check_cooldown('song', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
                 # Get the current song and artist from Spotify
+                if not await get_spotify_access_token():
+                    mconn = await mysql_connection()
+                    try:
+                        async with mconn.cursor(DictCursor) as mcur:
+                            await mcur.execute("SELECT title, requested_by FROM media_queue WHERE status='playing' ORDER BY id LIMIT 1")
+                            now = await mcur.fetchone()
+                        if now:
+                            await send_chat_message(f"🎵 Now Playing: {now['title']} (requested by {now['requested_by']})")
+                        else:
+                            await send_chat_message("Nothing is playing right now.")
+                    finally:
+                        await mconn.close()
+                    return
                 song_name, artist_name, song_id, spotify_error = await get_spotify_current_song()
                 # If Spotify succeeded and returned song data
                 if song_name and artist_name:
@@ -5644,6 +5658,9 @@ class TwitchBot(commands.Bot):
                 if not await check_cooldown('songrequest', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
+            if not access_token:
+                await self._media_songrequest(ctx, connection, bucket_key, cooldown_bucket)
+                return
             headers = {"Authorization": f"Bearer {access_token}"}
             message = ctx.message.content
             parts = message.split(" ", 1)
@@ -5804,6 +5821,103 @@ class TwitchBot(commands.Bot):
             if connection:
                 await connection.close()
 
+    async def _media_songrequest(self, ctx, connection, bucket_key, cooldown_bucket):
+        global bot_owner
+        try:
+            settings = await get_media_settings(connection)
+            if not settings.get("enabled") and ctx.author.name != bot_owner:
+                await send_chat_message("Song requests are currently disabled.")
+                return
+            parts = ctx.message.content.split(" ", 1)
+            if len(parts) < 2 or not parts[1].strip():
+                await send_chat_message("Please provide a song title, artist, or a YouTube link. Example: !songrequest never gonna give you up")
+                return
+            resolved = await resolve_youtube_request(parts[1].strip())
+            if not resolved:
+                await send_chat_message("Sorry, I couldn't find that song. Try a different title or a YouTube link.")
+                return
+            banlist = await get_media_banlist(connection)
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
+                queue_count = (await cursor.fetchone())["c"]
+                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued' AND requested_by=%s", (ctx.author.name,))
+                viewer_count = (await cursor.fetchone())["c"]
+            ok, reason = evaluate_guardrails(
+                duration=resolved["duration"], queue_count=queue_count, viewer_count=viewer_count,
+                settings=settings, video_id=resolved["video_id"], title=resolved["title"], banlist=banlist)
+            if not ok:
+                msgs = {
+                    "too_long": f"That song is too long (max {settings['max_song_seconds'] // 60} min).",
+                    "queue_full": "The song queue is full, please try again later.",
+                    "viewer_limit": f"You already have {settings['per_viewer_limit']} song(s) in the queue.",
+                    "banned": "Sorry, that song isn't allowed here.",
+                }
+                await send_chat_message(msgs.get(reason, "Sorry, that request can't be added."))
+                return
+            async with connection.cursor() as cursor:
+                await cursor.execute(
+                    "INSERT INTO media_queue (video_id, title, uploader, duration_seconds, requested_by, status) VALUES (%s,%s,%s,%s,%s,'queued')",
+                    (resolved["video_id"], resolved["title"], resolved["uploader"], resolved["duration"], ctx.author.name))
+            await specterSocket.emit('MEDIA_COMMAND', {'command': 'enqueue', 'code': API_TOKEN})
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT COUNT(*) AS c FROM media_queue WHERE status='queued'")
+                position = (await cursor.fetchone())["c"]
+            await send_chat_message(f"Added '{resolved['title']}' to the queue (position {position}).")
+            add_usage('songrequest', bucket_key, cooldown_bucket)
+            try:
+                async with connection.cursor() as acur:
+                    await acur.execute(
+                        "INSERT INTO song_request_analytics (song_name, artist_name, requested_by) VALUES (%s, %s, %s)",
+                        (resolved["title"], resolved.get("uploader") or "YouTube", ctx.author.name))
+            except Exception as analytics_err:
+                api_logger.error(f"[MEDIA REQUEST] analytics insert failed: {analytics_err}")
+        except Exception as e:
+            chat_logger.error(f"[MEDIA REQUEST] error: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+
+    @commands.command(name='removesong')
+    async def removesong_command(self, ctx):
+        global bot_owner
+        connection = await mysql_connection()
+        try:
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT status, permission, cooldown_rate, cooldown_time, cooldown_bucket FROM builtin_commands WHERE command=%s", ("removesong",))
+                result = await cursor.fetchone()
+                if result:
+                    if result.get("status") == 'Disabled' and ctx.author.name != bot_owner:
+                        await send_chat_message("Removing songs is currently disabled.")
+                        return
+                    permissions = result.get("permission")
+                    cooldown_bucket = result.get("cooldown_bucket")
+                    if not await command_permissions(permissions, ctx.author):
+                        await send_chat_message("You do not have the required permissions to use this command.")
+                        return
+                    bucket_key = 'global' if cooldown_bucket == 'default' else ('mod' if cooldown_bucket == 'mods' and await command_permissions("mod", ctx.author) else str(ctx.author.id))
+                    if not await check_cooldown('removesong', bucket_key, cooldown_bucket, result.get("cooldown_rate"), result.get("cooldown_time")):
+                        return
+                else:
+                    bucket_key, cooldown_bucket = 'mod', 'mods'
+            parts = ctx.message.content.split(" ", 1)
+            if len(parts) < 2 or not parts[1].strip().isdigit():
+                await send_chat_message("Usage: !removesong <position>  (see !songqueue for positions)")
+                return
+            position = int(parts[1].strip())
+            async with connection.cursor(DictCursor) as cursor:
+                await cursor.execute("SELECT id, title FROM media_queue WHERE status='queued' ORDER BY id LIMIT 1 OFFSET %s", (position - 1,))
+                row = await cursor.fetchone()
+                if not row:
+                    await send_chat_message(f"There's no song at position {position}.")
+                    return
+                await cursor.execute("DELETE FROM media_queue WHERE id=%s AND status='queued'", (row["id"],))
+            await specterSocket.emit('MEDIA_COMMAND', {'command': 'remove', 'code': API_TOKEN, 'id': row["id"]})
+            await send_chat_message(f"Removed '{row['title']}' from the queue.")
+            add_usage('removesong', bucket_key, cooldown_bucket)
+        except Exception as e:
+            chat_logger.error(f"[MEDIA REMOVE] error: {e}")
+            await send_chat_message("An unexpected error occurred. Please try again later.")
+        finally:
+            await connection.close()
+
     @commands.command(name='skipsong', aliases=['skip'])
     async def skipsong_command(self, ctx):
         global SPOTIFY_ERROR_MESSAGES, song_requests, bot_owner
@@ -5847,6 +5961,11 @@ class TwitchBot(commands.Bot):
                 if not await check_cooldown('skipsong', bucket_key, cooldown_bucket, cooldown_rate, cooldown_time):
                     return
             access_token = await get_spotify_access_token()
+            if not access_token:
+                await specterSocket.emit('MEDIA_COMMAND', {'command': 'skip', 'code': API_TOKEN})
+                await send_chat_message("Skipping the current song.")
+                add_usage('skipsong', bucket_key, cooldown_bucket)
+                return
             headers = {"Authorization": f"Bearer {access_token}"}
             device_url = "https://api.spotify.com/v1/me/player/devices"
             async with httpClientSession() as session:
@@ -5924,6 +6043,17 @@ class TwitchBot(commands.Bot):
                     return
             # Request the queue information from Spotify
             access_token = await get_spotify_access_token()
+            if not access_token:
+                async with connection.cursor(DictCursor) as qcur:
+                    await qcur.execute("SELECT title, requested_by FROM media_queue WHERE status='queued' ORDER BY id")
+                    rows = await qcur.fetchall()
+                if not rows:
+                    await send_chat_message("The song queue is empty.")
+                    return
+                preview = "; ".join(format_queue_line(i + 1, r["title"], r["requested_by"]) for i, r in enumerate(rows[:3]))
+                extra = f" …and {len(rows) - 3} more." if len(rows) > 3 else ""
+                await send_chat_message(f"Queue: {preview}{extra}")
+                return
             headers = {"Authorization": f"Bearer {access_token}"}
             queue_url = "https://api.spotify.com/v1/me/player/queue"
             async with httpClientSession() as queue_session:
@@ -12027,6 +12157,59 @@ async def send_timed_message(message_id, message, delay):
             bot_logger.error(f"[TIMED MESSAGE] BOTS_TWITCH_BOT state: {BOTS_TWITCH_BOT._connection._status}")
     else:
         chat_logger.info(f'[TIMED MESSAGE] Stream is offline. Message ID: {message_id} not sent.')
+
+# --- Media-player song request helpers (non-Spotify fallback) ---
+# The per-user media tables (media_queue / media_request_settings / media_banlist) are
+# created centrally by dashboard/usr_database.php, like every other per-user table.
+async def get_media_settings(connection):
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute("SELECT enabled, max_song_seconds, max_queue_length, per_viewer_limit, volume FROM media_request_settings WHERE id=1")
+        row = await cursor.fetchone()
+    return row or {"enabled": 1, "max_song_seconds": 600, "max_queue_length": 20, "per_viewer_limit": 2, "volume": 30}
+
+async def get_media_banlist(connection):
+    async with connection.cursor(DictCursor) as cursor:
+        await cursor.execute("SELECT type, value FROM media_banlist")
+        return await cursor.fetchall()
+
+async def resolve_youtube_request(message_content):
+    """Return dict {video_id,title,uploader,duration} or None. Metadata only — no download."""
+    youtube_url_patterns = [
+        re.compile(r'https?://(www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)'),
+        re.compile(r'https?://(www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)'),
+        re.compile(r'https?://youtu\.be/([a-zA-Z0-9_-]+)'),
+        re.compile(r'https?://(www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)'),
+        re.compile(r'https?://m\.youtube\.com/watch\?v=([a-zA-Z0-9_-]+)'),
+    ]
+    is_url = any(p.search(message_content) for p in youtube_url_patterns)
+    query = message_content if is_url else f"ytsearch1:{message_content}"
+    ydl_opts = {
+        'quiet': True, 'no_warnings': True, 'skip_download': True, 'noplaylist': True,
+        'cookiefile': '/home/botofthespecter/ytdl-cookies.txt',
+    }
+    def _run():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(query, download=False)
+            if info and 'entries' in info:
+                entries = info['entries'] or []
+                if not entries:
+                    return None
+                info = entries[0]
+            return info
+    try:
+        loop = get_event_loop()
+        info = await loop.run_in_executor(None, _run)
+        if not info or not info.get('id'):
+            return None
+        return {
+            'video_id': info.get('id'),
+            'title': clean_youtube_title(info.get('title', '')) or info.get('title', '') or 'Unknown',
+            'uploader': info.get('uploader'),
+            'duration': int(info.get('duration') or 0),
+        }
+    except Exception as e:
+        api_logger.error(f"[MEDIA REQUEST] yt-dlp resolve failed: {e}")
+        return None
 
 # Function to get Spotify access token from database
 async def get_spotify_access_token():

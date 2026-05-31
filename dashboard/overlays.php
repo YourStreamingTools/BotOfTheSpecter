@@ -221,6 +221,18 @@ ob_start();
             </div>
         </div>
     </div>
+    <!-- Media Player (Song Requests) Overlay -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header">
+            <div class="sp-card-title"><i class="fas fa-play-circle"></i> <?= t('overlays_media_player_overlay') ?></div>
+        </div>
+        <div class="sp-card-body">
+            <?= t('overlays_media_player_overlay_desc') ?>
+            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
+                https://overlay.botofthespecter.com/mediaplayer.php?code=API_KEY_HERE
+            </div>
+        </div>
+    </div>
     <!-- Discord Join Notifications -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">

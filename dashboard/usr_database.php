@@ -912,6 +912,34 @@ try {
                 show_title TINYINT(1) NOT NULL DEFAULT 1,
                 show_description TINYINT(1) NOT NULL DEFAULT 1,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'media_queue' => "
+            CREATE TABLE IF NOT EXISTS media_queue (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                video_id VARCHAR(32) NOT NULL,
+                title VARCHAR(512) NOT NULL,
+                uploader VARCHAR(255) DEFAULT NULL,
+                duration_seconds INT NOT NULL DEFAULT 0,
+                requested_by VARCHAR(255) NOT NULL,
+                requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status ENUM('queued','playing','played') NOT NULL DEFAULT 'queued',
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'media_request_settings' => "
+            CREATE TABLE IF NOT EXISTS media_request_settings (
+                id TINYINT PRIMARY KEY DEFAULT 1,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                max_song_seconds INT NOT NULL DEFAULT 600,
+                max_queue_length INT NOT NULL DEFAULT 20,
+                per_viewer_limit INT NOT NULL DEFAULT 2,
+                volume INT NOT NULL DEFAULT 30
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        'media_banlist' => "
+            CREATE TABLE IF NOT EXISTS media_banlist (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                type ENUM('video_id','keyword') NOT NULL,
+                value VARCHAR(255) NOT NULL,
+                added_by VARCHAR(255) DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
     // Build $columns mapping from the CREATE TABLE statements in $tables to keep definitions in sync automatically
