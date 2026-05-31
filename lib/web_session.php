@@ -17,6 +17,7 @@ class WebSessionHandler implements SessionHandlerInterface
     private $db;
     /** @var int session lifetime in seconds (matches session.gc_maxlifetime) */
     private $lifetime;
+    private $lockName = null;
     public function __construct(mysqli $db, int $lifetime = 14400)
     {
         $this->db = $db;
@@ -28,10 +29,18 @@ class WebSessionHandler implements SessionHandlerInterface
     }
     public function close(): bool
     {
+        if ($this->lockName !== null) {
+            $safelock = $this->db->real_escape_string($this->lockName);
+            $this->db->query("SELECT RELEASE_LOCK('{$safelock}')");
+            $this->lockName = null;
+        }
         return true;
     }
     public function read($id): string
     {
+        $this->lockName = 'ps:' . substr($id, 0, 60);
+        $safelock = $this->db->real_escape_string($this->lockName);
+        $this->db->query("SELECT GET_LOCK('{$safelock}', 5)");
         $stmt = $this->db->prepare(
             "SELECT data FROM web_sessions
              WHERE session_id = ? AND last_seen_at > NOW() - INTERVAL ? SECOND
