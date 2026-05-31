@@ -261,9 +261,9 @@ ob_start();
     <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
         <i class="fas fa-bell" style="margin-top: 0.15rem; flex-shrink: 0;"></i>
         <div>
-            <strong>StreamLabs API Enabled</strong>
+            <strong><?= t('streamlabs_api_enabled_title') ?></strong>
             <p style="margin: 0.35rem 0 0; font-size: 0.9rem;">
-                We have been approved and the API is unlocked - you may connect away and enjoy real-time notices about donations. If you have any issues while this is still under review and testing, please log a support ticket on our Discord server.
+                <?= t('streamlabs_api_enabled_desc') ?>
             </p>
         </div>
     </div>
@@ -272,22 +272,22 @@ ob_start();
     <div class="sp-card-header">
         <div class="sp-card-title">
             <i class="fas fa-gift"></i>
-            StreamLabs Integration
+            <?= t('streamlabs_integration_title') ?>
         </div>
         <div style="display: flex; gap: 0.75rem; align-items: center;">
             <?php if ($isLinked): ?>
                 <span class="sp-badge sp-badge-green">
                     <i class="fas fa-check-circle"></i>
-                    Linked
+                    <?= t('streamlabs_badge_linked') ?>
                 </span>
-                <button id="unlinkHeaderBtn" class="sp-btn sp-btn-danger sp-btn-sm" title="Unlink StreamLabs Account">
+                <button id="unlinkHeaderBtn" class="sp-btn sp-btn-danger sp-btn-sm" title="<?= htmlspecialchars(t('streamlabs_unlink_account_title')) ?>">
                     <i class="fas fa-unlink"></i>
-                    Unlink
+                    <?= t('streamlabs_unlink') ?>
                 </button>
             <?php else: ?>
                 <span class="sp-badge sp-badge-red">
                     <i class="fas fa-exclamation-circle"></i>
-                    Not Linked
+                    <?= t('streamlabs_badge_not_linked') ?>
                 </span>
             <?php endif; ?>
         </div>
@@ -308,7 +308,7 @@ ob_start();
         <?php if ($isLinked): ?>
             <!-- Account status text -->
             <p style="text-align: center; color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">
-                Your StreamLabs account is successfully linked to your profile and ready to track donations.
+                <?= t('streamlabs_linked_intro') ?>
             </p>
             <!-- Tokens section -->
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
@@ -316,12 +316,12 @@ ob_start();
                 <?php if ($access_token): ?>
                     <div class="sp-card" style="margin-bottom: 0;">
                         <div class="sp-card-header">
-                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);">Access Token</span>
+                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);"><?= t('streamlabs_access_token_label') ?></span>
                             <div style="display: flex; gap: 0.5rem;">
-                                <button class="sp-btn sp-btn-info sp-btn-sm" id="copyAccessTokenBtn" title="Copy Access Token">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" id="copyAccessTokenBtn" title="<?= htmlspecialchars(t('streamlabs_copy_access_token_title')) ?>">
                                     <i class="fas fa-copy" id="copyAccessTokenIcon"></i>
                                 </button>
-                                <button class="sp-btn sp-btn-warning sp-btn-sm" id="showAccessTokenBtn" title="Show Access Token">
+                                <button class="sp-btn sp-btn-warning sp-btn-sm" id="showAccessTokenBtn" title="<?= htmlspecialchars(t('streamlabs_show_access_token_title')) ?>">
                                     <i class="fas fa-eye" id="accessTokenEye"></i>
                                 </button>
                             </div>
@@ -335,12 +335,12 @@ ob_start();
                 <?php if ($socketToken): ?>
                     <div class="sp-card" style="margin-bottom: 0;">
                         <div class="sp-card-header">
-                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);">Socket Token (Real-time Events)</span>
+                            <span style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary);"><?= t('streamlabs_socket_token_label') ?></span>
                             <div style="display: flex; gap: 0.5rem;">
-                                <button class="sp-btn sp-btn-info sp-btn-sm" id="copySocketTokenBtn" title="Copy Socket Token">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" id="copySocketTokenBtn" title="<?= htmlspecialchars(t('streamlabs_copy_socket_token_title')) ?>">
                                     <i class="fas fa-copy" id="copySocketTokenIcon"></i>
                                 </button>
-                                <button class="sp-btn sp-btn-info sp-btn-sm" id="showSocketTokenBtn" title="Show Socket Token">
+                                <button class="sp-btn sp-btn-info sp-btn-sm" id="showSocketTokenBtn" title="<?= htmlspecialchars(t('streamlabs_show_socket_token_title')) ?>">
                                     <i class="fas fa-eye" id="socketTokenEye"></i>
                                 </button>
                             </div>
@@ -355,28 +355,28 @@ ob_start();
             <?php if (!empty($recentDonations)): ?>
                 <div class="sp-card" style="margin-bottom: 1.5rem;">
                     <div class="sp-card-header">
-                        <span class="sp-card-title">Recent Donations</span>
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">Latest <?php echo min(20, count($recentDonations)); ?></span>
+                        <span class="sp-card-title"><?= t('streamlabs_recent_donations_title') ?></span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);"><?= t('streamlabs_recent_donations_latest') ?> <?php echo min(20, count($recentDonations)); ?></span>
                     </div>
                     <div class="sp-table-wrap" style="border: none; border-radius: 0;">
                         <table class="sp-table">
                             <thead>
                                 <tr>
-                                    <th>Donor</th>
-                                    <th style="text-align: right;">Amount</th>
-                                    <th>Message</th>
-                                    <th>Date</th>
+                                    <th><?= t('streamlabs_th_donor') ?></th>
+                                    <th style="text-align: right;"><?= t('streamlabs_th_amount') ?></th>
+                                    <th><?= t('streamlabs_th_message') ?></th>
+                                    <th><?= t('streamlabs_th_date') ?></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach (array_slice($recentDonations, 0, 20) as $donation): ?>
                                     <tr>
-                                        <td><strong><?php echo htmlspecialchars($donation['name'] ?? 'Anonymous'); ?></strong></td>
+                                        <td><strong><?php echo htmlspecialchars($donation['name'] ?? t('streamlabs_anonymous')); ?></strong></td>
                                         <td style="text-align: right; color: var(--green); font-weight: 600;">
                                             <?php echo htmlspecialchars($donation['currency'] ?? '$'); ?><?php echo htmlspecialchars(number_format($donation['amount'] ?? 0, 2)); ?>
                                         </td>
                                         <td style="color: var(--text-secondary); max-width: 250px; word-break: break-word;">
-                                            <?php echo htmlspecialchars($donation['message'] ?? 'No message'); ?>
+                                            <?php echo htmlspecialchars($donation['message'] ?? t('streamlabs_no_message')); ?>
                                         </td>
                                         <td style="color: var(--text-muted); white-space: nowrap; font-size: 0.875rem;">
                                             <?php 
@@ -403,22 +403,22 @@ ob_start();
             <?php if (empty($recentDonations) && $isLinked && isset($access_token)): ?>
                 <div style="text-align: center; padding: 3rem 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius-lg);">
                     <i class="fas fa-inbox" style="font-size: 2rem; color: var(--text-muted); display: block; margin-bottom: 0.75rem;"></i>
-                    <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">No donations yet</p>
-                    <p style="font-size: 0.82rem; color: var(--text-muted);">When you receive donations, they will appear here.</p>
+                    <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;"><?= t('streamlabs_no_donations_yet') ?></p>
+                    <p style="font-size: 0.82rem; color: var(--text-muted);"><?= t('streamlabs_no_donations_hint') ?></p>
                 </div>
             <?php endif; ?>
         <?php else: ?>
             <!-- Not linked display -->
             <div style="text-align: center; padding: 1rem 0;">
                 <p style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
-                    Connect your StreamLabs account to enable donation tracking and integration features.
+                    <?= t('streamlabs_connect_intro') ?>
                 </p>
                 <div style="max-width: 480px; margin: 0 auto 1.5rem;">
                     <div class="sp-card" style="margin-bottom: 0;">
                         <div class="sp-card-body" style="text-align: center;">
                             <i class="fas fa-link" style="font-size: 2.5rem; color: var(--text-muted); display: block; margin-bottom: 0.75rem;"></i>
                             <p style="color: var(--text-secondary); font-size: 0.9rem;">
-                                Link your StreamLabs account to automatically track and display donations on your dashboard.
+                                <?= t('streamlabs_link_card_desc') ?>
                             </p>
                         </div>
                     </div>
@@ -426,12 +426,12 @@ ob_start();
                 <?php if ($authURL): ?>
                     <a href="<?php echo $authURL; ?>" class="sp-btn sp-btn-info" style="font-size: 1rem; padding: 0.65rem 1.5rem;">
                         <i class="fas fa-link"></i>
-                        Link StreamLabs Account
+                        <?= t('streamlabs_link_account_btn') ?>
                     </a>
                 <?php elseif ($isActAsUser): ?>
                     <div class="sp-alert sp-alert-warning" style="max-width: 700px; margin: 0 auto;">
                         <i class="fas fa-exclamation-triangle"></i>
-                        Act As mode is active. Linking StreamLabs is disabled for acting users.
+                        <?= t('streamlabs_actas_disabled') ?>
                     </div>
                 <?php endif; ?>
             </div>

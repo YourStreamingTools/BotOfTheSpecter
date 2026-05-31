@@ -200,7 +200,7 @@ if ($res) {
 ob_start();
 ?>
 <div class="sp-alert sp-alert-warning" style="margin-bottom:1.5rem;">
-    <strong>⚠️ Beta Feature:</strong> This is a beta 5.8 version feature currently in testing. Functionality may change or have unexpected behavior.
+    <strong><?= t('raffles_beta_label') ?></strong> <?= t('raffles_beta_notice') ?>
 </div>
 <?php if ($message): ?>
     <div class="sp-alert sp-alert-info" style="margin-bottom:1.5rem;"><?php echo htmlspecialchars($message); ?></div>
@@ -209,81 +209,81 @@ ob_start();
 <!-- Create New Raffle -->
 <div class="sp-card">
     <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-ticket-alt"></i> Create New Raffle</span>
+        <span class="sp-card-title"><i class="fas fa-ticket-alt"></i> <?= t('raffles_create_new_title') ?></span>
     </header>
     <div class="sp-card-body">
         <form method="post">
             <input type="hidden" name="action" value="create">
             <div class="sp-form-group">
-                <label class="sp-label">Raffle Name</label>
+                <label class="sp-label"><?= t('raffles_field_name') ?></label>
                 <input class="sp-input" name="name" required>
             </div>
             <div class="sp-form-group">
-                <label class="sp-label">Prize Description</label>
-                <textarea class="sp-textarea" name="prize" placeholder="What are they winning?" required></textarea>
+                <label class="sp-label"><?= t('raffles_field_prize') ?></label>
+                <textarea class="sp-textarea" name="prize" placeholder="<?= htmlspecialchars(t('raffles_field_prize_placeholder')) ?>" required></textarea>
             </div>
             <div class="sp-form-group">
-                <label class="sp-label">Number of Winners</label>
+                <label class="sp-label"><?= t('raffles_field_number_of_winners') ?></label>
                 <input class="sp-input" type="number" name="number_of_winners" min="1" value="1" required style="max-width:120px;">
             </div>
             <div class="sp-form-group">
                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
                     <input type="checkbox" name="weighted" id="weighted-checkbox" onchange="toggleWeightSettings()">
-                    Enable Weighted Raffle (subscribers and VIPs get enhanced odds)
+                    <?= t('raffles_enable_weighted') ?>
                 </label>
             </div>
             <div id="weight-settings" style="display:none;border-left:3px solid var(--accent);padding-left:1rem;margin-left:1rem;margin-bottom:1rem;">
-                <p style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.75rem;">Weight Multipliers</p>
+                <p style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:0.75rem;"><?= t('raffles_weight_multipliers') ?></p>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                     <div class="sp-form-group" style="margin-bottom:0;">
-                        <label class="sp-label">Tier 1 Subscriber</label>
+                        <label class="sp-label"><?= t('raffles_weight_sub_t1') ?></label>
                         <input class="sp-input" type="number" name="weight_sub_t1" step="0.01" min="1" value="2.00">
                     </div>
                     <div class="sp-form-group" style="margin-bottom:0;">
-                        <label class="sp-label">Tier 2 Subscriber</label>
+                        <label class="sp-label"><?= t('raffles_weight_sub_t2') ?></label>
                         <input class="sp-input" type="number" name="weight_sub_t2" step="0.01" min="1" value="3.00">
                     </div>
                     <div class="sp-form-group" style="margin-bottom:0;">
-                        <label class="sp-label">Tier 3 Subscriber</label>
+                        <label class="sp-label"><?= t('raffles_weight_sub_t3') ?></label>
                         <input class="sp-input" type="number" name="weight_sub_t3" step="0.01" min="1" value="4.00">
                     </div>
                     <div class="sp-form-group" style="margin-bottom:0;">
-                        <label class="sp-label">VIP</label>
+                        <label class="sp-label"><?= t('raffles_weight_vip') ?></label>
                         <input class="sp-input" type="number" name="weight_vip" step="0.01" min="1" value="1.50">
                     </div>
                 </div>
             </div>
             <div class="sp-form-group">
                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
-                    <input type="checkbox" name="exclude_mods"> Exclude Moderators from winning
+                    <input type="checkbox" name="exclude_mods"> <?= t('raffles_exclude_mods') ?>
                 </label>
             </div>
             <div class="sp-form-group">
                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
-                    <input type="checkbox" name="subscribers_only"> Only Subscribers Can Enter
+                    <input type="checkbox" name="subscribers_only"> <?= t('raffles_subscribers_only') ?>
                 </label>
             </div>
             <div class="sp-form-group">
                 <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
-                    <input type="checkbox" name="followers_only" id="followers-only-checkbox" onchange="toggleFollowerMinimumSettings()"> Only Followers Can Enter
+                    <input type="checkbox" name="followers_only" id="followers-only-checkbox" onchange="toggleFollowerMinimumSettings()"> <?= t('raffles_followers_only') ?>
                 </label>
             </div>
             <div id="follower-minimum-settings" style="display:none;border-left:3px solid var(--green);padding-left:1rem;margin-left:1rem;margin-bottom:1rem;">
                 <div class="sp-form-group">
                     <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:var(--text-secondary);">
-                        <input type="checkbox" name="followers_min_enabled" id="followers-min-enabled-checkbox" onchange="toggleFollowerMinimumInputs()"> Require Minimum Follow Time
+                        <input type="checkbox" name="followers_min_enabled" id="followers-min-enabled-checkbox" onchange="toggleFollowerMinimumInputs()"> <?= t('raffles_require_min_follow_time') ?>
                     </label>
                 </div>
                 <div id="follower-minimum-inputs" style="display:none;">
                     <div class="sp-form-group">
-                        <label class="sp-label">Minimum Follow Time</label>
+                        <label class="sp-label"><?= t('raffles_min_follow_time') ?></label>
                         <div style="display:flex;gap:0.75rem;align-items:center;">
                             <input class="sp-input" type="number" name="followers_min_value" min="0" value="0" style="max-width:100px;">
                             <select class="sp-select" name="followers_min_unit" style="max-width:140px;">
-                                <option value="days">Days</option>
-                                <option value="weeks">Weeks</option>
-                                <option value="months">Months</option>
-                                <option value="years">Years</option>
+                                <option value="days"><?= t('raffles_unit_days') ?></option>
+                                <option value="weeks"><?= t('raffles_unit_weeks') ?></option>
+                                <option value="months"><?= t('raffles_unit_months') ?></option>
+                                <option value="years"><?= t('raffles_unit_years') ?></option>
                             </select>
                         </div>
                     </div>
@@ -315,7 +315,7 @@ ob_start();
             </script>
             <div style="margin-top:1.5rem;">
                 <button class="sp-btn sp-btn-primary" type="submit">
-                    <i class="fas fa-ticket-alt"></i> Create Raffle
+                    <i class="fas fa-ticket-alt"></i> <?= t('raffles_create_btn') ?>
                 </button>
             </div>
         </form>
@@ -325,22 +325,22 @@ ob_start();
 <!-- Active Raffles -->
 <div class="sp-card">
     <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-list"></i> Active Raffles</span>
+        <span class="sp-card-title"><i class="fas fa-list"></i> <?= t('raffles_active_title') ?></span>
     </header>
     <div class="sp-card-body">
         <div class="sp-table-wrap">
             <table class="sp-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Prize</th>
-                        <th># Winners</th>
-                        <th>Status</th>
-                        <th>Weights</th>
-                        <th>Exclusions</th>
-                        <th>Winner(s)</th>
-                        <th>Action</th>
+                        <th><?= t('raffles_col_id') ?></th>
+                        <th><?= t('raffles_col_name') ?></th>
+                        <th><?= t('raffles_col_prize') ?></th>
+                        <th><?= t('raffles_col_num_winners') ?></th>
+                        <th><?= t('raffles_col_status') ?></th>
+                        <th><?= t('raffles_col_weights') ?></th>
+                        <th><?= t('raffles_col_exclusions') ?></th>
+                        <th><?= t('raffles_col_winners') ?></th>
+                        <th><?= t('raffles_col_action') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -364,25 +364,25 @@ ob_start();
                             <td>
                                 <?php if ($r['is_weighted']): ?>
                                     <span class="sp-badge sp-badge-accent" title="T1: <?php echo $r['weight_sub_t1']; ?>x | T2: <?php echo $r['weight_sub_t2']; ?>x | T3: <?php echo $r['weight_sub_t3']; ?>x | VIP: <?php echo $r['weight_vip']; ?>x">
-                                        ✓ Weighted
+                                        <?= t('raffles_badge_weighted') ?>
                                     </span>
                                 <?php else: ?>
-                                    <span style="color:var(--text-muted);">No</span>
+                                    <span style="color:var(--text-muted);"><?= t('raffles_badge_no') ?></span>
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <?php
                                 $exclusions = [];
-                                if ($r['exclude_mods']) $exclusions[] = 'Mods excluded';
-                                if ($r['subscribers_only']) $exclusions[] = 'Subs only';
+                                if ($r['exclude_mods']) $exclusions[] = t('raffles_excl_mods');
+                                if ($r['subscribers_only']) $exclusions[] = t('raffles_excl_subs');
                                 if ($r['followers_only']) {
-                                    $followersLabel = 'Followers only';
+                                    $followersLabel = t('raffles_excl_followers');
                                     if (intval($r['followers_min_enabled']) === 1 && intval($r['followers_min_value']) > 0) {
-                                        $followersLabel .= ' (' . intval($r['followers_min_value']) . ' ' . htmlspecialchars($r['followers_min_unit']) . ' min)';
+                                        $followersLabel .= ' (' . intval($r['followers_min_value']) . ' ' . htmlspecialchars($r['followers_min_unit']) . ' ' . t('raffles_excl_min') . ')';
                                     }
                                     $exclusions[] = $followersLabel;
                                 }
-                                echo !empty($exclusions) ? htmlspecialchars(implode(', ', $exclusions)) : '<span style="color:var(--text-muted);">None</span>';
+                                echo !empty($exclusions) ? htmlspecialchars(implode(', ', $exclusions)) : '<span style="color:var(--text-muted);">' . t('raffles_excl_none') . '</span>';
                                 ?>
                             </td>
                             <td>
@@ -395,13 +395,13 @@ ob_start();
                                     <form method="post" style="display:inline">
                                         <input type="hidden" name="action" value="start">
                                         <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                        <button class="sp-btn sp-btn-success sp-btn-sm" type="submit"><i class="fas fa-play"></i> Start</button>
+                                        <button class="sp-btn sp-btn-success sp-btn-sm" type="submit"><i class="fas fa-play"></i> <?= t('raffles_btn_start') ?></button>
                                     </form>
                                 <?php elseif ($r['status'] === 'running'): ?>
                                     <form method="post" style="display:inline">
                                         <input type="hidden" name="action" value="draw">
                                         <input type="hidden" name="raffle_id" value="<?php echo htmlspecialchars($r['id']); ?>">
-                                        <button class="sp-btn sp-btn-warning sp-btn-sm" type="submit"><i class="fas fa-star"></i> Draw</button>
+                                        <button class="sp-btn sp-btn-warning sp-btn-sm" type="submit"><i class="fas fa-star"></i> <?= t('raffles_btn_draw') ?></button>
                                     </form>
                                 <?php endif; ?>
                             </td>

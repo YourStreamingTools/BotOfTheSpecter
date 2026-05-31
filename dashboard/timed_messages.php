@@ -266,7 +266,7 @@ ob_start();
                     </div>
                     <div class="sp-betabot-toggle" style="margin-top:0.75rem;">
                         <input type="checkbox" class="switch" id="betaBotToggle" onchange="applyBetaBotCharLimit(this.checked)">
-                        <label for="betaBotToggle">Using Beta Bot? <strong>Enables 500 character limit.</strong></label>
+                        <label for="betaBotToggle"><?php echo t('timed_messages_beta_bot_toggle'); ?></label>
                     </div>
                 </div>
             </div>
@@ -291,17 +291,17 @@ ob_start();
                             <label class="sp-label" for="message"><?php echo t('timed_messages_message_label'); ?></label>
                             <input class="sp-input" type="text" name="message" id="message" required maxlength="255" oninput="updateCharCount('message', 'charCount'); updateShoutoutHint('message', 'interval', 'shoutoutHint'); toggleAddButton();">
                             <small id="charCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
-                            <small id="shoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>Using <code>(shoutout.username)</code> requires a minimum interval of 60 minutes.</small>
+                            <small id="shoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i><?php echo t('timed_messages_shoutout_hint'); ?></small>
                             <small id="messageError" class="sp-help sp-help-danger" style="display: none;"><?php echo t('timed_messages_message_required'); ?></small>
                         </div>
                         <div class="sp-form-group">
-                            <label class="sp-label">Trigger Type <span style="font-size:0.7rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 5px; margin-left:0.4rem; vertical-align:middle;">5.8 Beta</span></label>
+                            <label class="sp-label"><?php echo t('timed_messages_trigger_type_label'); ?> <span style="font-size:0.7rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 5px; margin-left:0.4rem; vertical-align:middle;">5.8 Beta</span></label>
                             <select class="sp-select" name="trigger_type" id="trigger_type" onchange="toggleAddTriggerType(); toggleAddButton();">
-                                <option value="timer">Timer (minutes)</option>
-                                <option value="chat_lines">Chat Lines</option>
-                                <option value="both">Both (Timer &amp; Chat Lines)</option>
+                                <option value="timer"><?php echo t('timed_messages_trigger_timer'); ?></option>
+                                <option value="chat_lines"><?php echo t('timed_messages_trigger_chat_lines'); ?></option>
+                                <option value="both"><?php echo t('timed_messages_trigger_both'); ?></option>
                             </select>
-                            <small class="sp-help">Fire on a fixed time interval, or after a set number of chat messages.</small>
+                            <small class="sp-help"><?php echo t('timed_messages_trigger_help'); ?></small>
                         </div>
                         <div class="sp-form-group" id="add_interval_field">
                             <label class="sp-label" for="interval"><?php echo t('timed_messages_interval_label'); ?></label>
@@ -340,11 +340,11 @@ ob_start();
                             </select>
                         </div>
                         <div class="sp-form-group">
-                            <label class="sp-label">Trigger Type <span style="font-size:0.7rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 5px; margin-left:0.4rem; vertical-align:middle;">5.8 Beta</span></label>
+                            <label class="sp-label"><?php echo t('timed_messages_trigger_type_label'); ?> <span style="font-size:0.7rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 5px; margin-left:0.4rem; vertical-align:middle;">5.8 Beta</span></label>
                             <select class="sp-select" name="edit_trigger_type" id="edit_trigger_type" onchange="toggleEditTriggerType();">
-                                <option value="timer">Timer (minutes)</option>
-                                <option value="chat_lines">Chat Lines</option>
-                                <option value="both">Both (Timer &amp; Chat Lines)</option>
+                                <option value="timer"><?php echo t('timed_messages_trigger_timer'); ?></option>
+                                <option value="chat_lines"><?php echo t('timed_messages_trigger_chat_lines'); ?></option>
+                                <option value="both"><?php echo t('timed_messages_trigger_both'); ?></option>
                             </select>
                         </div>
                         <div class="sp-form-group" id="edit_interval_field">
@@ -359,7 +359,7 @@ ob_start();
                             <label class="sp-label" for="edit_message_content"><?php echo t('timed_messages_message_label'); ?></label>
                             <input class="sp-input" type="text" name="edit_message_content" id="edit_message_content" required maxlength="255" oninput="updateCharCount('edit_message_content', 'editCharCount'); updateShoutoutHint('edit_message_content', 'edit_interval', 'editShoutoutHint'); toggleEditButton();">
                             <small id="editCharCount" class="sp-help">0/255 <?php echo t('timed_messages_characters'); ?></small>
-                            <small id="editShoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i>Using <code>(shoutout.username)</code> requires a minimum interval of 60 minutes.</small>
+                            <small id="editShoutoutHint" class="sp-help" style="display:none; color:var(--amber);"><i class="fas fa-exclamation-triangle" style="margin-right:0.3rem;"></i><?php echo t('timed_messages_shoutout_hint'); ?></small>
                         </div>
                         <div class="sp-form-group">
                             <label class="sp-label" for="edit_status"><?php echo t('timed_messages_status_label'); ?></label>
@@ -412,7 +412,7 @@ ob_start();
     <div class="sp-card-header">
         <span class="sp-card-title">
             <i class="fas fa-list" style="margin-right:0.5rem;"></i>
-            Current Timed Messages
+            <?php echo t('timed_messages_current_title'); ?>
         </span>
     </div>
     <div class="sp-card-body">
@@ -420,10 +420,10 @@ ob_start();
             <table class="sp-table">
                 <thead>
                     <tr>
-                        <th style="width: 42px; text-align: center; vertical-align: middle;">ID</th>
-                        <th style="vertical-align: middle;">Message</th>
-                        <th style="width: 150px; text-align: center; vertical-align: middle;">Trigger Type <span style="font-size:0.65rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 4px; margin-left:0.3rem;">5.8</span></th>
-                        <th style="width: 130px; text-align: center; vertical-align: middle;">Status</th>
+                        <th style="width: 42px; text-align: center; vertical-align: middle;"><?php echo t('timed_messages_th_id'); ?></th>
+                        <th style="vertical-align: middle;"><?php echo t('timed_messages_th_message'); ?></th>
+                        <th style="width: 150px; text-align: center; vertical-align: middle;"><?php echo t('timed_messages_trigger_type_label'); ?> <span style="font-size:0.65rem; background:rgba(251,191,36,0.15); color:var(--amber); border-radius:3px; padding:1px 4px; margin-left:0.3rem;">5.8</span></th>
+                        <th style="width: 130px; text-align: center; vertical-align: middle;"><?php echo t('timed_messages_status_label'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -436,11 +436,11 @@ ob_start();
                                     <?php
                                     $triggerType = $msg['trigger_type'] ?? 'timer';
                                     if ($triggerType === 'chat_lines') {
-                                        echo '<span class="sp-badge sp-badge-blue">Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                        echo '<span class="sp-badge sp-badge-blue">' . t('timed_messages_badge_chat_lines') . ': ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
                                     } elseif ($triggerType === 'both') {
-                                        echo '<span class="sp-badge sp-badge-amber">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min &amp; Chat Lines: ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
+                                        echo '<span class="sp-badge sp-badge-amber">' . t('timed_messages_badge_timer') . ': ' . htmlspecialchars($msg['interval_count']) . ' ' . t('timed_messages_badge_min') . ' &amp; ' . t('timed_messages_badge_chat_lines') . ': ' . htmlspecialchars($msg['chat_line_trigger']) . '</span>';
                                     } else {
-                                        echo '<span class="sp-badge sp-badge-accent">Timer: ' . htmlspecialchars($msg['interval_count']) . ' min</span>';
+                                        echo '<span class="sp-badge sp-badge-accent">' . t('timed_messages_badge_timer') . ': ' . htmlspecialchars($msg['interval_count']) . ' ' . t('timed_messages_badge_min') . '</span>';
                                     }
                                     ?>
                                 </td>
@@ -449,16 +449,16 @@ ob_start();
                                         class="sp-btn sp-btn-sm toggle-status-btn <?php echo $msg['status'] == 1 ? 'sp-btn-success' : 'sp-btn-danger'; ?>"
                                         data-id="<?php echo $msg['id']; ?>"
                                         data-status="<?php echo $msg['status']; ?>"
-                                        title="<?php echo $msg['status'] == 1 ? 'Click to disable' : 'Click to enable'; ?>">
+                                        title="<?php echo htmlspecialchars($msg['status'] == 1 ? t('timed_messages_click_to_disable') : t('timed_messages_click_to_enable')); ?>">
                                         <span class="icon"><i class="fas <?php echo $msg['status'] == 1 ? 'fa-toggle-on' : 'fa-toggle-off'; ?>"></i></span>
-                                        <span><?php echo $msg['status'] == 1 ? 'Enabled' : 'Disabled'; ?></span>
+                                        <span><?php echo $msg['status'] == 1 ? t('timed_messages_status_enabled') : t('timed_messages_status_disabled'); ?></span>
                                     </button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="4" style="text-align:center;">No timed messages found.</td>
+                            <td colspan="4" style="text-align:center;"><?php echo t('timed_messages_none_found'); ?></td>
                         </tr>
                     <?php endif; ?>
                 </tbody>

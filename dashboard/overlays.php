@@ -63,9 +63,9 @@ ob_start();
 <div class="sp-alert sp-alert-warning" style="display:flex; gap:1.25rem; align-items:flex-start; margin-bottom:1.5rem; background-color:rgba(255, 193, 7, 0.1); border-left:4px solid var(--amber);">
     <span style="font-size:1.75rem; color:var(--amber); flex-shrink:0;"><i class="fas fa-bell"></i></span>
     <div>
-        <p style="font-weight:700; margin-bottom:0.4rem;">📢 Upcoming Overlay System Update</p>
-        <p style="margin-bottom:0.5rem;">We're working on improvements to our overlay system. Use the <strong>"All Overlays"</strong> option below with <code>all.php</code> for the complete overlay experience.</p>
-        <p style="margin-bottom:0.4rem;">The root overlay URL is now the new <strong>Specter Alerts</strong> system configure it in <a href="alerts.php" style="color:var(--accent); text-decoration:underline;">Alerts</a> and add this OBS browser source:</p>
+        <p style="font-weight:700; margin-bottom:0.4rem;"><?= t('overlays_upcoming_update_title') ?></p>
+        <p style="margin-bottom:0.5rem;"><?= t('overlays_upcoming_update_body') ?></p>
+        <p style="margin-bottom:0.4rem;"><?= t('overlays_root_url_note') ?></p>
         <div class="info-box" style="font-family:monospace; margin-bottom:0;">
             https://overlay.botofthespecter.com/?code=API_KEY_HERE
         </div>
@@ -110,11 +110,11 @@ ob_start();
     <!-- Makers & Crafting Overlay -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header" style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="sp-card-title"><i class="fas fa-palette"></i> Makers &amp; Crafting</div>
-            <a href="makers.php" class="sp-btn sp-btn-sm sp-btn-secondary" title="Manage projects"><i class="fas fa-cog"></i></a>
+            <div class="sp-card-title"><i class="fas fa-palette"></i> <?= t('overlays_makers_crafting') ?></div>
+            <a href="makers.php" class="sp-btn sp-btn-sm sp-btn-secondary" title="<?= htmlspecialchars(t('overlays_manage_projects')) ?>"><i class="fas fa-cog"></i></a>
         </div>
         <div class="sp-card-body">
-            Show your current project, finished builds, or upcoming ideas &mdash; updated live from chat with <code>!craft</code> or from the <a href="makers.php">Makers manager</a>.
+            <?= t('overlays_makers_crafting_desc') ?>
             <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0;">
                 https://overlay.botofthespecter.com/maker.php?code=API_KEY_HERE
             </div>
@@ -148,9 +148,9 @@ ob_start();
                         <label style="display:block; font-weight:600; margin-bottom:0.25rem;"><?= t('overlays_credits_scroll_speed') ?></label>
                         <input type="range" id="creditsScrollSpeed" name="scroll_speed" min="10" max="200" value="<?= intval($creditsSettings['scroll_speed']) ?>" style="width:100%;">
                         <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--text-secondary);">
-                            <span>Slow</span>
+                            <span><?= t('overlays_credits_slow') ?></span>
                             <span id="creditsScrollSpeedVal"><?= intval($creditsSettings['scroll_speed']) ?></span>
-                            <span>Fast</span>
+                            <span><?= t('overlays_credits_fast') ?></span>
                         </div>
                         <small style="color:var(--text-secondary);"><?= t('overlays_credits_scroll_speed_help') ?></small>
                     </div>
@@ -319,8 +319,7 @@ ob_start();
                 https://overlay.botofthespecter.com/chat.php?code=API_KEY_HERE
             </div>
             <p style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); margin-bottom:0;">
-                Customize the message cap with <code>&amp;max=30</code> (default: 20).<br>
-                Use <code>&amp;count=2</code> (default: 1) to run multiple Chat Overlay sources at the same time across different OBS scenes.</p>
+                <?= t('overlays_chat_overlay_note') ?></p>
         </div>
     </div>
     <!-- Music Overlay -->
@@ -334,9 +333,7 @@ ob_start();
                 https://overlay.botofthespecter.com/music.php?code=API_KEY_HERE
             </div>
             <p style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); margin-bottom:0;">
-                Add <code>&amp;nowplaying</code> to the URL to display now playing text.<br>
-                Example: <code>music.php?code=API_KEY_HERE&amp;nowplaying&amp;color=white</code>.<br>
-                Customize color with <code>&amp;color=white</code>.</p>
+                <?= t('overlays_music_overlay_note') ?></p>
         </div>
     </div>
     <!-- Fourthwall -->
@@ -391,35 +388,35 @@ ob_start();
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
             <div class="sp-card-title">
-                <i class="fas fa-hashtag"></i> Counter Display
+                <i class="fas fa-hashtag"></i> <?= t('overlays_counter_display') ?>
             </div>
         </div>
         <div class="sp-card-body">
-            <p style="margin-bottom:0.5rem;">Display the live value of any counter &mdash; great for things like "cats spotted: 7" on screen. Type a counter name below, tweak the colours if you like, and drop the URL into OBS as a browser source.</p>
-            <p style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--text-secondary);">Built-in counters you can use right away: <code>deaths</code>, <code>stream_deaths</code>, <code>hugs</code>, <code>kisses</code>, <code>highfives</code>, <code>typos</code>, <code>lurkers</code>. Any other name pulls from your custom <code>!count</code> counters.</p>
+            <p style="margin-bottom:0.5rem;"><?= t('overlays_counter_display_desc') ?></p>
+            <p style="font-size:0.85rem; margin-bottom:0.75rem; color:var(--text-secondary);"><?= t('overlays_counter_builtin_note') ?></p>
             <div style="display:flex; gap:0.75rem; margin-bottom:0.75rem; flex-wrap:wrap;">
                 <div style="flex:1; min-width:160px;">
-                    <label class="sp-label" style="font-size:0.8rem;">Counter name</label>
-                    <input type="text" class="sp-input" id="counter-builder-name" placeholder="e.g. frog">
+                    <label class="sp-label" style="font-size:0.8rem;"><?= t('overlays_counter_name_label') ?></label>
+                    <input type="text" class="sp-input" id="counter-builder-name" placeholder="<?= htmlspecialchars(t('overlays_counter_name_placeholder')) ?>">
                 </div>
                 <div style="flex:1; min-width:140px;">
-                    <label class="sp-label" style="font-size:0.8rem;">Text colour <span style="color:var(--text-muted); font-weight:normal;">(optional)</span></label>
-                    <input type="text" class="sp-input" id="counter-builder-color" placeholder="white or ffffff">
+                    <label class="sp-label" style="font-size:0.8rem;"><?= t('overlays_counter_text_colour_label') ?></label>
+                    <input type="text" class="sp-input" id="counter-builder-color" placeholder="<?= htmlspecialchars(t('overlays_counter_colour_placeholder')) ?>">
                 </div>
                 <div style="flex:1; min-width:140px;">
-                    <label class="sp-label" style="font-size:0.8rem;">Background <span style="color:var(--text-muted); font-weight:normal;">(optional)</span></label>
-                    <input type="text" class="sp-input" id="counter-builder-bg" placeholder="transparent or 000000">
+                    <label class="sp-label" style="font-size:0.8rem;"><?= t('overlays_counter_background_label') ?></label>
+                    <input type="text" class="sp-input" id="counter-builder-bg" placeholder="<?= htmlspecialchars(t('overlays_counter_bg_placeholder')) ?>">
                 </div>
             </div>
             <div style="display:flex; gap:0.5rem; align-items:stretch;">
-                <input type="password" class="sp-input" id="counter-builder-url" readonly placeholder="Enter a counter name to build your URL" style="flex:1; font-family:monospace;" title="Click to reveal your URL">
+                <input type="password" class="sp-input" id="counter-builder-url" readonly placeholder="<?= htmlspecialchars(t('overlays_counter_url_placeholder')) ?>" style="flex:1; font-family:monospace;" title="<?= htmlspecialchars(t('overlays_counter_url_title')) ?>">
                 <button class="sp-btn sp-btn-primary" id="counter-builder-copy" type="button" disabled>
-                    <i class="fas fa-copy"></i> Copy
+                    <i class="fas fa-copy"></i> <?= t('overlays_counter_copy') ?>
                 </button>
             </div>
             <details style="margin-top:0.75rem;">
-                <summary style="cursor:pointer; font-size:0.85rem; color:var(--text-secondary);">Need raw output instead of a styled overlay? (for custom HTML / API use)</summary>
-                <p style="font-size:0.85rem; margin:0.5rem 0 0.25rem 0;">Append <code>&amp;type=</code> to the URL with one of:</p>
+                <summary style="cursor:pointer; font-size:0.85rem; color:var(--text-secondary);"><?= t('overlays_counter_raw_summary') ?></summary>
+                <p style="font-size:0.85rem; margin:0.5rem 0 0.25rem 0;"><?= t('overlays_counter_raw_append') ?></p>
                 <ul style="margin: 0 0 0 1.25rem; list-style:disc; font-size:0.85rem;">
                     <li><code>text</code> &rarr; <em>frog: 5</em></li>
                     <li><code>number</code> &rarr; <em>5</em></li>

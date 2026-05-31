@@ -135,7 +135,7 @@ ob_start();
             <div id="uploadStatusContainer" style="display:none; margin-bottom:0.75rem;">
                 <div class="sp-alert sp-alert-info">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-                        <strong id="uploadStatusText">Preparing upload...</strong>
+                        <strong id="uploadStatusText"><?php echo t('walkons_preparing_upload'); ?></strong>
                         <span id="uploadProgressPercent" style="font-weight:600;">0%</span>
                     </div>
                     <progress class="progress progress-info" id="uploadProgress" value="0" max="100" style="height:1.25rem; border-radius:0.625rem;">0%</progress>

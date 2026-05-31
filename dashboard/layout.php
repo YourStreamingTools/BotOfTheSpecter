@@ -21,8 +21,8 @@ $isActingAsUser = isset($_SESSION['admin_act_as_active']) && $_SESSION['admin_ac
 $actingAsDisplayName = isset($_SESSION['admin_act_as_target_display_name']) ? (string) $_SESSION['admin_act_as_target_display_name'] : '';
 $actingAsUsername = isset($_SESSION['admin_act_as_target_username']) ? (string) $_SESSION['admin_act_as_target_username'] : '';
 $actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $actingAsUsername);
-$actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : 'selected user', ENT_QUOTES, 'UTF-8');
-$actingAsReturnLabel = 'Stop Acting As';
+$actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : t('layout_selected_user'), ENT_QUOTES, 'UTF-8');
+$actingAsReturnLabel = t('layout_stop_acting_as');
 $stopActAsHref = 'stop_act_as.php';
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /todolist -> respective modes; otherwise 'default'
@@ -60,11 +60,11 @@ if (!isset($layoutMode)) {
 // brand text/href vary by layout mode
 switch ($layoutMode) {
     case 'admin':
-        $brandText = 'Admin Panel';
+        $brandText = t('layout_brand_admin_panel');
         $brandHref = 'index.php';
         break;
     case 'todolist':
-        $brandText = 'To Do List';
+        $brandText = t('layout_brand_todo_list');
         $brandHref = 'index.php';
         break;
     default:
@@ -176,12 +176,12 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
                     <?php if ($layoutMode === 'admin' || $layoutMode === 'todolist'): ?>
                         <a href="../dashboard.php" class="sidebar-user-item">
                             <span class="sidebar-user-icon"><i class="fas fa-house"></i></span>
-                            <span class="sidebar-user-text">User Dashboard</span>
+                            <span class="sidebar-user-text"><?php echo t('layout_user_dashboard'); ?></span>
                         </a>
                     <?php endif; ?>
                     <a href="../mod_channels.php" class="sidebar-user-item">
                         <span class="sidebar-user-icon"><i class="fas fa-user-shield"></i></span>
-                        <span class="sidebar-user-text">Mod Channels</span>
+                        <span class="sidebar-user-text"><?php echo t('layout_mod_channels'); ?></span>
                     </a>
                     <?php if ($showAdminPanelLink): ?>
                         <a href="../admin/" class="sidebar-user-item" title="<?php echo t('navbar_admin_panel'); ?>">
@@ -208,25 +208,25 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             <!-- Topbar -->
             <?php $hasTopbarTags = ($layoutMode === 'admin') || ($layoutMode === 'default' && $devStreamOnline) || $isActingAsUser || $maintenanceMode; ?>
             <header class="sp-topbar<?= $hasTopbarTags ? '' : ' sp-topbar-no-tags' ?>">
-                <button class="sp-hamburger" id="spHamburger" aria-label="Toggle navigation">
+                <button class="sp-hamburger" id="spHamburger" aria-label="<?php echo htmlspecialchars(t('layout_toggle_navigation')); ?>">
                     <i class="fas fa-bars"></i>
                 </button>
                 <span class="sp-topbar-title"><?php echo $brandText; ?></span>
                 <div class="sp-topbar-center">
                     <?php if ($layoutMode === 'admin'): ?>
-                        <span class="sp-topbar-tag sp-topbar-tag-admin"><i class="fas fa-shield-alt"></i> ADMIN DASHBOARD &mdash; Restricted Access</span>
+                        <span class="sp-topbar-tag sp-topbar-tag-admin"><i class="fas fa-shield-alt"></i> <?= t('layout_topbar_admin_dashboard') ?></span>
                     <?php elseif ($layoutMode === 'default' && $devStreamOnline): ?>
-                        <span class="sp-topbar-tag sp-topbar-tag-dev"><i class="fas fa-video"></i> Dev Stream Online &mdash; <a href="https://twitch.tv/gfaundead" target="_blank">twitch.tv/gfaundead</a></span>
+                        <span class="sp-topbar-tag sp-topbar-tag-dev"><i class="fas fa-video"></i> <?= t('layout_topbar_dev_stream_online') ?> &mdash; <a href="https://twitch.tv/gfaundead" target="_blank">twitch.tv/gfaundead</a></span>
                     <?php endif; ?>
                     <?php if ($isActingAsUser): ?>
-                        <span class="sp-topbar-tag sp-topbar-tag-act-as"><i class="fas fa-user-secret"></i> Viewing as <strong><?php echo $actingAsLabel; ?></strong> &mdash; <a href="<?php echo $stopActAsHref; ?>"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a></span>
+                        <span class="sp-topbar-tag sp-topbar-tag-act-as"><i class="fas fa-user-secret"></i> <?= t('layout_topbar_viewing_as') ?> <strong><?php echo $actingAsLabel; ?></strong> &mdash; <a href="<?php echo $stopActAsHref; ?>"><?php echo htmlspecialchars($actingAsReturnLabel, ENT_QUOTES, 'UTF-8'); ?></a></span>
                     <?php endif; ?>
                     <?php if ($maintenanceMode): ?>
-                        <span class="sp-topbar-tag sp-topbar-tag-maintenance"><i class="fas fa-tools"></i> Maintenance in progress &mdash; Some features may be temporarily unavailable</span>
+                        <span class="sp-topbar-tag sp-topbar-tag-maintenance"><i class="fas fa-tools"></i> <?= t('layout_topbar_maintenance_in_progress') ?></span>
                     <?php endif; ?>
                 </div>
                 <div class="sp-topbar-actions">
-                    <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+                    <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="<?php echo htmlspecialchars(t('layout_toggle_theme_aria')); ?>" title="<?php echo htmlspecialchars(t('layout_toggle_theme_title')); ?>">
                         <i class="fas fa-moon"></i>
                     </button>
                     <?php if ($profileUsername): ?>
@@ -241,23 +241,23 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             <div id="maintenanceModal" class="db-modal-backdrop">
                 <div class="db-modal">
                     <div class="db-modal-head">
-                        <div class="db-modal-title"><i class="fas fa-tools"></i> Maintenance Notice</div>
-                        <button class="db-modal-close" aria-label="close" onclick="closeMaintenanceModal()"><i class="fas fa-times"></i></button>
+                        <div class="db-modal-title"><i class="fas fa-tools"></i> <?= t('layout_maintenance_notice_title') ?></div>
+                        <button class="db-modal-close" aria-label="<?php echo htmlspecialchars(t('layout_close')); ?>" onclick="closeMaintenanceModal()"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="db-modal-body">
-                        <p><strong>We are currently performing maintenance on BotOfTheSpecter.</strong></p>
-                        <p>During this time, some features may be temporarily unavailable or experience reduced functionality. We apologize for any inconvenience and appreciate your patience.</p>
-                        <p><strong>What you can expect:</strong></p>
+                        <p><?= t('layout_maintenance_body_intro') ?></p>
+                        <p><?= t('layout_maintenance_body_detail') ?></p>
+                        <p><?= t('layout_maintenance_what_to_expect') ?></p>
                         <ul>
-                            <li>The dashboard will remain accessible</li>
-                            <li>Some features may be temporarily disabled</li>
-                            <li>Normal service will resume shortly</li>
+                            <li><?= t('layout_maintenance_expect_dashboard') ?></li>
+                            <li><?= t('layout_maintenance_expect_features') ?></li>
+                            <li><?= t('layout_maintenance_expect_resume') ?></li>
                         </ul>
-                        <p style="color:var(--text-muted);">Thank you for your understanding!</p>
+                        <p style="color:var(--text-muted);"><?= t('layout_maintenance_thank_you') ?></p>
                     </div>
                     <div class="db-modal-foot">
-                        <button class="sp-btn sp-btn-warning" onclick="closeMaintenanceModal()">I Understand</button>
-                        <button class="sp-btn sp-btn-secondary" onclick="dontShowAgain()">Don't show again today</button>
+                        <button class="sp-btn sp-btn-warning" onclick="closeMaintenanceModal()"><?= t('layout_maintenance_i_understand') ?></button>
+                        <button class="sp-btn sp-btn-secondary" onclick="dontShowAgain()"><?= t('layout_maintenance_dont_show_again') ?></button>
                     </div>
                 </div>
             </div>
@@ -268,11 +268,11 @@ if (!$isAdminCssPage && isset($_SERVER['REQUEST_URI'])) {
             </main>
             <!-- Footer -->
             <footer class="sp-footer">
-                &copy; 2023&ndash;<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+                &copy; 2023&ndash;<?php echo date('Y'); ?> <?= t('layout_footer_rights') ?><br>
                 <?php include '/var/www/config/project-time.php'; ?>
-                BotOfTheSpecter is a project operated under the business name &ldquo;YourStreamingTools&rdquo;, registered in Australia (ABN 20 447 022 747).<br>
-                This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-                All trademarks, logos, and brand names are the property of their respective owners and are used for identification purposes only.
+                <?= t('layout_footer_business') ?><br>
+                <?= t('layout_footer_not_affiliated') ?><br>
+                <?= t('layout_footer_trademarks') ?>
             </footer>
         </div><!-- /.sp-main -->
     </div><!-- /.sp-layout -->

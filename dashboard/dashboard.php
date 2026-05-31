@@ -30,7 +30,7 @@ session_write_close();
     // Channel info metrics (followers, subscribers, raids)
     $followerCount = 0;
     $subscriberCount = null;
-    $subscriberSubtext = 'Live Twitch subscriptions';
+    $subscriberSubtext = t('dashboard_live_twitch_subscriptions');
     $raidCount = 0;
     $raidViewersTotal = 0;
     $raidUniqueRaiders = 0;
@@ -93,18 +93,18 @@ session_write_close();
                 $subsData = json_decode($subsResponse, true);
                 if (isset($subsData['total'])) {
                     $subscriberCount = (int)$subsData['total'];
-                    $subscriberSubtext = 'Live Twitch subscriptions';
+                    $subscriberSubtext = t('dashboard_live_twitch_subscriptions');
                 } else {
-                    $subscriberSubtext = 'Unable to read subscriber total from Twitch';
+                    $subscriberSubtext = t('dashboard_unable_read_subscriber_total');
                 }
             } else {
-                $subscriberSubtext = 'Unable to fetch subscribers from Twitch right now';
+                $subscriberSubtext = t('dashboard_unable_fetch_subscribers');
             }
         } else {
-            $subscriberSubtext = 'Channel is not Affiliate/Partner (no Twitch subs endpoint access)';
+            $subscriberSubtext = t('dashboard_not_affiliate_partner');
         }
     } else {
-        $subscriberSubtext = 'Missing Twitch auth/config for live subscriber count';
+        $subscriberSubtext = t('dashboard_missing_twitch_auth');
     }
 
     // Dashboard metrics (real data only)
@@ -177,129 +177,129 @@ session_write_close();
     ?>
     <!-- Welcome -->
     <div class="sp-page-header">
-        <h1><i class="fas fa-robot"></i> Welcome, <?php echo htmlspecialchars($twitchDisplayName); ?>!</h1>
-        <p>Live overview of your bot systems, storage, and community activity.</p>
+        <h1><i class="fas fa-robot"></i> <?= t('dashboard_welcome') ?>, <?php echo htmlspecialchars($twitchDisplayName); ?>!</h1>
+        <p><?= t('dashboard_welcome_subtitle') ?></p>
     </div>
     <!-- Channel Info Stats -->
-    <div class="db-section-label">Channel Info</div>
+    <div class="db-section-label"><?= t('dashboard_channel_info') ?></div>
     <div class="sp-stat-row" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-bottom: 2rem;">
         <div class="sp-stat">
-            <div class="sp-stat-label">Followers</div>
+            <div class="sp-stat-label"><?= t('dashboard_followers') ?></div>
             <div class="sp-stat-value"><?php echo number_format($followerCount); ?></div>
-            <div class="sp-stat-sub">Tracked follower records</div>
+            <div class="sp-stat-sub"><?= t('dashboard_tracked_follower_records') ?></div>
         </div>
         <div class="sp-stat">
-            <div class="sp-stat-label">Subscribers</div>
+            <div class="sp-stat-label"><?= t('dashboard_subscribers') ?></div>
             <div class="sp-stat-value"><?php echo $subscriberCount !== null ? number_format($subscriberCount) : 'N/A'; ?></div>
             <div class="sp-stat-sub"><?php echo htmlspecialchars($subscriberSubtext); ?></div>
         </div>
         <div class="sp-stat">
-            <div class="sp-stat-label">Raids</div>
+            <div class="sp-stat-label"><?= t('dashboard_raids') ?></div>
             <div class="sp-stat-value"><?php echo number_format($raidCount); ?></div>
-            <div class="sp-stat-sub"><?php echo number_format($raidViewersTotal); ?> total raider viewers &middot; <?php echo number_format($raidUniqueRaiders); ?> unique raiders</div>
+            <div class="sp-stat-sub"><?php echo number_format($raidViewersTotal); ?> <?= t('dashboard_total_raider_viewers') ?> &middot; <?php echo number_format($raidUniqueRaiders); ?> <?= t('dashboard_unique_raiders') ?></div>
         </div>
     </div>
     <!-- Main Metrics -->
-    <div class="db-section-label">Dashboard Metrics</div>
+    <div class="db-section-label"><?= t('dashboard_dashboard_metrics') ?></div>
     <div class="sp-stat-row" style="margin-bottom: 2rem;">
         <div class="sp-stat <?php echo $activeBotRunning ? 'online' : 'offline'; ?>">
-            <div class="sp-stat-label">Active Bot</div>
+            <div class="sp-stat-label"><?= t('dashboard_active_bot') ?></div>
             <div class="sp-stat-value"><?php echo htmlspecialchars($activeBotLabel); ?></div>
             <div class="sp-stat-sub">
                 <?php if ($activeBotRunning): ?>
                     v<?php echo htmlspecialchars($activeBotCurrentVersion); ?> &bull; <?php echo htmlspecialchars($activeBotLabel); ?>
                 <?php else: ?>
-                    No active bot runtime
+                    <?= t('dashboard_no_active_bot_runtime') ?>
                 <?php endif; ?>
             </div>
         </div>
         <div class="sp-stat<?php echo $storagePercent >= 90 ? ' warn' : ''; ?>">
-            <div class="sp-stat-label">Storage Usage</div>
+            <div class="sp-stat-label"><?= t('dashboard_storage_usage') ?></div>
             <div class="sp-stat-value"><?php echo number_format($storagePercent, 1); ?>%</div>
-            <div class="sp-stat-sub"><?php echo number_format($storageUsedMb, 2); ?> MB of <?php echo number_format($storageMaxMb, 2); ?> MB</div>
+            <div class="sp-stat-sub"><?php echo number_format($storageUsedMb, 2); ?> MB <?= t('dashboard_of') ?> <?php echo number_format($storageMaxMb, 2); ?> MB</div>
         </div>
         <div class="sp-stat">
-            <div class="sp-stat-label">Commands</div>
+            <div class="sp-stat-label"><?= t('dashboard_commands') ?></div>
             <div class="sp-stat-value"><?php echo $customCommandCount + $builtinEnabledCount; ?></div>
-            <div class="sp-stat-sub"><?php echo $customCommandCount; ?> Custom &middot; <?php echo $builtinEnabledCount; ?>/<?php echo $builtinCommandCount; ?> Built-in</div>
+            <div class="sp-stat-sub"><?php echo $customCommandCount; ?> <?= t('dashboard_custom') ?> &middot; <?php echo $builtinEnabledCount; ?>/<?php echo $builtinCommandCount; ?> <?= t('dashboard_builtin') ?></div>
         </div>
         <div class="sp-stat">
-            <div class="sp-stat-label">To-Do Progress</div>
+            <div class="sp-stat-label"><?= t('dashboard_todo_progress') ?></div>
             <div class="sp-stat-value"><?php echo $todoCompletedCount; ?>/<?php echo $todoTotalCount; ?></div>
-            <div class="sp-stat-sub"><?php echo $todoOpenCount; ?> task<?php echo $todoOpenCount !== 1 ? 's' : ''; ?> remaining</div>
+            <div class="sp-stat-sub"><?php echo $todoOpenCount; ?> <?php echo $todoOpenCount !== 1 ? t('dashboard_tasks_remaining') : t('dashboard_task_remaining'); ?></div>
         </div>
     </div>
     <!-- Runtime + Activity -->
     <div class="db-two-col">
         <div class="sp-card">
             <div class="sp-card-header">
-                <span class="sp-card-title"><i class="fas fa-server"></i> Bot Runtime</span>
-                <span class="sp-badge <?php echo $activeBotRunning ? 'sp-badge-green' : 'sp-badge-red'; ?>"><?php echo $activeBotRunning ? 'Running' : 'Stopped'; ?></span>
+                <span class="sp-card-title"><i class="fas fa-server"></i> <?= t('dashboard_bot_runtime') ?></span>
+                <span class="sp-badge <?php echo $activeBotRunning ? 'sp-badge-green' : 'sp-badge-red'; ?>"><?php echo $activeBotRunning ? t('dashboard_running') : t('dashboard_stopped'); ?></span>
             </div>
             <div class="sp-card-body">
-                <p style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">System: <?php echo htmlspecialchars($activeBotLabel); ?></p>
-                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.25rem;">Current: <?php echo htmlspecialchars($activeBotCurrentVersion); ?></p>
-                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem;">Latest: <?php echo htmlspecialchars($activeBotLatestVersion); ?></p>
+                <p style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;"><?= t('dashboard_system') ?>: <?php echo htmlspecialchars($activeBotLabel); ?></p>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.25rem;"><?= t('dashboard_current') ?>: <?php echo htmlspecialchars($activeBotCurrentVersion); ?></p>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem;"><?= t('dashboard_latest') ?>: <?php echo htmlspecialchars($activeBotLatestVersion); ?></p>
                 <a href="bot.php" class="sp-btn sp-btn-primary">
-                    <i class="fas fa-cogs"></i> Open Bot Control
+                    <i class="fas fa-cogs"></i> <?= t('dashboard_open_bot_control') ?>
                 </a>
             </div>
         </div>
         <div class="sp-card">
             <div class="sp-card-header">
-                <span class="sp-card-title"><i class="fas fa-chart-line"></i> Activity Snapshot</span>
+                <span class="sp-card-title"><i class="fas fa-chart-line"></i> <?= t('dashboard_activity_snapshot') ?></span>
             </div>
             <div class="sp-card-body">
-                <div class="db-snapshot-item"><span>Known Users</span><strong><?php echo number_format($knownUsersCount); ?></strong></div>
-                <div class="db-snapshot-item"><span>Live Lurkers</span><strong><?php echo number_format($liveLurkersCount); ?></strong></div>
-                <div class="db-snapshot-item"><span>Watch Time Profiles</span><strong><?php echo number_format($watchUsersCount); ?></strong></div>
-                <div class="db-snapshot-item"><span>Rewards Configured</span><strong><?php echo number_format($rewardsCount); ?></strong></div>
-                <div class="db-snapshot-item"><span>Quotes Saved</span><strong><?php echo number_format($quotesCount); ?></strong></div>
-                <div class="db-snapshot-item"><span>Moderator Channels</span><strong><?php echo number_format($modChannelCount); ?></strong></div>
+                <div class="db-snapshot-item"><span><?= t('dashboard_known_users') ?></span><strong><?php echo number_format($knownUsersCount); ?></strong></div>
+                <div class="db-snapshot-item"><span><?= t('dashboard_live_lurkers') ?></span><strong><?php echo number_format($liveLurkersCount); ?></strong></div>
+                <div class="db-snapshot-item"><span><?= t('dashboard_watch_time_profiles') ?></span><strong><?php echo number_format($watchUsersCount); ?></strong></div>
+                <div class="db-snapshot-item"><span><?= t('dashboard_rewards_configured') ?></span><strong><?php echo number_format($rewardsCount); ?></strong></div>
+                <div class="db-snapshot-item"><span><?= t('dashboard_quotes_saved') ?></span><strong><?php echo number_format($quotesCount); ?></strong></div>
+                <div class="db-snapshot-item"><span><?= t('dashboard_moderator_channels') ?></span><strong><?php echo number_format($modChannelCount); ?></strong></div>
             </div>
         </div>
     </div>
     <!-- Quick Links -->
-    <div class="db-section-label">Quick Links</div>
+    <div class="db-section-label"><?= t('dashboard_quick_links') ?></div>
     <div class="db-quick-grid">
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-robot fa-2x"></i></div>
-                <h4 class="db-quick-title">Bot Control</h4>
-                <p class="db-quick-desc">Start, stop, and monitor your bot</p>
-                <a href="bot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cogs"></i> Manage Bot</a>
+                <h4 class="db-quick-title"><?= t('dashboard_bot_control') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_bot_control_desc') ?></p>
+                <a href="bot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cogs"></i> <?= t('dashboard_manage_bot') ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--green);"><i class="fas fa-terminal fa-2x"></i></div>
-                <h4 class="db-quick-title">Commands</h4>
-                <p class="db-quick-desc">Create and edit custom commands</p>
-                <a href="custom_commands.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-plus"></i> Edit Commands</a>
+                <h4 class="db-quick-title"><?= t('dashboard_commands') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_commands_desc') ?></p>
+                <a href="custom_commands.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-plus"></i> <?= t('dashboard_edit_commands') ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--accent-hover);"><i class="fab fa-discord fa-2x"></i></div>
-                <h4 class="db-quick-title">Discord Bot</h4>
-                <p class="db-quick-desc">Manage your Discord integration</p>
-                <a href="discordbot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cog"></i> Manage Discord</a>
+                <h4 class="db-quick-title"><?= t('dashboard_discord_bot') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_discord_bot_desc') ?></p>
+                <a href="discordbot.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-cog"></i> <?= t('dashboard_manage_discord') ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--amber);"><i class="fas fa-list-check fa-2x"></i></div>
-                <h4 class="db-quick-title">To-Do List</h4>
-                <p class="db-quick-desc">Manage your streaming tasks</p>
-                <a href="../todolist" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-list"></i> Open To-Do</a>
+                <h4 class="db-quick-title"><?= t('dashboard_todo_list') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_todo_list_desc') ?></p>
+                <a href="../todolist" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-list"></i> <?= t('dashboard_open_todo') ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--red);"><i class="fas fa-gift fa-2x"></i></div>
-                <h4 class="db-quick-title">Rewards</h4>
-                <p class="db-quick-desc">Manage channel rewards</p>
-                <a href="channel_rewards.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-star"></i> Setup Rewards</a>
+                <h4 class="db-quick-title"><?= t('dashboard_rewards') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_rewards_desc') ?></p>
+                <a href="channel_rewards.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-star"></i> <?= t('dashboard_setup_rewards') ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
@@ -313,17 +313,17 @@ session_write_close();
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--blue);"><i class="fas fa-music fa-2x"></i></div>
-                <h4 class="db-quick-title">DMCA Music</h4>
-                <p class="db-quick-desc">Safe music for streaming</p>
-                <a href="music.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-play"></i> Browse Music</a>
+                <h4 class="db-quick-title"><?= t('dashboard_dmca_music') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_dmca_music_desc') ?></p>
+                <a href="music.php" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-play"></i> <?= t('dashboard_browse_music') ?></a>
             </div>
         </div>
         <div class="sp-card db-quick-card">
             <div class="sp-card-body">
                 <div class="db-quick-icon" style="color: var(--text-muted);"><i class="fas fa-book fa-2x"></i></div>
-                <h4 class="db-quick-title">Documentation</h4>
-                <p class="db-quick-desc">Learn how to use BotOfTheSpecter</p>
-                <a href="/generate_handoff.php" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> View Docs</a>
+                <h4 class="db-quick-title"><?= t('dashboard_documentation') ?></h4>
+                <p class="db-quick-desc"><?= t('dashboard_documentation_desc') ?></p>
+                <a href="/generate_handoff.php" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_view_docs') ?></a>
             </div>
         </div>
     </div>
@@ -333,6 +333,10 @@ session_write_close();
 } else {
     // User is not logged in - show landing page
     $pageTitle = 'Dashboard Information';
+    // This branch renders its own HTML document (no layout.php), so load the
+    // i18n helper here to make t() available for the landing-page strings.
+    $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : 'EN';
+    include_once __DIR__ . '/lang/i18n.php';
     ?>
     <!DOCTYPE html>
     <html lang="en">
@@ -366,120 +370,120 @@ session_write_close();
                 <img src="https://cdn.botofthespecter.com/logo.png" alt="BotOfTheSpecter">
                 BotOfTheSpecter
             </a>
-            <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="Toggle light or dark theme" title="Toggle theme">
+            <button class="sp-theme-toggle" id="spThemeToggle" type="button" aria-label="<?= htmlspecialchars(t('dashboard_toggle_theme_aria')) ?>" title="<?= htmlspecialchars(t('dashboard_toggle_theme_title')) ?>">
                 <i class="fas fa-moon"></i>
             </button>
-            <a href="login.php" class="sp-btn sp-btn-primary" style="border-radius: var(--radius-pill);"><i class="fab fa-twitch"></i> Login with Twitch</a>
+            <a href="login.php" class="sp-btn sp-btn-primary" style="border-radius: var(--radius-pill);"><i class="fab fa-twitch"></i> <?= t('dashboard_login_with_twitch') ?></a>
         </header>
         <!-- Hero -->
         <section class="db-hero">
-            <h1><i class="fas fa-robot"></i> BotOfTheSpecter Dashboard</h1>
-            <p class="db-hero-sub">Your Complete Twitch Bot Management Solution</p>
-            <p class="db-hero-desc">Take control of your Twitch channel with our powerful, feature-rich bot and dashboard. Manage commands, configure your alerts, track analytics, and so much more.</p>
+            <h1><i class="fas fa-robot"></i> <?= t('dashboard_hero_title') ?></h1>
+            <p class="db-hero-sub"><?= t('dashboard_hero_sub') ?></p>
+            <p class="db-hero-desc"><?= t('dashboard_hero_desc') ?></p>
         </section>
         <!-- Login card -->
         <div class="db-login-card">
-            <h3><i class="fas fa-sign-in-alt"></i> Access Your Dashboard</h3>
-            <p>Join the rest of the streamers who use BotOfTheSpecter to enhance and manage their Twitch channel.</p>
-            <a href="login.php" class="db-twitch-btn"><i class="fab fa-twitch"></i> Login with Twitch</a>
-            <p class="db-login-note"><i class="fas fa-shield-alt"></i> Your data is secure and protected using SHA-384 encryption.</p>
+            <h3><i class="fas fa-sign-in-alt"></i> <?= t('dashboard_access_your_dashboard') ?></h3>
+            <p><?= t('dashboard_access_desc') ?></p>
+            <a href="login.php" class="db-twitch-btn"><i class="fab fa-twitch"></i> <?= t('dashboard_login_with_twitch') ?></a>
+            <p class="db-login-note"><i class="fas fa-shield-alt"></i> <?= t('dashboard_data_secure_note') ?></p>
         </div>
         <!-- Features -->
         <div class="db-landing-section">
             <div class="db-landing-section-header">
-                <h2>Dashboard Features</h2>
-                <p>Explore the powerful features that make BotOfTheSpecter the ultimate Twitch bot management solution, with many more features that aren't listed below.</p>
+                <h2><?= t('dashboard_features_title') ?></h2>
+                <p><?= t('dashboard_features_subtitle') ?></p>
             </div>
             <div class="db-features-grid">
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--blue);"><i class="fas fa-robot"></i></div>
-                    <h4>Bot Control</h4>
-                    <p>Start, stop, and monitor your bot with real-time status updates and comprehensive logging.</p>
+                    <h4><?= t('dashboard_feature_bot_control') ?></h4>
+                    <p><?= t('dashboard_feature_bot_control_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--green);"><i class="fas fa-terminal"></i></div>
-                    <h4>Custom Commands</h4>
-                    <p>Create and manage custom chat commands with advanced features and permission levels.</p>
+                    <h4><?= t('dashboard_feature_custom_commands') ?></h4>
+                    <p><?= t('dashboard_feature_custom_commands_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--amber);"><i class="fas fa-chart-line"></i></div>
-                    <h4>Analytics &amp; Logs</h4>
-                    <p>Track your channel's growth, monitor user activity, and analyze command usage statistics.</p>
+                    <h4><?= t('dashboard_feature_analytics_logs') ?></h4>
+                    <p><?= t('dashboard_feature_analytics_logs_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--red);"><i class="fas fa-gift"></i></div>
-                    <h4>Channel Rewards</h4>
-                    <p>Manage Twitch channel point rewards and create engaging interactive experiences.</p>
+                    <h4><?= t('dashboard_feature_channel_rewards') ?></h4>
+                    <p><?= t('dashboard_feature_channel_rewards_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--blue);"><i class="fas fa-volume-up"></i></div>
-                    <h4>Stream Alerts</h4>
-                    <p>Configure sound alerts, video alerts, and walk-on alerts for followers and subscribers.</p>
+                    <h4><?= t('dashboard_feature_stream_alerts') ?></h4>
+                    <p><?= t('dashboard_feature_stream_alerts_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--accent-hover);"><i class="fas fa-plug"></i></div>
-                    <h4>Integrations</h4>
-                    <p>Connect with Discord, Spotify, StreamElements, and other popular streaming platforms.</p>
+                    <h4><?= t('dashboard_feature_integrations') ?></h4>
+                    <p><?= t('dashboard_feature_integrations_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--amber);"><i class="fas fa-coins"></i></div>
-                    <h4>Points System</h4>
-                    <p>Reward your viewers with a custom points system and create point-based mini-games.</p>
+                    <h4><?= t('dashboard_feature_points_system') ?></h4>
+                    <p><?= t('dashboard_feature_points_system_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--blue);"><i class="fas fa-layer-group"></i></div>
-                    <h4>Stream Overlays</h4>
-                    <p>Create dynamic overlays for recent followers, latest donations, and now playing music.</p>
+                    <h4><?= t('dashboard_feature_stream_overlays') ?></h4>
+                    <p><?= t('dashboard_feature_stream_overlays_desc') ?></p>
                 </div>
                 <div class="db-feature-card">
                     <div class="db-feature-card-icon" style="color: var(--green);"><i class="fas fa-users"></i></div>
-                    <h4>User Management</h4>
-                    <p>Manage your community with tools for moderators, VIPs, subscribers, and regular viewers.</p>
+                    <h4><?= t('dashboard_feature_user_management') ?></h4>
+                    <p><?= t('dashboard_feature_user_management_desc') ?></p>
                 </div>
             </div>
         </div>
         <!-- Premium Plans -->
         <div class="db-landing-section" style="padding-top: 0;">
             <div class="db-landing-section-header">
-                <h2>Premium Plans</h2>
-                <p>Unlock additional features and support the development of BotOfTheSpecter by subscribing to one of our premium plans via Twitch.</p>
+                <h2><?= t('dashboard_premium_plans') ?></h2>
+                <p><?= t('dashboard_premium_plans_subtitle') ?></p>
             </div>
             <div class="db-plans-grid">
                 <!-- Free Plan -->
                 <div class="db-plan-card">
                     <div class="db-plan-card-icon" style="color: var(--text-muted);"><i class="fas fa-rocket"></i></div>
-                    <h3>Free</h3>
-                    <div class="db-plan-price">$0/month</div>
+                    <h3><?= t('dashboard_plan_free') ?></h3>
+                    <div class="db-plan-price"><?= t('dashboard_plan_free_price') ?></div>
                     <ul>
-                        <li><i class="fas fa-check"></i> Core Bot Features</li>
-                        <li><i class="fas fa-check"></i> Community Support</li>
-                        <li><i class="fas fa-check"></i> 20MB Storage</li>
-                        <li><i class="fas fa-check"></i> Shared Bot Name (BotOfTheSpecter)</li>
-                        <li><i class="fas fa-flask"></i> Custom Bot Name (Experimental/Coming Soon)</li>
+                        <li><i class="fas fa-check"></i> <?= t('dashboard_plan_core_bot_features') ?></li>
+                        <li><i class="fas fa-check"></i> <?= t('dashboard_plan_community_support') ?></li>
+                        <li><i class="fas fa-check"></i> <?= t('dashboard_plan_20mb_storage') ?></li>
+                        <li><i class="fas fa-check"></i> <?= t('dashboard_plan_shared_bot_name') ?></li>
+                        <li><i class="fas fa-flask"></i> <?= t('dashboard_plan_custom_bot_name') ?></li>
                     </ul>
-                    <a href="login.php" class="sp-btn sp-btn-success" style="width: 100%; justify-content: center;"><i class="fas fa-sign-in-alt"></i> Get Started</a>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.75rem;"><strong>90-95% of the bot is FREE!</strong></p>
+                    <a href="login.php" class="sp-btn sp-btn-success" style="width: 100%; justify-content: center;"><i class="fas fa-sign-in-alt"></i> <?= t('dashboard_get_started') ?></a>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.75rem;"><?= t('dashboard_free_percent_note') ?></p>
                 </div>
                 <?php
                 $plans = [
                     '1000' => [
                         'name' => 'Tier 1',
                         'price' => '$4.99/month',
-                        'features' => ['Song Request Command', 'Priority Support', 'Beta Access', '50MB Storage'],
+                        'features' => [t('dashboard_plan_song_request_command'), t('dashboard_plan_priority_support'), t('dashboard_plan_beta_access'), t('dashboard_plan_50mb_storage')],
                         'icon' => 'fas fa-star',
                         'icon_color' => 'var(--blue)',
                     ],
                     '2000' => [
                         'name' => 'Tier 2',
                         'price' => '$9.99/month',
-                        'features' => ['Everything in Tier 1', 'Personal Support', 'AI Features', '100MB Storage'],
+                        'features' => [t('dashboard_plan_everything_tier1'), t('dashboard_plan_personal_support'), t('dashboard_plan_ai_features'), t('dashboard_plan_100mb_storage')],
                         'icon' => 'fas fa-crown',
                         'icon_color' => 'var(--amber)',
                     ],
                     '3000' => [
                         'name' => 'Tier 3',
                         'price' => '$24.99/month',
-                        'features' => ['Everything in Tier 2', '200MB Storage'],
+                        'features' => [t('dashboard_plan_everything_tier2'), t('dashboard_plan_200mb_storage')],
                         'icon' => 'fas fa-gem',
                         'icon_color' => 'var(--red)',
                     ],
@@ -494,19 +498,19 @@ session_write_close();
                         <li><i class="fas fa-check"></i> <?php echo htmlspecialchars($feature); ?></li>
                         <?php endforeach; ?>
                     </ul>
-                    <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-plus-circle"></i> Subscribe</a>
+                    <a href="https://www.twitch.tv/subs/gfaundead" target="_blank" class="sp-btn sp-btn-primary" style="width: 100%; justify-content: center;"><i class="fas fa-plus-circle"></i> <?= t('dashboard_subscribe') ?></a>
                 </div>
                 <?php endforeach; ?>
             </div>
         </div>
         <!-- Footer -->
         <footer class="db-landing-footer">
-            &copy; 2023&ndash;<?php echo date('Y'); ?> BotOfTheSpecter. All rights reserved.<br>
+            &copy; 2023&ndash;<?php echo date('Y'); ?> <?= t('dashboard_footer_rights') ?><br>
             <?php include '/var/www/config/project-time.php'; ?>
-            BotOfTheSpecter is a project operated under the business name &ldquo;YourStreamingTools&rdquo;, registered in Australia (ABN 20 447 022 747).<br>
-            This website is not affiliated with or endorsed by Twitch Interactive, Inc., Discord Inc., Spotify AB, Live Momentum Ltd., or StreamElements Inc.<br>
-            All trademarks, logos, and brand names are the property of their respective owners and are used for identification purposes only.
-            <br><span class="sp-version-badge" style="margin-top: 0.5rem; display: inline-flex;">Dashboard v<?php echo $dashboardVersion; ?></span>
+            <?= t('dashboard_footer_business_name') ?><br>
+            <?= t('dashboard_footer_not_affiliated') ?><br>
+            <?= t('dashboard_footer_trademarks') ?>
+            <br><span class="sp-version-badge" style="margin-top: 0.5rem; display: inline-flex;"><?= t('dashboard_footer_version_label') ?> v<?php echo $dashboardVersion; ?></span>
         </footer>
         <script>
             // Light/dark theme toggle (landing top nav). The <head> bootstrap sets the initial theme.

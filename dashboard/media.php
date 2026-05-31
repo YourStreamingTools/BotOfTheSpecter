@@ -427,26 +427,26 @@ ob_start();
 <!-- Unified Upload Card -->
 <div class="sp-card media-upload-card">
     <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-upload"></i> Upload Media</span>
+        <span class="sp-card-title"><i class="fas fa-upload"></i> <?= t('media_upload_media') ?></span>
     </header>
     <div class="sp-card-body">
         <form action="" method="POST" enctype="multipart/form-data" class="media-upload-form" id="unified-upload-form">
             <input type="hidden" name="media_type" value="media_upload">
             <div class="sp-form-group">
-                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> Upload audio (MP3), video (MP4/WEBM) or images (PNG/JPG/GIF) to your shared library. Click a file below to attach it to channel point rewards, Twitch events or walkons — and the same files power the <a href="alerts.php">Specter Alerts</a> builder. Upload once, use everywhere.</small>
+                <small class="media-upload-hint"><i class="fas fa-info-circle"></i> <?= t('media_upload_hint') ?></small>
             </div>
             <div class="sp-form-group">
                 <label class="media-drop-zone" id="unified-drop-zone">
                     <i class="fas fa-cloud-upload-alt media-drop-zone-icon"></i>
-                    <span class="file-list-label">No files selected</span>
-                    <div class="media-drop-zone-hint">Click or drag files here</div>
+                    <span class="file-list-label"><?= t('media_no_files_selected') ?></span>
+                    <div class="media-drop-zone-hint"><?= t('media_click_or_drag') ?></div>
                     <input type="file" name="filesToUpload[]" id="unified-file-input" multiple accept=".mp3,.mp4,.png,.jpg,.jpeg,.gif,.webm" hidden>
                 </label>
             </div>
             <div class="upload-status-container media-upload-status">
                 <div class="sp-alert sp-alert-info">
                     <div class="media-upload-progress-header">
-                        <strong class="upload-status-text">Preparing upload...</strong>
+                        <strong class="upload-status-text"><?= t('media_preparing_upload') ?></strong>
                         <span class="upload-progress-percent media-upload-progress-percent">0%</span>
                     </div>
                     <progress class="upload-progress media-upload-progress" value="0" max="100">0%</progress>
@@ -454,7 +454,7 @@ ob_start();
             </div>
             <button class="sp-btn sp-btn-primary upload-btn media-upload-btn" type="submit">
                 <i class="fas fa-upload"></i>
-                <span class="upload-btn-text">Upload Media</span>
+                <span class="upload-btn-text"><?= t('media_upload_media') ?></span>
             </button>
         </form>
     </div>
@@ -463,58 +463,58 @@ ob_start();
 <!-- Migrate to unified media library -->
 <div class="sp-card media-migrate-card">
     <header class="sp-card-header media-migrate-header">
-        <span class="sp-card-title"><i class="fas fa-arrow-circle-up"></i> Upgrade to Unified Media Library</span>
+        <span class="sp-card-title"><i class="fas fa-arrow-circle-up"></i> <?= t('media_migrate_title') ?></span>
     </header>
     <div class="sp-card-body media-migrate-body">
         <div class="sp-alert sp-alert-warning media-migrate-warning">
-            <p><i class="fas fa-exclamation-triangle"></i> <strong>Important — read before you migrate.</strong></p>
-            <p>The unified media library only works on <strong>Bot version 5.8 and above</strong>. The Stable Bot (5.7.x) has no awareness of this system and will <strong>stop firing your sound, video, and walkon alerts</strong> the moment you migrate.</p>
-            <p>You have two options:</p>
+            <p><i class="fas fa-exclamation-triangle"></i> <strong><?= t('media_migrate_important') ?></strong></p>
+            <p><?= t('media_migrate_warning_body') ?></p>
+            <p><?= t('media_migrate_two_options') ?></p>
             <ul>
-                <li><strong>Migrate now</strong> — switch your channel to the Beta Bot first (Bot &rsaquo; Run Beta Bot), then come back here and migrate.</li>
-                <li><strong>Hold tight</strong> — version 5.8 is being released to the Stable Bot soon. Once 5.8 ships as stable, your channel will be migrated automatically. No action required.</li>
+                <li><?= t('media_migrate_option_now') ?></li>
+                <li><?= t('media_migrate_option_hold') ?></li>
             </ul>
         </div>
-        <h4>How the New System Works</h4>
-        <p>BotOfTheSpecter is moving to a unified media library. Instead of keeping separate folders for sound alerts, channel point sounds, Twitch event sounds, and walkons, <strong>all files live in one shared pool</strong>. A single file can be mapped to any combination of triggers — no more duplicating files.</p>
+        <h4><?= t('media_how_it_works_title') ?></h4>
+        <p><?= t('media_how_it_works_body') ?></p>
         <ul>
-            <li><strong>One upload, any trigger</strong> &mdash; upload a file once and assign it to any channel point reward, Twitch event, or walkon.</li>
-            <li><strong>Unified library</strong> &mdash; all audio and video files live in one shared pool.</li>
-            <li><strong>Non-destructive migration</strong> &mdash; your existing files are <em>copied</em> into the new library; nothing is deleted from the old locations.</li>
-            <li><strong>Walkons auto-linked</strong> &mdash; existing walkon files (named after their Twitch login) are auto-tagged to the right user during migration.</li>
+            <li><?= t('media_benefit_one_upload') ?></li>
+            <li><?= t('media_benefit_unified') ?></li>
+            <li><?= t('media_benefit_non_destructive') ?></li>
+            <li><?= t('media_benefit_walkons_autolinked') ?></li>
         </ul>
         <button type="button" id="media-migrate-btn" class="sp-btn sp-btn-warning">
-            <i class="fas fa-arrow-right"></i> Migrate to Unified Media Library
+            <i class="fas fa-arrow-right"></i> <?= t('media_migrate_btn') ?>
         </button>
     </div>
 </div>
 <?php else: ?>
 <div class="sp-alert sp-alert-success media-migrated-notice">
-    <i class="fas fa-check-circle"></i> <strong>Using Unified Media Library</strong> &mdash; Your audio and video files are managed through the shared library. Requires Beta Bot.
+    <i class="fas fa-check-circle"></i> <?= t('media_using_unified_notice') ?>
 </div>
 <?php endif; ?>
 <!-- Filter + search bar -->
 <div class="media-filter-bar">
-    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn is-active" data-filter="all">All</button>
-    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="rewards">With rewards</button>
-    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="events">With events</button>
-    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="walkons">Walkons</button>
-    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="unused">Unused</button>
-    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="videos">Videos</button>
-    <input type="search" class="sp-input media-search-input" id="media-search-input" placeholder="Search files…">
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn is-active" data-filter="all"><?= t('media_filter_all') ?></button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="rewards"><?= t('media_filter_with_rewards') ?></button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="events"><?= t('media_filter_with_events') ?></button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="walkons"><?= t('media_filter_walkons') ?></button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="unused"><?= t('media_filter_unused') ?></button>
+    <button type="button" class="sp-btn sp-btn-ghost media-filter-btn" data-filter="videos"><?= t('media_filter_videos') ?></button>
+    <input type="search" class="sp-input media-search-input" id="media-search-input" placeholder="<?= htmlspecialchars(t('media_search_placeholder')) ?>">
 </div>
 <!-- Files list -->
 <div class="sp-card media-files-card">
     <header class="sp-card-header">
-        <span class="sp-card-title"><i class="fas fa-folder-open"></i> Your Media Library</span>
+        <span class="sp-card-title"><i class="fas fa-folder-open"></i> <?= t('media_library_title') ?></span>
         <button class="sp-btn sp-btn-danger media-delete-selected-btn" disabled>
-            <i class="fas fa-trash"></i> <span>Delete Selected</span>
+            <i class="fas fa-trash"></i> <span><?= t('media_delete_selected') ?></span>
         </button>
     </header>
     <div class="sp-card-body">
         <?php if (empty($all_media_files)): ?>
             <div class="media-empty-state">
-                <p>No media files uploaded yet. Upload audio, video or image files using the form above. They become available to channel points, Twitch events, walkons and the <a href="alerts.php">Specter Alerts</a> builder.</p>
+                <p><?= t('media_empty_state') ?></p>
             </div>
         <?php else: ?>
         <form action="" method="POST" id="mediaDeleteForm" class="media-delete-form">
@@ -551,18 +551,18 @@ ob_start();
                     <span class="media-file-meta"><?php echo strtoupper(pathinfo($file, PATHINFO_EXTENSION)); ?> · <?php echo format_bytes($size); ?></span>
                     <span class="media-file-summary<?php echo $totalCount === 0 ? ' is-unused' : ''; ?>"><?php echo htmlspecialchars($summary); ?></span>
                     <?php if ($type === 'audio' || $type === 'video'): ?>
-                    <button type="button" class="sp-btn sp-btn-primary sp-btn-sm media-test-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-type="<?php echo $type; ?>" title="Test playback">
+                    <button type="button" class="sp-btn sp-btn-primary sp-btn-sm media-test-btn" data-file="<?php echo htmlspecialchars($file); ?>" data-type="<?php echo $type; ?>" title="<?php echo htmlspecialchars(t('media_test_playback')); ?>">
                         <i class="fas fa-play"></i>
                     </button>
                     <?php else: ?>
-                    <span class="sp-btn sp-btn-sm media-test-btn-placeholder" title="Images are managed via the alerts builder">&nbsp;</span>
+                    <span class="sp-btn sp-btn-sm media-test-btn-placeholder" title="<?php echo htmlspecialchars(t('media_images_managed_via_builder')); ?>">&nbsp;</span>
                     <?php endif; ?>
                     <?php if ($totalCount > 0): ?>
-                    <button type="button" class="sp-btn sp-btn-sm media-delete-locked" data-file="<?php echo htmlspecialchars($file); ?>" data-summary="<?php echo htmlspecialchars($summary); ?>" title="This file is in use. Remove its links before deleting.">
+                    <button type="button" class="sp-btn sp-btn-sm media-delete-locked" data-file="<?php echo htmlspecialchars($file); ?>" data-summary="<?php echo htmlspecialchars($summary); ?>" title="<?php echo htmlspecialchars(t('media_in_use_title')); ?>">
                         <i class="fas fa-lock"></i>
                     </button>
                     <?php else: ?>
-                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm media-delete-single" data-file="<?php echo htmlspecialchars($file); ?>" title="Delete file">
+                    <button type="button" class="sp-btn sp-btn-danger sp-btn-sm media-delete-single" data-file="<?php echo htmlspecialchars($file); ?>" title="<?php echo htmlspecialchars(t('media_delete_file')); ?>">
                         <i class="fas fa-trash"></i>
                     </button>
                     <?php endif; ?>
@@ -570,7 +570,7 @@ ob_start();
                 <?php endforeach; ?>
             </ul>
             <div class="media-empty-filter" style="display:none;">
-                <p>No files match the current filter.</p>
+                <p><?= t('media_no_files_match_filter') ?></p>
             </div>
         </form>
         <?php endif; ?>
@@ -582,7 +582,7 @@ ob_start();
     <div class="sp-modal media-modal" role="dialog" aria-modal="true" aria-labelledby="media-modal-title">
         <header class="sp-modal-head">
             <span class="sp-modal-title" id="media-modal-title">…</span>
-            <button type="button" class="sp-modal-close" id="media-modal-close" aria-label="Close">&times;</button>
+            <button type="button" class="sp-modal-close" id="media-modal-close" aria-label="<?= htmlspecialchars(t('media_modal_close')) ?>">&times;</button>
         </header>
         <div class="sp-modal-body" id="media-modal-body">
             <!-- populated by JS -->

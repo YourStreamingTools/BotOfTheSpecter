@@ -24,7 +24,7 @@ $timezone = $channelData['timezone'] ?? 'UTC';
 $stmt->close();
 date_default_timezone_set($timezone);
 
-$pageTitle = 'Working & Study Timer';
+$pageTitle = t('working_or_study_page_title');
 
 $overlayLink = 'https://overlay.botofthespecter.com/working-or-study.php';
 $overlayLinkWithCode = $overlayLink . '?code=' . rawurlencode($api_key) . '&timer';
@@ -378,56 +378,55 @@ ob_start();
     <div class="card">
         <header class="card-header">
             <p class="card-header-title">
-                Working / Study Overlay Control
+                <?= t('working_or_study_overlay_control_title') ?>
             </p>
             <div class="buttons">
                 <button type="button" class="button is-primary" id="copyOverlayLinkBtn">
                     <span class="icon">
                         <i class="fas fa-copy" aria-hidden="true"></i>
                     </span>
-                    <span>Copy Timer Overlay Link</span>
+                    <span><?= t('working_or_study_copy_timer_overlay_link') ?></span>
                 </button>
             </div>
         </header>
         <div class="card-content">
             <div class="content">
-                <p><strong>Specter Working/Study Timer Overlay</strong></p>
-                <p>Control a live Working/Study timer overlay for your stream with focus, micro break, and recharge phases,
-                    plus real-time dashboard synchronization.</p>
+                <p><strong><?= t('working_or_study_intro_heading') ?></strong></p>
+                <p><?= t('working_or_study_intro_description') ?></p>
                 <ul>
-                    <li>Visual countdown ring with live phase label, timer state, and remaining time</li>
-                    <li>Phase controls for Focus Sprint, Micro Break, and Recharge Stretch</li>
-                    <li>Timer controls for Start, Pause, Resume, Reset, and Stop</li>
-                    <li>Micro break interruption flow that resumes the paused focus timer when micro break ends</li>
-                    <li>Live session stats (sessions completed and total logged time)</li>
-                    <li>WebSocket synchronization between dashboard and overlay, including state re-sync after refresh</li>
-                    <li>Optional task list overlay modes (streamer tasks, viewer tasks, or combined)</li>
+                    <li><?= t('working_or_study_feature_countdown_ring') ?></li>
+                    <li><?= t('working_or_study_feature_phase_controls') ?></li>
+                    <li><?= t('working_or_study_feature_timer_controls') ?></li>
+                    <li><?= t('working_or_study_feature_micro_break_flow') ?></li>
+                    <li><?= t('working_or_study_feature_session_stats') ?></li>
+                    <li><?= t('working_or_study_feature_websocket_sync') ?></li>
+                    <li><?= t('working_or_study_feature_task_list_modes') ?></li>
                 </ul>
             </div>
             <div class="columns is-multiline">
                 <div class="column is-one-third">
-                    <h3 class="title is-6">Duration Settings</h3>
+                    <h3 class="title is-6"><?= t('working_or_study_duration_settings_title') ?></h3>
                     <div class="field">
                         <label class="label">
                             <span class="icon-text">
                                 <span class="icon">
                                     <i class="fas fa-fire" aria-hidden="true"></i>
                                 </span>
-                                <span>Focus Sprint Duration</span>
+                                <span><?= t('working_or_study_focus_sprint_duration') ?></span>
                             </span>
                         </label>
                         <div class="control">
                             <div class="field has-addons">
                                 <p class="control is-expanded">
                                     <input id="focusLengthMinutes" class="input" type="number" min="1" step="1"
-                                        value="60" placeholder="Focus minutes">
+                                        value="60" placeholder="<?= htmlspecialchars(t('working_or_study_focus_minutes_placeholder')) ?>">
                                 </p>
                                 <p class="control">
-                                    <span class="button is-static">min</span>
+                                    <span class="button is-static"><?= t('working_or_study_unit_min') ?></span>
                                 </p>
                             </div>
                         </div>
-                        <p class="help">How long to focus before a break</p>
+                        <p class="help"><?= t('working_or_study_focus_help') ?></p>
                     </div>
                     <div class="field">
                         <label class="label">
@@ -435,21 +434,21 @@ ob_start();
                                 <span class="icon">
                                     <i class="fas fa-wind" aria-hidden="true"></i>
                                 </span>
-                                <span>Micro Break Duration</span>
+                                <span><?= t('working_or_study_micro_break_duration') ?></span>
                             </span>
                         </label>
                         <div class="control">
                             <div class="field has-addons">
                                 <p class="control is-expanded">
                                     <input id="microBreakMinutes" class="input" type="number" min="1" step="1"
-                                        value="5" placeholder="Micro break minutes">
+                                        value="5" placeholder="<?= htmlspecialchars(t('working_or_study_micro_break_minutes_placeholder')) ?>">
                                 </p>
                                 <p class="control">
-                                    <span class="button is-static">min</span>
+                                    <span class="button is-static"><?= t('working_or_study_unit_min') ?></span>
                                 </p>
                             </div>
                         </div>
-                        <p class="help">Quick break duration</p>
+                        <p class="help"><?= t('working_or_study_micro_break_help') ?></p>
                     </div>
                     <div class="field">
                         <label class="label">
@@ -457,24 +456,24 @@ ob_start();
                                 <span class="icon">
                                     <i class="fas fa-leaf" aria-hidden="true"></i>
                                 </span>
-                                <span>Recharge Break Duration</span>
+                                <span><?= t('working_or_study_recharge_break_duration') ?></span>
                             </span>
                         </label>
                         <div class="control">
                             <div class="field has-addons">
                                 <p class="control is-expanded">
                                     <input id="breakLengthMinutes" class="input" type="number" min="1" step="1"
-                                        value="30" placeholder="Break minutes">
+                                        value="30" placeholder="<?= htmlspecialchars(t('working_or_study_break_minutes_placeholder')) ?>">
                                 </p>
                                 <p class="control">
-                                    <span class="button is-static">min</span>
+                                    <span class="button is-static"><?= t('working_or_study_unit_min') ?></span>
                                 </p>
                             </div>
                         </div>
-                        <p class="help">Longer break for recharging</p>
+                        <p class="help"><?= t('working_or_study_recharge_break_help') ?></p>
                     </div>
                     <div class="field mt-2">
-                        <p class="help">Adjust durations here. Use Overlay Control to apply or reset the overlay.</p>
+                        <p class="help"><?= t('working_or_study_adjust_durations_help') ?></p>
                     </div>
                 </div>
                 <div class="column is-one-third">
@@ -483,7 +482,7 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-bolt" aria-hidden="true"></i>
                             </span>
-                            <span>Phase Controls</span>
+                            <span><?= t('working_or_study_phase_controls_title') ?></span>
                         </span>
                     </h3>
                     <div class="buttons is-flex-wrap-wrap">
@@ -492,21 +491,21 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-hourglass-start" aria-hidden="true"></i>
                             </span>
-                            <span>Start Focus Sprint</span>
+                            <span><?= t('working_or_study_start_focus_sprint') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-info" data-specter-phase="micro"
                             style="flex: 1; min-width: 100%; margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-mug-hot" aria-hidden="true"></i>
                             </span>
-                            <span>Start Micro Break</span>
+                            <span><?= t('working_or_study_start_micro_break') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-warning" data-specter-phase="recharge"
                             style="flex: 1; min-width: 100%; margin-bottom: 0;">
                             <span class="icon">
                                 <i class="fas fa-stretch" aria-hidden="true"></i>
                             </span>
-                            <span>Start Recharge Stretch</span>
+                            <span><?= t('working_or_study_start_recharge_stretch') ?></span>
                         </button>
                     </div>
                     <h3 class="title is-6 mt-4">
@@ -514,7 +513,7 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-sliders-h" aria-hidden="true"></i>
                             </span>
-                            <span>Overlay Control</span>
+                            <span><?= t('working_or_study_overlay_control_section_title') ?></span>
                         </span>
                     </h3>
                     <div class="buttons is-flex-wrap-wrap">
@@ -523,14 +522,14 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
                             </span>
-                            <span>Update Overlay</span>
+                            <span><?= t('working_or_study_update_overlay') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-dark" data-specter-control="reset_all"
                             style="flex: 1; min-width: 100%;">
                             <span class="icon">
                                 <i class="fas fa-undo-alt" aria-hidden="true"></i>
                             </span>
-                            <span>Reset Overlay</span>
+                            <span><?= t('working_or_study_reset_overlay') ?></span>
                         </button>
                     </div>
                 </div>
@@ -540,7 +539,7 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-play" aria-hidden="true"></i>
                             </span>
-                            <span>Timer Controls</span>
+                            <span><?= t('working_or_study_timer_controls_title') ?></span>
                         </span>
                     </h3>
                     <div class="buttons is-flex-wrap-wrap">
@@ -549,35 +548,35 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-play" aria-hidden="true"></i>
                             </span>
-                            <span>Start</span>
+                            <span><?= t('working_or_study_control_start') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-warning" data-specter-control="pause"
                             style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-pause" aria-hidden="true"></i>
                             </span>
-                            <span>Pause</span>
+                            <span><?= t('working_or_study_control_pause') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-success" data-specter-control="resume"
                             style="flex: 1; min-width: calc(50% - 0.25rem); margin-right: 0.5rem; margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-redo" aria-hidden="true"></i>
                             </span>
-                            <span>Resume</span>
+                            <span><?= t('working_or_study_control_resume') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-info" data-specter-control="reset"
                             style="flex: 1; min-width: calc(50% - 0.25rem); margin-bottom: 0.5rem;">
                             <span class="icon">
                                 <i class="fas fa-sync" aria-hidden="true"></i>
                             </span>
-                            <span>Reset</span>
+                            <span><?= t('working_or_study_control_reset') ?></span>
                         </button>
                         <button type="button" class="button is-medium is-danger" data-specter-control="stop"
                             style="flex: 1; min-width: 100%;">
                             <span class="icon">
                                 <i class="fas fa-stop" aria-hidden="true"></i>
                             </span>
-                            <span>Stop</span>
+                            <span><?= t('working_or_study_control_stop') ?></span>
                         </button>
                     </div>
                 </div>
@@ -587,22 +586,21 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-hourglass" aria-hidden="true"></i>
                             </span>
-                            <span>Live Timer</span>
+                            <span><?= t('working_or_study_live_timer_title') ?></span>
                         </span>
                     </h3>
                     <div class="box"
                         style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); text-align: center;">
                         <div style="margin-bottom: 12px;">
                             <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                <span id="livePhaseLabel">Focus Sprint</span> • <span id="livePhaseStatus">Waiting to
-                                    start</span>
+                                <span id="livePhaseLabel"><?= t('working_or_study_phase_name_focus') ?></span> • <span id="livePhaseStatus"><?= t('working_or_study_live_waiting_to_start') ?></span>
                             </p>
                         </div>
                         <p id="liveTimerDisplay"
                             style="font-size: 4rem; font-weight: 700; color: #ff9161; margin: 0; font-variant-numeric: tabular-nums; font-family: 'Monaco', 'Menlo', monospace;">
                             00:00</p>
                         <p style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-top: 8px;">
-                            <span id="liveTimerState" style="color: rgba(255, 255, 255, 0.7);">Not Running</span>
+                            <span id="liveTimerState" style="color: rgba(255, 255, 255, 0.7);"><?= t('working_or_study_live_not_running') ?></span>
                         </p>
                     </div>
                 </div>
@@ -612,7 +610,7 @@ ob_start();
                             <span class="icon">
                                 <i class="fas fa-chart-line" aria-hidden="true"></i>
                             </span>
-                            <span>Live Session Stats</span>
+                            <span><?= t('working_or_study_live_session_stats_title') ?></span>
                         </span>
                     </h3>
                     <div class="box"
@@ -620,35 +618,35 @@ ob_start();
                         <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; text-align: center;">
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                    <i class="fas fa-fire" style="margin-right: 6px;"></i>Focus Sprints
+                                    <i class="fas fa-fire" style="margin-right: 6px;"></i><?= t('working_or_study_stat_focus_sprints') ?>
                                 </p>
                                 <p id="overlayFocusCount"
                                     style="font-size: 2rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
                             </div>
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                    <i class="fas fa-mug-hot" style="margin-right: 6px;"></i>Micro Breaks
+                                    <i class="fas fa-mug-hot" style="margin-right: 6px;"></i><?= t('working_or_study_stat_micro_breaks') ?>
                                 </p>
                                 <p id="overlayMicroCount"
                                     style="font-size: 2rem; font-weight: 700; color: #6be9ff; margin: 0;">0</p>
                             </div>
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                    <i class="fas fa-leaf" style="margin-right: 6px;"></i>Recharge Breaks
+                                    <i class="fas fa-leaf" style="margin-right: 6px;"></i><?= t('working_or_study_stat_recharge_breaks') ?>
                                 </p>
                                 <p id="overlayRechargeCount"
                                     style="font-size: 2rem; font-weight: 700; color: #b483ff; margin: 0;">0</p>
                             </div>
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                    <i class="fas fa-hourglass-end" style="margin-right: 6px;"></i>Total Sessions
+                                    <i class="fas fa-hourglass-end" style="margin-right: 6px;"></i><?= t('working_or_study_stat_total_sessions') ?>
                                 </p>
                                 <p id="overlaySessionsCount"
                                     style="font-size: 2rem; font-weight: 700; color: #ff9161; margin: 0;">0</p>
                             </div>
                             <div>
                                 <p style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;">
-                                    <i class="fas fa-clock" style="margin-right: 6px;"></i>Total Focus Time
+                                    <i class="fas fa-clock" style="margin-right: 6px;"></i><?= t('working_or_study_stat_total_focus_time') ?>
                                 </p>
                                 <p id="overlayTotalTime"
                                     style="font-size: 2rem; font-weight: 700; color: #6be9ff; margin: 0;">0h 0m</p>
@@ -666,22 +664,22 @@ ob_start();
         <header class="card-header">
             <p class="card-header-title">
                 <span class="icon mr-2"><i class="fas fa-tasks"></i></span>
-                Channel Task Manager
+                <?= t('working_or_study_channel_task_manager_title') ?>
             </p>
             <div class="card-header-icon buttons" style="padding: 0.25rem 0.75rem; margin: 0;">
                 <button type="button" class="button is-info is-small" id="copyTasklistCombinedBtn">
                     <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
-                    <span>Copy Link (Combined)</span>
+                    <span><?= t('working_or_study_copy_link_combined') ?></span>
                 </button>
                 <button type="button" class="button is-info is-small" id="copyTasklistLinkBtn">
                     <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
-                    <span>Copy Link (Streamer)</span>
+                    <span><?= t('working_or_study_copy_link_streamer') ?></span>
                 </button>
                 <button type="button" class="button is-info is-small" id="copyTasklistUserLinkBtn">
                     <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
-                    <span>Copy Link (Users)</span>
+                    <span><?= t('working_or_study_copy_link_users') ?></span>
                 </button>
-                <button class="button is-ghost is-small" id="chToggleSettingsBtn" aria-label="toggle task settings">
+                <button class="button is-ghost is-small" id="chToggleSettingsBtn" aria-label="<?= htmlspecialchars(t('working_or_study_toggle_task_settings_aria')) ?>">
                     <span class="icon"><i class="fas fa-angle-down" id="chSettingsChevron"></i></span>
                 </button>
             </div>
@@ -691,36 +689,36 @@ ob_start();
             <div class="columns is-multiline">
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label">Default Reward Points per Task</label>
+                        <label class="label"><?= t('working_or_study_default_reward_points_label') ?></label>
                         <div class="control">
                             <input class="input" type="number" id="chDefaultRewardPoints" min="0"
                                 value="<?php echo (int)$chInitialSettings['default_reward_points']; ?>">
                         </div>
-                        <p class="help">Applied when a new task is created without a custom value.</p>
+                        <p class="help"><?= t('working_or_study_default_reward_points_help') ?></p>
                     </div>
                 </div>
                 <div class="column is-half">
                     <div class="field">
-                        <label class="label">Toggles</label>
+                        <label class="label"><?= t('working_or_study_toggles_label') ?></label>
                         <div class="control">
                             <label class="checkbox mr-4">
                                 <input type="checkbox" id="chRequireApproval"
                                     <?php echo $chInitialSettings['require_approval'] ? 'checked' : ''; ?>>
-                                Require streamer approval before awarding points
+                                <?= t('working_or_study_toggle_require_approval') ?>
                             </label>
                         </div>
                         <div class="control mt-2">
                             <label class="checkbox mr-4">
                                 <input type="checkbox" id="chAllowUserTasks"
                                     <?php echo $chInitialSettings['allow_user_tasks'] ? 'checked' : ''; ?>>
-                                Allow viewers to submit tasks
+                                <?= t('working_or_study_toggle_allow_user_tasks') ?>
                             </label>
                         </div>
                         <div class="control mt-2">
                             <label class="checkbox">
                                 <input type="checkbox" id="chTaskVisibleOverlay"
                                     <?php echo $chInitialSettings['task_visible_overlay'] ? 'checked' : ''; ?>>
-                                Show tasks on overlay
+                                <?= t('working_or_study_toggle_show_tasks_overlay') ?>
                             </label>
                         </div>
                     </div>
@@ -728,7 +726,7 @@ ob_start();
             </div>
             <div class="field">
                 <div class="control">
-                    <button class="button is-link" id="chSaveSettingsBtn">Save Settings</button>
+                    <button class="button is-link" id="chSaveSettingsBtn"><?= t('working_or_study_save_settings') ?></button>
                 </div>
             </div>
         </div>
@@ -740,24 +738,24 @@ ob_start();
                         <div class="level-left">
                             <h3 class="title is-6 mb-0">
                                 <span class="icon mr-1"><i class="fas fa-list-check"></i></span>
-                                Streamer Tasks
+                                <?= t('working_or_study_streamer_tasks_title') ?>
                             </h3>
                         </div>
                         <div class="level-right">
                             <button class="button is-primary is-small" id="chAddStreamerTaskBtn">
                                 <span class="icon"><i class="fas fa-plus"></i></span>
-                                <span>Add Task</span>
+                                <span><?= t('working_or_study_add_task') ?></span>
                             </button>
                         </div>
                     </div>
                     <div class="table-container">
                         <table class="table is-fullwidth is-striped is-hoverable is-narrow">
                             <thead>
-                                <tr><th>Task</th><th>Status</th><th>Pts</th><th>Actions</th></tr>
+                                <tr><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
                             </thead>
                             <tbody id="chStreamerTaskBody">
                                 <tr id="chStreamerEmpty">
-                                    <td colspan="4" class="has-text-centered has-text-grey py-4">No tasks yet.</td>
+                                    <td colspan="4" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_tasks_yet') ?></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -766,16 +764,16 @@ ob_start();
                 <div class="column is-half">
                     <h3 class="title is-6 mb-3">
                         <span class="icon mr-1"><i class="fas fa-users"></i></span>
-                        Viewer Tasks
+                        <?= t('working_or_study_viewer_tasks_title') ?>
                     </h3>
                     <div class="table-container">
                         <table class="table is-fullwidth is-striped is-hoverable is-narrow">
                             <thead>
-                                <tr><th>User</th><th>Task</th><th>Status</th><th>Approval</th><th>Pts</th><th>Actions</th></tr>
+                                <tr><th><?= t('working_or_study_th_user') ?></th><th><?= t('working_or_study_th_task') ?></th><th><?= t('working_or_study_th_status') ?></th><th><?= t('working_or_study_th_approval') ?></th><th><?= t('working_or_study_th_pts') ?></th><th><?= t('working_or_study_th_actions') ?></th></tr>
                             </thead>
                             <tbody id="chUserTaskBody">
                                 <tr id="chUserEmpty">
-                                    <td colspan="6" class="has-text-centered has-text-grey py-4">No viewer tasks yet.</td>
+                                    <td colspan="6" class="has-text-centered has-text-grey py-4"><?= t('working_or_study_no_viewer_tasks_yet') ?></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -789,27 +787,27 @@ ob_start();
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">
-                <p class="modal-card-title" id="chStreamerTaskModalTitle">Add Streamer Task</p>
-                <button class="delete" aria-label="close" id="chCloseStreamerTaskModal"></button>
+                <p class="modal-card-title" id="chStreamerTaskModalTitle"><?= t('working_or_study_add_streamer_task_title') ?></p>
+                <button class="delete" aria-label="<?= htmlspecialchars(t('working_or_study_close_aria')) ?>" id="chCloseStreamerTaskModal"></button>
             </header>
             <section class="modal-card-body">
                 <input type="hidden" id="chEditStreamerTaskId" value="">
                 <div class="field">
-                    <label class="label">Task Title <span class="has-text-danger">*</span></label>
+                    <label class="label"><?= t('working_or_study_task_title_label') ?> <span class="has-text-danger">*</span></label>
                     <div class="control">
-                        <input class="input" type="text" id="chStreamerTaskTitle" placeholder="e.g. Beat the final boss">
+                        <input class="input" type="text" id="chStreamerTaskTitle" placeholder="<?= htmlspecialchars(t('working_or_study_task_title_placeholder')) ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Description</label>
+                    <label class="label"><?= t('working_or_study_description_label') ?></label>
                     <div class="control">
-                        <textarea class="textarea" id="chStreamerTaskDesc" rows="2" placeholder="Optional details..."></textarea>
+                        <textarea class="textarea" id="chStreamerTaskDesc" rows="2" placeholder="<?= htmlspecialchars(t('working_or_study_description_placeholder')) ?>"></textarea>
                     </div>
                 </div>
                 <div class="columns">
                     <div class="column">
                         <div class="field">
-                            <label class="label">Category</label>
+                            <label class="label"><?= t('working_or_study_category_label') ?></label>
                             <div class="control">
                                 <input class="input" type="text" id="chStreamerTaskCategory" value="General">
                             </div>
@@ -817,7 +815,7 @@ ob_start();
                     </div>
                     <div class="column">
                         <div class="field">
-                            <label class="label">Reward Points</label>
+                            <label class="label"><?= t('working_or_study_reward_points_label') ?></label>
                             <div class="control">
                                 <input class="input" type="number" id="chStreamerTaskPoints" min="0" value="50">
                             </div>
@@ -826,8 +824,8 @@ ob_start();
                 </div>
             </section>
             <footer class="modal-card-foot">
-                <button class="button is-success" id="chSaveStreamerTaskBtn">Save Task</button>
-                <button class="button" id="chCancelStreamerTaskBtn">Cancel</button>
+                <button class="button is-success" id="chSaveStreamerTaskBtn"><?= t('working_or_study_save_task') ?></button>
+                <button class="button" id="chCancelStreamerTaskBtn"><?= t('working_or_study_cancel') ?></button>
             </footer>
         </div>
     </div>

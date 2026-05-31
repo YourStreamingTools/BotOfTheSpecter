@@ -109,12 +109,12 @@ if (isMobileDevice()) {
         mobileWarning.className = 'sp-mobile-warning-wrap';
         mobileWarning.innerHTML = `
             <div class="sp-alert sp-alert-warning" style="margin-top:2rem;">
-                <h1 style="font-size:1.3rem; font-weight:700; text-align:center; margin-bottom:0.75rem;">Mobile Access Unavailable</h1>
+                <h1 style="font-size:1.3rem; font-weight:700; text-align:center; margin-bottom:0.75rem;"><?= t('known_users_mobile_title') ?></h1>
                 <div style="text-align:center;">
-                    <p><strong>We apologize for the inconvenience.</strong></p>
-                    <p>The Welcome Messages page is currently unavailable on mobile devices due to the complexity of the table interface.</p>
-                    <p>We are actively working to provide a mobile-friendly version in future releases and updates.</p>
-                    <p>Please access this page from a desktop or tablet device for the best experience.</p>
+                    <p><?= t('known_users_mobile_apology') ?></p>
+                    <p><?= t('known_users_mobile_unavailable') ?></p>
+                    <p><?= t('known_users_mobile_working') ?></p>
+                    <p><?= t('known_users_mobile_desktop') ?></p>
                 </div>
             </div>
         `;
@@ -154,31 +154,31 @@ if (isMobileDevice()) {
             <div class="sp-alert sp-alert-info" style="margin-bottom:1.25rem;">
               <p style="font-weight:700; margin-bottom:0.25rem;">
                 <span class="icon"><i class="fas fa-code"></i></span>
-                Custom Variables for Welcome Messages
+                <?= t('known_users_custom_variables_title') ?>
               </p>
-              <p>You can use the following variables in welcome messages:</p>
+              <p><?= t('known_users_custom_variables_intro') ?></p>
               <ul>
-                <li><span style="font-weight:700;">(shoutout)</span>: Automatically sends a shoutout to the user.</li>
+                <li><?= t('known_users_variable_shoutout') ?></li>
               </ul>
             </div>
             <div class="sp-alert sp-alert-warning" style="margin-bottom:1.25rem;">
               <p style="font-weight:700; margin-bottom:0.25rem;">
                 <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-                Important: How to Use Variables
+                <?= t('known_users_how_to_use_title') ?>
               </p>
               <p>
-                <strong>If you only enter a variable</strong> (like <code>(shoutout)</code>) in the welcome message text area, <strong>the bot will NOT post anything to chat</strong>.
+                <?= t('known_users_how_to_use_no_post') ?>
               </p>
               <p style="margin-top:0.75rem;">
-                To send a welcome message, you must include <strong>text along with the variable</strong>. For example:
+                <?= t('known_users_how_to_use_include_text') ?>
               </p>
               <ul style="margin-top:0.5rem;">
-                <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
-                <li><strong style="color: #0a6e0a;">✓ Will Send Message:</strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
-                <li><strong style="color: #c70000;">✗ No Message Sent:</strong> <code>(shoutout)</code> <em>(only the variable, no text)</em></li>
+                <li><strong style="color: #0a6e0a;">✓ <?= t('known_users_will_send_label') ?></strong> <code>Welcome back, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: #0a6e0a;">✓ <?= t('known_users_will_send_label') ?></strong> <code>Great to see you again, BotOfTheSpecter! (shoutout)</code></li>
+                <li><strong style="color: #c70000;">✗ <?= t('known_users_no_send_label') ?></strong> <code>(shoutout)</code> <em><?= t('known_users_only_variable_note') ?></em></li>
               </ul>
               <p style="margin-top:0.75rem;">
-                <strong style="color: #d83838;">⚠️ Note:</strong> Entering any welcome message or variable for a user will <strong>override the default welcome message</strong> set in your bot settings.
+                <strong style="color: #d83838;">⚠️ <?= t('known_users_note_label') ?></strong> <?= t('known_users_override_note') ?>
               </p>
             </div>
             <div class="sp-alert sp-alert-danger" style="font-weight:700; margin-bottom:1.25rem;"><?php echo t('known_users_edit_notice'); ?></div>
@@ -189,13 +189,13 @@ if (isMobileDevice()) {
                 <thead>
                   <tr>
                     <th><?php echo t('counters_username_column'); ?></th>
-                    <th style="text-align:center;">First Seen</th>
-                    <th style="text-align:center;">Last Seen</th>
+                    <th style="text-align:center;"><?php echo t('known_users_first_seen_column'); ?></th>
+                    <th style="text-align:center;"><?php echo t('known_users_last_seen_column'); ?></th>
                     <th><?php echo t('known_users_welcome_message_column'); ?></th>
                     <th style="text-align:center;"><?php echo t('known_users_status_column'); ?></th>
                     <th style="text-align:center;"><?php echo t('known_users_action_column'); ?></th>
                     <th style="text-align:center;"><?php echo t('known_users_editing_column'); ?></th>
-                    <th style="text-align:center;">Test</th>
+                    <th style="text-align:center;"><?php echo t('known_users_test_column'); ?></th>
                     <th style="text-align:center;"><?php echo t('known_users_removing_column'); ?></th>
                   </tr>
                 </thead>
@@ -213,7 +213,7 @@ if (isMobileDevice()) {
                           if (!empty($userData['first_seen']) && $userData['first_seen'] !== '0000-00-00 00:00:00') {
                               echo date('Y-m-d H:i:s', strtotime($userData['first_seen']));
                           } else {
-                              echo 'Unknown';
+                              echo t('known_users_unknown');
                           }
                         ?>
                       </td>
@@ -222,7 +222,7 @@ if (isMobileDevice()) {
                           if (!empty($userData['last_seen']) && $userData['last_seen'] !== '0000-00-00 00:00:00') {
                               echo date('Y-m-d H:i:s', strtotime($userData['last_seen']));
                           } else {
-                              echo 'Unknown';
+                              echo t('known_users_unknown');
                           }
                         ?>
                       </td>
@@ -233,7 +233,7 @@ if (isMobileDevice()) {
                         <div class="edit-box" id="edit-box-<?php echo $userData['id']; ?>" style="display: none;">
                           <textarea class="sp-input welcome-message" data-user-id="<?php echo $userData['id']; ?>" maxlength="255" style="height:auto; min-height:4rem;"><?php echo isset($userData['welcome_message']) ? htmlspecialchars($userData['welcome_message']) : ''; ?></textarea>
                           <div class="character-counter" id="counter-<?php echo $userData['id']; ?>" style="font-size: 0.8em; margin-top: 0.25em; text-align: right; color: #ccc;">
-                            <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 characters
+                            <span class="current-count"><?php echo strlen($userData['welcome_message'] ?? ''); ?></span>/255 <?php echo t('known_users_characters_label'); ?>
                           </div>
                         </div>
                       </td>
@@ -267,7 +267,7 @@ if (isMobileDevice()) {
                         <button class="sp-btn sp-btn-sm test-welcome-btn" style="background:var(--blue-bg); color:var(--blue); border-color:var(--blue);"
                                 data-username="<?php echo htmlspecialchars($userData['username']); ?>" 
                                 data-message="<?php echo htmlspecialchars($userData['welcome_message']); ?>"
-                                <?php echo $userData['status'] != 'True' ? 'disabled title="User is inactive"' : ''; ?>>
+                                <?php echo $userData['status'] != 'True' ? 'disabled title="' . htmlspecialchars(t('known_users_user_inactive_title')) . '"' : ''; ?>>
                           <i class="fas fa-paper-plane"></i>
                         </button>
                       </td>

@@ -252,7 +252,7 @@ ob_start();
                 <div style="display:flex;gap:0.5rem;">
                     <button id="repeat-btn" class="sp-btn sp-btn-ghost sp-btn-sm" type="button" style="border-radius:1rem;">
                         <span class="icon is-small"><i class="fas fa-redo"></i></span>
-                        <span>Repeat 1</span>
+                        <span><?php echo t('music_repeat_one'); ?></span>
                     </button>
                     <button id="shuffle-btn" class="sp-btn sp-btn-ghost sp-btn-sm" type="button" style="border-radius:1rem;">
                         <span class="icon is-small"><i class="fas fa-random"></i></span>
@@ -277,10 +277,10 @@ ob_start();
             <?php echo t('music_upload_file'); ?>
         </span>
         <div style="display:flex;align-items:center;gap:0.5rem;">
-            <label class="sp-label" style="margin-bottom:0;white-space:nowrap;">Music source</label>
+            <label class="sp-label" style="margin-bottom:0;white-space:nowrap;"><?php echo t('music_music_source'); ?></label>
             <select id="music-source-select" class="sp-select" style="width:auto;">
-                <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>>Built-in (DMCA-free)</option>
-                <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>>Use my uploads</option>
+                <option value="system" <?php echo ($music_source === 'system') ? 'selected' : ''; ?>><?php echo t('music_source_builtin'); ?></option>
+                <option value="user" <?php echo ($music_source === 'user') ? 'selected' : ''; ?>><?php echo t('music_source_uploads'); ?></option>
             </select>
         </div>
     </header>
@@ -288,7 +288,7 @@ ob_start();
         <!-- Disclaimer -->
         <div class="sp-alert sp-alert-warning" style="margin-bottom:1rem;">
             <i class="fas fa-exclamation-triangle"></i>
-            You are responsible for all files you upload and must have the legal rights to use and share them. We do not verify or guarantee rights clearance.
+            <?php echo t('music_upload_disclaimer'); ?>
         </div>
         <!-- Storage Usage Info -->
         <div class="sp-alert sp-alert-info" style="margin-bottom:1rem;">
@@ -316,7 +316,7 @@ ob_start();
             <div id="userUploadProgressContainer" style="display:none;margin-bottom:1rem;">
                 <div class="sp-alert sp-alert-info">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                        <strong id="userUploadStatusText">Preparing upload...</strong>
+                        <strong id="userUploadStatusText"><?php echo t('music_preparing_upload'); ?></strong>
                         <span id="userUploadProgressPercent" style="font-weight:600;">0%</span>
                     </div>
                     <progress class="progress" id="userUploadProgress" value="0" max="100" style="width:100%;">0%</progress>
@@ -380,13 +380,13 @@ ob_start();
                                 </span>
                             </td>
                             <td class="song-title">
-                                <?php echo htmlspecialchars($fileData['title']); ?> <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;">Your upload</span>
+                                <?php echo htmlspecialchars($fileData['title']); ?> <span class="sp-badge sp-badge-grey" style="margin-left:0.5rem;font-size:0.75rem;"><?php echo t('music_your_upload'); ?></span>
                             </td>
                             <td style="text-align:right;white-space:nowrap;">
-                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="Play">
+                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="<?php echo htmlspecialchars(t('music_play')); ?>">
                                     <span class="icon is-small"><i class="fas fa-play"></i></span>
                                 </button>
-                                <button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" title="Delete">
+                                <button class="sp-btn sp-btn-danger sp-btn-sm delete-user-music" data-file="<?php echo htmlspecialchars($fileData['filename']); ?>" title="<?php echo htmlspecialchars(t('music_delete')); ?>">
                                     <span class="icon is-small"><i class="fas fa-trash"></i></span>
                                 </button>
                             </td>
@@ -413,7 +413,7 @@ ob_start();
                                 <?php echo htmlspecialchars($fileData['title']); ?>
                             </td>
                             <td style="text-align:right;white-space:nowrap;">
-                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="Play">
+                                <button class="sp-btn sp-btn-ghost sp-btn-sm play-song-btn" data-index="<?php echo $index; ?>" title="<?php echo htmlspecialchars(t('music_play')); ?>">
                                     <span class="icon is-small"><i class="fas fa-play"></i></span>
                                 </button>
                             </td>

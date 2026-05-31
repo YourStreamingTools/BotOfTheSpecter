@@ -65,7 +65,7 @@ ob_start();
         <!-- Access confirmed banner -->
         <div class="notification is-success is-light mb-5">
             <span class="icon mr-2"><i class="fas fa-circle-check"></i></span>
-            <strong>Beta Access Confirmed</strong> — You have been granted access to the Streaming beta program.
+            <?= t('streaming_access_confirmed_banner') ?>
         </div>
         <!-- Coming soon card -->
         <div class="card mb-5">
@@ -79,15 +79,12 @@ ob_start();
                 <span class="icon is-large mb-5" style="font-size:4rem;color:#7c3aed;">
                     <i class="fas fa-satellite-dish"></i>
                 </span>
-                <h2 class="title is-4 mt-2">Coming Soon</h2>
+                <h2 class="title is-4 mt-2"><?= t('streaming_coming_soon_title') ?></h2>
                 <p class="subtitle is-6 mt-3" style="max-width:560px;margin:0 auto;">
-                    This is a complete rewrite of the old streaming system, rebuilt from the ground up to deliver
-                    better performance, reliability, and features. As a beta tester, you have early access —
-                    this page will be updated with streaming controls, server information, and your recordings
-                    as features become available.
+                    <?= t('streaming_coming_soon_description') ?>
                 </p>
                 <p class="mt-4" style="color:#6b7280;font-size:0.9rem;">
-                    Thank you for being part of the testing program. Keep an eye on this page for updates.
+                    <?= t('streaming_coming_soon_thanks') ?>
                 </p>
             </div>
         </div>
@@ -96,7 +93,7 @@ ob_start();
             <header class="card-header">
                 <p class="card-header-title">
                     <span class="icon mr-2"><i class="fas fa-list-check"></i></span>
-                    What's Being Built
+                    <?= t('streaming_whats_being_built') ?>
                 </p>
             </header>
             <div class="card-content">
@@ -107,8 +104,8 @@ ob_start();
                                 <span class="icon has-text-info"><i class="fas fa-key"></i></span>
                             </div>
                             <div class="media-content">
-                                <p class="has-text-weight-semibold">Stream Key Management</p>
-                                <p class="is-size-7" style="color:#6b7280;">Set your Twitch stream key and configure forwarding.</p>
+                                <p class="has-text-weight-semibold"><?= t('streaming_feature_stream_key_title') ?></p>
+                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_stream_key_desc') ?></p>
                             </div>
                         </div>
                     </div>
@@ -118,8 +115,8 @@ ob_start();
                                 <span class="icon has-text-info"><i class="fas fa-video"></i></span>
                             </div>
                             <div class="media-content">
-                                <p class="has-text-weight-semibold">Auto Record from Twitch</p>
-                                <p class="is-size-7" style="color:#6b7280;">Automatically record your streams as they happen.</p>
+                                <p class="has-text-weight-semibold"><?= t('streaming_feature_auto_record_title') ?></p>
+                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_auto_record_desc') ?></p>
                             </div>
                         </div>
                     </div>
@@ -129,8 +126,8 @@ ob_start();
                                 <span class="icon has-text-info"><i class="fas fa-server"></i></span>
                             </div>
                             <div class="media-content">
-                                <p class="has-text-weight-semibold">Multi-Region Servers</p>
-                                <p class="is-size-7" style="color:#6b7280;">AU-EAST-1, US-WEST-1, and US-EAST-1 ingest points.</p>
+                                <p class="has-text-weight-semibold"><?= t('streaming_feature_multi_region_title') ?></p>
+                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_multi_region_desc') ?></p>
                             </div>
                         </div>
                     </div>
@@ -140,8 +137,8 @@ ob_start();
                                 <span class="icon has-text-info"><i class="fas fa-folder-open"></i></span>
                             </div>
                             <div class="media-content">
-                                <p class="has-text-weight-semibold">Recording Library</p>
-                                <p class="is-size-7" style="color:#6b7280;">Browse, play, download, and manage your recorded streams.</p>
+                                <p class="has-text-weight-semibold"><?= t('streaming_feature_recording_library_title') ?></p>
+                                <p class="is-size-7" style="color:#6b7280;"><?= t('streaming_feature_recording_library_desc') ?></p>
                             </div>
                         </div>
                     </div>
