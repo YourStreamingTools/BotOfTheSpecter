@@ -684,6 +684,9 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                     <label class="feature-item">
                         <input type="checkbox" id="notify-joins-checkbox">&nbsp;Show join/leave notifications
                     </label>
+                    <label class="feature-item">
+                        <input type="checkbox" id="ding-sound-checkbox">&nbsp;Play a ding sound on each new chat message
+                    </label>
                 </div>
             </div>
             <div class="two-column-container">
@@ -1415,7 +1418,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 filters_usernames: [],
                 filters_messages: [],
                 nicknames: {},
-                presence_enabled: false
+                presence_enabled: false,
+                ding_sound_enabled: true
             };
             async function loadSettingsFromServer() {
                 try {
@@ -1431,6 +1435,8 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                             userSettings.nicknames = {};
                         }
                         if (userSettings.presence_enabled === undefined) userSettings.presence_enabled = false;
+                        // Ding sound defaults to ON when never configured before
+                        if (userSettings.ding_sound_enabled === undefined) userSettings.ding_sound_enabled = true;
                         return true;
                     }
                     return false;
@@ -3503,6 +3509,91 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
         }
         // Chat message handling
+        // ===== New-message "ding" notification sound =====
+        // Plays a short, pleasant ding (Web Audio oscillator - no binary asset needed)
+        // whenever a genuinely new live chat message is rendered. Never fires during
+        // history/backfill restore, because that path bypasses handleChatMessage().
+        const DING_STORAGE_KEY = 'yourchat-ding-enabled'; // localStorage key for the toggle
+        let dingSoundEnabled = true;           // user toggle (default ON; persisted in localStorage + userSettings)
+        let dingAudioContext = null;           // lazily created AudioContext
+        let dingAudioUnlocked = false;          // set true after a user gesture resumes the context
+        let lastDingAtMs = 0;                  // throttle timestamp
+        const DING_MIN_GAP_MS = 200;           // minimum gap between dings to avoid a sound storm
+        function getDingAudioContext() {
+            if (!dingAudioContext) {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return null;
+                try {
+                    dingAudioContext = new Ctx();
+                } catch (e) {
+                    console.warn('Unable to create AudioContext for ding sound', e);
+                    return null;
+                }
+            }
+            return dingAudioContext;
+        }
+        // Browsers block audio until the user interacts with the page. Resume the
+        // AudioContext on the first user gesture so the ding can play afterwards.
+        function unlockDingAudio() {
+            if (dingAudioUnlocked) return;
+            const ctx = getDingAudioContext();
+            if (!ctx) return;
+            const markUnlocked = () => { dingAudioUnlocked = true; };
+            if (ctx.state === 'suspended') {
+                ctx.resume().then(markUnlocked).catch(() => {});
+            } else {
+                markUnlocked();
+            }
+        }
+        function playDingSound() {
+            if (!dingSoundEnabled) return;
+            // Throttle bursts so rapid-fire chat doesn't machine-gun the sound
+            const now = Date.now();
+            if (now - lastDingAtMs < DING_MIN_GAP_MS) return;
+            lastDingAtMs = now;
+            const ctx = getDingAudioContext();
+            if (!ctx) return;
+            // If still locked (no user gesture yet), try to resume but skip this ding
+            if (ctx.state === 'suspended') {
+                ctx.resume().then(() => { dingAudioUnlocked = true; }).catch(() => {});
+                return;
+            }
+            try {
+                const t = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                // A gentle two-tone "ding" (rising) with a short decay envelope
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, t);        // A5
+                osc.frequency.exponentialRampToValueAtTime(1320, t + 0.06); // ~E6
+                gain.gain.setValueAtTime(0.0001, t);
+                gain.gain.exponentialRampToValueAtTime(0.18, t + 0.01); // quick attack, modest volume
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35); // smooth decay
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.4);
+            } catch (e) {
+                console.warn('Failed to play ding sound', e);
+            }
+        }
+        function loadDingSoundSetting() {
+            // localStorage is the fast, immediate source of truth (survives reloads,
+            // available before async server settings load). Defaults to ON.
+            try {
+                const stored = localStorage.getItem(DING_STORAGE_KEY);
+                if (stored === 'true') return true;
+                if (stored === 'false') return false;
+            } catch (e) { /* localStorage may be unavailable */ }
+            // Fall back to server-side setting, otherwise default ON
+            return userSettings.ding_sound_enabled !== undefined ? !!userSettings.ding_sound_enabled : true;
+        }
+        function saveDingSoundSetting(enabled) {
+            try { localStorage.setItem(DING_STORAGE_KEY, enabled ? 'true' : 'false'); } catch (e) { /* ignore */ }
+            // Mirror to server-side per-user settings to match the page's other toggles
+            userSettings.ding_sound_enabled = enabled;
+            saveSettingsToServer();
+        }
         function handleChatMessage(event) {
             // Log raw event data for debugging streaks and other features
             logRawChatData(event);
@@ -3702,6 +3793,15 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
             }
             messageDiv.innerHTML = messageHtml;
             overlay.appendChild(messageDiv);
+            // Play a single ding for genuinely new incoming messages. Skip the
+            // streamer's own outgoing messages (synthetic local-* events) so the
+            // ding only signals chat activity from other people. History/backfill
+            // restore never reaches here, so it won't trigger on page load.
+            const isOwnOutgoing = (event.message_id && String(event.message_id).startsWith('local-')) ||
+                (event.chatter_user_id && CONFIG.USER_ID && String(event.chatter_user_id) === String(CONFIG.USER_ID));
+            if (!isOwnOutgoing) {
+                playDingSound();
+            }
             // Auto-scroll to bottom (only if user is not scrolling up)
             scrollToBottomIfNeeded(overlay);
             // Enforce cap (remove oldest messages if needed)
@@ -4281,6 +4381,39 @@ $cssVersion = file_exists($cssFile) ? filemtime($cssFile) : time();
                 }
             } catch (e) {
                 console.error('Error initializing presence setting', e);
+            }
+            // Initialize ding-sound toggle (default ON, persisted in localStorage)
+            try {
+                const dingCheckbox = document.getElementById('ding-sound-checkbox');
+                dingSoundEnabled = loadDingSoundSetting();
+                if (dingCheckbox) {
+                    dingCheckbox.checked = dingSoundEnabled;
+                    dingCheckbox.addEventListener('change', (e) => {
+                        dingSoundEnabled = !!e.target.checked;
+                        saveDingSoundSetting(dingSoundEnabled);
+                        // Turning it on counts as a user gesture - unlock audio now
+                        if (dingSoundEnabled) {
+                            unlockDingAudio();
+                        }
+                        console.log(`Ding sound ${dingSoundEnabled ? 'enabled' : 'disabled'}`);
+                    });
+                }
+            } catch (e) {
+                console.error('Error initializing ding sound setting', e);
+            }
+            // Unlock Web Audio on the first user gesture (browser autoplay policy)
+            try {
+                const unlockOnce = () => {
+                    unlockDingAudio();
+                    document.removeEventListener('click', unlockOnce);
+                    document.removeEventListener('keydown', unlockOnce);
+                    document.removeEventListener('touchstart', unlockOnce);
+                };
+                document.addEventListener('click', unlockOnce);
+                document.addEventListener('keydown', unlockOnce);
+                document.addEventListener('touchstart', unlockOnce);
+            } catch (e) {
+                console.error('Error wiring audio unlock gesture', e);
             }
             // Render presence summary immediately (before websocket/bootstrap work)
             setPresenceMessage(buildInitialPresenceSummaryText());
