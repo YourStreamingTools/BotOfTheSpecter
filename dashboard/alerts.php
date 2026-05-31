@@ -34,6 +34,11 @@ if ($db->connect_error) {
 $variantLimits = [
     'follow'       => 1,
     'stream_bingo' => 4,   // one per bingo sub-event (Started / Event / Winner / Ended)
+    // Enable/disable-only categories: they render through their own overlay theme
+    // (ported into overlay/index.php), so a single on/off variant is all that fits.
+    'weather'      => 1,
+    'deaths'       => 1,
+    'walkons'      => 1,
 ];
 // Stream Bingo sub-events: each variant ties to one of these via the dropdown.
 // Same pattern as channel_points where the variant picks the trigger.
@@ -80,6 +85,10 @@ $defaultAlerts = [
     ['stream_bingo', 'Game Winner',  2, "bingo_event = 'STREAM_BINGO_WINNER'",       "BINGO! {username}\ngot {rank_text}!"],
     ['stream_bingo', 'Game Ended',   3, "bingo_event = 'STREAM_BINGO_ENDED'",        "Stream Bingo has ended!"],
     ['watch_streak', 'Watch streak', 0, 'streak >= 7', "{username}\nis on a {streak}-stream watch streak!"],
+    // Enable/disable-only: these render in their existing overlay theme via overlay/index.php.
+    ['weather', 'Weather', 0, null, null],
+    ['deaths', 'Death counter', 0, null, null],
+    ['walkons', 'Walk-ons', 0, null, null],
 ];
 
 // Seed defaults if table is empty
@@ -331,6 +340,24 @@ if ($db->connect_error) {
     die('Connection failed: ' . $db->connect_error);
 }
 
+// Enable/disable-only categories (weather, deaths, walk-ons) render through their own
+// overlay theme. Users seeded before these categories existed won't have rows, so make
+// sure a single on/off variant exists for each.
+$simpleCategorySeeds = ['weather' => 'Weather', 'deaths' => 'Death counter', 'walkons' => 'Walk-ons'];
+foreach ($simpleCategorySeeds as $simpleCat => $simpleLabel) {
+    $chk = $db->prepare("SELECT COUNT(*) AS cnt FROM twitch_alerts WHERE alert_category = ?");
+    $chk->bind_param('s', $simpleCat);
+    $chk->execute();
+    $chkExists = (int)$chk->get_result()->fetch_assoc()['cnt'];
+    $chk->close();
+    if ($chkExists === 0) {
+        $ins = $db->prepare("INSERT INTO twitch_alerts (alert_category, variant_name, variant_index) VALUES (?, ?, 0)");
+        $ins->bind_param('ss', $simpleCat, $simpleLabel);
+        $ins->execute();
+        $ins->close();
+    }
+}
+
 # Data load for page render
 $allAlerts = [];
 $alertsByCategory = [];
@@ -367,6 +394,10 @@ $categoryMeta = [
     'subathon'          => ['icon' => 'fas fa-hourglass-half', 'label' => 'Subathon'],
     'stream_bingo'      => ['icon' => 'fas fa-trophy', 'label' => 'Stream bingo'],
     'watch_streak'      => ['icon' => 'fas fa-fire', 'label' => 'Watch streaks'],
+    // Enable/disable-only categories (render through their own overlay theme)
+    'weather'           => ['icon' => 'fas fa-cloud-sun', 'label' => 'Weather'],
+    'deaths'            => ['icon' => 'fas fa-skull', 'label' => 'Death counter'],
+    'walkons'           => ['icon' => 'fas fa-door-open', 'label' => 'Walk-ons'],
 ];
 
 // Animation options
@@ -533,6 +564,28 @@ ob_start();
         <div class="alerts-settings-panel" id="settings-panel">
             <div class="alerts-no-selection" id="settings-placeholder">
                 <?= t('alerts_settings_placeholder') ?>
+            </div>
+            <!-- Enable/disable-only categories (weather, deaths, walk-ons): they keep
+                 their own overlay theme, so the only control here is on/off. -->
+            <div id="simple-settings" style="display:none;">
+                <section class="alerts-settings-section open">
+                    <header class="alerts-settings-section-header">
+                        <i class="fas fa-toggle-on"></i>
+                        <span><?= t('alerts_section_general') ?></span>
+                    </header>
+                    <div class="alerts-settings-section-body">
+                        <p class="alerts-help-text"><?= t('alerts_simple_note') ?></p>
+                        <div class="alerts-form-group">
+                            <div class="alerts-toggle-wrap">
+                                <label><?= t('alerts_enabled') ?></label>
+                                <label class="alerts-toggle">
+                                    <input type="checkbox" id="set-simple-enabled">
+                                    <span class="alerts-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
             <div id="settings-form" style="display:none;">
                 <!-- General Settings -->
@@ -937,6 +990,9 @@ $(document).ready(function() {
     const channelPointRewards = <?php echo json_encode(array_values($channelPointRewards)); ?>;
     const bingoSubtypes = <?php echo json_encode($bingoSubtypes); ?>;
     const variantLimits = <?php echo json_encode($variantLimits); ?>;
+    // Enable/disable-only categories — selecting one shows just an on/off switch;
+    // the alert renders through its existing overlay theme in overlay/index.php.
+    const simpleCategories = ['weather', 'deaths', 'walkons'];
     function updateAddButtonFor(category) {
         var $cat = $('.alerts-category[data-category="' + category + '"]');
         if (!$cat.length) return;
@@ -1090,7 +1146,12 @@ $(document).ready(function() {
         currentAlertId = id;
         var a = alertsData[id];
         if (!a) return;
+        if (simpleCategories.indexOf(a.alert_category) !== -1) {
+            loadSimpleVariant(a);
+            return;
+        }
         loadingVariant = true;
+        $('#simple-settings').hide();
         $('#settings-placeholder').hide();
         $('#settings-form').show();
         $('#preview-placeholder').hide();
@@ -1148,6 +1209,27 @@ $(document).ready(function() {
         loadingVariant = false;
         clearDirty();
     }
+    // Enable/disable-only categories: show just the on/off switch and a note.
+    function loadSimpleVariant(a) {
+        loadingVariant = true;
+        $('#settings-form').hide();
+        $('#settings-placeholder').hide();
+        $('#simple-settings').show();
+        $('#preview-box').hide();
+        $('#preview-placeholder').show();
+        $('#preview-alert-btn, #test-alert-btn').prop('disabled', true);
+        $('#set-simple-enabled').prop('checked', a.enabled == 1);
+        loadingVariant = false;
+        clearDirty();
+    }
+    // On/off here fires immediately (single field), like the per-row toggle.
+    $('#set-simple-enabled').on('change', function() {
+        if (!currentAlertId) return;
+        var enabled = this.checked ? 1 : 0;
+        if (alertsData[currentAlertId]) alertsData[currentAlertId].enabled = enabled;
+        $('.alerts-variant-enabled-toggle[data-id="' + currentAlertId + '"]').prop('checked', this.checked);
+        $.post('', { action: 'toggle_alert', id: currentAlertId, enabled: enabled }, null, 'json');
+    });
     function updateMediaPreview(type, filename) {
         if (type === 'image') {
             if (filename) {
@@ -1316,7 +1398,10 @@ $(document).ready(function() {
         var id = $(this).data('id');
         var enabled = this.checked ? 1 : 0;
         if (alertsData[id]) alertsData[id].enabled = enabled;
-        if (id == currentAlertId) $('#set-enabled').prop('checked', this.checked);
+        if (id == currentAlertId) {
+            $('#set-enabled').prop('checked', this.checked);
+            $('#set-simple-enabled').prop('checked', this.checked);
+        }
         $.post('', { action: 'toggle_alert', id: id, enabled: enabled }, null, 'json');
     });
     // Per-category randomize toggle — also fires immediately, single-field
