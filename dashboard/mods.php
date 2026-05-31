@@ -398,9 +398,9 @@ ob_start();
                                         <?php if (strtolower($modDisplayName) === 'botofthespecter') : ?>
                                             <button class="sp-btn sp-btn-success" disabled><?php echo t('mods_always_has_access'); ?></button>
                                         <?php elseif ($hasAccess) : ?>
-                                            <button class="sp-btn sp-btn-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $disableModActions ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
+                                            <button class="sp-btn sp-btn-danger access-control" data-user-id="<?php echo $modUserId; ?>" data-action="remove" <?php echo $disableModActions ? 'disabled title="' . htmlspecialchars(t('mods_acting_as_disabled')) . '"' : ''; ?>><?php echo t('mods_remove_access'); ?></button>
                                         <?php else : ?>
-                                            <button class="sp-btn sp-btn-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $disableModActions ? 'disabled title="Disabled while acting as another channel"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
+                                            <button class="sp-btn sp-btn-primary access-control" data-user-id="<?php echo $modUserId; ?>" data-action="add" <?php echo $disableModActions ? 'disabled title="' . htmlspecialchars(t('mods_acting_as_disabled')) . '"' : ''; ?>><?php echo t('mods_add_access'); ?></button>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

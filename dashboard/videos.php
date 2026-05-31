@@ -288,10 +288,10 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 		<div class="sp-card" style="height:100%; display:flex; flex-direction:column;">
 			<div class="media-card-thumb">
 				<?php if ($thumbnail !== ''): ?>
-					<img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>" alt="Video thumbnail">
+					<img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars(t('videos_thumbnail_alt'), ENT_QUOTES, 'UTF-8'); ?>">
 				<?php else: ?>
 					<div class="media-card-no-thumb">
-						<span><i class="fas fa-image mr-2"></i>No Thumbnail</span>
+						<span><i class="fas fa-image mr-2"></i><?php echo htmlspecialchars(t('videos_no_thumbnail'), ENT_QUOTES, 'UTF-8'); ?></span>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -301,7 +301,7 @@ function renderMediaCard(array $video, $isClipsMode, array $clipDownloadUrls = [
 				</p>
 				<?php if (!$isClipsMode): ?>
 					<p class="sp-text-muted mb-3" style="font-size:0.82rem; min-height:4.5em; overflow:hidden;">
-						<?php echo htmlspecialchars($videoDescription !== '' ? $videoDescription : 'No description provided.', ENT_QUOTES, 'UTF-8'); ?>
+						<?php echo htmlspecialchars($videoDescription !== '' ? $videoDescription : t('videos_no_description'), ENT_QUOTES, 'UTF-8'); ?>
 					</p>
 				<?php endif; ?>
 				<div class="media-card-tags">

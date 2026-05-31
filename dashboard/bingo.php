@@ -52,12 +52,12 @@ ob_start();
     <div class="sp-card-header">
         <div class="sp-card-title">
             <i class="fas fa-trophy"></i>
-            Stream Bounty Integration
+            <?= t('bingo_integration_title') ?>
         </div>
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-            <button class="sp-btn sp-btn-primary" id="call-random-btn"<?php echo $api_key_exists ? '' : ' disabled'; ?>>Call Random</button>
-            <button class="sp-btn sp-btn-primary" id="call-all-btn"<?php echo $api_key_exists ? '' : ' disabled'; ?>>Call All</button>
-            <button class="sp-btn sp-btn-primary" id="start-vote-btn"<?php echo $api_key_exists ? '' : ' disabled'; ?>>Start Vote</button>
+            <button class="sp-btn sp-btn-primary" id="call-random-btn"<?php echo $api_key_exists ? '' : ' disabled'; ?>><?= t('bingo_btn_call_random') ?></button>
+            <button class="sp-btn sp-btn-primary" id="call-all-btn"<?php echo $api_key_exists ? '' : ' disabled'; ?>><?= t('bingo_btn_call_all') ?></button>
+            <button class="sp-btn sp-btn-primary" id="start-vote-btn"<?php echo $api_key_exists ? '' : ' disabled'; ?>><?= t('bingo_btn_start_vote') ?></button>
         </div>
     </div>
     <div class="sp-card-body">
@@ -70,7 +70,7 @@ ob_start();
         <?php if (!$api_key_exists): ?>
             <div class="sp-alert sp-alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
-                <strong>API Key Required:</strong> Please enter your Stream Bounty API key below to enable the bingo game controls.
+                <?= t('bingo_api_key_required') ?>
             </div>
         <?php endif; ?>
         </div>
