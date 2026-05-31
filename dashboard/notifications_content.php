@@ -70,31 +70,29 @@ if ($sessionCount >= 3) {
         <?php endif; ?>
     </div>
     <div class="stat-card <?php echo $sessionColorClass; ?>">
-        <div class="stat-label">Active Connections</div>
+        <div class="stat-label"><?= t('notifications_content_stat_active_connections') ?></div>
         <div class="stat-value"><?php echo $sessionCount; ?></div>
-        <div class="stat-secondary">limit: 3 connections</div>
+        <div class="stat-secondary"><?= t('notifications_content_stat_limit_3_connections') ?></div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Webhook Subscriptions</div>
+        <div class="stat-label"><?= t('notifications_content_stat_webhook_subscriptions') ?></div>
         <div class="stat-value"><?php echo count($data['webhookSubs']); ?></div>
-        <div class="stat-secondary">callback-based</div>
+        <div class="stat-secondary"><?= t('notifications_content_stat_callback_based') ?></div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Cost Usage</div>
+        <div class="stat-label"><?= t('notifications_content_stat_cost_usage') ?></div>
         <div class="stat-value"><?php echo $data['totalCost']; ?></div>
-        <div class="stat-secondary">of <?php echo $data['maxCost']; ?> max</div>
+        <div class="stat-secondary"><?= t('notifications_content_stat_of_max') ?> <?php echo $data['maxCost']; ?> <?= t('notifications_content_stat_max_word') ?></div>
     </div>
 </div>
 
 <?php if (count($data['sessionGroups']) > 0): ?>
     <div class="sp-card"><div class="sp-card-body">
         <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:0.75rem;">
-            <i class="fas fa-network-wired"></i> Active WebSocket Sessions
+            <i class="fas fa-network-wired"></i> <?= t('notifications_content_heading_active_sessions') ?>
         </h2>
         <div class="info-box">
-            <strong><i class="fas fa-info-circle"></i> Tip:</strong> Twitch limits you to 3 WebSocket connections. 
-            Each session below counts toward that limit. Your bot and YourChat each need their own session. 
-            If you hit the limit, delete old/unused sessions.
+            <?= t('notifications_content_infobox_active_sessions') ?>
         </div>
         <?php 
         $sessionNumber = 0;

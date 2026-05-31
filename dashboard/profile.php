@@ -1056,12 +1056,12 @@ ob_start();
                 <form method="post" action="" id="app-password-form">
                     <input type="hidden" name="action" value="set_app_password">
                     <div class="sp-form-group">
-                        <label class="sp-label"><?php echo $appPasswordSet ? 'New Password' : 'Password'; ?></label>
-                        <input class="sp-input" type="password" name="app_password" id="app-password-input" autocomplete="new-password" placeholder="Enter app password" required minlength="6">
+                        <label class="sp-label"><?php echo $appPasswordSet ? t('profile_new_password') : t('profile_password'); ?></label>
+                        <input class="sp-input" type="password" name="app_password" id="app-password-input" autocomplete="new-password" placeholder="<?php echo htmlspecialchars(t('profile_enter_app_password')); ?>" required minlength="6">
                     </div>
                     <div class="sp-form-group">
-                        <label class="sp-label">Confirm Password</label>
-                        <input class="sp-input" type="password" name="app_password_confirm" id="app-password-confirm" autocomplete="new-password" placeholder="Confirm app password" required minlength="6">
+                        <label class="sp-label"><?php echo t('profile_confirm_password'); ?></label>
+                        <input class="sp-input" type="password" name="app_password_confirm" id="app-password-confirm" autocomplete="new-password" placeholder="<?php echo htmlspecialchars(t('profile_confirm_app_password')); ?>" required minlength="6">
                     </div>
                     <div style="display:flex;gap:0.5rem;margin-top:0.75rem;">
                         <button type="submit" class="sp-btn sp-btn-primary"><?php echo $appPasswordSet ? 'Update Password' : 'Set Password'; ?></button>
