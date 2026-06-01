@@ -47,7 +47,12 @@ $host = $username !== '' ? $username : 'specter';
 <?php elseif ($theme === 'pill'): ?>
 <div id="sp-root" class="spotify-overlay-page spotify-overlay-page-pill" data-theme="pill">
     <img class="spotify-overlay-page-pill-art" data-sp="art" alt="">
-    <span class="spotify-overlay-page-pill-text"><span class="spotify-overlay-page-pill-title" data-sp="title"></span> &bull; <span class="spotify-overlay-page-pill-artist" data-sp="artist"></span></span>
+    <span class="spotify-overlay-page-pill-text">
+        <span class="spotify-overlay-page-pill-track">
+            <span class="spotify-overlay-page-pill-chunk"><span class="spotify-overlay-page-pill-title" data-sp="title"></span> &bull; <span class="spotify-overlay-page-pill-artist" data-sp="artist"></span></span>
+            <span class="spotify-overlay-page-pill-chunk spotify-overlay-page-pill-chunk-dupe" aria-hidden="true"><span class="spotify-overlay-page-pill-title" data-sp="title"></span> &bull; <span class="spotify-overlay-page-pill-artist" data-sp="artist"></span></span>
+        </span>
+    </span>
     <span class="spotify-overlay-page-pill-bar"><span class="spotify-overlay-page-pill-fill" data-sp="fill"></span></span>
 </div>
 <?php elseif ($theme === 'card'): ?>
@@ -88,18 +93,33 @@ $host = $username !== '' ? $username : 'specter';
     if (!code || !root) return;
     const endpoint = 'spotify_nowplaying.php?code=' + encodeURIComponent(code);
 
-    // Auto-scale to the OBS browser-source size: measure the overlay's natural
-    // size, then CSS-zoom to fit. zoom re-renders the layout (not a bitmap
-    // upscale), so it stays sharp at any source dimensions — no user setting.
-    function fit() {
+    // Pill theme: enable a smooth one-way marquee only when the title/artist
+    // overflows the pill. Measured at zoom 1 (clean px) and re-run only when the
+    // track changes — so the loop doesn't restart on every poll.
+    function measureMarquee() {
+        const text = root.querySelector('.spotify-overlay-page-pill-text');
+        if (!text) return;
+        const chunk = text.querySelector('.spotify-overlay-page-pill-chunk');
+        if (!chunk) return;
+        root.classList.remove('spotify-overlay-page-pill-scrolling');
+        if (chunk.scrollWidth > text.clientWidth + 2) {
+            const dur = Math.max(6, (chunk.scrollWidth + 48) / 45); // ~45px/s
+            root.style.setProperty('--marquee-dur', dur.toFixed(1) + 's');
+            root.classList.add('spotify-overlay-page-pill-scrolling');
+        }
+    }
+    // Auto-scale to the OBS browser-source size, and (re)measure the marquee
+    // while zoom is reset to 1 so widths are read in real pixels.
+    function layout(remeasure) {
         root.style.zoom = '1';
+        if (remeasure) measureMarquee();
         const w = root.offsetWidth, h = root.offsetHeight;
         if (w > 0 && h > 0) {
             root.style.zoom = Math.min(window.innerWidth / w, window.innerHeight / h);
         }
     }
     const POLL_MS = 4000;
-    let progMs = 0, durMs = 0, isPlaying = false, shown = null;
+    let progMs = 0, durMs = 0, isPlaying = false, shown = null, lastKey = '';
     const fmt = (ms) => {
         const s = Math.max(0, Math.floor(ms / 1000));
         return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -121,6 +141,9 @@ $host = $username !== '' ? $username : 'specter';
     }
     function render(d) {
         if (!d || !d.active || !d.title) { show(false); return; }
+        const key = (d.title || '') + '|' + (d.artist || '');
+        const changed = key !== lastKey;
+        lastKey = key;
         setAll('title', el => el.textContent = d.title);
         setAll('artist', el => el.textContent = d.artist || '');
         setAll('art', el => { if (d.album_art) el.src = d.album_art; });
@@ -129,7 +152,9 @@ $host = $username !== '' ? $username : 'specter';
         isPlaying = !!d.is_playing;
         paint();
         show(true);
-        fit();
+        // Only re-layout (and restart the marquee) when the track changes; on
+        // steady-state polls the zoom and scroll animation are left untouched.
+        if (changed) layout(true);
     }
     async function poll() {
         try {
@@ -142,7 +167,9 @@ $host = $username !== '' ? $username : 'specter';
     setInterval(() => {
         if (isPlaying && durMs) { progMs = Math.min(durMs, progMs + 1000); paint(); }
     }, 1000);
-    window.addEventListener('resize', fit);
+    // Resize only needs to re-fit zoom; the pill is a fixed width so the
+    // marquee decision can't change — don't restart the scroll on every resize.
+    window.addEventListener('resize', () => layout(false));
 })();
 </script>
 </body>
