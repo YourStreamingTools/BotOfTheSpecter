@@ -88,6 +88,50 @@ ob_start();
     </div>
 </div>
 
+<?php
+// Spotify player control card — only when Spotify is linked & authorized.
+$spotifyConnected = false;
+$spStmt = $conn->prepare("SELECT access_token, has_access, own_client FROM spotify_tokens WHERE user_id = ? LIMIT 1");
+$spStmt->bind_param('i', $user_id);
+$spStmt->execute();
+$spRow = $spStmt->get_result()->fetch_assoc();
+$spStmt->close();
+if ($spRow && !empty($spRow['access_token'])
+    && (((int)($spRow['has_access'] ?? 0) === 1) || ((int)($spRow['own_client'] ?? 0) === 1))) {
+    $spotifyConnected = true;
+}
+$spotifyActAs = !empty($_SESSION['admin_act_as_active']);
+?>
+<?php if ($spotifyConnected): ?>
+<div class="sp-card mb-4" id="spotify-player-card">
+    <header class="sp-card-header">
+        <span class="sp-card-title"><i class="fab fa-spotify" style="color: var(--green);"></i> <?php echo t('media_player_spotify_control_title'); ?></span>
+        <span style="background: var(--blue); color:#fff; font-size:0.7rem; font-weight:600; padding:2px 10px; border-radius:999px; letter-spacing:0.05em;">Beta 5.8</span>
+    </header>
+    <div class="sp-card-body">
+        <?php if ($spotifyActAs): ?>
+            <div class="sp-alert sp-alert-warning"><i class="fas fa-exclamation-circle"></i> <?php echo t('media_player_spotify_actas'); ?></div>
+        <?php else: ?>
+            <div id="sp-player-status" class="sp-alert sp-alert-info" style="display:none; margin-bottom:1rem;"></div>
+            <div id="sp-now-playing" style="display:none; gap:1rem; align-items:center; margin-bottom:1rem;">
+                <img id="sp-art" alt="" style="width:64px; height:64px; border-radius:var(--radius-sm); object-fit:cover; background:var(--bg-input);">
+                <div style="min-width:0;">
+                    <div id="sp-track" style="font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                    <div id="sp-artist" style="color:var(--text-secondary); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+                    <div id="sp-device" style="color:var(--text-secondary); font-size:0.8rem; margin-top:0.25rem;"></div>
+                </div>
+            </div>
+            <div id="sp-controls" style="display:none; gap:0.5rem; align-items:center;">
+                <button id="sp-prev" class="sp-btn sp-btn-ghost" type="button" aria-label="Previous">&#9198;</button>
+                <button id="sp-playpause" class="sp-btn sp-btn-primary" type="button" aria-label="Play/Pause">&#9654;</button>
+                <button id="sp-next" class="sp-btn sp-btn-ghost" type="button" aria-label="Next">&#9197;</button>
+                <input id="sp-volume" type="range" min="0" max="100" value="0" class="modern-volume" style="flex:1; min-width:120px;" aria-label="Volume">
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="sp-card mb-4">
     <header class="sp-card-header">
         <span class="sp-card-title"><i class="fas fa-list-ol"></i> <?php echo t('media_player_queue'); ?></span>
@@ -128,6 +172,215 @@ ob_start();
     </div>
 </div>
 <?php
+// Song Request Analytics (Spotify) — moved here from spotifylink.php.
+// Table is created by usr_database.php; the bot logs each !songrequest into song_request_analytics.
+$analyticsTableExists = $db->query("SHOW TABLES LIKE 'song_request_analytics'")->num_rows > 0;
+if ($analyticsTableExists):
+    $srTotalResult = $db->query("SELECT COUNT(*) AS total FROM song_request_analytics");
+    $srTotal = $srTotalResult ? (int)$srTotalResult->fetch_assoc()['total'] : 0;
+    $srTopSongs = $db->query("SELECT song_name, artist_name, COUNT(*) AS request_count FROM song_request_analytics GROUP BY song_name, artist_name ORDER BY request_count DESC LIMIT 10");
+    $srTopSongs = $srTopSongs ? $srTopSongs->fetch_all(MYSQLI_ASSOC) : [];
+    $srRecentRequests = $db->query("SELECT song_name, artist_name, requested_by, requested_at FROM song_request_analytics ORDER BY requested_at DESC LIMIT 10");
+    $srRecentRequests = $srRecentRequests ? $srRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
+endif;
+?>
+<?php if ($analyticsTableExists): ?>
+<div class="sp-card mb-4">
+    <div class="sp-card-header">
+        <div class="sp-card-title">
+            <i class="fab fa-spotify" style="color: var(--green);"></i>
+            <?php echo t('media_player_sr_spotify_title'); ?>
+        </div>
+        <span style="background: var(--blue); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.05em;">Beta 5.8</span>
+    </div>
+    <div class="sp-card-body">
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--green);"><?php echo number_format($srTotal); ?></div>
+                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_total_requests'); ?></div>
+            </div>
+            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--blue);"><?php echo count($srTopSongs); ?></div>
+                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_unique_songs'); ?></div>
+            </div>
+        </div>
+        <?php if (!empty($srTopSongs)): ?>
+        <div class="sp-card" style="margin-bottom: 1.5rem;">
+            <div class="sp-card-header">
+                <div class="sp-card-title" style="font-size: 0.95rem;">
+                    <i class="fas fa-trophy" style="color: var(--yellow, #f5c542);"></i>
+                    <?php echo t('spotifylink_top_requested_songs'); ?>
+                </div>
+            </div>
+            <div class="sp-card-body" style="padding: 0;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">#</th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_song'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_artist'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requests'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($srTopSongs as $i => $row): ?>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo $i + 1; ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['song_name']); ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['artist_name']); ?></td>
+                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--green); font-weight: 600;"><?php echo $row['request_count']; ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($srRecentRequests)): ?>
+        <div class="sp-card">
+            <div class="sp-card-header">
+                <div class="sp-card-title" style="font-size: 0.95rem;">
+                    <i class="fas fa-history" style="color: var(--text-secondary);"></i>
+                    <?php echo t('spotifylink_recent_requests'); ?>
+                </div>
+            </div>
+            <div class="sp-card-body" style="padding: 0;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_song'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_artist'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requested_by'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_time'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($srRecentRequests as $row): ?>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['song_name']); ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['artist_name']); ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['requested_by']); ?></td>
+                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); white-space: nowrap;"><?php echo htmlspecialchars($row['requested_at']); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (empty($srTopSongs) && empty($srRecentRequests)): ?>
+        <div class="sp-alert sp-alert-info">
+            <i class="fas fa-info-circle"></i>
+            <?php echo t('spotifylink_analytics_empty'); ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+<?php
+// YouTube Song Request Analytics — from media_queue (created by usr_database.php).
+// Shown only when the user is actually using YouTube song requests (queue has rows).
+$ytTableExists = $db->query("SHOW TABLES LIKE 'media_queue'")->num_rows > 0;
+$ytTotal = 0; $ytTopVideos = []; $ytRecentRequests = [];
+if ($ytTableExists) {
+    $ytTotalResult = $db->query("SELECT COUNT(*) AS total FROM media_queue");
+    $ytTotal = $ytTotalResult ? (int)$ytTotalResult->fetch_assoc()['total'] : 0;
+    if ($ytTotal > 0) {
+        $ytTopVideos = $db->query("SELECT title, uploader, COUNT(*) AS request_count FROM media_queue GROUP BY title, uploader ORDER BY request_count DESC LIMIT 10");
+        $ytTopVideos = $ytTopVideos ? $ytTopVideos->fetch_all(MYSQLI_ASSOC) : [];
+        $ytRecentRequests = $db->query("SELECT title, uploader, requested_by, requested_at FROM media_queue ORDER BY requested_at DESC LIMIT 10");
+        $ytRecentRequests = $ytRecentRequests ? $ytRecentRequests->fetch_all(MYSQLI_ASSOC) : [];
+    }
+}
+?>
+<?php if ($ytTableExists && $ytTotal > 0): ?>
+<div class="sp-card mb-4">
+    <div class="sp-card-header">
+        <div class="sp-card-title">
+            <i class="fab fa-youtube" style="color: #ff0000;"></i>
+            <?php echo t('media_player_sr_youtube_title'); ?>
+        </div>
+        <span style="background: var(--blue); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.05em;">Beta 5.8</span>
+    </div>
+    <div class="sp-card-body">
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--green);"><?php echo number_format($ytTotal); ?></div>
+                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('spotifylink_stat_total_requests'); ?></div>
+            </div>
+            <div style="background: var(--bg-input); border-radius: var(--radius); padding: 1rem 1.5rem; flex: 1; min-width: 140px; text-align: center;">
+                <div style="font-size: 2rem; font-weight: 700; color: var(--blue);"><?php echo count($ytTopVideos); ?></div>
+                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;"><?php echo t('media_player_sr_unique_videos'); ?></div>
+            </div>
+        </div>
+        <?php if (!empty($ytTopVideos)): ?>
+        <div class="sp-card" style="margin-bottom: 1.5rem;">
+            <div class="sp-card-header">
+                <div class="sp-card-title" style="font-size: 0.95rem;">
+                    <i class="fas fa-trophy" style="color: var(--yellow, #f5c542);"></i>
+                    <?php echo t('media_player_sr_top_videos'); ?>
+                </div>
+            </div>
+            <div class="sp-card-body" style="padding: 0;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;">#</th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_video'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_uploader'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requests'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($ytTopVideos as $i => $row): ?>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo $i + 1; ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['title']); ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['uploader'] ?? ''); ?></td>
+                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--green); font-weight: 600;"><?php echo $row['request_count']; ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($ytRecentRequests)): ?>
+        <div class="sp-card">
+            <div class="sp-card-header">
+                <div class="sp-card-title" style="font-size: 0.95rem;">
+                    <i class="fas fa-history" style="color: var(--text-secondary);"></i>
+                    <?php echo t('spotifylink_recent_requests'); ?>
+                </div>
+            </div>
+            <div class="sp-card-body" style="padding: 0;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_video'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('media_player_th_uploader'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: left; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_requested_by'); ?></th>
+                            <th style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); font-weight: 600;"><?php echo t('spotifylink_th_time'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($ytRecentRequests as $row): ?>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.6rem 1rem; color: var(--text-primary);"><?php echo htmlspecialchars($row['title']); ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['uploader'] ?? ''); ?></td>
+                            <td style="padding: 0.6rem 1rem; color: var(--text-secondary);"><?php echo htmlspecialchars($row['requested_by']); ?></td>
+                            <td style="padding: 0.6rem 1rem; text-align: right; color: var(--text-secondary); white-space: nowrap;"><?php echo htmlspecialchars($row['requested_at']); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+<?php
 $content = ob_get_clean();
 
 ob_start();
@@ -160,6 +413,96 @@ ob_start();
     document.getElementById('btn-clear').onclick = () => socket.emit('MEDIA_COMMAND', { command: 'clear', code: code });
     const volRange = document.getElementById('vol-range');
     if (volRange) volRange.addEventListener('change', (e) => socket.emit('MEDIA_COMMAND', { command: 'volume', code: code, value: Number(e.target.value) }));
+</script>
+<script>
+(function () {
+    const card = document.getElementById('spotify-player-card');
+    if (!card) return;
+    const controls = document.getElementById('sp-controls');
+    if (!controls) return; // act-as mode: controls not rendered
+    const endpoint = '/api/spotify_player.php';
+    const ERR = {
+        no_device: <?php echo json_encode(t('media_player_spotify_err_no_device')); ?>,
+        premium: <?php echo json_encode(t('media_player_spotify_err_premium')); ?>,
+        expired: <?php echo json_encode(t('media_player_spotify_err_expired')); ?>,
+        rate_limited: <?php echo json_encode(t('media_player_spotify_err_rate')); ?>,
+        not_connected: <?php echo json_encode(t('media_player_spotify_err_generic')); ?>,
+        generic: <?php echo json_encode(t('media_player_spotify_err_generic')); ?>,
+    };
+    const $ = (id) => document.getElementById(id);
+    let pollTimer = null, volDebounce = null, suppressVolUntil = 0;
+
+    function setStatus(msg) {
+        const el = $('sp-player-status');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.style.display = msg ? 'block' : 'none';
+    }
+
+    async function call(action, params) {
+        const body = new URLSearchParams(Object.assign({ action: action }, params || {}));
+        const res = await fetch(endpoint, { method: 'POST', body: body, credentials: 'same-origin' });
+        return res.json();
+    }
+
+    function renderState(d) {
+        const np = $('sp-now-playing'), ctl = $('sp-controls');
+        if (!d || !d.success || !d.active || !d.track) {
+            setStatus(ERR.no_device);
+            if (np) np.style.display = 'none';
+            if (ctl) ctl.style.display = 'none';
+            return;
+        }
+        setStatus('');
+        if (np) np.style.display = 'flex';
+        if (ctl) ctl.style.display = 'flex';
+        $('sp-art').src = d.track.album_art || '';
+        $('sp-track').textContent = d.track.name || '';
+        $('sp-artist').textContent = d.track.artists || '';
+        $('sp-device').textContent = (d.device && d.device.name) ? ('🔊 ' + d.device.name) : '';
+        $('sp-playpause').innerHTML = d.is_playing ? '&#9208;' : '&#9654;';
+        const dis = d.disallows || {};
+        $('sp-playpause').disabled = d.is_playing ? !!dis.pausing : !!dis.resuming;
+        $('sp-next').disabled = !!dis.skipping_next;
+        $('sp-prev').disabled = !!dis.skipping_prev;
+        const vol = $('sp-volume');
+        if (d.device && d.device.supports_volume) {
+            vol.style.display = '';
+            if (Date.now() > suppressVolUntil) vol.value = d.device.volume_percent;
+        } else {
+            vol.style.display = 'none';
+        }
+    }
+
+    async function poll() {
+        try {
+            const res = await fetch(endpoint + '?action=state', { credentials: 'same-origin' });
+            renderState(await res.json());
+        } catch (e) { /* keep last rendered state on transient network errors */ }
+    }
+
+    function handleActionResult(r) {
+        if (r && !r.success) setStatus(ERR[r.error] || ERR.generic);
+    }
+
+    $('sp-playpause').addEventListener('click', async () => {
+        const playing = $('sp-playpause').textContent.charCodeAt(0) === 0x23F8; // pause glyph means currently playing
+        handleActionResult(await call(playing ? 'pause' : 'play'));
+        setTimeout(poll, 300);
+    });
+    $('sp-next').addEventListener('click', async () => { handleActionResult(await call('next')); setTimeout(poll, 400); });
+    $('sp-prev').addEventListener('click', async () => { handleActionResult(await call('previous')); setTimeout(poll, 400); });
+    $('sp-volume').addEventListener('input', () => { suppressVolUntil = Date.now() + 3000; });
+    $('sp-volume').addEventListener('change', () => {
+        clearTimeout(volDebounce);
+        const v = Number($('sp-volume').value);
+        volDebounce = setTimeout(async () => { handleActionResult(await call('volume', { value: v })); }, 250);
+    });
+
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); });
+    poll();
+    pollTimer = setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 5000);
+})();
 </script>
 <?php
 $scripts = ob_get_clean();
