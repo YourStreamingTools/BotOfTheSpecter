@@ -83,7 +83,7 @@ $error_message = ''; // Initialize error message
 $subscription_message = ''; // Initialize subscription message
 
 // Make internal request to check subscription
-$checkUrl = "https://dashboard.botofthespecter.com/check_subscription.php";
+$checkUrl = "https://dashboard.botofthespecter.com/api/check_subscription.php";
 $sessionCookie = session_name() . '=' . session_id();
 session_write_close();
 $ch = curl_init($checkUrl);

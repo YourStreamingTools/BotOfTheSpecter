@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modalPlayersGameId.textContent = gameId;
         playersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading players...</div>';
 
-        fetch('bingo_players.php?game_id=' + encodeURIComponent(gameId))
+        fetch('/api/bingo_players.php?game_id=' + encodeURIComponent(gameId))
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modalGameId.textContent = gameId;
         winnersContent.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading winners...</div>';
 
-        fetch('bingo_winners.php?game_id=' + encodeURIComponent(gameId))
+        fetch('/api/bingo_winners.php?game_id=' + encodeURIComponent(gameId))
             .then(response => response.json())
             .then(data => {
                 if (data.success) {

@@ -4,7 +4,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 
 // Include internationalization
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
-include_once __DIR__ . '/lang/i18n.php';
+include_once __DIR__ . '/../lang/i18n.php';
 
 require_once '/var/www/lib/require_auth_ajax.php';
 

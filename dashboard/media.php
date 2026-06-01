@@ -1137,7 +1137,7 @@ $(document).ready(function () {
         }).then(function (result) {
             if (!result.isConfirmed) return;
             btn.prop('disabled', true).html('<i class="fas fa-spinner fa-pulse"></i> Migrating…');
-            $.post('migrate_media.php', {}, function (resp) {
+            $.post('/api/migrate_media.php', {}, function (resp) {
                 if (resp && resp.success) {
                     Swal.fire({ icon: 'success', title: 'Migration Complete', text: resp.message }).then(function () { location.reload(); });
                 } else {
@@ -1154,7 +1154,7 @@ $(document).ready(function () {
 
 function sendStreamEvent(eventType, paramName, fileName) {
     var xhr = new XMLHttpRequest();
-    var url = "notify_event.php";
+    var url = "/api/notify_event.php";
     var params = "event=" + eventType + "&" + paramName + "=" + encodeURIComponent(fileName)
                + "&channel_name=" + encodeURIComponent(window.__MEDIA_CTX.channel)
                + "&api_key=" + encodeURIComponent(window.__MEDIA_CTX.apiKey);

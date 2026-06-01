@@ -556,7 +556,7 @@ $username = $_SESSION['username'] ?? '';
 
 // Force refresh tier by calling check_subscription.php
 if (!isset($user['beta_access']) || $user['beta_access'] != 1) {
-    $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
+    $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/api/check_subscription.php";
     $ch = curl_init($checkUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());

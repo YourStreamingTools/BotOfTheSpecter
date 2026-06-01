@@ -1832,7 +1832,7 @@ $(document).ready(function() {
             return;
         }
         var params = Object.assign({ event: config.event, api_key: apiKey, channel_name: channelName }, config.params);
-        $.post('notify_event.php', params, function(resp) {
+        $.post('/api/notify_event.php', params, function(resp) {
             if (resp.success) {
                 Swal.fire({ icon: 'success', title: 'Test sent', text: 'Check your OBS browser source.', timer: 2000, showConfirmButton: false });
             } else {

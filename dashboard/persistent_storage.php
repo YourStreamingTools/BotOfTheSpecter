@@ -486,7 +486,7 @@ ob_start();
                                 <a href="?delete=<?php echo urlencode($file['path']); ?>&server=<?php echo urlencode($selected_server); ?>" class="action-icon" title="<?php echo t('streaming_action_delete_video'); ?>" onclick="return confirm('<?php echo t('persistent_storage_confirm_delete'); ?>');">
                                     <i class="fas fa-trash"></i>
                                 </a>
-                                <a href="#" class="play-video action-icon" data-video-url="play_stream.php?persistent=true&server=<?php echo urlencode($selected_server); ?>&file=<?php echo urlencode($file['path']); ?>" title="<?php echo t('streaming_action_watch_video'); ?>">
+                                <a href="#" class="play-video action-icon" data-video-url="/api/play_stream.php?persistent=true&server=<?php echo urlencode($selected_server); ?>&file=<?php echo urlencode($file['path']); ?>" title="<?php echo t('streaming_action_watch_video'); ?>">
                                     <i class="fas fa-play"></i>
                                 </a>
                             </td>

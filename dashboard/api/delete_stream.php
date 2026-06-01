@@ -4,7 +4,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 
 // Include internationalization
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
-include_once __DIR__ . '/lang/i18n.php';
+include_once __DIR__ . '/../lang/i18n.php';
 
 require_once '/var/www/lib/require_auth.php';
 
@@ -16,7 +16,7 @@ include 'userdata.php';
 // Validate and get parameters
 if (!isset($_GET['server']) || !isset($_GET['file'])) {
     $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_missing_parameters')];
-    header('Location: streaming.php');
+    header('Location: /streaming.php');
     exit();
 }
 
@@ -26,7 +26,7 @@ $filename = $_GET['file'];
 // Validate filename to prevent directory traversal
 if (strpos($filename, '/') !== false || strpos($filename, '\\') !== false || $filename === '.' || $filename === '..') {
     $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_invalid_filename')];
-    header('Location: streaming.php');
+    header('Location: /streaming.php');
     exit();
 }
 
@@ -51,14 +51,14 @@ switch ($selected_server) {    case 'au-east-1':
     // Add more server locations as needed
     default:
         $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_invalid_server_selection')];
-        header('Location: streaming.php');
+        header('Location: /streaming.php');
         exit();
 }
 
 // Check if SSH2 extension is available
 if (!function_exists('ssh2_connect')) {
     $_SESSION['delete_status'] = ['success' => false, 'message' => t('streaming_ssh2_not_installed')];
-    header('Location: streaming.php');
+    header('Location: /streaming.php');
     exit();
 }
 
@@ -96,6 +96,6 @@ if (!$connection) {
 // Reopen session only once to write the result
 session_start();
 $_SESSION['delete_status'] = $deleteStatus;
-header('Location: streaming.php');
+header('Location: /streaming.php');
 exit();
 ?>

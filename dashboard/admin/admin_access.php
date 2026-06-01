@@ -64,7 +64,7 @@ function admin_access_deny($message = 'Access denied. Administrator access requi
     }
     $accessMode = 'denied';
     $info = $message;
-    include __DIR__ . '/../restricted.php';
+    include __DIR__ . '/../includes/restricted.php';
     exit;
 }
 

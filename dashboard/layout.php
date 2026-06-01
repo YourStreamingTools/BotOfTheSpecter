@@ -23,7 +23,7 @@ $actingAsUsername = isset($_SESSION['admin_act_as_target_username']) ? (string) 
 $actingAsLabelRaw = trim($actingAsDisplayName !== '' ? $actingAsDisplayName : $actingAsUsername);
 $actingAsLabel = htmlspecialchars($actingAsLabelRaw !== '' ? $actingAsLabelRaw : t('layout_selected_user'), ENT_QUOTES, 'UTF-8');
 $actingAsReturnLabel = t('layout_stop_acting_as');
-$stopActAsHref = 'stop_act_as.php';
+$stopActAsHref = '/api/stop_act_as.php';
 // default layout mode (pages may override by setting $layoutMode before including layout.php)
 // If not set, infer from the request URI path segments: /admin, /todolist -> respective modes; otherwise 'default'
 if (!isset($layoutMode)) {
@@ -72,7 +72,7 @@ switch ($layoutMode) {
         $brandHref = 'dashboard.php';
 }
 if ($layoutMode === 'admin' || $layoutMode === 'todolist') {
-    $stopActAsHref = '../stop_act_as.php';
+    $stopActAsHref = '/api/stop_act_as.php';
 }
 $config = include '/var/www/config/main.php';
 $dashboardVersion = $config['dashboardVersion'];

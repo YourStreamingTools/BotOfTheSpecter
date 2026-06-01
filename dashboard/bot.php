@@ -791,7 +791,7 @@ document.addEventListener('DOMContentLoaded', function() {
       updateCustomBotWarningVisibility();
       // Persist custom setting and enforced use_self state to server
       const postBody = `use_custom=${isEnabled ? 1 : 0}` + (isEnabled ? '&use_self=0' : '');
-      fetchWithTimeout('update_use_custom.php', {
+      fetchWithTimeout('/api/update_use_custom.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: postBody
@@ -872,7 +872,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Persist Use Self and enforced custom state to server
       try {
         const postBody = `use_self=${isEnabled ? 1 : 0}` + (isEnabled ? '&use_custom=0' : '');
-        fetchWithTimeout('update_use_custom.php', {
+        fetchWithTimeout('/api/update_use_custom.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: postBody
@@ -906,7 +906,7 @@ document.addEventListener('DOMContentLoaded', function() {
           updateUseSelfWarningVisibility();
           // Persist enforced state to server
           try {
-            fetchWithTimeout('update_use_custom.php', {
+            fetchWithTimeout('/api/update_use_custom.php', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               body: 'use_custom=1&use_self=0'
@@ -986,7 +986,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
-      fetchWithTimeout('bot_action.php', {
+      fetchWithTimeout('/api/bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=stable`
@@ -1085,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         useSelfNow = (typeof serverUseSelf !== 'undefined' && serverUseSelf === 1) ? 1 : 0;
       }
-      fetchWithTimeout('bot_action.php', {
+      fetchWithTimeout('/api/bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=beta&use_custom_bot=${useCustomNow ? 1 : 0}&use_self=${useSelfNow}`
@@ -1162,7 +1162,7 @@ document.addEventListener('DOMContentLoaded', function() {
       currentBotBeingStarted = 'v6';
     }
     setTimeout(() => {
-      fetchWithTimeout('bot_action.php', {
+      fetchWithTimeout('/api/bot_action.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `action=${encodeURIComponent(action)}&bot=v6`
@@ -1224,7 +1224,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification(`Checking ${botType} bot status... (${currentAttempt}/${maxAttempts})`, 'info');
       }
       // Make the status check request
-      fetchWithTimeout(`check_bot_status.php?bot=${botType}&_t=${Date.now()}`, {}, 8000)
+      fetchWithTimeout(`/api/check_bot_status.php?bot=${botType}&_t=${Date.now()}`, {}, 8000)
         .then(async response => {
           const text = await response.text();
           console.log(`Bot status check attempt ${currentAttempt} for ${botType}:`, text);
@@ -1589,7 +1589,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!selectedBot) { selectedBot = 'stable'; }
     // Check for version updates first
     return checkForUpdates().then(() => {
-      return fetchWithTimeout(`check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 8000) // 8 second timeout
+      return fetchWithTimeout(`/api/check_bot_status.php?bot=${selectedBot}&_t=${Date.now()}`, {}, 8000) // 8 second timeout
       .then(async response => {
         const text = await response.text();
         try {
@@ -1800,7 +1800,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });  }
   // Function to update API limits from api_limits.php
   function updateApiLimits() {
-    fetchWithTimeout('api_limits.php', {}, 8000)
+    fetchWithTimeout('/api/api_limits.php', {}, 8000)
       .then(response => response.json())
       .then(data => {
         // Shazam
@@ -1968,7 +1968,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviceDegradedText = <?php echo json_encode(t('bot_status_unknown')); ?>;
     const statusCheckFailedText = <?php echo json_encode(t('bot_refresh_channel_status_failed')); ?>;
     services.forEach(svc => {
-      fetchWithTimeout('api_status.php?service=' + svc.api, {}, 8000)
+      fetchWithTimeout('/api/api_status.php?service=' + svc.api, {}, 8000)
         .then(r => r.json())
         .then(data => {
           const icon = document.getElementById(svc.id);
@@ -2085,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let servicesChecked = 0;
     let totalEnabled = 0;
     services.forEach(service => {
-      fetchWithTimeout(`api_status.php?service=${service}`, {}, 8000)
+      fetchWithTimeout(`/api/api_status.php?service=${service}`, {}, 8000)
         .then(r => r.json())
         .then(data => {
           servicesChecked++;
@@ -2151,7 +2151,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to update server metrics using real data
   function updateServerMetrics() {
     if (!isTechnical) return;
-    fetchWithTimeout('server_metrics.php', {}, 8000)
+    fetchWithTimeout('/api/server_metrics.php', {}, 8000)
       .then(r => r.json())
       .then(data => {
         if (data.error) {
@@ -2303,7 +2303,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Only run if no bot action is in progress
     if (botActionInProgress) return;
     // AJAX call to get the latest status from the backend
-    fetchWithTimeout('check_channel_status.php', {}, 8000)
+    fetchWithTimeout('/api/check_channel_status.php', {}, 8000)
       .then(r => {
         if (!r.ok) throw new Error('Network response was not ok');
         return r.json();

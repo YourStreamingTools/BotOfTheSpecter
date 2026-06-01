@@ -898,7 +898,7 @@ if (!empty($twitchRewards)) {
         }
     });
     async function fetchAllRedemptions() {
-        const promises = allRewardIds.map(id => fetch('get_redemptions.php?reward_id=' + id)
+        const promises = allRewardIds.map(id => fetch('/api/get_redemptions.php?reward_id=' + id)
             .then(res => res.json())
             .then(data => {
                 if (data.data) return data.data;
@@ -976,7 +976,7 @@ if (!empty($twitchRewards)) {
         formData.append('redemption_id', redemptionId);
         formData.append('reward_id', rewardId);
         formData.append('status', status);
-        fetch('manage_redemption.php', {
+        fetch('/api/manage_redemption.php', {
             method: 'POST',
             body: formData
         })
@@ -1195,7 +1195,7 @@ if (!empty($twitchRewards)) {
             if (result.isConfirmed) {
                 const formData = new FormData();
                 formData.append('reward_id', rewardId);
-                fetch('manage_reward.php', {
+                fetch('/api/manage_reward.php', {
                     method: 'POST',
                     body: formData
                 })
@@ -1235,7 +1235,7 @@ if (!empty($twitchRewards)) {
                                     step2Data.append('reward_id', rewardId);
                                     // Show loading again
                                     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                                    fetch('manage_reward.php', {
+                                    fetch('/api/manage_reward.php', {
                                         method: 'POST',
                                         body: step2Data
                                     })
@@ -1360,7 +1360,7 @@ if (!empty($twitchRewards)) {
         syncOutputElement.textContent = '';
         showSyncResult();
         appendSyncOutputLine('Connecting to the sync service...');
-        syncEventSource = new EventSource('channel_rewards_stream.php');
+        syncEventSource = new EventSource('/api/channel_rewards_stream.php');
         syncEventSource.onmessage = function (e) {
             appendSyncOutputLine(e.data || '');
         };
@@ -1486,7 +1486,7 @@ if (!empty($twitchRewards)) {
                 submitBtn.style.opacity = '0.7';
                 submitBtn.textContent = 'Creating...';
                 const formData = new FormData(form);
-                fetch('create_reward.php', {
+                fetch('/api/create_reward.php', {
                     method: 'POST',
                     body: formData
                 })
@@ -1605,7 +1605,7 @@ if (!empty($twitchRewards)) {
             if (document.getElementById('edit-toggle-cooldown').checked) {
                 formData.append('global_cooldown_seconds', document.getElementById('edit-cooldown-seconds').value);
             }
-            fetch('edit_reward.php', { method: 'POST', body: formData })
+            fetch('/api/edit_reward.php', { method: 'POST', body: formData })
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
                     btn.disabled = false;

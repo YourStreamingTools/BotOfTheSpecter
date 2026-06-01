@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
       button.disabled = true;
       // Make AJAX request
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', 'send_welcome_message.php', true);
+      xhr.open('POST', '/api/send_welcome_message.php', true);
       xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
       xhr.onreadystatechange = function() {
         if (xhr.readyState === XMLHttpRequest.DONE) {
@@ -524,7 +524,7 @@ function fetchBannedStatusBatch(userBatch, callback) {
   const usernames = userBatch.map(user => user.username);
   console.log(`Fetching banned status for batch of ${usernames.length} users:`, usernames);
   const xhr = new XMLHttpRequest();
-  xhr.open("POST", "fetch_banned_status.php", true);
+  xhr.open("POST", "/api/fetch_banned_status.php", true);
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function() {
     if (xhr.readyState === XMLHttpRequest.DONE) {
@@ -576,7 +576,7 @@ function fetchBannedStatusBatch(userBatch, callback) {
 }
 
 function updateCacheOnServer(cacheUpdate) {
-  fetch('update_banned_users_cache.php', {
+  fetch('/api/update_banned_users_cache.php', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

@@ -1,3 +1,3 @@
 <?php
-header('Location: ../stop_act_as.php');
+header('Location: /api/stop_act_as.php');
 exit;

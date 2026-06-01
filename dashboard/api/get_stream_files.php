@@ -4,7 +4,7 @@ require_once '/var/www/lib/session_bootstrap.php';
 
 // Include internationalization
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
-include_once __DIR__ . '/lang/i18n.php';
+include_once __DIR__ . '/../lang/i18n.php';
 
 require_once '/var/www/lib/require_auth_ajax.php';
 
@@ -244,11 +244,11 @@ if ($storage_error) {
             echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['created_at']) . '</td>';
             echo '<td class="has-text-centered" style="vertical-align: middle;">' . htmlspecialchars($file['size']) . '</td>';
             echo '<td class="has-text-centered" style="vertical-align: middle;"><span class="countdown" data-deletion-timestamp="' . htmlspecialchars($file['deletion_timestamp']) . '">' . htmlspecialchars($file['deletion_countdown']) . '</span></td>';
-            echo '<td class="has-text-centered" style="vertical-align: middle;">';            echo '<a href="#" class="play-video action-icon" data-video-url="play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="' . t('streaming_action_watch_video') . '"><i class="fas fa-play"></i></a> ';
-            echo '<a href="download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_download_video') . '"><i class="fas fa-download"></i></a> ';
+            echo '<td class="has-text-centered" style="vertical-align: middle;">';            echo '<a href="#" class="play-video action-icon" data-video-url="/api/play_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" title="' . t('streaming_action_watch_video') . '"><i class="fas fa-play"></i></a> ';
+            echo '<a href="/api/download_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_download_video') . '"><i class="fas fa-download"></i></a> ';
             if ($is_subscribed) {echo '<a class="upload-to-s3 action-icon" data-server="' . $selected_server . '" data-file="' . urlencode($file['name']) . '" title="' . t('streaming_action_upload_persistent') . '"><i class="fas fa-cloud-upload-alt"></i></a> ';}
             echo '<a href="#" class="edit-video action-icon" data-file="' . htmlspecialchars($file['name']) . '" data-title="' . htmlspecialchars($title) . '" data-server="' . $selected_server . '" title="' . t('streaming_action_edit_title') . '"><i class="fas fa-edit"></i></a> ';
-            echo '<a href="delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_delete_video') . '" onclick="return confirm(\'' . t('streaming_confirm_delete_file') . '\');"><i class="fas fa-trash"></i></a>';
+            echo '<a href="/api/delete_stream.php?server=' . $selected_server . '&file=' . urlencode($file['name']) . '" class="action-icon" title="' . t('streaming_action_delete_video') . '" onclick="return confirm(\'' . t('streaming_confirm_delete_file') . '\');"><i class="fas fa-trash"></i></a>';
             echo '</td>';
         }
         echo '</tr>';

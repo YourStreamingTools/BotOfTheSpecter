@@ -39,7 +39,7 @@ if ($betaAccess) {
         // Release session lock before internal HTTP request to prevent deadlock
         // (check_subscription.php also calls session_start on the same session)
         session_write_close();
-        $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/check_subscription.php";
+        $checkUrl = "https://" . $_SERVER['HTTP_HOST'] . "/api/check_subscription.php";
         $ch = curl_init($checkUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());

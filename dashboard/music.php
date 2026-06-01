@@ -631,7 +631,7 @@ ob_start();
             let songData = { title };
             if (typeof song === 'string' && song.startsWith('USER:')) {
                 const userFile = song.replace(/^USER:/, '');
-                audio.src = `serve_user_music.php?file=${encodeURIComponent(userFile)}`;
+                audio.src = `/api/serve_user_music.php?file=${encodeURIComponent(userFile)}`;
                 songData.file = userFile;
                 if (uploaderName) {
                     songData.url = `https://music.botspecter.com/${encodeURIComponent(uploaderName)}/${encodeURIComponent(userFile)}`;
@@ -922,7 +922,7 @@ ob_start();
                     form.append('section_save', 'music');
                     form.append('music_source', val);
                     try {
-                        const resp = await fetch('module_data_post.php', { method: 'POST', body: form });
+                        const resp = await fetch('/api/module_data_post.php', { method: 'POST', body: form });
                         const json = await resp.json();
                         if (json.success) {
                             // Persisted to DB OK - propagate live via websocket so overlays/controllers pick it up immediately

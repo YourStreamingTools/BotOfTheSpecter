@@ -529,7 +529,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <form method="POST" action="module_data_post.php">
+                            <form method="POST" action="/api/module_data_post.php">
                                 <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; margin-bottom:1rem;">
                                     <!-- All joke categories -->
                                     <?php
@@ -582,7 +582,7 @@ ob_start();
                                             <span class="sp-badge <?php echo ($send_welcome_messages) ? 'sp-badge-green' : 'sp-badge-red'; ?>">
                                                 <?php echo ($send_welcome_messages) ? t('builtin_commands_status_enabled') : t('builtin_commands_status_disabled'); ?>
                                             </span>
-                                            <form method="POST" action="module_data_post.php" style="display:inline;">
+                                            <form method="POST" action="/api/module_data_post.php" style="display:inline;">
                                                 <input type="hidden" name="toggle_welcome_messages" value="1">
                                                 <input type="hidden" name="welcome_messages_status" value="<?php echo ($send_welcome_messages) ? '0' : '1'; ?>">
                                                 <button type="submit" class="sp-btn sp-btn-sm <?php echo ($send_welcome_messages) ? 'sp-btn-danger' : 'sp-btn-success'; ?>">
@@ -597,7 +597,7 @@ ob_start();
                                     </div>
                                 </div>
                             </div>
-                            <form method="POST" action="module_data_post.php">
+                            <form method="POST" action="/api/module_data_post.php">
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
                                     <!-- Regular Members Column -->
                                     <div>
@@ -754,7 +754,7 @@ ob_start();
                                             <i class="fas fa-link-slash" style="color:var(--accent);"></i>
                                             <?php echo t('protection_enable_url_blocking'); ?>
                                         </h3>
-                                        <form action="module_data_post.php" method="post">
+                                        <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <select class="sp-select" name="url_blocking" id="url_blocking">
                                                     <option value="True"<?php echo $currentSettings == 'True' ? ' selected' :'';?>><?php echo t('yes'); ?></option>
@@ -778,7 +778,7 @@ ob_start();
                                             <?php echo t('protection_block_first_message_commands'); ?>
                                             <span class="sp-badge sp-badge-amber" style="margin-left:0.5rem;">BETA 5.8</span>
                                         </h3>
-                                        <form action="module_data_post.php" method="post">
+                                        <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <select class="sp-select" name="block_first_message_commands" id="block_first_message_commands">
                                                     <option value="True"<?php echo $blockFirstMessageCommands == 'True' ? ' selected' :'';?>><?php echo t('yes'); ?></option>
@@ -817,7 +817,7 @@ ob_start();
                                             <i class="fas fa-check-circle" style="color:var(--green);"></i>
                                             <?php echo t('protection_enter_link_whitelist'); ?>
                                         </h3>
-                                        <form action="module_data_post.php" method="post">
+                                        <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <input class="sp-input" type="text" name="whitelist_link" id="whitelist_link" placeholder="<?php echo t('protection_enter_url_placeholder'); ?>" required>
                                             </div>
@@ -837,7 +837,7 @@ ob_start();
                                             <i class="fas fa-ban" style="color:var(--red);"></i>
                                             <?php echo t('protection_enter_link_blacklist'); ?>
                                         </h3>
-                                        <form action="module_data_post.php" method="post">
+                                        <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <input class="sp-input" type="text" name="blacklist_link" id="blacklist_link" placeholder="<?php echo t('protection_enter_url_placeholder'); ?>" required>
                                             </div>
@@ -872,7 +872,7 @@ ob_start();
                                                             <tr>
                                                                 <td><?php echo htmlspecialchars($link['link']); ?></td>
                                                                 <td style="text-align:right;">
-                                                                    <form action="module_data_post.php" method="post" style="display:inline;">
+                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
                                                                         <input type="hidden" name="remove_whitelist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
                                                                         <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
                                                                             <i class="fas fa-trash-alt"></i>
@@ -909,7 +909,7 @@ ob_start();
                                                             <tr>
                                                                 <td><?php echo htmlspecialchars($link['link']); ?></td>
                                                                 <td style="text-align:right;">
-                                                                    <form action="module_data_post.php" method="post" style="display:inline;">
+                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
                                                                         <input type="hidden" name="remove_blacklist_link" value="<?php echo htmlspecialchars($link['link']); ?>">
                                                                         <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
                                                                             <i class="fas fa-trash-alt"></i>
@@ -968,7 +968,7 @@ ob_start();
                                             <i class="fas fa-comment-slash" style="color:var(--amber);"></i>
                                             <?= t('modules_enable_term_blocking') ?>
                                         </h3>
-                                        <form action="module_data_post.php" method="post">
+                                        <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <select class="sp-select" name="term_blocking" id="term_blocking">
                                                     <option value="True"<?php echo $termBlockingSettings == 'True' ? ' selected' : ''; ?>><?php echo t('yes'); ?></option>
@@ -991,7 +991,7 @@ ob_start();
                                             <i class="fas fa-ban" style="color:var(--red);"></i>
                                             <?= t('modules_add_blocked_term_title') ?>
                                         </h3>
-                                        <form action="module_data_post.php" method="post">
+                                        <form action="/api/module_data_post.php" method="post">
                                             <div class="sp-form-group">
                                                 <input class="sp-input" type="text" name="blocked_term" id="blocked_term" placeholder="<?= htmlspecialchars(t('modules_blocked_term_placeholder')) ?>" required>
                                             </div>
@@ -1026,7 +1026,7 @@ ob_start();
                                                             <tr>
                                                                 <td><?php echo htmlspecialchars($term['term']); ?></td>
                                                                 <td style="text-align:right;">
-                                                                    <form action="module_data_post.php" method="post" style="display:inline;">
+                                                                    <form action="/api/module_data_post.php" method="post" style="display:inline;">
                                                                         <input type="hidden" name="remove_blocked_term" value="<?php echo htmlspecialchars($term['term']); ?>">
                                                                         <button type="submit" class="sp-btn sp-btn-danger sp-btn-sm">
                                                                             <i class="fas fa-trash-alt"></i>
@@ -1060,7 +1060,7 @@ ob_start();
                                 <?= t('modules_game_deaths_config_note') ?>
                             </div>
                             <!-- Add Game Form -->
-                            <form method="POST" action="module_data_post.php" style="margin-bottom:1rem;">
+                            <form method="POST" action="/api/module_data_post.php" style="margin-bottom:1rem;">
                                 <div style="display:flex; gap:0.5rem;">
                                     <input class="sp-input" type="text" name="ignore_game_name"
                                         placeholder="<?= htmlspecialchars(t('modules_ignore_game_placeholder')) ?>"
@@ -1103,7 +1103,7 @@ ob_start();
                                     <?= t('modules_ad_notice_messages_title') ?>
                                 </h2>
                             </div>
-                            <form method="POST" action="module_data_post.php">
+                            <form method="POST" action="/api/module_data_post.php">
                                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
                                     <h5 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0;">
                                         <i class="fas fa-bullhorn"></i>
@@ -1298,7 +1298,7 @@ ob_start();
                                             <?php echo $status; ?>
                                         </div>
                                     <?php endif; ?>
-                                    <form action="module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
+                                    <form action="/api/module_data_post.php" method="POST" enctype="multipart/form-data" id="uploadForm">
                                         <!-- Custom drag/drop file input -->
                                         <div id="drag-area" style="border:2px dashed var(--border); border-radius:var(--radius); padding:2rem; text-align:center; cursor:pointer; background:var(--bg-card-hover); margin-bottom:1rem; transition:border-color 0.2s;">
                                             <i class="fas fa-cloud-upload-alt" style="font-size:2rem; color:var(--text-muted); display:block; margin-bottom:0.5rem;"></i>
@@ -1339,7 +1339,7 @@ ob_start();
                                 <div class="sp-card-body">
                                     <?php $walkon_files = array_diff(scandir($twitch_sound_alert_path), array('.', '..'));
                                     if (!empty($walkon_files)): ?>
-                                        <form action="module_data_post.php" method="POST" id="deleteForm">
+                                        <form action="/api/module_data_post.php" method="POST" id="deleteForm">
                                             <div class="sp-table-wrap">
                                                 <table class="sp-table" id="twitchAlertsTable">
                                                     <thead>
@@ -1379,7 +1379,7 @@ ob_start();
                                                                     <?php else: ?>
                                                                         <em><?php echo t('modules_not_mapped'); ?></em>
                                                                     <?php endif; ?>
-                                                                    <form action="module_data_post.php" method="POST" class="mapping-form" style="margin-top:0.5rem;">
+                                                                    <form action="/api/module_data_post.php" method="POST" class="mapping-form" style="margin-top:0.5rem;">
                                                                         <input type="hidden" name="sound_file" value="<?php echo htmlspecialchars($file); ?>">
                                                                         <select name="twitch_alert_id" class="sp-select mapping-select">
                                                                             <?php if ($current_mapped): ?>
@@ -1444,7 +1444,7 @@ ob_start();
                                     <?= t('modules_chat_alert_messages_title') ?>
                                 </h2>
                             </div>
-                            <form action="module_data_post.php" method="POST" id="chatAlertsForm">
+                            <form action="/api/module_data_post.php" method="POST" id="chatAlertsForm">
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
                                     <!-- General Events Column -->
                                     <div>
@@ -1615,7 +1615,7 @@ ob_start();
                                     <p style="color:var(--text-muted); margin:0;"><?= t('modules_automated_shoutouts_description') ?></p>
                                 </div>
                             </div>
-                            <form method="POST" action="module_data_post.php">
+                            <form method="POST" action="/api/module_data_post.php">
                                 <div class="sp-card" style="margin-bottom:1.5rem;">
                                     <div class="sp-card-body">
                                         <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 1rem;">
@@ -1699,7 +1699,7 @@ ob_start();
                                 <p style="color:var(--text-muted); margin:0;"><?= t('modules_tts_settings_description') ?></p>
                             </div>
                         </div>
-                        <form method="POST" action="module_data_post.php">
+                        <form method="POST" action="/api/module_data_post.php">
                             <div class="sp-card" style="margin-bottom:1.5rem;">
                                 <div class="sp-card-body">
                                     <h3 style="font-size:1rem; font-weight:700; color:var(--text-primary); margin:0 0 1rem;">
@@ -1933,7 +1933,7 @@ ob_start();
             // Show upload status indicator
             $('#file-list').append('<div class="sp-alert sp-alert-info">Uploading files, please wait...</div>');
             $.ajax({
-                url: 'module_data_post.php',
+                url: '/api/module_data_post.php',
                 type: 'POST',
                 data: formData,
                 contentType: false,
@@ -2054,7 +2054,7 @@ ob_start();
             $('#uploadBtn').prop('disabled', true).removeClass('sp-btn-primary').addClass('sp-btn-loading');
             $('#uploadBtnText').text('Uploading...');
             $.ajax({
-                url: 'module_data_post.php',
+                url: '/api/module_data_post.php',
                 type: 'POST',
                 data: formData,
                 contentType: false,
@@ -2228,7 +2228,7 @@ ob_start();
                 // Add section identifier
                 formData.append('section_save', section);
                 // Send AJAX request
-                fetch('module_data_post.php', {
+                fetch('/api/module_data_post.php', {
                     method: 'POST',
                     body: formData
                 })
@@ -2319,7 +2319,7 @@ ob_start();
     // Function to send a stream event
     function sendStreamEvent(eventType, fileName) {
         const xhr = new XMLHttpRequest();
-        const url = "notify_event.php";
+        const url = "/api/notify_event.php";
         const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
         xhr.open("POST", url, true);
         xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
@@ -2350,7 +2350,7 @@ ob_start();
             // Create a form to submit the removal request
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = 'module_data_post.php';
+            form.action = '/api/module_data_post.php';
             const input = document.createElement('input');
             input.type = 'hidden';
             input.name = 'remove_ignored_game';
@@ -2412,7 +2412,7 @@ ob_start();
     // Auto-refresh automated shoutout cooldowns every 15 seconds
     let shoutoutRefreshInterval = null;
     function refreshShoutoutCooldowns() {
-        fetch('get_shoutout_cooldowns.php')
+        fetch('/api/get_shoutout_cooldowns.php')
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.tracking) {
@@ -2532,7 +2532,7 @@ ob_start();
                 // Check against spam patterns
                 const formData = new FormData();
                 formData.append('link', linkValue);
-                fetch('check_spam_pattern.php', {
+                fetch('/api/check_spam_pattern.php', {
                     method: 'POST',
                     body: formData
                 })
@@ -2550,7 +2550,7 @@ ob_start();
                     const conflictData = new FormData();
                     conflictData.append('link', linkValue);
                     conflictData.append('check_list', 'blacklist');
-                    return fetch('check_url_conflict.php', {
+                    return fetch('/api/check_url_conflict.php', {
                         method: 'POST',
                         body: conflictData
                     });
@@ -2614,7 +2614,7 @@ ob_start();
                 // Check against spam patterns
                 const formData = new FormData();
                 formData.append('link', linkValue);
-                fetch('check_spam_pattern.php', {
+                fetch('/api/check_spam_pattern.php', {
                     method: 'POST',
                     body: formData
                 })
@@ -2632,7 +2632,7 @@ ob_start();
                     const conflictData = new FormData();
                     conflictData.append('link', linkValue);
                     conflictData.append('check_list', 'whitelist');
-                    return fetch('check_url_conflict.php', {
+                    return fetch('/api/check_url_conflict.php', {
                         method: 'POST',
                         body: conflictData
                     });
@@ -2696,7 +2696,7 @@ ob_start();
                 // Check against spam patterns, whitelist, and blacklist
                 const formData = new FormData();
                 formData.append('term', termValue);
-                fetch('check_blocked_term.php', {
+                fetch('/api/check_blocked_term.php', {
                     method: 'POST',
                     body: formData
                 })
