@@ -41,7 +41,7 @@ $host = $username !== '' ? $username : 'specter';
         <div class="spotify-overlay-page-term-cmd"><span class="spotify-overlay-page-term-prompt">&gt; ./specter</span> <span class="spotify-overlay-page-term-flag">--nowplaying</span></div>
         <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-label">Title:</span>&nbsp;<span data-sp="title"></span></div>
         <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-label">Artist:</span>&nbsp;<span data-sp="artist"></span></div>
-        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-blocks" data-sp="blockbar"></span>&nbsp;<span data-sp="cur"></span>&nbsp;/&nbsp;<span data-sp="dur"></span></div>
+        <div class="spotify-overlay-page-term-line"><span class="spotify-overlay-page-term-blocks">[<span class="spotify-overlay-page-term-fill" data-sp="blockfill"></span><span class="spotify-overlay-page-term-empty" data-sp="blockempty"></span>]</span>&nbsp;<span data-sp="cur"></span>&nbsp;/&nbsp;<span data-sp="dur"></span></div>
     </div>
 </div>
 <?php elseif ($theme === 'pill'): ?>
@@ -105,14 +105,12 @@ $host = $username !== '' ? $username : 'specter';
         return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
     };
     const setAll = (key, fn) => root.querySelectorAll('[data-sp="' + key + '"]').forEach(fn);
-    function blocks(pct) {
-        const N = 14, f = Math.round((pct / 100) * N);
-        return '[' + '▓'.repeat(f) + '░'.repeat(N - f) + ']';
-    }
     function paint() {
         const pct = durMs ? Math.min(100, (progMs / durMs) * 100) : 0;
         setAll('fill', el => el.style.width = pct + '%');
-        setAll('blockbar', el => el.textContent = blocks(pct));
+        const N = 14, f = Math.round((pct / 100) * N);
+        setAll('blockfill', el => el.textContent = '▓'.repeat(f));
+        setAll('blockempty', el => el.textContent = '░'.repeat(N - f));
         setAll('cur', el => el.textContent = fmt(progMs));
         setAll('dur', el => el.textContent = fmt(durMs));
     }
