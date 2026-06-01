@@ -2,6 +2,12 @@
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
+if (($_SERVER['HTTP_X_SPECTER_OVERLAY'] ?? '') !== '1') {
+    http_response_code(403);
+    echo json_encode(['error' => 'forbidden']);
+    exit;
+}
+
 $code = $_GET['code'] ?? '';
 if ($code === '' || !preg_match('/^[A-Za-z0-9_-]+$/', $code)) {
     echo json_encode(['active' => false]);

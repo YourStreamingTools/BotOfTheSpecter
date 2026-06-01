@@ -123,7 +123,7 @@ $host = $username !== '' ? $username : 'specter';
     }
     async function poll() {
         try {
-            const r = await fetch(endpoint, { cache: 'no-store' });
+            const r = await fetch(endpoint, { cache: 'no-store', headers: { 'X-Specter-Overlay': '1' } });
             render(await r.json());
         } catch (e) { /* keep last rendered state on transient errors */ }
     }
