@@ -348,6 +348,20 @@ ob_start();
                 <?= t('overlays_music_overlay_note') ?></p>
         </div>
     </div>
+    <!-- Spotify Now Playing Overlay -->
+    <div class="sp-card" style="margin-bottom:0;">
+        <div class="sp-card-header">
+            <div class="sp-card-title"><i class="fab fa-spotify"></i> <?= t('overlays_spotify') ?></div>
+        </div>
+        <div class="sp-card-body">
+            <?= t('overlays_spotify_desc') ?>
+            <div class="info-box" style="font-family:monospace; margin-top:1rem; margin-bottom:0.5rem;">
+                https://overlay.botofthespecter.com/spotify.php?code=API_KEY_HERE
+            </div>
+            <p style="font-size:0.8rem; margin-top:0.5rem; color:var(--text-secondary); margin-bottom:0;">
+                <?= t('overlays_spotify_themes_note') ?></p>
+        </div>
+    </div>
     <!-- Fourthwall -->
     <div class="sp-card" style="margin-bottom:0;">
         <div class="sp-card-header">
