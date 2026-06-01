@@ -1798,16 +1798,19 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.04);
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    font-size: 13px;
-    color: #a8a8bc;
+    font-size: 15px;
+    color: #c4b5f0;
 }
-.spotify-overlay-page-term-btns i { font-style: normal; margin-left: 9px; color: #6c6c84; }
+.spotify-overlay-page-term-host { color: #d9cffa; font-weight: 700; }
+.spotify-overlay-page-term-btns i { font-style: normal; margin-left: 9px; color: #8a8aa0; }
 .spotify-overlay-page-term-close { color: #f87171; }
-.spotify-overlay-page-term-body { padding: 14px 16px; font-size: 15px; line-height: 1.75; }
-.spotify-overlay-page-term-prompt { color: #7c5cbf; font-weight: 600; }
-.spotify-overlay-page-term-flag { color: #6c6c84; }
-.spotify-overlay-page-term-label { color: #a8a8bc; }
-.spotify-overlay-page-term-blocks { color: #7c5cbf; letter-spacing: 1px; }
+.spotify-overlay-page-term-body { padding: 12px 16px; font-size: 17px; line-height: 1.6; }
+.spotify-overlay-page-term-prompt { color: #9070d8; font-weight: 700; }
+.spotify-overlay-page-term-flag { color: #8a8aa0; }
+.spotify-overlay-page-term-label { color: #b8b8cc; font-weight: 600; }
+.spotify-overlay-page-term-blocks { color: #6c6c84; letter-spacing: 1px; }
+.spotify-overlay-page-term-fill { color: #b39ddb; }
+.spotify-overlay-page-term-empty { color: #4a4a5e; }
 .spotify-overlay-page-terminal [data-sp="title"],
 .spotify-overlay-page-terminal [data-sp="artist"] { color: #e8e8f0; font-weight: 600; }
 
