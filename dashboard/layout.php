@@ -1,6 +1,6 @@
 <?php
 // This file serves as a template for all dashboard pages
-include_once __DIR__ . '/mod_access.php';
+include_once __DIR__ . '/includes/mod_access.php';
 
 if (!isset($pageTitle))
     $pageTitle = "BotOfTheSpecter";

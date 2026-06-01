@@ -1,5 +1,5 @@
 <?php
-include 'file_paths.php';
+include __DIR__ . '/file_paths.php';
 
 // Define the user's directories
 $walkon_path = "/var/www/walkons/" . $username;

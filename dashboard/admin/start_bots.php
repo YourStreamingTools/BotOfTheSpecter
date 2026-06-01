@@ -289,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_running_bots'])) {
             exit;
         }
         // Use the bot control helper to check each user's stable bot status (matches admin index behaviour)
-        require_once __DIR__ . '/../bot_control_functions.php';
+        require_once __DIR__ . '/../includes/bot_control_functions.php';
         $running_bots = [];
         // Fetch all users to check their bot status
         $stmtUsers = $conn->prepare("SELECT username FROM users");
@@ -749,7 +749,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_bot_mod'])) {
 
 // Handle AJAX request to stop bot
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
-    require_once __DIR__ . '/../bot_control_functions.php';
+    require_once __DIR__ . '/../includes/bot_control_functions.php';
     while (ob_get_level())
         ob_end_clean();
     ob_start();
@@ -793,7 +793,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot'])) {
 
 // Handle AJAX request to restart bot
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
-    require_once __DIR__ . '/../bot_control_functions.php';
+    require_once __DIR__ . '/../includes/bot_control_functions.php';
     while (ob_get_level())
         ob_end_clean();
     ob_start();
@@ -918,7 +918,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
         ob_end_clean();
     ob_start();
     header('Content-Type: application/json');
-    require_once __DIR__ . '/../bot_control_functions.php';
+    require_once __DIR__ . '/../includes/bot_control_functions.php';
     $username = trim($_POST['username'] ?? '');
     $botType = trim($_POST['bot_type'] ?? 'stable');
     if (empty($username)) {
@@ -1009,7 +1009,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_user_bot'])) {
 }
 
 // Include userdata.php AFTER all AJAX handling to prevent output corruption
-include '../userdata.php';
+include '../includes/userdata.php';
 session_write_close();
 
 // Fetch all users from database

@@ -9,7 +9,7 @@ require_once "/var/www/config/db_connect.php";
 require_once "/var/www/config/ssh.php";
 require_once "/var/www/config/admin_actions.php";
 require_once "/var/www/config/twitch.php";
-include "../userdata.php";
+include "../includes/userdata.php";
 session_write_close();
 
 function get_twitch_app_credentials_for_dashboard($conn) {
@@ -599,7 +599,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['stop_bot']) && isset($
 
 // Handle bot restart action
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['restart_bot'])) {
-    require_once '../bot_control_functions.php';
+    require_once '../includes/bot_control_functions.php';
     $username = trim($_POST['username'] ?? '');
     $originalBotType = trim($_POST['bot_type'] ?? 'stable');
     $pid = intval($_POST['pid'] ?? 0);
