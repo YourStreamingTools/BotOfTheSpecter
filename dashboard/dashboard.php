@@ -323,7 +323,7 @@ session_write_close();
                 <div class="db-quick-icon" style="color: var(--text-muted);"><i class="fas fa-book fa-2x"></i></div>
                 <h4 class="db-quick-title"><?= t('dashboard_documentation') ?></h4>
                 <p class="db-quick-desc"><?= t('dashboard_documentation_desc') ?></p>
-                <a href="/generate_handoff.php" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_view_docs') ?></a>
+                <a href="/api/generate_handoff.php" class="sp-btn sp-btn-secondary" style="width: 100%; justify-content: center;"><i class="fas fa-external-link-alt"></i> <?= t('dashboard_view_docs') ?></a>
             </div>
         </div>
     </div>

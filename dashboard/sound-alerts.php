@@ -495,7 +495,7 @@ document.addEventListener("DOMContentLoaded", function () {
 // Function to send a stream event
 function sendStreamEvent(eventType, fileName) {
     const xhr = new XMLHttpRequest();
-    const url = "notify_event.php";
+    const url = "/api/notify_event.php";
     const params = `event=${eventType}&sound=${encodeURIComponent(fileName)}&channel_name=<?php echo $username; ?>&api_key=<?php echo $api_key; ?>`;
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");

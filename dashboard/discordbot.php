@@ -3606,7 +3606,7 @@ ob_start();
   let embedFieldsCounter = 0;
   let currentSendEmbedId = 0;
   function loadEmbedsList() {
-    fetch(`get_custom_embeds.php?server_id=${getCurrentServerId()}`)
+    fetch(`/api/get_custom_embeds.php?server_id=${getCurrentServerId()}`)
       .then(response => response.json())
       .then(data => {
         const container = document.getElementById('embedsList');
@@ -3648,7 +3648,7 @@ ob_start();
   function editEmbed(embedId) {
     currentEmbedId = embedId;
     document.getElementById('embedModalTitle').textContent = 'Edit Custom Embed';
-    fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
+    fetch(`/api/get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
       .then(response => response.json())
       .then(data => {
         if (data.success) {
@@ -3722,7 +3722,7 @@ ob_start();
       timestamp_enabled: document.getElementById('embed_timestamp').checked,
       fields: JSON.stringify(fields)
     };
-    fetch('save_discord_channel_config.php', {
+    fetch('/api/save_discord_channel_config.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(embedData)
@@ -3755,7 +3755,7 @@ ob_start();
   function sendEmbed(embedId) {
     currentSendEmbedId = embedId;
     // Fetch the embed to get the channel_id
-    fetch(`get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
+    fetch(`/api/get_custom_embed.php?id=${embedId}&server_id=${getCurrentServerId()}`)
       .then(response => response.json())
       .then(data => {
         if (data.success && data.embed.channel_id) {
@@ -3782,7 +3782,7 @@ ob_start();
       });
       return;
     }
-    fetch('save_discord_channel_config.php', {
+    fetch('/api/save_discord_channel_config.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3827,7 +3827,7 @@ ob_start();
       confirmButtonText: 'Yes, delete it'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch('save_discord_channel_config.php', {
+        fetch('/api/save_discord_channel_config.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4320,7 +4320,7 @@ ob_start();
       }
       return;
     }
-    fetch('save_discord_server_management_settings.php', {
+    fetch('/api/save_discord_server_management_settings.php', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -4433,7 +4433,7 @@ ob_start();
     // Add server_id and action to the form data
     formData.server_id = guildId;
     formData.action = action;
-    fetch('save_discord_channel_config.php', {
+    fetch('/api/save_discord_channel_config.php', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

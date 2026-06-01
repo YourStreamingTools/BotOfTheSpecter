@@ -2,7 +2,7 @@
 require_once '/var/www/lib/session_bootstrap.php';
 
 if (!isset($_SESSION['admin_act_as_active']) || $_SESSION['admin_act_as_active'] !== true) {
-    header('Location: dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -19,7 +19,7 @@ if (!is_array($original) || empty($original['access_token'])) {
         $_SESSION['admin_act_as_target_display_name'],
         $_SESSION['admin_act_as_original']
     );
-    header('Location: login.php');
+    header('Location: /login.php');
     exit;
 }
 
@@ -61,5 +61,5 @@ unset(
 );
 
 session_write_close();
-header('Location: dashboard.php?act_as=stopped');
+header('Location: /dashboard.php?act_as=stopped');
 exit;

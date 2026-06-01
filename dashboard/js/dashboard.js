@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Function to send a stream event
     function sendStreamEvent(eventType) {
-        fetch('notify_event.php', {
+        fetch('/api/notify_event.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

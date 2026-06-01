@@ -15,7 +15,7 @@ session_write_close();
 $db_name = isset($_SESSION['username']) ? $_SESSION['username'] : null;
 
 if (!$db_name) {
-    header('Location: login.php');
+    header('Location: /login.php');
     exit();
 }
 
@@ -682,7 +682,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     // For non-AJAX requests, redirect back to the modules page with the active tab
     if (empty($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
-        header("Location: modules.php?tab=" . $activeTab);
+        header("Location: /modules.php?tab=" . $activeTab);
         exit();
     }
 }

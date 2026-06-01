@@ -45,7 +45,7 @@ function userCanModerateChannel($targetBroadcasterId, $userId, $authToken, $clie
 require_once '/var/www/lib/require_auth.php';
 
 if (!isset($_GET['user_id'])) {
-    header('Location: bot.php');
+    header('Location: /bot.php');
     exit();
 }
 
@@ -82,7 +82,7 @@ if (!$hasAccess && $actorTwitchUserId !== '' && $targetUserId !== '') {
 }
 
 if (!$hasAccess) {
-    header('Location: mod_channels.php?act_as=denied');
+    header('Location: /mod_channels.php?act_as=denied');
     exit();
 }
 
@@ -120,11 +120,11 @@ if ($row = $result->fetch_assoc()) {
     $_SESSION['admin_act_as_target_user_id'] = (int) ($row['id'] ?? 0);
     $_SESSION['admin_act_as_target_username'] = $row['username'] ?? '';
     $_SESSION['admin_act_as_target_display_name'] = $row['twitch_display_name'] ?? '';
-    header('Location: dashboard.php');
+    header('Location: /dashboard.php');
     exit();
 } else {
     // Invalid user/channel
-    header('Location: mod_channels.php?act_as=not_found');
+    header('Location: /mod_channels.php?act_as=not_found');
     exit();
 }
 ?>

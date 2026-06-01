@@ -219,7 +219,7 @@ async function refreshSubscriptions() {
         }
     }
     try {
-        const response = await fetch('notifications_api.php?action=fetch_subscriptions');
+        const response = await fetch('/api/notifications_api.php?action=fetch_subscriptions');
         if (!response.ok) {
             throw new Error('Failed to fetch subscriptions');
         }
@@ -513,7 +513,7 @@ async function deleteSingleSubscription(subscriptionId, transport = 'websocket')
         formData.append('action', 'delete_subscription');
         formData.append('subscription_id', subscriptionId);
         formData.append('transport', transport);
-        const response = await fetch('notifications_api.php', {
+        const response = await fetch('/api/notifications_api.php', {
             method: 'POST',
             body: formData
         });
@@ -571,7 +571,7 @@ async function deleteAllInSession(sessionId, count, sessionName) {
         const formData = new FormData();
         formData.append('action', 'delete_session');
         formData.append('subscription_ids', JSON.stringify(subscriptionIds));
-        const response = await fetch('notifications_api.php', {
+        const response = await fetch('/api/notifications_api.php', {
             method: 'POST',
             body: formData
         });
@@ -603,7 +603,7 @@ async function autoCleanupSessions() {
     try {
         const formData = new FormData();
         formData.append('action', 'cleanup_sessions');
-        const response = await fetch('notifications_api.php', { method: 'POST', body: formData });
+        const response = await fetch('/api/notifications_api.php', { method: 'POST', body: formData });
         const result = await response.json();
         if (result.success) {
             if (result.deleted && result.deleted > 0) {
@@ -643,7 +643,7 @@ async function refreshInternalWebsocket(button = null) {
     }
 
     try {
-        const res = await fetch('notifications_api.php?action=fetch_internal_websocket', { credentials: 'same-origin' });
+        const res = await fetch('/api/notifications_api.php?action=fetch_internal_websocket', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'No data');
@@ -691,7 +691,7 @@ async function disconnectWs(sid, btn) {
         form.append('disconnect_client', '1');
         form.append('sid', sid);
         form.append('action', 'disconnect_internal_websocket');
-        const res = await fetch('notifications_api.php', { method: 'POST', body: form, credentials: 'same-origin' });
+        const res = await fetch('/api/notifications_api.php', { method: 'POST', body: form, credentials: 'same-origin' });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed');
         // refresh list

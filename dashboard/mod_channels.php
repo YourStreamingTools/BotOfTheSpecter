@@ -99,7 +99,7 @@ ob_start();
                             <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">@<?php echo htmlspecialchars($channel['username']); ?></p>
                         </div>
                     </div>
-                    <a href="switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="sp-btn sp-btn-primary" style="width:100%; justify-content:center;">
+                    <a href="/api/switch_channel.php?user_id=<?php echo urlencode($channel['twitch_user_id']); ?>" class="sp-btn sp-btn-primary" style="width:100%; justify-content:center;">
                         <i class="fas fa-user-secret"></i>
                         <span><?= t('mod_channels_act_as_button') ?></span>
                     </a>
