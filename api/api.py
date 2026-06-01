@@ -3381,6 +3381,257 @@ async def delete_custom_command(
         logging.error(f"Error deleting custom command for user '{username}': {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting custom command: {str(e)}")
 
+# Timed Messages (Timers) Endpoints
+# Manage the bot's timed messages (the dashboard "Timed Messages" page). One table,
+# two timer kinds via trigger_type: 'timer' (every interval_count minutes),
+# 'chat_lines' (every chat_line_trigger messages), or 'both'. Validation mirrors
+# dashboard/timed_messages.php: interval 5-480 (min 60 if the message contains a
+# (shoutout.username) variable), chat_line_trigger >= 5.
+import re as _re
+
+_SHOUTOUT_VAR_RE = _re.compile(r"\(shoutout\.\w+\)")
+VALID_TRIGGER_TYPES = {"timer", "chat_lines", "both"}
+
+def _validate_timer_fields(trigger_type: str, message: str, interval_count, chat_line_trigger):
+    # Returns (interval_count|None, chat_line_trigger|None) or raises HTTPException(400).
+    if trigger_type not in VALID_TRIGGER_TYPES:
+        raise HTTPException(status_code=400, detail=f"trigger_type must be one of: {', '.join(sorted(VALID_TRIGGER_TYPES))}")
+    if not message or not message.strip():
+        raise HTTPException(status_code=400, detail="message is required")
+    has_shoutout = bool(_SHOUTOUT_VAR_RE.search(message))
+    interval_out = None
+    chat_out = None
+    if trigger_type in ("timer", "both"):
+        if interval_count is None:
+            raise HTTPException(status_code=400, detail="interval_count is required for this trigger_type")
+        int_min = 60 if has_shoutout else 5
+        if interval_count < int_min or interval_count > 480:
+            detail = ("interval_count must be at least 60 when the message uses a (shoutout.username) variable"
+                      if has_shoutout else "interval_count must be between 5 and 480")
+            raise HTTPException(status_code=400, detail=detail)
+        interval_out = interval_count
+    if trigger_type in ("chat_lines", "both"):
+        if chat_line_trigger is None:
+            raise HTTPException(status_code=400, detail="chat_line_trigger is required for this trigger_type")
+        if chat_line_trigger < 5:
+            raise HTTPException(status_code=400, detail="chat_line_trigger must be at least 5")
+        chat_out = chat_line_trigger
+    return interval_out, chat_out
+
+@app.get(
+    "/timers",
+    summary="Get list of timed messages for your account",
+    description="Retrieve all timed messages (timer and chat-line triggers) configured for your account.",
+    tags=["Commands"],
+    operation_id="get_timers"
+)
+async def get_timers(api_key: str = Query(...), channel: str = Query(None)):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, interval_count, chat_line_trigger, message, status, trigger_type FROM timed_messages ORDER BY id ASC"
+                )
+                rows = await cursor.fetchall()
+            timers = []
+            for row in rows:
+                # status is stored as 1/0 (legacy default 'True'); normalize to a bool.
+                raw_status = row['status']
+                enabled = str(raw_status).strip().lower() in ('1', 'true')
+                timers.append({
+                    "id": row['id'],
+                    "trigger_type": row['trigger_type'],
+                    "interval_count": row['interval_count'],
+                    "chat_line_trigger": row['chat_line_trigger'],
+                    "message": row['message'],
+                    "enabled": enabled,
+                })
+            return {"user": username, "total_timers": len(timers), "timers": timers}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving timers for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving timers: {str(e)}")
+
+@app.post(
+    "/timers/add",
+    summary="Add a timed message",
+    description="Add a new timed message. trigger_type 'timer' uses interval_count (minutes, 5-480; min 60 with a (shoutout.username) variable); 'chat_lines' uses chat_line_trigger (>=5); 'both' uses both.",
+    tags=["Commands"],
+    operation_id="add_timer"
+)
+async def add_timer(
+    api_key: str = Query(...),
+    message: str = Query(..., description="The message the bot will post", max_length=500),
+    trigger_type: str = Query("timer", description="timer | chat_lines | both"),
+    interval_count: int = Query(None, description="Minutes between posts (5-480)", ge=1),
+    chat_line_trigger: int = Query(None, description="Chat lines between posts (>=5)", ge=1),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    interval_out, chat_out = _validate_timer_fields(trigger_type, message, interval_count, chat_line_trigger)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                # Fill the lowest unused id to mirror the dashboard's numbering.
+                await cursor.execute(
+                    "SELECT MIN(seq.id) AS next_id FROM "
+                    "(SELECT 1 AS id UNION ALL SELECT id + 1 FROM timed_messages) seq "
+                    "LEFT JOIN timed_messages t ON seq.id = t.id WHERE t.id IS NULL"
+                )
+                gap_row = await cursor.fetchone()
+                next_id = gap_row['next_id'] if gap_row and gap_row.get('next_id') else None
+                if next_id:
+                    await cursor.execute(
+                        "INSERT INTO timed_messages (id, interval_count, chat_line_trigger, message, status, trigger_type) "
+                        "VALUES (%s, %s, %s, %s, 1, %s)",
+                        (next_id, interval_out, chat_out, message, trigger_type),
+                    )
+                    new_id = next_id
+                else:
+                    await cursor.execute(
+                        "INSERT INTO timed_messages (interval_count, chat_line_trigger, message, status, trigger_type) "
+                        "VALUES (%s, %s, %s, 1, %s)",
+                        (interval_out, chat_out, message, trigger_type),
+                    )
+                    new_id = cursor.lastrowid
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=500, detail="Timer was not added to the database")
+            return {"status": "success", "user": username, "id": new_id, "message": "Timer added successfully"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error adding timer for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error adding timer: {str(e)}")
+
+@app.put(
+    "/timers/update",
+    summary="Update a timed message",
+    description="Update an existing timed message by id. Provide trigger_type plus the fields it needs; the relevant interval_count / chat_line_trigger is set and the other is cleared. enabled toggles status.",
+    tags=["Commands"],
+    operation_id="update_timer"
+)
+async def update_timer(
+    api_key: str = Query(...),
+    id: int = Query(..., description="Timer id to update"),
+    message: str = Query(..., description="The message the bot will post", max_length=500),
+    trigger_type: str = Query(..., description="timer | chat_lines | both"),
+    interval_count: int = Query(None, description="Minutes between posts (5-480)", ge=1),
+    chat_line_trigger: int = Query(None, description="Chat lines between posts (>=5)", ge=1),
+    enabled: bool = Query(True, description="Whether the timer is active"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    interval_out, chat_out = _validate_timer_fields(trigger_type, message, interval_count, chat_line_trigger)
+    status_int = 1 if enabled else 0
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "UPDATE timed_messages SET interval_count = %s, chat_line_trigger = %s, message = %s, status = %s, trigger_type = %s WHERE id = %s",
+                    (interval_out, chat_out, message, status_int, trigger_type, id),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Timer {id} not found")
+            return {"status": "success", "user": username, "id": id, "message": "Timer updated successfully"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating timer for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating timer: {str(e)}")
+
+@app.put(
+    "/timers/toggle",
+    summary="Enable or disable a timed message",
+    description="Flip a timed message's active status without touching its other fields.",
+    tags=["Commands"],
+    operation_id="toggle_timer"
+)
+async def toggle_timer(
+    api_key: str = Query(...),
+    id: int = Query(..., description="Timer id to toggle"),
+    enabled: bool = Query(..., description="True to enable, False to disable"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    status_int = 1 if enabled else 0
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "UPDATE timed_messages SET status = %s WHERE id = %s",
+                    (status_int, id),
+                )
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Timer {id} not found")
+            return {"status": "success", "user": username, "id": id, "enabled": enabled, "message": "Timer status updated"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error toggling timer for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error toggling timer: {str(e)}")
+
+@app.delete(
+    "/timers/delete",
+    summary="Delete a timed message",
+    description="Remove a timed message from your account by id.",
+    tags=["Commands"],
+    operation_id="delete_timer"
+)
+async def delete_timer(
+    api_key: str = Query(...),
+    id: int = Query(..., description="Timer id to delete"),
+    channel: str = Query(None),
+):
+    key_info = await verify_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    username = resolve_username(key_info, channel)
+    try:
+        connection = await get_mysql_connection_user(username)
+        try:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute("DELETE FROM timed_messages WHERE id = %s", (id,))
+                await connection.commit()
+                if cursor.rowcount <= 0:
+                    raise HTTPException(status_code=404, detail=f"Timer {id} not found")
+            return {"status": "success", "user": username, "id": id, "message": "Timer deleted successfully"}
+        finally:
+            connection.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting timer for user '{username}': {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting timer: {str(e)}")
+
 # Built-in Commands Endpoints
 @app.get(
     "/builtin-commands",
