@@ -121,6 +121,11 @@ $spotifyActAs = !empty($_SESSION['admin_act_as_active']);
                     <div id="sp-device" style="color:var(--text-secondary); font-size:0.8rem; margin-top:0.25rem;"></div>
                 </div>
             </div>
+            <div id="sp-progress-row" class="sp-progress-row" style="display:none;">
+                <span id="sp-time-cur" class="sp-progress-time">0:00</span>
+                <div class="sp-progress"><div id="sp-progress-fill" class="sp-progress-fill"></div></div>
+                <span id="sp-time-dur" class="sp-progress-time">0:00</span>
+            </div>
             <div id="sp-controls" style="display:none; gap:0.5rem; align-items:center;">
                 <button id="sp-prev" class="sp-btn sp-btn-ghost" type="button" aria-label="Previous">&#9198;</button>
                 <button id="sp-playpause" class="sp-btn sp-btn-primary" type="button" aria-label="Play/Pause">&#9654;</button>
@@ -431,6 +436,21 @@ ob_start();
     };
     const $ = (id) => document.getElementById(id);
     let pollTimer = null, volDebounce = null, suppressVolUntil = 0;
+    let progTick = null, progMs = 0, durMs = 0, isPlaying = false;
+
+    function fmtTime(ms) {
+        const s = Math.max(0, Math.floor(ms / 1000));
+        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    function renderProgress() {
+        const row = $('sp-progress-row');
+        if (!row) return;
+        if (!durMs) { row.style.display = 'none'; return; }
+        row.style.display = 'flex';
+        $('sp-progress-fill').style.width = Math.min(100, (progMs / durMs) * 100) + '%';
+        $('sp-time-cur').textContent = fmtTime(progMs);
+        $('sp-time-dur').textContent = fmtTime(durMs);
+    }
 
     function setStatus(msg) {
         const el = $('sp-player-status');
@@ -451,6 +471,7 @@ ob_start();
             setStatus(ERR.no_device);
             if (np) np.style.display = 'none';
             if (ctl) ctl.style.display = 'none';
+            durMs = 0; renderProgress();
             return;
         }
         setStatus('');
@@ -460,6 +481,10 @@ ob_start();
         $('sp-track').textContent = d.track.name || '';
         $('sp-artist').textContent = d.track.artists || '';
         $('sp-device').textContent = (d.device && d.device.name) ? ('🔊 ' + d.device.name) : '';
+        progMs = d.progress_ms || 0;
+        durMs = (d.track && d.track.duration_ms) || 0;
+        isPlaying = !!d.is_playing;
+        renderProgress();
         $('sp-playpause').innerHTML = d.is_playing ? '&#9208;' : '&#9654;';
         const dis = d.disallows || {};
         $('sp-playpause').disabled = d.is_playing ? !!dis.pausing : !!dis.resuming;
@@ -502,6 +527,12 @@ ob_start();
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); });
     poll();
     pollTimer = setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 5000);
+    progTick = setInterval(() => {
+        if (isPlaying && durMs && document.visibilityState === 'visible') {
+            progMs = Math.min(durMs, progMs + 1000);
+            renderProgress();
+        }
+    }, 1000);
 })();
 </script>
 <?php
