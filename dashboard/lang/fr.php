@@ -2738,7 +2738,7 @@ return [
     'overlays_coming_soon' => 'bientôt disponible',
     'overlays_spotify' => 'Spotify – En cours de lecture',
     'overlays_spotify_desc' => 'Affichez le morceau Spotify en cours sous forme d\'overlay élégant &mdash; nécessite <a href="spotifylink.php">Spotify lié</a>.',
-    'overlays_spotify_themes_note' => 'Choisissez un style avec <code>&amp;theme=</code> : <code>terminal</code> (par défaut), <code>pill</code>, <code>card</code> ou <code>macwindow</code>.',
+    'overlays_spotify_themes_note' => 'Choisissez un style avec <code>&amp;theme=</code> : <code>terminal</code> (par défaut), <code>pill</code>, <code>card</code> ou <code>macwindow</code>. Se redimensionne automatiquement selon la taille de votre source navigateur &mdash; redimensionnez simplement la source dans OBS.',
     'overlays_stream_ending_credits_desc' => 'Affiche une liste déroulante de tous les spectateurs ayant assisté et soutenu le stream (followers, abonnés, donateurs, cheerers).',
     'overlays_todo_list_desc' => 'Affiche une liste de tâches à accomplir pendant le stream. Spécifiez une catégorie avec <code>&category=1</code>.',
     'overlays_death_overlay' => 'Overlay de morts',

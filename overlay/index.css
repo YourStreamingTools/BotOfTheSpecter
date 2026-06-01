@@ -1760,8 +1760,8 @@ html:has(body.credits-overlay-page)::-webkit-scrollbar {
 /* ===== Spotify Now-Playing Overlay (spotify.php) ===== */
 .spotify-overlay-page {
     position: fixed;
-    top: 24px;
-    left: 24px;
+    top: 0;
+    left: 0;
     opacity: 0;
     transition: opacity 350ms ease;
     color: #e8e8f0;
