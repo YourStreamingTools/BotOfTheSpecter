@@ -13,11 +13,11 @@ ob_start();
 
 // Include necessary files
 require_once "/var/www/config/db_connect.php";
-include '../userdata.php';
+include '../includes/userdata.php';
 session_write_close();
-include '../bot_control.php';
-include "../mod_access.php";
-include '../user_db.php';
+include '../includes/bot_control.php';
+include "../includes/mod_access.php";
+include '../includes/user_db.php';
 foreach ($profileData as $profile) {
   $timezone = $profile['timezone'];
   $weather = $profile['weather_location'];

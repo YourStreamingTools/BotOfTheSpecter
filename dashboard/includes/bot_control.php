@@ -1,6 +1,6 @@
 <?php
 $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($user['language']) ? $user['language'] : 'EN');
-include_once __DIR__ . '/lang/i18n.php';
+include_once __DIR__ . '/../lang/i18n.php';
 
 // SSH Connection parameters
 include_once "/var/www/config/ssh.php";

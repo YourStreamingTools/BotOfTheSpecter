@@ -5,7 +5,7 @@ $userLanguage = isset($_SESSION['language']) ? $_SESSION['language'] : (isset($u
 include_once __DIR__ . '/../lang/i18n.php';
 require_once "/var/www/config/db_connect.php";
 include '/var/www/config/twitch.php';
-include '../userdata.php';
+include '../includes/userdata.php';
 session_write_close();
 $pageTitle = 'Beta Programs';
 ob_start();

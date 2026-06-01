@@ -13,7 +13,7 @@ if ($spam_conn->connect_error) {
     die("Connection failed: " . $spam_conn->connect_error);
 }
 $spam_conn->set_charset("utf8mb4");
-include "../userdata.php";
+include "../includes/userdata.php";
 session_write_close();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_pattern'])) {

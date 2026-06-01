@@ -11,8 +11,8 @@ $pageTitle = 'Specter Alerts';
 require_once "/var/www/config/db_connect.php";
 include 'userdata.php';
 include 'user_db.php';
-require_once __DIR__ . '/upload_helpers.php';
-require_once __DIR__ . '/file_paths.php';
+require_once __DIR__ . '/includes/upload_helpers.php';
+require_once __DIR__ . '/includes/file_paths.php';
 session_write_close();
 
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
@@ -277,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
         exit;
     }
     if ($action === 'upload_alert_media') {
-        include __DIR__ . '/storage_used.php';
+        include __DIR__ . '/includes/storage_used.php';
         if (!isset($_FILES['media_file'])) {
             echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
             exit;

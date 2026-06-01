@@ -17,7 +17,7 @@ include 'bot_control.php';
 include "mod_access.php";
 include 'user_db.php';
 include 'storage_used.php';
-require_once __DIR__ . '/upload_helpers.php';
+require_once __DIR__ . '/includes/upload_helpers.php';
 session_write_close();
 $stmt = $db->prepare("SELECT timezone, media_migrated FROM profile");
 $stmt->execute();
