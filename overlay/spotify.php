@@ -87,6 +87,17 @@ $host = $username !== '' ? $username : 'specter';
     const root = document.getElementById('sp-root');
     if (!code || !root) return;
     const endpoint = 'spotify_nowplaying.php?code=' + encodeURIComponent(code);
+
+    // Auto-scale to the OBS browser-source size: measure the overlay's natural
+    // size, then CSS-zoom to fit. zoom re-renders the layout (not a bitmap
+    // upscale), so it stays sharp at any source dimensions — no user setting.
+    function fit() {
+        root.style.zoom = '1';
+        const w = root.offsetWidth, h = root.offsetHeight;
+        if (w > 0 && h > 0) {
+            root.style.zoom = Math.min(window.innerWidth / w, window.innerHeight / h);
+        }
+    }
     const POLL_MS = 4000;
     let progMs = 0, durMs = 0, isPlaying = false, shown = null;
     const fmt = (ms) => {
@@ -120,6 +131,7 @@ $host = $username !== '' ? $username : 'specter';
         isPlaying = !!d.is_playing;
         paint();
         show(true);
+        fit();
     }
     async function poll() {
         try {
@@ -132,6 +144,7 @@ $host = $username !== '' ? $username : 'specter';
     setInterval(() => {
         if (isPlaying && durMs) { progMs = Math.min(durMs, progMs + 1000); paint(); }
     }, 1000);
+    window.addEventListener('resize', fit);
 })();
 </script>
 </body>

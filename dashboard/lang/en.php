@@ -2829,7 +2829,7 @@ return [
     'overlays_coming_soon' => 'coming soon',
     'overlays_spotify' => 'Spotify Now Playing',
     'overlays_spotify_desc' => 'Show your currently playing Spotify track as a sleek overlay &mdash; requires <a href="spotifylink.php">Spotify linked</a>.',
-    'overlays_spotify_themes_note' => 'Pick a style with <code>&amp;theme=</code>: <code>terminal</code> (default), <code>pill</code>, <code>card</code>, or <code>macwindow</code>.',
+    'overlays_spotify_themes_note' => 'Pick a style with <code>&amp;theme=</code>: <code>terminal</code> (default), <code>pill</code>, <code>card</code>, or <code>macwindow</code>. It scales to fit your browser-source size automatically &mdash; just resize the source in OBS.',
     'overlays_stream_ending_credits_desc' => 'Display a scrolling list of all viewers who attended and supported the stream (followers, subscribers, donors, cheerers).',
     'overlays_todo_list_desc' => 'Display a list of tasks to complete during the stream. Specify a category with <code>&category=1</code>.',
     'overlays_death_overlay' => 'Death Overlay',
